@@ -44,6 +44,8 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
     private var socket: WebSocket? = null
     private var decoder: H264ViewerDecoder? = null
     private var streamUrl: String = ""
+    private var streamToken: String = ""
+    private var streamTarget: String = ""
     private val finishingFromStream = AtomicBoolean(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,7 +53,9 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enterImmersiveViewer()
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL).orEmpty()
-        if (!isSafeLoopbackStream(streamUrl)) {
+        streamToken = intent.getStringExtra(EXTRA_STREAM_TOKEN).orEmpty()
+        streamTarget = intent.getStringExtra(EXTRA_STREAM_TARGET).orEmpty()
+        if (!isSafeLoopbackStream(streamUrl) || !isSafeViewerToken(streamToken) || !isSafeViewerTarget(streamTarget)) {
             finish()
             return
         }
@@ -100,7 +104,12 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
                 }
             },
         )
-        socket = client.newWebSocket(Request.Builder().url(streamUrl).build(), StreamListener())
+        val request = Request.Builder()
+            .url(streamUrl)
+            .addHeader(VIEWER_TOKEN_HEADER, streamToken)
+            .addHeader(VIEWER_TARGET_HEADER, streamTarget)
+            .build()
+        socket = client.newWebSocket(request, StreamListener())
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
@@ -225,15 +234,29 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
     private fun isSafeLoopbackStream(value: String): Boolean {
         val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
         if (uri.scheme != "ws" || uri.host != "127.0.0.1" || uri.port != PHONE_REVERSE_PORT) return false
+        if (uri.query != null || uri.fragment != null || uri.userInfo != null) return false
         val segments = uri.pathSegments
-        if (segments.size < 4 || segments[0] != "v1" || segments[1] != "camera-stream" || segments[2] != "ws") return false
-        return (uri.getQueryParameter("token")?.length ?: 0) >= 16 && !uri.getQueryParameter("target").isNullOrBlank()
+        return segments.size == 4 &&
+            segments[0] == "v1" &&
+            segments[1] == "camera-stream" &&
+            segments[2] == "ws" &&
+            segments[3].isNotBlank()
     }
+
+    private fun isSafeViewerToken(value: String): Boolean =
+        value.length in 16..128 && value.all { it.isLetterOrDigit() || it == '-' || it == '_' }
+
+    private fun isSafeViewerTarget(value: String): Boolean =
+        value.isNotBlank() && value.length <= 160 && value.none { it == '\r' || it == '\n' }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
         const val EXTRA_STREAM_URL = "cyclone_stream_url"
+        const val EXTRA_STREAM_TOKEN = "cyclone_stream_token"
+        const val EXTRA_STREAM_TARGET = "cyclone_stream_target"
+        private const val VIEWER_TOKEN_HEADER = "X-Cyclone-Viewer-Token"
+        private const val VIEWER_TARGET_HEADER = "X-Cyclone-Viewer-Target"
         private const val PHONE_REVERSE_PORT = 17881
         private const val PACKET_HEADER_BYTES = 9
         private const val FLAG_CONFIG = 0x01
