@@ -68,6 +68,10 @@ class FakeSession:
         self.camera_spec = spec
         self.session_id = f"session-{type(self).next_id}"
         self.stopped = False
+        self.started = False
+
+    def start_capture(self):
+        self.started = True
 
     def stop(self):
         self.stopped = True
@@ -75,7 +79,8 @@ class FakeSession:
     def status(self):
         return {
             "sessionId": self.session_id,
-            "state": "STARTING",
+            "state": "WAITING_KEYFRAME" if self.started and not self.stopped else "STOPPED",
+            "lastError": None,
             "preserveSourceAspect": True,
             "resolutionPolicy": self.camera_spec.resolution_policy,
         }
