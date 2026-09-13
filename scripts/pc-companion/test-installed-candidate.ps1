@@ -48,7 +48,7 @@ $GuideFragments = @(
   'Android 15',
   'Android 13/14 are compatible',
   'Android 12 and older are unsupported',
-  'Cyclone Mobile 4.3.7',
+  'Cyclone Mobile 4.4.2',
   'PC Gateway & QR pairing',
   'Camera streaming',
   'sensor aspect ratio',
@@ -61,7 +61,7 @@ foreach ($Fragment in $GuideFragments) {
   }
 }
 Write-Host "Installed first-run guide accepted: $($FirstRunGuide.FullName)"
-Write-Host 'Installed first-run contract accepted: bundled ADB, VMOS guidance, Cyclone Mobile 4.3.7, camera streaming, and PC Gateway pairing.'
+Write-Host 'Installed first-run contract accepted: bundled ADB, VMOS guidance, Cyclone Mobile 4.4.2, camera streaming, and PC Gateway pairing.'
 
 $SyncScript = Get-ChildItem -Path $InstallDir -Recurse -Filter 'Sync-VmosFleet.ps1' -File | Select-Object -First 1
 if ($null -eq $SyncScript) { throw 'Installed ChatGPT Attach Sync-VmosFleet.ps1 is missing.' }
@@ -164,6 +164,13 @@ try {
   }
   Write-Host "Installed transport onboarding accepted: mode=$($Transport.mode) authenticated=yes"
 
+  $Camera = Invoke-RestMethod -Uri "$GatewayBase/v1/camera-stream/status" -Headers $Headers -Method Get -TimeoutSec 15
+  if ($Camera.ok -ne $true -or $Camera.maxViewers -ne 5 -or $Camera.preserveSourceAspect -ne $true -or $Camera.active -ne $false) {
+    $CameraJson = $Camera | ConvertTo-Json -Compress -Depth 6
+    throw "Installed CyclonePCRuntime camera-streaming contract is invalid: $CameraJson"
+  }
+  Write-Host 'Installed camera streaming accepted: authenticated status API, five-viewer fan-out, source-aspect invariant.'
+
   $CloudHealth = Invoke-RestMethod -Uri "$GatewayBase/cloud/v1/health" -Method Get -TimeoutSec 15
   if ($CloudHealth.ok -ne $true -or $CloudHealth.auth -ne 'session-token-header-or-bearer' -or $CloudHealth.sessionHeader -ne 'X-Cyclone-Session-Token' -or [string]$CloudHealth.localBase -notmatch '/cloud$') {
     $CloudJson = $CloudHealth | ConvertTo-Json -Compress -Depth 6
@@ -192,6 +199,7 @@ try {
   gateway_cold_ready_seconds=$GatewayReadySeconds
   gateway_authenticated=$true
   transport_onboarding_api=$true
+  camera_streaming_api=$true
   first_run_guide=$true
   vmos_image_tip=$true
   mobile_tip=$true
