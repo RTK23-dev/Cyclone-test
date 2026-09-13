@@ -14,7 +14,7 @@ on:
       - '.github/workflows/pc-companion-ci.yml'
       - '.github/workflows/pc-companion-release.yml'
   push:
-    branches: [main, 'codex/live-phone', 'release/cyclone-mobile-v*']
+    branches: [main, 'codex/cyclone-4.4.2-one-1.5.5-camera', 'codex/live-phone', 'release/cyclone-mobile-v*']
     paths:
       - 'apps/pc-companion/**'
       - 'apps/device-gateway/**'
@@ -56,7 +56,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13.7'
-      - name: Verify Cyclone One 1.5.5 native camera streaming candidate identity
+      - name: Verify Mobile 4.4.2 + Cyclone One 1.5.5 candidate identity
         shell: pwsh
         run: |
           python scripts/ci/release_versions.py --check
@@ -72,8 +72,9 @@ jobs:
           assert tauri['version']==expected
           assert re.search(r'^version = "1\.5\.5"$', cargo, re.M)
           assert release['components']['pc_companion']==expected
-          assert release['components']['mobile']=='4.3.7'
-          assert release['release']['candidate_generation']=='cyclone-one-1.5.5-native-camera-streaming'
+          assert release['components']['mobile']=='4.4.2'
+          assert release['android_version_code']==102
+          assert release['release']['candidate_generation']=='cyclone-4.4.2-one-1.5.5-camera'
           assert release['release']['publication_authorized'] is True
           '@
           $Code | python -
