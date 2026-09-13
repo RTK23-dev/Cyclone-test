@@ -14,6 +14,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -22,16 +23,14 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import org.json.JSONObject
 import java.nio.ByteBuffer
-import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Full-screen Cyclone camera viewer launched by Cyclone One over the existing USB/ADB fleet.
+ * Full-screen receiver for Cyclone One's one-to-many camera stream.
  *
- * The source dimensions are authoritative. [NativeAspectSurfaceView] uses contain semantics, so
- * 1920x1440 stays 4:3 and 1440x1920 stays 3:4. There is deliberately no 16:9 fallback, crop or
- * stretch path in this activity.
+ * Width and height metadata from the source are authoritative. Presentation is contain-only: a
+ * 4:3 source remains 4:3 and a 3:4 source remains 3:4, even on a tall 9:16 or 20:9 phone display.
  */
 class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
     private lateinit var surfaceView: NativeAspectSurfaceView
@@ -43,6 +42,7 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
     private var socket: WebSocket? = null
     private var decoder: H264ViewerDecoder? = null
     private var streamUrl: String = ""
+    private val finishingFromStream = AtomicBoolean(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,17 +81,23 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (socket != null) return
-        decoder = H264ViewerDecoder(holder.surface) { width, height ->
-            runOnUiThread {
-                surfaceView.setVideoSize(width, height)
-                statusView.text = "LIVE · ${width}×${height} · native frame"
-                statusView.postDelayed({ statusView.animate().alpha(0f).setDuration(220).start() }, 1800)
-            }
-        }
-        socket = client.newWebSocket(
-            Request.Builder().url(streamUrl).build(),
-            StreamListener(),
+        decoder = H264ViewerDecoder(
+            surface = holder.surface,
+            onVideoSize = { width, height ->
+                runOnUiThread {
+                    surfaceView.setVideoSize(width, height)
+                    showStatus("LIVE · ${width}×${height} · source frame", autoHide = true)
+                }
+            },
+            onDecoderError = { message ->
+                runOnUiThread {
+                    showStatus(message)
+                    socket?.close(1011, "decoder unavailable")
+                    finishAfterStatus()
+                }
+            },
         )
+        socket = client.newWebSocket(Request.Builder().url(streamUrl).build(), StreamListener())
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
@@ -114,7 +120,7 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
 
     private inner class StreamListener : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
-            runOnUiThread { statusView.text = "Camera connected · waiting for first frame…" }
+            runOnUiThread { showStatus("Camera connected · waiting for first frame…") }
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
@@ -122,7 +128,8 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
             when (json.optString("type")) {
                 "hello" -> {
                     if (!json.optBoolean("preserveSourceAspect", false)) {
-                        webSocket.close(1003, "native aspect required")
+                        runOnUiThread { showStatus("Stream rejected · source aspect is not protected") }
+                        webSocket.close(1003, "source aspect required")
                     }
                 }
                 "session" -> {
@@ -130,12 +137,7 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
                     val height = json.optInt("height")
                     if (width > 0 && height > 0) decoder?.setFormat(width, height)
                 }
-                "state" -> {
-                    val state = json.optString("state")
-                    if (state == "UNAVAILABLE" || state == "STOPPED") {
-                        runOnUiThread { finish() }
-                    }
-                }
+                "state" -> handleState(json.optString("state"), webSocket)
             }
         }
 
@@ -148,53 +150,97 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
                 EncodedPacket(
                     payload = data.copyOfRange(PACKET_HEADER_BYTES, data.size),
                     ptsUs = ptsUs,
-                    codecConfig = flags and 0x01 != 0,
-                    keyFrame = flags and 0x02 != 0,
+                    codecConfig = flags and FLAG_CONFIG != 0,
+                    keyFrame = flags and FLAG_KEYFRAME != 0,
                 ),
             )
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             runOnUiThread {
-                statusView.alpha = 1f
-                statusView.text = "Stream disconnected"
-                statusView.postDelayed({ if (!isFinishing) finish() }, 900)
+                showStatus("Camera stream disconnected")
+                finishAfterStatus()
             }
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            runOnUiThread { if (!isFinishing) finish() }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                val copy = if (code == 1013) "This phone fell behind · restart the stream from Cyclone One" else "Camera stream ended"
+                showStatus(copy)
+                finishAfterStatus()
+            }
         }
     }
 
-    private fun isSafeLoopbackStream(value: String): Boolean =
-        value.startsWith("ws://127.0.0.1:") && value.contains("/v1/camera-stream/ws/")
+    private fun handleState(state: String, webSocket: WebSocket) {
+        when (state) {
+            "STARTING" -> runOnUiThread { showStatus("Starting camera…") }
+            "WAITING_KEYFRAME" -> runOnUiThread { showStatus("Camera ready · synchronizing video…") }
+            "RECONNECTING" -> runOnUiThread { showStatus("Camera reconnecting…") }
+            "SLEEPING" -> runOnUiThread { showStatus("Source phone is sleeping") }
+            "UNAVAILABLE" -> {
+                runOnUiThread {
+                    showStatus("Camera unavailable on the source phone")
+                    finishAfterStatus()
+                }
+                webSocket.close(1011, "source unavailable")
+            }
+            "STOPPED" -> {
+                runOnUiThread {
+                    showStatus("Camera stream stopped")
+                    finishAfterStatus()
+                }
+                webSocket.close(1000, "source stopped")
+            }
+        }
+    }
+
+    private fun showStatus(copy: String, autoHide: Boolean = false) {
+        statusView.animate().cancel()
+        statusView.alpha = 1f
+        statusView.text = copy
+        if (autoHide) {
+            statusView.postDelayed({
+                if (!isFinishing) statusView.animate().alpha(0f).setDuration(220).start()
+            }, 1800)
+        }
+    }
+
+    private fun finishAfterStatus() {
+        if (!finishingFromStream.compareAndSet(false, true)) return
+        statusView.postDelayed({ if (!isFinishing) finish() }, 900)
+    }
+
+    private fun isSafeLoopbackStream(value: String): Boolean {
+        val url = value.toHttpUrlOrNull() ?: return false
+        if (url.scheme != "ws" || url.host != "127.0.0.1" || url.port != PHONE_REVERSE_PORT) return false
+        val segments = url.pathSegments
+        if (segments.size < 4 || segments[0] != "v1" || segments[1] != "camera-stream" || segments[2] != "ws") return false
+        return (url.queryParameter("token")?.length ?: 0) >= 16 && !url.queryParameter("target").isNullOrBlank()
+    }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
         const val EXTRA_STREAM_URL = "cyclone_stream_url"
+        private const val PHONE_REVERSE_PORT = 17881
         private const val PACKET_HEADER_BYTES = 9
+        private const val FLAG_CONFIG = 0x01
+        private const val FLAG_KEYFRAME = 0x02
     }
 }
 
-private data class EncodedPacket(
-    val payload: ByteArray,
-    val ptsUs: Long,
-    val codecConfig: Boolean,
-    val keyFrame: Boolean,
-)
-
-/**
- * Small MediaCodec worker. Packets are bounded so a slow viewer drops old video instead of adding
- * seconds of latency. The encoded source is never resized here; Surface layout is presentation-only.
- */
+/** MediaCodec worker whose failure is always surfaced to the UI instead of becoming a black screen. */
 private class H264ViewerDecoder(
     private val surface: Surface,
     private val onVideoSize: (Int, Int) -> Unit,
+    private val onDecoderError: (String) -> Unit,
 ) : AutoCloseable {
-    private val packets = LinkedBlockingQueue<EncodedPacket>(8)
+    private val packets = H264PacketBuffer(30)
     private val running = AtomicBoolean(true)
+    private val restartRequested = AtomicBoolean(false)
+    private val errorReported = AtomicBoolean(false)
     @Volatile private var width = 0
     @Volatile private var height = 0
     private var codec: MediaCodec? = null
@@ -203,24 +249,26 @@ private class H264ViewerDecoder(
         start()
     }
 
-    fun setFormat(width: Int, height: Int) {
-        if (width <= 0 || height <= 0) return
-        this.width = width
-        this.height = height
-        onVideoSize(width, height)
+    fun setFormat(nextWidth: Int, nextHeight: Int) {
+        if (nextWidth <= 0 || nextHeight <= 0) return
+        val changed = width > 0 && height > 0 && (width != nextWidth || height != nextHeight)
+        width = nextWidth
+        height = nextHeight
+        if (changed) {
+            restartRequested.set(true)
+            packets.resetToBootstrap()
+        }
+        onVideoSize(nextWidth, nextHeight)
     }
 
     fun offer(packet: EncodedPacket) {
-        if (!running.get()) return
-        if (!packets.offer(packet)) {
-            packets.poll()
-            packets.offer(packet)
-        }
+        if (running.get()) packets.offer(packet)
     }
 
     private fun runDecoder() {
         try {
             while (running.get()) {
+                if (restartRequested.getAndSet(false)) releaseCodec()
                 if (codec == null) {
                     if (width <= 0 || height <= 0) {
                         Thread.sleep(8)
@@ -233,14 +281,16 @@ private class H264ViewerDecoder(
                     }
                 }
 
-                val packet = packets.poll(200, TimeUnit.MILLISECONDS)
-                if (packet != null) queuePacket(codec ?: continue, packet)
-                drain(codec ?: continue)
+                val decoder = codec ?: continue
+                packets.poll(200)?.let { queuePacket(decoder, it) }
+                drain(decoder)
             }
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
-        } catch (_: Throwable) {
-            // WebSocket lifecycle owns user-visible recovery. Decoder failure simply ends this viewer.
+        } catch (error: Throwable) {
+            if (running.get() && errorReported.compareAndSet(false, true)) {
+                onDecoderError("Video decoder stopped · restart the camera stream")
+            }
         } finally {
             releaseCodec()
         }
@@ -249,11 +299,11 @@ private class H264ViewerDecoder(
     private fun queuePacket(decoder: MediaCodec, packet: EncodedPacket) {
         val inputIndex = decoder.dequeueInputBuffer(4_000)
         if (inputIndex < 0) return
-        val input = decoder.getInputBuffer(inputIndex) ?: return
+        val input = decoder.getInputBuffer(inputIndex)
+            ?: throw IllegalStateException("H.264 decoder returned no input buffer")
         input.clear()
         if (packet.payload.size > input.remaining()) {
-            decoder.queueInputBuffer(inputIndex, 0, 0, packet.ptsUs, 0)
-            return
+            throw IllegalStateException("H.264 packet exceeds decoder input capacity")
         }
         input.put(packet.payload)
         val flags = when {
@@ -316,22 +366,12 @@ private class NativeAspectSurfaceView(activity: Activity) : SurfaceView(activity
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val availableWidth = View.MeasureSpec.getSize(widthMeasureSpec)
         val availableHeight = View.MeasureSpec.getSize(heightMeasureSpec)
-        if (videoWidth <= 0 || videoHeight <= 0 || availableWidth <= 0 || availableHeight <= 0) {
-            setMeasuredDimension(availableWidth, availableHeight)
-            return
-        }
-
-        val sourceRatio = videoWidth.toDouble() / videoHeight.toDouble()
-        val boxRatio = availableWidth.toDouble() / availableHeight.toDouble()
-        val measuredWidth: Int
-        val measuredHeight: Int
-        if (boxRatio > sourceRatio) {
-            measuredHeight = availableHeight
-            measuredWidth = (measuredHeight * sourceRatio).toInt()
-        } else {
-            measuredWidth = availableWidth
-            measuredHeight = (measuredWidth / sourceRatio).toInt()
-        }
-        setMeasuredDimension(measuredWidth.coerceAtLeast(1), measuredHeight.coerceAtLeast(1))
+        val (measuredWidth, measuredHeight) = fitNativeAspect(
+            videoWidth,
+            videoHeight,
+            availableWidth,
+            availableHeight,
+        )
+        setMeasuredDimension(measuredWidth, measuredHeight)
     }
 }
