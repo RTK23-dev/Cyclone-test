@@ -8,11 +8,11 @@ Reference dossier: https://github.com/premiumcentraal-boop/Cyclone/tree/15ba8cfe
 
 | Checkpoint | Original proposals | Implementation / tests | Commit |
 |---|---|---|---|
-| 1: regression and timing foundation | 09, 13 (deadline basis 01/08) | ExecutionTiming and ExecutionFoundationFixtureTest; existing cookie, overlay, scope, provider tests retained | This checkpoint; exact SHA recorded in checkpoint 2 |
-| 2: coherent observation | 15 | Pending | Pending |
-| 3: persistent incidents / target revalidation | 02, 03 | Pending | Pending |
-| 4: health / shared provider lifecycle | 07, 08 | Pending | Pending |
-| 5: interruption phases and budgets | 01 | Pending | Pending |
+| 1: regression and timing foundation | 09, 13 (deadline basis 01/08) | ExecutionTiming and controlled task fixtures | 6b7be439de5f0f5ba30b6c5c0d513394f5a87c02 |
+| 2: coherent observation | 15 | Shared semantic projection; bracketed visual capture | fd29e10821b32d51fb131bb1efe51b2b9d3b6e9b |
+| 3: persistent incidents / target revalidation | 02, 03 | Journal incidents and fresh exact target resolution | 97f4197cfaac67d569bf32f21e9935cdcbd90cc9 |
+| 4: health / shared provider lifecycle | 07, 08 | Typed bounded observation recovery; shared HTTP deadlines/cancellation/pacing | cbfb0436da18ba91aeac220699a325c8e6bb43da |
+| 5: interruption phases and budgets | 01 | Explicit local outcomes; phase budgets and provider progress | SHA recorded in release checkpoint |
 
 ## Fixture manifest
 
@@ -24,7 +24,7 @@ Measurements and checks will be recorded per checkpoint. Synthetic injected-cloc
 
 ## Remaining limitations
 
-Implementation checkpoints 2–5, final full tests/lint/build and release guards pending. Physical-device browser/login acceptance UNVERIFIED. No AndroidWorld score, provider performance or real-device latency claim. Cyclone One unchanged.
+Final full tests/lint/build and release guards are recorded below when complete. Physical-device browser/login acceptance UNVERIFIED. No AndroidWorld score, provider performance or real-device latency claim. Cyclone One unchanged.
 
 Checkpoint 1 validation: full :app:testDebugUnitTest passed (5m27s clean build); 7 new task/timing fixtures passed. Injected provider span: 75ms exactly; cancellation/deadline/403/stale fixtures dispatched zero actions; consent fixture dispatched once with zero prior provider calls. Overlay collection exclusion asserted. All attempted fixture cases retained.
 
@@ -55,3 +55,13 @@ Phone tasks, text chat and model qualification share ProviderRequests: exact req
 Tests include permanent one-attempt errors, 503→success, repeated 429 bounded to two attempts, cancellation during backoff, response past deadline, independent concurrent request survival, coroutine cancellation, one half-open probe, key replacement, and no raw key in request context. Existing chat source assertion now checks the shared cancellation adapter; behavioral cancellation is covered by transport tests.
 
 Checkpoint 4 final suite: 1,027 tests passed, zero failures/errors. Transient observation fixture recovered after cooldown with exactly two captures in the same task; dead-service fixture made one capture and zero provider calls.
+
+Checkpoint 4 push CI: https://github.com/premiumcentraal-boop/Cyclone/actions/runs/34753146814 (passed).
+
+Checkpoint 5 (01): extends the existing allowlisted cookie policy with explicit handled/not-applicable/ambiguous/user-choice/unresolved outcomes and English/Dutch reject labels. A unique scoped reject is still selected before route recall or any provider request. Ambiguous, disabled or already-attempted consent controls suspend with a specific unresolved incident; authentication remains human-owned and the original goal stays active. The task fixture now explicitly suspends at login instead of treating consent removal as login completion.
+
+Monotonic phase checks reject an over-budget returned plan before dispatch; provider calls share the remaining decision/task deadline and actively cancel HTTP. Local policy, recall, prompt, observation, plan, dispatch and verification have budgets. Grounding/settling remain included in dispatch timing; their existing executor freshness/settle bounds are retained. Synchronous Android callbacks cannot be forcibly interrupted by the caller: their budget is checked on return, whereas provider deadlines are actively enforced. These bounds are initial engineering limits, not measured device latency targets. Provider progress reports elapsed waiting/backoff/deadline/Stop state, with payload-free causal request IDs. Historical page projections no longer retain full legacy pages.
+
+Added fixtures cover Dutch consent, auth/permission exclusion, exact ambiguous/missing/repeated-effect reasons, non-dialog cookie text, a 35,001ms injected plan rejected with zero actions, and Stop precedence over phase expiry. Physical latency percentiles and a live browser/device run remain unverified.
+
+Checkpoint 5 suite: 1,032 tests passed; 72 release-guard tests passed; metadata, product and repository security guards passed. Final release compilation/lint/assembly follows the version checkpoint.

@@ -3,6 +3,9 @@ package com.cyclone.mobile.ai
 import android.content.Context
 import com.cyclone.mobile.CycloneAccessibilityService
 import com.cyclone.mobile.DeviceState
+import com.cyclone.mobile.agent.ExecutionPhase
+import com.cyclone.mobile.agent.ExecutionTiming
+import com.cyclone.mobile.agent.ExecutionPhaseTimeout
 import com.cyclone.mobile.agent.CycloneAgentModel
 import com.cyclone.mobile.agent.CycloneAgentRunResult
 import com.cyclone.mobile.agent.CycloneAgentTools
@@ -123,6 +126,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         val executedActions: ExecutedActionMemory = ExecutedActionMemory(),
         var playbookPackage: String? = null,
         val providerCancellation: ProviderCancellation = ProviderCancellation(),
+        var decisionDeadlineMs: Long = Long.MAX_VALUE,
+        var progress: (String) -> Unit = {},
     )
 
     private data class ActiveLocalSession(
@@ -265,10 +270,17 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             failedActions = failedActions,
             graphAttempts = graphAttempts,
             state = initial,
+            progress = onProgress,
         )
         lateinit var localAgent: CycloneLocalAgent
         val model = object : CycloneAgentModel {
             override fun plan(taskState: CycloneTaskState, observation: CycloneObservation): CyclonePlanResult {
+                session.decisionDeadlineMs = ProviderRequests.now() + 35_000
+                return try { planNext(taskState, observation) } catch (error: ExecutionPhaseTimeout) {
+                    CyclonePlanResult.Valid(CycloneModelTurn(CycloneModelDirective.BLOCKED, reason = error.message))
+                }
+            }
+            private fun planNext(taskState: CycloneTaskState, observation: CycloneObservation): CyclonePlanResult {
                 session.bridge.incident = taskState.incident
                 if (!ownsInput()) {
                     return CyclonePlanResult.Valid(
@@ -279,7 +291,17 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     )
                 }
 
-                session.cookieInterruptions.next(session.bridge.currentPage(), goal)?.let { target ->
+                val interruption = decisionPhase(session, ExecutionPhase.LOCAL_POLICY) {
+                    session.cookieInterruptions.evaluate(session.bridge.currentPage(), goal)
+                }
+                if (interruption.outcome in setOf(CookieInterruptionOutcome.AMBIGUOUS, CookieInterruptionOutcome.UNRESOLVED)) {
+                    localAgent.openIncident(com.cyclone.mobile.agent.recovery.IncidentEffect.CONSENT_REMOVED, interruption.reason)
+                    val summary = CookieInterruptionPolicy.explanation(interruption.reason)
+                    onProgress(summary)
+                    return CyclonePlanResult.Valid(CycloneModelTurn(CycloneModelDirective.NEED_HUMAN, reason = interruption.reason,
+                        payload = PageAgentDecision("need_human", "", summary, emptyList(), null, interruption.reason)))
+                }
+                interruption.target?.let { target ->
                     val summary = "Rejecting optional cookies, then continuing your task."
                     onProgress(summary)
                     AgentTraceRuntime.event(context, traceId, "INTERRUPTION", summary,
@@ -306,14 +328,14 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     ))
                 }
 
-                val compiled = if (session.adaptiveMode == "FREE") null
+                val compiled = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) { if (session.adaptiveMode == "FREE") null
                 else SkillRuntime.match(
                     packageName = session.state.page.packageName,
                     goal = goal,
                     startPageKey = session.state.page.pageKey,
                     sessionId = execution.sessionId,
                     displayId = execution.displayId,
-                )?.takeIf { it.id !in session.compiledAttempts }
+                )?.takeIf { it.id !in session.compiledAttempts } }
                 if (compiled != null) {
                     session.compiledAttempts += compiled.id
                     onProgress("Replaying compiled skill · ${compiled.nlPlaybook.take(80)}")
@@ -332,8 +354,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     )
                 }
 
-                val graphAction = if (session.adaptiveMode == "FREE") null
-                else knownAppGraphAction(session.state.page, goal, session.graphAttempts)
+                val graphAction = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) { if (session.adaptiveMode == "FREE") null
+                else knownAppGraphAction(session.state.page, goal, session.graphAttempts) }
                 if (graphAction != null) {
                     session.graphAttempts += "${session.state.page.pageKey}|${graphAction.id}"
                     return CyclonePlanResult.Valid(
@@ -355,7 +377,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 }
 
                 session.providerRequests++
-                val agentContext = session.bridge.promptContext(goal)
+                val agentContext = decisionPhase(session, ExecutionPhase.PROMPT) { session.bridge.promptContext(goal) }
                     .put("operatingMode", session.adaptiveMode)
                     .put("noProgressFailures", session.consecutiveNoProgressFailures)
                     .put("runtimeFeedback", JSONObject()
@@ -567,6 +589,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 observation: CycloneObservation,
                 turn: CycloneModelTurn,
             ): CycloneTaskClassification {
+                if (turn.reason?.startsWith("cookie.") == true) return CycloneTaskClassification.HUMAN_OR_GATE
+                if (turn.reason?.startsWith("phase.timeout.") == true) return CycloneTaskClassification.HARD_BLOCKER
                 if (turn.reason == API_KEY_BLOCKER) return CycloneTaskClassification.HARD_BLOCKER
                 if (ProviderFailure.message(turn.reason.orEmpty()) != null || turn.reason?.startsWith("provider.") == true) return CycloneTaskClassification.HARD_BLOCKER
                 if (!ownsInput() || deterministicHumanBoundary(session.state.page)) {
@@ -716,7 +740,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     CycloneTaskClassification.NON_CONVERGENCE -> when (run.message) {
                         "completion.ambiguous_after_recheck" -> "Cyclone could not verify completion after two checks. Open the run details to see the missing evidence."
                         "convergence.task_timeout" -> "Cyclone reached the task time limit before it could verify completion."
-                        else -> "Cyclone stopped after repeated steps failed to make verified progress. Try a smaller task or inspect the run details."
+                        else -> if (run.message?.startsWith("phase.timeout.") == true) "Execution exceeded the ${run.message.substringAfterLast('.').replace('_', ' ')} phase budget. No further action was dispatched."
+                        else "Cyclone stopped without verified progress. Unresolved: ${run.state.incident?.category ?: run.message ?: "missing effect evidence"}."
                     }
                     else -> run.message ?: "Cyclone stopped."
                 }
@@ -1373,6 +1398,14 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
                 emptyList(), null, "vision.target_unresolved")
     }
 
+    private fun <T> decisionPhase(session: LocalSessionContext, phase: ExecutionPhase, block: () -> T): T {
+        val timing = ExecutionTiming(sink = { span ->
+            AgentTraceRuntime.event(context, session.traceId, "PHASE", phase.name.lowercase(), code = "phase.${phase.name.lowercase()}",
+                ok = span.result == "returned", detail = "decision=${(session.checkpoint?.modelTurns ?: 0) + 1} observation=${session.bridge.currentPage()?.observationId} generation=${session.bridge.currentPage()?.generation} phase=$phase durationMs=${span.durationMs} result=${span.result} sinceVerifiedProgressMs=${System.currentTimeMillis() - (session.checkpoint?.lastVerifiedProgressTimeMs ?: System.currentTimeMillis())}")
+        })
+        return timing.bounded((session.checkpoint?.modelTurns ?: 0) + 1, phase, { session.stopRequested || session.cancelled() }, block)
+    }
+
     private fun providerBoundary(response: JSONObject, traceId: String): PageAgentDecision? {
         if (!response.has("error")) return null
         if (response.has("_lifecycle")) return PageAgentDecision("blocked", "", response.getString("_lifecycle"),
@@ -1411,16 +1444,26 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
         val session = activeLocalSession?.context
-        val remaining = session?.checkpoint?.let { 300_000 - (System.currentTimeMillis() - it.taskStartTimeMs) }
+        val taskRemaining = session?.checkpoint?.let { 300_000 - (System.currentTimeMillis() - it.taskStartTimeMs) }
             ?: ProviderRequests.REQUEST_BUDGET_MS
+        val remaining = minOf(taskRemaining, session?.let { it.decisionDeadlineMs - ProviderRequests.now() } ?: taskRemaining)
+        if (remaining <= 0) return JSONObject().put("_lifecycle", "provider.deadline").put("error", JSONObject().put("code", 0))
+        val requestTrackingId = UUID.randomUUID().toString()
         val requestContext = ProviderRequests.context(session?.traceId ?: "phone-task", apiKey, model.id,
             ProviderRequestPurpose.PHONE_TASK, remaining, session?.providerCancellation ?: ProviderCancellation(),
             externallyCancelled = { session?.cancelled?.invoke() == true || session?.stopRequested == true },
             onPhase = { phase, elapsed ->
+                if (session != null) session.progress(when (phase) {
+                    "provider_backoff" -> "Provider is busy - bounded retry - ${elapsed / 1000}s elapsed"
+                    "provider_cancelled" -> "Provider request stopped"
+                    "provider_deadline" -> "Provider request reached its deadline"
+                    "provider_closed" -> "Provider request finished - checking the response"
+                    else -> "Waiting for ${model.label} - ${elapsed / 1000}s elapsed"
+                })
                 if (session != null) AgentTraceRuntime.event(context, session.traceId, "PROVIDER_PHASE", phase,
                     code = phase, ok = phase != "provider_cancelled",
-                    detail = "decision=${session.checkpoint?.modelTurns} phase=$phase elapsedMs=$elapsed request=${session.providerRequests}")
-            })
+                    detail = "decision=${(session.checkpoint?.modelTurns ?: 0) + 1} phase=$phase elapsedMs=$elapsed request=$requestTrackingId")
+            }).copy(requestId = requestTrackingId)
         return try {
             val response = ProviderRequests.execute(request, requestContext)
             val json = runCatching { JSONObject(response.body) }.getOrElse {

@@ -125,6 +125,7 @@ class CycloneLocalAgent(
     taskId: String = "local-${UUID.randomUUID()}",
     restoredState: CycloneTaskState? = null,
     private val externallyPaused: () -> Boolean = { false },
+    private val monotonicNow: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     @Volatile private var cancelled = false
     private var suspendedAt: Long? = null
@@ -147,13 +148,20 @@ class CycloneLocalAgent(
         checkpoint()
     }
 
-    private val timing = ExecutionTiming(sink = { span ->
+    private val timing = ExecutionTiming(clock = monotonicNow, sink = { span ->
         trace.emit(CycloneTraceEvent(CycloneTraceEventType.PHASE, now(), state.taskId,
             state.currentStage, code = "phase.${span.phase.name.lowercase()}", span = span))
     })
     private fun <T> timed(phase: ExecutionPhase, block: () -> T): T =
-        timing.measure(state.modelTurns + 1, phase, { cancelled || externallyCancelled() }, block)
+        timing.bounded(state.modelTurns + 1, phase, { cancelled || externallyCancelled() }, block)
 
+    fun openIncident(effect: IncidentEffect, category: String) {
+        val incident = state.incident?.takeIf { it.resolution == "OPEN" } ?: RecoveryIncident(
+            taskId = state.taskId, sessionId = state.executionSessionId, displayId = state.executionDisplayId,
+            openingGeneration = state.observationGeneration, category = category, intendedEffect = effect, packageName = state.executionPackageName)
+        state = state.copy(incident = incident.attempt(category))
+        checkpoint()
+    }
     fun verifyIncident(effect: IncidentEffect, sessionId: String, displayId: Int) {
         val old = state.incident ?: return
         state = state.copy(incident = old.verified(effect, sessionId, displayId))
@@ -170,7 +178,10 @@ class CycloneLocalAgent(
         emit(CycloneTraceEventType.GATE_RESUME); checkpoint(); return true
     }
 
-    fun runUntilBoundary(): CycloneAgentRunResult {
+    fun runUntilBoundary(): CycloneAgentRunResult = try { runLoop() }
+        catch (error: ExecutionPhaseTimeout) { cancellation() ?: nonConvergence(error.message ?: "phase.timeout") }
+
+    private fun runLoop(): CycloneAgentRunResult {
         if (state.currentStage == CycloneAgentStage.TERMINAL) return terminalResult()
         if (state.gateSuspended) return CycloneAgentRunResult.Suspended(state)
         while (true) {

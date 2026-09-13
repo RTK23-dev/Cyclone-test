@@ -792,8 +792,8 @@ class CycloneAgentEnvironment internal constructor(
     private fun remember(envelope: AgentActionEnvelope) {
         actionHistory.addLast(
             envelope.copy(
-                before = envelope.before?.copy(controls = emptyList()),
-                after = envelope.after?.copy(controls = emptyList()),
+                before = envelope.before?.copy(controls = emptyList(), legacyPage = null),
+                after = envelope.after?.copy(controls = emptyList(), legacyPage = null),
             ),
         )
         while (actionHistory.size > HISTORY_LIMIT) actionHistory.removeFirst()

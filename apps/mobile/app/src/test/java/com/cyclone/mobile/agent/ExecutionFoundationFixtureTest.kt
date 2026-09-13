@@ -24,7 +24,8 @@ class ExecutionFoundationFixtureTest {
             CycloneVerificationResult(!consent, !consent, evidenceIdentity = "login")
         override fun verifyCompletion(state: CycloneTaskState, observation: CycloneObservation, turn: CycloneModelTurn) =
             CycloneVerificationResult(!consent, !consent, !consent)
-        override fun classifyModelBoundary(state: CycloneTaskState, observation: CycloneObservation, turn: CycloneModelTurn) = CycloneTaskClassification.HARD_BLOCKER
+        override fun classifyModelBoundary(state: CycloneTaskState, observation: CycloneObservation, turn: CycloneModelTurn) =
+            if (turn.directive == CycloneModelDirective.NEED_HUMAN) CycloneTaskClassification.HUMAN_OR_GATE else CycloneTaskClassification.HARD_BLOCKER
     }
     private fun act() = CyclonePlanResult.Valid(CycloneModelTurn(CycloneModelDirective.ACT, "reject"))
     private fun page() = AgentPageCard("obs", 1, true, 0, "com.android.chrome", null, "consent", "structure", "content", "fp",
@@ -48,10 +49,13 @@ class ExecutionFoundationFixtureTest {
                     return act()
                 }
                 providerCalls++
-                return CyclonePlanResult.Valid(CycloneModelTurn(CycloneModelDirective.DONE))
+                return CyclonePlanResult.Valid(CycloneModelTurn(CycloneModelDirective.NEED_HUMAN, reason = "Authentication remains human-owned"))
             }
         }
-        assertTrue(CycloneLocalAgent("continue login", model, fixture).runUntilBoundary() is CycloneAgentRunResult.Completed)
+        val result = CycloneLocalAgent("continue login", model, fixture).runUntilBoundary()
+        assertTrue(result is CycloneAgentRunResult.Suspended)
+        assertEquals("continue login", result.state.goal)
+        assertFalse(fixture.consent)
         assertEquals(1, fixture.dispatches)
     }
     @Test fun delayedResponseAfterStopCannotDispatch() {
@@ -109,5 +113,31 @@ class ExecutionFoundationFixtureTest {
         val legacy = capture()
         val executable = capture()
         assertNotEquals("Controlled banner arrival reproduces mixed generations", legacy, executable)
+    }
+
+    @Test fun phaseDeadlineRejectsLatePlanBeforeDispatch() {
+        val fixture = Fixture()
+        var monotonic = 0L
+        val spans = mutableListOf<ExecutionSpan>()
+        val model = object : CycloneAgentModel {
+            override fun plan(state: CycloneTaskState, observation: CycloneObservation): CyclonePlanResult {
+                monotonic += 35_001
+                return act()
+            }
+        }
+        val result = CycloneLocalAgent("login", model, fixture, monotonicNow = { monotonic },
+            trace = CycloneAgentTraceSink { it.span?.let(spans::add) }).runUntilBoundary()
+        assertEquals(CycloneTaskClassification.NON_CONVERGENCE, result.state.finalClassification)
+        assertEquals(0, fixture.dispatches)
+        assertTrue(spans.any { it.phase == ExecutionPhase.PLAN_OR_RECALL && it.result == "deadline" && it.durationMs == 35_001L })
+    }
+
+    @Test fun stopWinsOverPhaseDeadlineAndSpanIdsAreUniqueAcrossTimers() {
+        var clock = 0L
+        val spans = mutableListOf<ExecutionSpan>()
+        ExecutionTiming({ clock }, spans::add).bounded(1, ExecutionPhase.LOCAL_POLICY, { true }) { clock = 201 }
+        ExecutionTiming({ clock }, spans::add).measure(1, ExecutionPhase.PROMPT) { }
+        assertEquals("cancelled", spans.first().result)
+        assertEquals(2, spans.map { it.spanId }.distinct().size)
     }
 }

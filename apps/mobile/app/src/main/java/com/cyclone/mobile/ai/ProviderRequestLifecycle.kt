@@ -79,7 +79,7 @@ object ProviderRequests {
         "provider.deadline" -> "The provider did not finish within this request's remaining time budget (at most 30 seconds). No returned plan was executed."
         "provider.cooldown" -> "This account and model are cooling down after a transient provider failure. Retry after the short cooldown."
         "provider.request_in_progress" -> "Another request for this account, model and purpose is still running. Wait for it to finish or stop it."
-        else -> reason
+        else -> if (reason.startsWith("phase.timeout.")) "Execution exceeded the ${reason.substringAfterLast('.').replace('_', ' ')} phase budget. No further action was dispatched." else reason
     }
     fun context(taskId: String, key: String, model: String, purpose: ProviderRequestPurpose,
                 budgetMs: Long = REQUEST_BUDGET_MS, cancellation: ProviderCancellation = ProviderCancellation(),
@@ -105,8 +105,13 @@ object ProviderRequests {
                 val call = client.newCall(request)
                 call.timeout().timeout((context.deadlineMs - now()).coerceAtLeast(1), TimeUnit.MILLISECONDS)
                 context.cancellation.attach(call)
+                var nextProgress = now() + 1_000
                 val watch = watcher.scheduleAtFixedRate({
                     if (context.externallyCancelled() || context.cancellation.cancelled || now() >= context.deadlineMs) call.cancel()
+                    if (now() >= nextProgress) {
+                        nextProgress = now() + 1_000
+                        runCatching { context.onPhase("awaiting_provider", now() - start) }
+                    }
                 }, 0, 50, TimeUnit.MILLISECONDS)
                 var retryAfter = 1_000L
                 val reply = try {
@@ -137,7 +142,11 @@ object ProviderRequests {
         } finally {
             active.remove(context.cancellation)
             pacing.leave(key, cooldown)
-            context.onPhase(if (context.cancellation.cancelled || context.externallyCancelled()) "provider_cancelled" else "provider_closed", now() - start)
+            context.onPhase(when {
+                context.cancellation.cancelled || context.externallyCancelled() -> "provider_cancelled"
+                now() >= context.deadlineMs -> "provider_deadline"
+                else -> "provider_closed"
+            }, now() - start)
         }
     }
 
