@@ -4,6 +4,7 @@ import android.app.Activity
 import android.graphics.Color
 import android.media.MediaCodec
 import android.media.MediaFormat
+import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.Surface
@@ -11,10 +12,11 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -47,6 +49,7 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        enterImmersiveViewer()
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL).orEmpty()
         if (!isSafeLoopbackStream(streamUrl)) {
             finish()
@@ -212,12 +215,19 @@ class CameraStreamViewerActivity : Activity(), SurfaceHolder.Callback {
         statusView.postDelayed({ if (!isFinishing) finish() }, 900)
     }
 
+    private fun enterImmersiveViewer() {
+        window.insetsController?.apply {
+            hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+            systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
     private fun isSafeLoopbackStream(value: String): Boolean {
-        val url = value.toHttpUrlOrNull() ?: return false
-        if (url.scheme != "ws" || url.host != "127.0.0.1" || url.port != PHONE_REVERSE_PORT) return false
-        val segments = url.pathSegments
+        val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
+        if (uri.scheme != "ws" || uri.host != "127.0.0.1" || uri.port != PHONE_REVERSE_PORT) return false
+        val segments = uri.pathSegments
         if (segments.size < 4 || segments[0] != "v1" || segments[1] != "camera-stream" || segments[2] != "ws") return false
-        return (url.queryParameter("token")?.length ?: 0) >= 16 && !url.queryParameter("target").isNullOrBlank()
+        return (uri.getQueryParameter("token")?.length ?: 0) >= 16 && !uri.getQueryParameter("target").isNullOrBlank()
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
