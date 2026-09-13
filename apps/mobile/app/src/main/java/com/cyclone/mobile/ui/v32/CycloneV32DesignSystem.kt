@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -26,6 +28,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +39,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 private val Ink = Color(0xFF0A1830)
 private val InkMuted = Color(0xFF5F7188)
@@ -123,8 +128,22 @@ fun CycloneTheme(content: @Composable () -> Unit) {
         colorScheme = if (isSystemInDarkTheme()) CycloneV32DarkColors else CycloneV32LightColors,
         shapes = CycloneV32Shapes,
         typography = CycloneTypography,
-        content = content,
-    )
+    ) {
+        // Kyant's drawBackdrop samples a captured graphics layer. Keep one stable source at the
+        // app/theme root so every Cyclone control uses the same real Backdrop renderer.
+        val liquidBackdrop = rememberLayerBackdrop()
+        CompositionLocalProvider(LocalCycloneLiquidBackdrop provides liquidBackdrop) {
+            Box(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .layerBackdrop(liquidBackdrop)
+                        .background(MaterialTheme.colorScheme.background),
+                )
+                content()
+            }
+        }
+    }
 }
 
 enum class CyclonePastel { PRIMARY, LILAC, MINT, LEMON, PEACH, SKY }
