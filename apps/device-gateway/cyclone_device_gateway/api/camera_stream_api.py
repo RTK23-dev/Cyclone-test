@@ -31,7 +31,7 @@ from ..media.protocol import ScrcpyVideoPacketParser
 MAX_CAMERA_VIEWERS = 5
 PHONE_REVERSE_PORT = 17881
 MIN_CAMERA_ANDROID_SDK = 31  # scrcpy camera capture requires Android 12+
-MIN_VIEWER_VERSION_CODE = 98  # Cyclone Mobile 4.3.7
+MIN_VIEWER_VERSION_CODE = 102  # Cyclone Mobile 4.4.2
 _VIEWER_COMPONENT = "com.cyclone.mobile/.stream.CameraStreamViewerActivity"
 _WS_SEND_TIMEOUT_SECONDS = 1.5
 _SOURCE_READY_TIMEOUT_SECONDS = 8.0
@@ -415,9 +415,9 @@ class CameraStreamManager:
         package = str(target.adb.shell("dumpsys", "package", "com.cyclone.mobile", timeout=8))
         match = re.search(r"\bversionCode=(\d+)", package)
         if not match:
-            raise ValueError(f"Target phone {target.device_id} needs Cyclone Mobile 4.3.7 or newer.")
+            raise ValueError(f"Target phone {target.device_id} needs Cyclone Mobile 4.4.2 or newer.")
         if int(match.group(1)) < MIN_VIEWER_VERSION_CODE:
-            raise ValueError(f"Target phone {target.device_id} needs Cyclone Mobile 4.3.7 or newer.")
+            raise ValueError(f"Target phone {target.device_id} needs Cyclone Mobile 4.4.2 or newer.")
 
     def _launch_target(self, target: Any, session_id: str, viewer_token: str, gateway_port: int) -> None:
         adb = target.adb
