@@ -45,12 +45,15 @@ internal class H264PacketBuffer(private val capacity: Int = 30) {
                 }
                 queue.offerLast(packet) -> Unit
                 else -> {
-                    // The decoder is behind. Keep a valid bootstrap and the newest packet instead
-                    // of growing latency or evicting SPS/PPS/keyframe data blindly.
+                    // The decoder is behind. Rebuild only from a *decodable* bootstrap. If a new
+                    // config has arrived but its keyframe has not, discard interframes until it does.
                     queue.clear()
                     latestConfig?.let(queue::offerLast)
-                    latestKeyframe?.let(queue::offerLast)
-                    queue.offerLast(packet)
+                    val keyframe = latestKeyframe
+                    if (keyframe != null) {
+                        queue.offerLast(keyframe)
+                        queue.offerLast(packet)
+                    }
                 }
             }
         }
