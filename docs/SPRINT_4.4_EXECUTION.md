@@ -8,11 +8,20 @@ Reference dossier: https://github.com/premiumcentraal-boop/Cyclone/tree/15ba8cfe
 
 | Checkpoint | Original proposals | Implementation / tests | Commit |
 |---|---|---|---|
-| 1: regression and timing foundation | 09, 13 (deadline basis 01/08) | ExecutionTiming and controlled task fixtures | 6b7be439de5f0f5ba30b6c5c0d513394f5a87c02 |
-| 2: coherent observation | 15 | Shared semantic projection; bracketed visual capture | fd29e10821b32d51fb131bb1efe51b2b9d3b6e9b |
-| 3: persistent incidents / target revalidation | 02, 03 | Journal incidents and fresh exact target resolution | 97f4197cfaac67d569bf32f21e9935cdcbd90cc9 |
-| 4: health / shared provider lifecycle | 07, 08 | Typed bounded observation recovery; shared HTTP deadlines/cancellation/pacing | cbfb0436da18ba91aeac220699a325c8e6bb43da |
-| 5: interruption phases and budgets | 01 | Explicit local outcomes; phase budgets and provider progress | SHA recorded in release checkpoint |
+| 1: regression and timing foundation | [09][p09], [13][p13] (deadline basis [01][p01]/[08][p08]) | ExecutionTiming and controlled task fixtures | 6b7be439de5f0f5ba30b6c5c0d513394f5a87c02 |
+| 2: coherent observation | [15][p15] | Shared semantic projection; bracketed visual capture | fd29e10821b32d51fb131bb1efe51b2b9d3b6e9b |
+| 3: persistent incidents / target revalidation | [02][p02], [03][p03] | Journal incidents and fresh exact target resolution | 97f4197cfaac67d569bf32f21e9935cdcbd90cc9 |
+| 4: health / shared provider lifecycle | [07][p07], [08][p08] | Typed bounded observation recovery; shared HTTP deadlines/cancellation/pacing | cbfb0436da18ba91aeac220699a325c8e6bb43da |
+| 5: interruption phases and budgets | [01][p01] | Explicit local outcomes; phase budgets and provider progress | 73fbd20b6147674b6d12e782bde161f3c45f358c |
+
+[p01]: https://github.com/premiumcentraal-boop/Cyclone/blob/15ba8cfe6449609b8864dd3fe58339b473d7012b/docs/artemis-upgrades/01_LATENCY_AND_INTERRUPTION_BUDGETS.md
+[p02]: https://github.com/premiumcentraal-boop/Cyclone/blob/15ba8cfe6449609b8864dd3fe58339b473d7012b/docs/artemis-upgrades/02_PERSISTENT_RECOVERY_INCIDENTS.md
+[p03]: https://github.com/premiumcentraal-boop/Cyclone/blob/15ba8cfe6449609b8864dd3fe58339b473d7012b/docs/artemis-upgrades/03_TARGET_REVALIDATION.md
+[p07]: https://github.com/premiumcentraal-boop/Cyclone/blob/15ba8cfe6449609b8864dd3fe58339b473d7012b/docs/artemis-upgrades/07_PERCEPTION_BACKEND_HEALTH.md
+[p08]: https://github.com/premiumcentraal-boop/Cyclone/blob/15ba8cfe6449609b8864dd3fe58339b473d7012b/docs/artemis-upgrades/08_PROVIDER_REQUEST_LIFECYCLE.md
+[p09]: https://github.com/premiumcentraal-boop/Cyclone/blob/15ba8cfe6449609b8864dd3fe58339b473d7012b/docs/artemis-upgrades/09_TRACE_EVIDENCE_AND_REPLAY.md
+[p13]: https://github.com/premiumcentraal-boop/Cyclone/blob/15ba8cfe6449609b8864dd3fe58339b473d7012b/docs/artemis-upgrades/13_REPRODUCIBLE_DEVICE_BENCHMARKS.md
+[p15]: https://github.com/premiumcentraal-boop/Cyclone/blob/15ba8cfe6449609b8864dd3fe58339b473d7012b/docs/artemis-upgrades/15_COHERENT_OBSERVATION_SNAPSHOTS.md
 
 ## Fixture manifest
 
@@ -65,3 +74,11 @@ Monotonic phase checks reject an over-budget returned plan before dispatch; prov
 Added fixtures cover Dutch consent, auth/permission exclusion, exact ambiguous/missing/repeated-effect reasons, non-dialog cookie text, a 35,001ms injected plan rejected with zero actions, and Stop precedence over phase expiry. Physical latency percentiles and a live browser/device run remain unverified.
 
 Checkpoint 5 suite: 1,032 tests passed; 72 release-guard tests passed; metadata, product and repository security guards passed. Final release compilation/lint/assembly follows the version checkpoint.
+
+Checkpoint 5 exact push CI passed: https://github.com/premiumcentraal-boop/Cyclone/actions/runs/34787264959.
+
+Release checkpoint (07 follow-up): normalizes the workspace runtime's fixed legacy exception codes for disconnected backend, expired session, missing Accessibility service and target not visible. Raw message suffixes are discarded. The added regression checks precise terminal health and zero actions for all four boundaries. Version identity is 4.4.0 / 100; publication remains gated by exact release-branch CI and the existing provenance/signing workflow.
+
+Local gateway contracts: 199 tests passed; phone MCP: 158 tests passed. ADB reported no attached device; physical acceptance remains UNVERIFIED.
+
+Final release working-source Mobile suite: 1,033 tests passed, zero failures/errors (37s). Metadata, product and security guards passed. The initial 4.4 local tests/lint/release assembly passed (11m51s); the final workspace-code follow-up was then verified by the full Mobile suite. Exact-final-source lint/assembly and signing provenance are additionally required in the release branch CI; links and immutable source SHA are recorded by the release assets and PR #106.

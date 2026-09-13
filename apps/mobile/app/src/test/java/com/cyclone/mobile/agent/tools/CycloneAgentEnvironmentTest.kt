@@ -13,6 +13,23 @@ import org.junit.Test
 import java.util.ArrayDeque
 
 class CycloneAgentEnvironmentTest {
+    @Test fun workspaceFailuresHavePrecisePermanentHealthWithoutRawMessages() {
+        val cases = mapOf("BACKEND_DISCONNECTED" to com.cyclone.mobile.agent.ObservationState.DISCONNECTED,
+            "STALE_SESSION" to com.cyclone.mobile.agent.ObservationState.SCOPE_MISMATCH,
+            "FOREGROUND_REQUIRED" to com.cyclone.mobile.agent.ObservationState.TARGET_NOT_VISIBLE,
+            "ACCESSIBILITY_NOT_CONNECTED" to com.cyclone.mobile.agent.ObservationState.PERMISSION_REQUIRED)
+        cases.forEach { (code, expected) ->
+            val runtime = FakeRuntime(observation("one", "home", "fp"), null).apply {
+                captureError = IllegalStateException("$code: private screen text")
+            }
+            val failure = CycloneAgentEnvironment(runtime).observe().failure!!
+            assertFalse(failure.toString().contains("private screen text"))
+            val health = com.cyclone.mobile.agent.ObservationHealth.failure(failure, "task", 7, 1, null, 0)
+            assertEquals(expected, health.state)
+            assertTrue(health.terminal)
+            assertEquals(0, runtime.executionCalls)
+        }
+    }
     @Test fun movedTargetUsesFreshIdAndNeverOldCoordinates() {
         val before = observation("old", "home", "fp", "Reject cookies")
         val after = observation("fresh", "home", "fp2", "Reject cookies")
@@ -404,12 +421,14 @@ class CycloneAgentEnvironmentTest {
         var afterObservation: GatewayObservation?,
     ) : CycloneAgentRuntimePort {
         var currentObservation: GatewayObservation? = null
+        var captureError: Throwable? = null
         val captureQueue = ArrayDeque<GatewayObservation>().apply { addLast(initial) }
         var executionCalls = 0
         var lastParams: JSONObject? = null
         var learningCalls = 0
 
         override fun capture(): GatewayObservation {
+            captureError?.let { throw it }
             val value = if (captureQueue.isEmpty()) currentObservation ?: error("No observation") else captureQueue.removeFirst()
             currentObservation = value
             return value

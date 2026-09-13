@@ -717,6 +717,23 @@ class CycloneAgentEnvironment internal constructor(
         error: Throwable,
         defaultLayer: AgentFailureLayer,
     ): AgentFailure {
+        // WorkspaceRuntime still exposes these fixed codes as IllegalStateException messages.
+        // Preserve the code, never the arbitrary message suffix (which may contain screen data).
+        val workspaceCode = when (error) {
+            is GatewayProtocolException -> error.code
+            is IllegalStateException -> error.message?.substringBefore(':')?.trim()
+            else -> null
+        }
+        when (workspaceCode) {
+            "BACKEND_DISCONNECTED" -> return AgentFailure(AgentFailureClass.DEVICE_DISCONNECTED,
+                AgentFailureLayer.OBSERVATION, false, "The workspace backend is disconnected.", workspaceCode)
+            "STALE_SESSION" -> return AgentFailure(AgentFailureClass.STALE_OBSERVATION,
+                AgentFailureLayer.OBSERVATION, false, "The requested workspace session is no longer available.", workspaceCode)
+            "FOREGROUND_REQUIRED" -> return AgentFailure(AgentFailureClass.TARGET_NOT_FOUND,
+                AgentFailureLayer.OBSERVATION, false, "The target app is not observable on this task's display.", workspaceCode)
+            "ACCESSIBILITY_NOT_CONNECTED" -> return AgentFailure(AgentFailureClass.ACCESSIBILITY_UNAVAILABLE,
+                AgentFailureLayer.OBSERVATION, false, "The Accessibility service is disconnected.", workspaceCode)
+        }
         if (error is com.cyclone.mobile.runtime.session.SessionIdentityException) return AgentFailure(
             AgentFailureClass.STALE_OBSERVATION, AgentFailureLayer.OBSERVATION, false,
             "The requested session/display identity is unavailable or changed.", error.errorClass)
