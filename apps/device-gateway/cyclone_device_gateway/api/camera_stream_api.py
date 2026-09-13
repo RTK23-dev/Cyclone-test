@@ -229,15 +229,31 @@ class CameraStreamManager:
         if body.source_device_id in targets:
             raise ValueError("The source phone cannot also be a viewer.")
 
+        # Source validity is global: without a usable source camera no stream can exist.
         source = self.runtime.fleet.get(body.source_device_id)
         self._require_adb_ready(source, "Source phone")
         self._require_camera_android(source)
 
-        target_sessions = [self.runtime.fleet.get(device_id) for device_id in targets]
-        for target in target_sessions:
-            self._require_adb_ready(target, f"Target phone {target.device_id}")
-            self._require_viewer_version(target)
+        # Receiver validity is per-phone. A five-phone request must not be rejected because one
+        # receiver is temporarily unauthorized or still on the previous APK. Good receivers proceed
+        # and the incompatible receiver is surfaced as a degraded, named failure in Settings.
+        target_sessions: list[Any] = []
+        failures: list[dict[str, str]] = []
+        for device_id in targets:
+            try:
+                target = self.runtime.fleet.get(device_id)
+                self._require_adb_ready(target, f"Target phone {target.device_id}")
+                self._require_viewer_version(target)
+                target_sessions.append(target)
+            except Exception as exc:
+                failures.append({"deviceId": device_id, "error": _safe_error(exc)})
 
+        if not target_sessions:
+            summary = failures[0]["error"] if failures else "No compatible receiving phone is available."
+            raise ValueError(f"No receiving phone is ready for camera streaming. {summary}")
+
+        # Only replace an existing stream after source + at least one receiver pass preflight. An
+        # invalid new selection therefore cannot tear down a healthy stream unnecessarily.
         self.stop()
         session = CameraScrcpySession(
             source,
@@ -246,20 +262,20 @@ class CameraStreamManager:
                 body.source_device_id, stage, details=details
             ),
         )
-        tokens = {device_id: secrets.token_urlsafe(24) for device_id in targets}
+        eligible_ids = [target.device_id for target in target_sessions]
+        tokens = {device_id: secrets.token_urlsafe(24) for device_id in eligible_ids}
         # Install provisional state before launching activities: a fast phone can open its WebSocket
         # before `am start` returns, and that connection must already have an authenticated session.
         with self._lock:
             self._session = session
             self._source_device_id = body.source_device_id
-            self._target_device_ids = list(targets)
+            self._target_device_ids = list(eligible_ids)
             self._target_tokens = dict(tokens)
             self._connected.clear()
             self._gateway_port = gateway_port
-            self._launch_failures = []
+            self._launch_failures = list(failures)
 
         successful: list[str] = []
-        failures: list[dict[str, str]] = []
         for target in target_sessions:
             try:
                 self._launch_target(target, session.session_id, tokens[target.device_id], gateway_port)
@@ -270,7 +286,7 @@ class CameraStreamManager:
 
         if not successful:
             self.stop()
-            summary = failures[0]["error"] if failures else "No viewer activity could be launched."
+            summary = failures[-1]["error"] if failures else "No viewer activity could be launched."
             raise ValueError(f"No receiving phone could start the camera viewer. {summary}")
 
         successful_tokens = {device_id: tokens[device_id] for device_id in successful}
