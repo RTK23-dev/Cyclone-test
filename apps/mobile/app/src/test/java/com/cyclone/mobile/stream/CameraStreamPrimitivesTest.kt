@@ -53,6 +53,19 @@ class CameraStreamPrimitivesTest {
         assertFalse(snapshot.any { it.ptsUs in 2L..7L })
     }
 
+    @Test
+    fun newCodecConfigInvalidatesOldKeyframe() {
+        val buffer = H264PacketBuffer(capacity = 4)
+        buffer.offer(packet(1, config = true))
+        buffer.offer(packet(2, key = true))
+        buffer.offer(packet(10, config = true))
+        for (index in 11..20) buffer.offer(packet(index))
+
+        val snapshot = buffer.snapshotForTest()
+        assertTrue(snapshot.any { it.codecConfig && it.ptsUs == 10L })
+        assertFalse(snapshot.any { it.keyFrame && it.ptsUs == 2L })
+    }
+
     private fun packet(index: Int, config: Boolean = false, key: Boolean = false) = EncodedPacket(
         payload = byteArrayOf(index.toByte()),
         ptsUs = index.toLong(),
