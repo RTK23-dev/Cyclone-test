@@ -18,9 +18,8 @@ import subprocess
 import threading
 import time
 from typing import Any, Literal
-from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..auth import verify_bearer
@@ -36,6 +35,8 @@ MIN_VIEWER_VERSION_CODE = 98  # Cyclone Mobile 4.3.7
 _VIEWER_COMPONENT = "com.cyclone.mobile/.stream.CameraStreamViewerActivity"
 _WS_SEND_TIMEOUT_SECONDS = 1.5
 _SOURCE_READY_TIMEOUT_SECONDS = 8.0
+_VIEWER_TOKEN_HEADER = "x-cyclone-viewer-token"
+_VIEWER_TARGET_HEADER = "x-cyclone-viewer-target"
 
 
 def _reserve_port() -> int:
@@ -422,13 +423,15 @@ class CameraStreamManager:
         adb = target.adb
         self._remove_reverse(target)
         adb.run(["reverse", f"tcp:{PHONE_REVERSE_PORT}", f"tcp:{gateway_port}"], timeout=5)
-        query = urlencode({"target": target.device_id, "token": viewer_token})
-        stream_url = f"ws://127.0.0.1:{PHONE_REVERSE_PORT}/v1/camera-stream/ws/{session_id}?{query}"
+        # Keep ephemeral credentials out of the URL. Uvicorn may access-log WebSocket paths; tokens
+        # therefore travel as Android intent extras and then authenticated WebSocket headers only.
+        stream_url = f"ws://127.0.0.1:{PHONE_REVERSE_PORT}/v1/camera-stream/ws/{session_id}"
         output = str(adb.run([
             "shell", "am", "start",
             "-n", _VIEWER_COMPONENT,
             "--es", "cyclone_stream_url", stream_url,
-            "--es", "cyclone_stream_session", session_id,
+            "--es", "cyclone_stream_token", viewer_token,
+            "--es", "cyclone_stream_target", target.device_id,
         ], timeout=8))
         lowered = output.lower()
         if "error type" in lowered or "does not exist" in lowered or "unable to resolve" in lowered:
@@ -469,6 +472,8 @@ class CameraStreamManager:
             source = self._source_device_id
             failures = [dict(item) for item in self._launch_failures]
         stream_status = session.status() if session is not None else None
+        stream_live = bool(stream_status and stream_status.get("state") == MediaState.LIVE.value)
+        connection_degraded = stream_live and len(connected) < len(targets)
         return {
             "ok": True,
             "active": session is not None,
@@ -477,10 +482,11 @@ class CameraStreamManager:
             "requestedViewerCount": len(targets) + len(failures),
             "viewerCount": len(connected),
             "connectedViewerIds": connected,
+            "disconnectedViewerIds": sorted(set(targets) - set(connected)) if stream_live else [],
             "maxViewers": MAX_CAMERA_VIEWERS,
             "preserveSourceAspect": True,
             "launchFailures": failures,
-            "degraded": bool(failures),
+            "degraded": bool(failures) or connection_degraded,
             "stream": stream_status,
         }
 
@@ -532,12 +538,13 @@ def create_camera_stream_router(runtime: Any, token: str) -> APIRouter:
         return manager.stop()
 
     @router.websocket("/v1/camera-stream/ws/{session_id}")
-    async def viewer_socket(
-        websocket: WebSocket,
-        session_id: str,
-        target: str = Query(min_length=1, max_length=160),
-        token_value: str = Query(alias="token", min_length=16, max_length=128),
-    ) -> None:
+    async def viewer_socket(websocket: WebSocket, session_id: str) -> None:
+        # Authentication is header-based so Uvicorn access logs never contain the ephemeral secret.
+        target = (websocket.headers.get(_VIEWER_TARGET_HEADER) or "").strip()
+        token_value = (websocket.headers.get(_VIEWER_TOKEN_HEADER) or "").strip()
+        if not target or len(target) > 160 or len(token_value) < 16 or len(token_value) > 128:
+            await websocket.close(code=4403)
+            return
         try:
             session, subscriber = manager.subscribe(session_id, target, token_value)
         except PermissionError:
