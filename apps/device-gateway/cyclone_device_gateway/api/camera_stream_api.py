@@ -16,6 +16,7 @@ import secrets
 import socket
 import subprocess
 import threading
+import time
 from typing import Any, Literal
 from urllib.parse import urlencode
 
@@ -34,6 +35,7 @@ MIN_CAMERA_ANDROID_SDK = 31  # scrcpy camera capture requires Android 12+
 MIN_VIEWER_VERSION_CODE = 98  # Cyclone Mobile 4.3.7
 _VIEWER_COMPONENT = "com.cyclone.mobile/.stream.CameraStreamViewerActivity"
 _WS_SEND_TIMEOUT_SECONDS = 1.5
+_SOURCE_READY_TIMEOUT_SECONDS = 8.0
 
 
 def _reserve_port() -> int:
@@ -73,6 +75,22 @@ class CameraSpec:
         return "sensor-greatest" if self.max_long_edge is None else f"sensor-aspect-up-to-{self.max_long_edge}"
 
 
+class _CameraDeviceProxy:
+    """Delegate a fleet device while preventing display sleep from pausing physical camera capture."""
+
+    def __init__(self, device: Any):
+        self._device = device
+
+    @property
+    def screen_awake(self) -> bool:
+        # Scrcpy's shared screen-media session normally sleeps with display 0. Camera2 capture is a
+        # different source and must not stop just because the source phone display times out.
+        return True
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._device, name)
+
+
 class CameraScrcpySession(ScrcpyMediaSession):
     """Failure-isolated scrcpy Camera2 session with late-viewer bootstrap caching."""
 
@@ -83,10 +101,23 @@ class CameraScrcpySession(ScrcpyMediaSession):
             target_fps=spec.fps,
             bitrate_bps=spec.bitrate_bps,
         )
-        super().__init__(device, profile, resolve_scrcpy_artifact(), diagnostic)
+        super().__init__(_CameraDeviceProxy(device), profile, resolve_scrcpy_artifact(), diagnostic)
         self.camera_spec = spec
         self._cached_config: MediaEvent | None = None
         self._cached_keyframe: MediaEvent | None = None
+
+    def start_capture(self) -> None:
+        """Start camera capture before any viewer subscribes, without creating a fake subscriber."""
+        with self._lock:
+            if self._thread is not None and self._thread.is_alive():
+                return
+            self._stop.clear()
+            self._thread = threading.Thread(
+                target=self._run,
+                name=f"cyclone-camera-{getattr(self.device, 'device_id', 'device')}",
+                daemon=True,
+            )
+            self._thread.start()
 
     def subscribe(self) -> queue.Queue:
         subscriber = super().subscribe()
@@ -264,8 +295,8 @@ class CameraStreamManager:
         )
         eligible_ids = [target.device_id for target in target_sessions]
         tokens = {device_id: secrets.token_urlsafe(24) for device_id in eligible_ids}
-        # Install provisional state before launching activities: a fast phone can open its WebSocket
-        # before `am start` returns, and that connection must already have an authenticated session.
+        # Install provisional state before camera startup so status reflects exactly which request is
+        # being validated, but do not open any receiving phone until the camera emits stream metadata.
         with self._lock:
             self._session = session
             self._source_device_id = body.source_device_id
@@ -274,6 +305,13 @@ class CameraStreamManager:
             self._connected.clear()
             self._gateway_port = gateway_port
             self._launch_failures = list(failures)
+
+        try:
+            session.start_capture()
+            self._await_source_ready(session)
+        except Exception:
+            self.stop()
+            raise
 
         successful: list[str] = []
         for target in target_sessions:
@@ -296,6 +334,21 @@ class CameraStreamManager:
             self._connected.intersection_update(successful)
             self._launch_failures = failures
         return self.status()
+
+    @staticmethod
+    def _await_source_ready(session: CameraScrcpySession) -> None:
+        deadline = time.monotonic() + _SOURCE_READY_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            status = session.status()
+            state = str(status.get("state") or "")
+            if state in {MediaState.WAITING_KEYFRAME.value, MediaState.LIVE.value}:
+                return
+            last_error = str(status.get("lastError") or "").strip()
+            if state == MediaState.UNAVAILABLE.value or (state == MediaState.STOPPED.value and last_error):
+                detail = last_error or "The selected camera mode is unavailable."
+                raise ValueError(f"Source camera could not start. {detail}")
+            time.sleep(0.05)
+        raise ValueError("Source camera did not become ready. Try 30 fps or High quality on this phone.")
 
     @staticmethod
     def _require_adb_ready(device: Any, label: str) -> None:
