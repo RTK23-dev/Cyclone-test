@@ -60,8 +60,9 @@
         <activity android:name=".runtime.background.WorkspaceProgressActivity" android:exported="false" />
         <activity android:name=".runtime.background.BackgroundSetupActivity" android:exported="false" />
         <activity android:name=".runtime.background.WorkspaceActivity" android:exported="false" />
-        <!-- Exported so the ADB shell can open the dedicated viewer. The activity accepts only
-             a tokenized loopback websocket URL; the PC gateway verifies a per-target ephemeral token. -->
+        <!-- Exported only so Cyclone One can open the dedicated viewer through an authorized ADB shell.
+             The stream URL is fixed to the local reverse tunnel; per-target ephemeral credentials travel
+             separately as intent extras and authenticated WebSocket headers, never in the URL. -->
         <activity
             android:name=".stream.CameraStreamViewerActivity"
             android:exported="true"
