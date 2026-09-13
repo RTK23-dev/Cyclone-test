@@ -53,6 +53,9 @@ jobs:
             throw "Installer acceptance must build the literal source head. expected=$Expected actual=$Actual"
           }
           Write-Host "Exact source checkout accepted: $Actual"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.7'
       - name: Verify Cyclone One 1.5.5 native camera streaming candidate identity
         shell: pwsh
         run: |
