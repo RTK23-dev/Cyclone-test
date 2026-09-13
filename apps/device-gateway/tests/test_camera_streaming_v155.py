@@ -138,7 +138,7 @@ def test_source_requires_android_12_or_newer(monkeypatch):
         manager.start(body(), 8765)
 
 
-def test_receivers_require_mobile_437_or_newer(monkeypatch):
+def test_receivers_require_mobile_437_or_newer_when_none_are_compatible(monkeypatch):
     source = FakeDevice("source")
     viewer = FakeDevice("viewer-a", version_code=97)
     manager = camera.CameraStreamManager(FakeRuntime(source, viewer))
@@ -146,6 +146,23 @@ def test_receivers_require_mobile_437_or_newer(monkeypatch):
 
     with pytest.raises(ValueError, match="4.3.7 or newer"):
         manager.start(body(), 8765)
+
+
+def test_incompatible_receiver_degrades_but_does_not_block_compatible_phone(monkeypatch):
+    source = FakeDevice("source")
+    good = FakeDevice("viewer-a", version_code=98)
+    old = FakeDevice("viewer-b", version_code=97)
+    manager = PartiallyFailingManager(FakeRuntime(source, good, old), set())
+    monkeypatch.setattr(camera, "CameraScrcpySession", FakeSession)
+
+    result = manager.start(body(target_device_ids=["viewer-a", "viewer-b"]), 8765)
+
+    assert result["active"] is True
+    assert result["degraded"] is True
+    assert result["requestedViewerCount"] == 2
+    assert result["targetDeviceIds"] == ["viewer-a"]
+    assert result["launchFailures"][0]["deviceId"] == "viewer-b"
+    assert "4.3.7 or newer" in result["launchFailures"][0]["error"]
 
 
 def test_partial_viewer_launch_is_degraded_not_falsely_successful(monkeypatch):
