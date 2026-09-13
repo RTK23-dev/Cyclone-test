@@ -29,7 +29,9 @@ internal class H264PacketBuffer(private val capacity: Int = 30) {
             when {
                 packet.codecConfig -> {
                     latestConfig = packet
-                    // New codec configuration invalidates queued frames from the old config.
+                    // A new SPS/PPS configuration makes every keyframe encoded under the previous
+                    // configuration unsafe to reuse. Wait for a keyframe that belongs to this config.
+                    latestKeyframe = null
                     queue.clear()
                     queue.offerLast(packet)
                 }
