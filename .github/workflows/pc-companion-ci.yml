@@ -140,6 +140,7 @@ jobs:
             -not $Acceptance.gateway_ready -or
             -not $Acceptance.gateway_authenticated -or
             -not $Acceptance.transport_onboarding_api -or
+            -not $Acceptance.camera_streaming_api -or
             -not $Acceptance.first_run_guide -or
             -not $Acceptance.vmos_image_tip -or
             -not $Acceptance.mobile_tip -or
