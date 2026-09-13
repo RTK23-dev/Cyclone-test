@@ -66,6 +66,7 @@
             android:name=".stream.CameraStreamViewerActivity"
             android:exported="true"
             android:excludeFromRecents="true"
+            android:noHistory="true"
             android:theme="@style/AppTheme" />
         <service
             android:name=".runtime.background.WorkspaceTaskService"
