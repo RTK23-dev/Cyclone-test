@@ -92,7 +92,7 @@ class _CameraDeviceProxy:
 
 
 class CameraScrcpySession(ScrcpyMediaSession):
-    """Failure-isolated scrcpy Camera2 session with late-viewer bootstrap caching."""
+    """Failure-isolated scrcpy Camera2 session with late/lagging-viewer bootstrap recovery."""
 
     def __init__(self, device: Any, spec: CameraSpec, diagnostic=None):
         profile = MediaProfile(
@@ -128,20 +128,64 @@ class CameraScrcpySession(ScrcpyMediaSession):
             try:
                 subscriber.put_nowait(event)
             except queue.Full:
-                # The parent seeds only a handful of control events, so this should be unreachable.
-                # If it happens, a reconnect is safer than pretending a decoder can start mid-GOP.
+                self._resync_subscriber(subscriber, event)
                 break
         return subscriber
 
     def _broadcast(self, event: MediaEvent) -> None:
-        if event.kind == "packet":
-            if event.data.get("config"):
-                with self._lock:
+        # The generic media queue is intentionally tiny for low latency. For H.264 camera fan-out,
+        # blindly evicting its oldest packet can remove SPS/PPS or the only keyframe and strand one
+        # viewer on a black frame. Cache those boundaries, then explicitly resync only the lagging
+        # subscriber whenever its queue fills.
+        with self._lock:
+            if event.kind == "packet":
+                if event.data.get("config"):
                     self._cached_config = event
-            elif event.data.get("keyframe"):
-                with self._lock:
+                    self._cached_keyframe = None
+                elif event.data.get("keyframe"):
                     self._cached_keyframe = event
-        super()._broadcast(event)
+            subscribers = tuple(self._subscribers)
+        for subscriber in subscribers:
+            try:
+                subscriber.put_nowait(event)
+            except queue.Full:
+                self._resync_subscriber(subscriber, event)
+                with self._lock:
+                    self._dropped_events += 1
+
+    def _resync_subscriber(self, subscriber: queue.Queue, current: MediaEvent) -> None:
+        while True:
+            try:
+                subscriber.get_nowait()
+            except queue.Empty:
+                break
+        with self._lock:
+            # Re-seed state + dimensions first. The Android decoder must know the source dimensions
+            # before it can configure MediaCodec for the binary bootstrap that follows.
+            self._seed_subscriber(subscriber)
+            config = self._cached_config
+            keyframe = self._cached_keyframe
+        for event in (config, keyframe):
+            if event is not None:
+                try:
+                    subscriber.put_nowait(event)
+                except queue.Full:
+                    return
+        if current.kind != "packet":
+            try:
+                subscriber.put_nowait(current)
+            except queue.Full:
+                pass
+            return
+        if current is config or current is keyframe:
+            return
+        # Interframes are useful only after a valid keyframe for the current config. If that
+        # boundary does not exist yet, drop this packet and wait for the next keyframe.
+        if keyframe is not None:
+            try:
+                subscriber.put_nowait(current)
+            except queue.Full:
+                pass
 
     def status(self) -> dict[str, Any]:
         value = super().status()
