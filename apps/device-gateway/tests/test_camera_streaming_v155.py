@@ -9,7 +9,7 @@ from cyclone_device_gateway.api import camera_stream_api as camera
 
 
 class FakeAdb:
-    def __init__(self, *, sdk: int = 35, version_code: int = 98):
+    def __init__(self, *, sdk: int = 35, version_code: int = 102):
         self.sdk = sdk
         self.version_code = version_code
         self.calls: list[tuple[str, ...]] = []
@@ -32,7 +32,7 @@ class FakeAdbDevice:
 
 
 class FakeDevice:
-    def __init__(self, device_id: str, *, sdk: int = 35, version_code: int = 98, state: str = "device"):
+    def __init__(self, device_id: str, *, sdk: int = 35, version_code: int = 102, state: str = "device"):
         self.device_id = device_id
         self.adb_device = FakeAdbDevice(state)
         self.adb = FakeAdb(sdk=sdk, version_code=version_code)
@@ -143,20 +143,20 @@ def test_source_requires_android_12_or_newer(monkeypatch):
         manager.start(body(), 8765)
 
 
-def test_receivers_require_mobile_437_or_newer_when_none_are_compatible(monkeypatch):
+def test_receivers_require_mobile_442_or_newer_when_none_are_compatible(monkeypatch):
     source = FakeDevice("source")
-    viewer = FakeDevice("viewer-a", version_code=97)
+    viewer = FakeDevice("viewer-a", version_code=101)
     manager = camera.CameraStreamManager(FakeRuntime(source, viewer))
     monkeypatch.setattr(camera, "CameraScrcpySession", FakeSession)
 
-    with pytest.raises(ValueError, match="4.3.7 or newer"):
+    with pytest.raises(ValueError, match="4.4.2 or newer"):
         manager.start(body(), 8765)
 
 
 def test_incompatible_receiver_degrades_but_does_not_block_compatible_phone(monkeypatch):
     source = FakeDevice("source")
-    good = FakeDevice("viewer-a", version_code=98)
-    old = FakeDevice("viewer-b", version_code=97)
+    good = FakeDevice("viewer-a", version_code=102)
+    old = FakeDevice("viewer-b", version_code=101)
     manager = PartiallyFailingManager(FakeRuntime(source, good, old), set())
     monkeypatch.setattr(camera, "CameraScrcpySession", FakeSession)
 
@@ -167,7 +167,7 @@ def test_incompatible_receiver_degrades_but_does_not_block_compatible_phone(monk
     assert result["requestedViewerCount"] == 2
     assert result["targetDeviceIds"] == ["viewer-a"]
     assert result["launchFailures"][0]["deviceId"] == "viewer-b"
-    assert "4.3.7 or newer" in result["launchFailures"][0]["error"]
+    assert "4.4.2 or newer" in result["launchFailures"][0]["error"]
 
 
 def test_partial_viewer_launch_is_degraded_not_falsely_successful(monkeypatch):
@@ -212,3 +212,22 @@ def test_viewer_tokens_are_target_scoped_and_unpredictable(monkeypatch):
 
     with pytest.raises(PermissionError):
         manager.subscribe(manager._session.session_id, "viewer-a", tokens["viewer-b"])
+
+
+def test_viewer_credentials_never_enter_websocket_url_or_logs():
+    target = FakeDevice("viewer-a")
+    manager = camera.CameraStreamManager(FakeRuntime(target))
+    token = "secure_viewer_token_1234567890"
+
+    manager._launch_target(target, "session-abc", token, 8765)
+
+    launch = target.adb.calls[-1]
+    url_index = launch.index("cyclone_stream_url") + 1
+    url = launch[url_index]
+    assert url == "ws://127.0.0.1:17881/v1/camera-stream/ws/session-abc"
+    assert "?" not in url
+    assert token not in url
+    assert "cyclone_stream_token" in launch
+    assert token in launch
+    assert "cyclone_stream_target" in launch
+    assert "viewer-a" in launch
