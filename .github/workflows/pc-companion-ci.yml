@@ -13,8 +13,9 @@ on:
       - 'release/version.toml'
       - '.github/workflows/pc-companion-ci.yml'
       - '.github/workflows/pc-companion-release.yml'
+      - '.github/workflows/pc-companion-publish.yml'
   push:
-    branches: [main, 'codex/cyclone-4.4.2-one-1.5.5-camera', 'codex/live-phone', 'release/cyclone-mobile-v*']
+    branches: [main, 'codex/cyclone-4.4.2-one-1.5.5-camera', 'codex/live-phone', 'release/cyclone-mobile-v*', 'release/cyclone-one-v*']
     paths:
       - 'apps/pc-companion/**'
       - 'apps/device-gateway/**'
@@ -26,6 +27,7 @@ on:
       - 'release/version.toml'
       - '.github/workflows/pc-companion-ci.yml'
       - '.github/workflows/pc-companion-release.yml'
+      - '.github/workflows/pc-companion-publish.yml'
   workflow_dispatch:
 
 permissions:
