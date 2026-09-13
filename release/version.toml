@@ -1,5 +1,6 @@
 # Cyclone Mobile 4.4.0 — execution foundation; preserves 4.3.8 OpenRouter fixes.
 # User requested the 4.4 update and release when ready; exact release-branch CI/signing required; physical device acceptance remains unverified.
+# Verified implementation checkpoint: bfef18b6cca0eee9cf6778e3e5ce8c4c4238e143. Publish only this release checkpoint's exact CI artifact.
 schema = 1
 product_version = "4.4.0"
 channel = "development"

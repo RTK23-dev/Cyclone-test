@@ -13,6 +13,7 @@ Reference dossier: https://github.com/premiumcentraal-boop/Cyclone/tree/15ba8cfe
 | 3: persistent incidents / target revalidation | [02][p02], [03][p03] | Journal incidents and fresh exact target resolution | 97f4197cfaac67d569bf32f21e9935cdcbd90cc9 |
 | 4: health / shared provider lifecycle | [07][p07], [08][p08] | Typed bounded observation recovery; shared HTTP deadlines/cancellation/pacing | cbfb0436da18ba91aeac220699a325c8e6bb43da |
 | 5: interruption phases and budgets | [01][p01] | Explicit local outcomes; phase budgets and provider progress | 73fbd20b6147674b6d12e782bde161f3c45f358c |
+| 6: release identity and workspace health | [07][p07] | 4.4.0 / 100; four fixed workspace error codes and redaction regression | bfef18b6cca0eee9cf6778e3e5ce8c4c4238e143 |
 
 [p01]: https://github.com/premiumcentraal-boop/Cyclone/blob/15ba8cfe6449609b8864dd3fe58339b473d7012b/docs/artemis-upgrades/01_LATENCY_AND_INTERRUPTION_BUDGETS.md
 [p02]: https://github.com/premiumcentraal-boop/Cyclone/blob/15ba8cfe6449609b8864dd3fe58339b473d7012b/docs/artemis-upgrades/02_PERSISTENT_RECOVERY_INCIDENTS.md
