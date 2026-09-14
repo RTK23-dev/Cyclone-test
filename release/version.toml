@@ -1,5 +1,6 @@
 # Cyclone Mobile 4.4.3 Liquid Glass visual-control upgrade on exact published 4.4.2.
 # Preserves Cyclone One 1.5.5 native camera-streaming compatibility and the 4.4.2 security foundation.
+# Final candidate includes only the four individually proven AGP 8.7 / Kotlin 2.2 lint-detector compatibility suppressions.
 schema = 1
 product_version = "4.4.3"
 channel = "development"
