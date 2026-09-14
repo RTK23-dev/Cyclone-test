@@ -1,6 +1,6 @@
 # Cyclone Mobile 4.4.4 cohesive Liquid Glass redesign on exact published 4.4.3.
 # Preserves Cyclone One 1.5.5 native camera-streaming compatibility and the 4.4.3 security foundation.
-# Release candidate extends the Kyant0 optical language across navigation, selectors, toggles, search and Ask Cyclone interaction chrome.
+# Final exact-SHA release candidate extends Kyant0 optics across navigation, selectors, toggles, search and Ask Cyclone interaction chrome.
 schema = 1
 product_version = "4.4.4"
 channel = "development"
