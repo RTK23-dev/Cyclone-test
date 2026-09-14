@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -126,9 +128,9 @@ val CycloneTypography = Typography(
  * Shared Cyclone theme.
  *
  * Normal in-app screens own a full-canvas optical backdrop. Floating system overlays must opt out
- * of painting that canvas; otherwise the overlay window paints the sampled gradient over whatever
- * app is behind Cyclone, producing the photographed white/blue wash. The transparent mode keeps a
- * Backdrop owner for Liquid controls while leaving every pixel outside the control itself clear.
+ * of both painting and measuring that full canvas. In transparent mode the root wraps its content,
+ * while a match-parent sampled layer sits only behind that content. That keeps a WRAP_CONTENT
+ * accessibility overlay genuinely bottom-sized instead of accidentally measuring as full-screen.
  */
 @Composable
 fun CycloneTheme(
@@ -153,14 +155,25 @@ fun CycloneTheme(
             ),
         )
         CompositionLocalProvider(LocalCycloneLiquidBackdrop provides liquidBackdrop) {
-            Box(Modifier.fillMaxSize()) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .layerBackdrop(liquidBackdrop)
-                        .then(if (drawBackground) Modifier.background(opticalSource) else Modifier),
-                )
-                content()
+            if (drawBackground) {
+                Box(Modifier.fillMaxSize()) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .layerBackdrop(liquidBackdrop)
+                            .background(opticalSource),
+                    )
+                    content()
+                }
+            } else {
+                Box(Modifier.wrapContentSize()) {
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .layerBackdrop(liquidBackdrop),
+                    )
+                    content()
+                }
             }
         }
     }
