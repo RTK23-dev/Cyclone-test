@@ -26,7 +26,7 @@ Liquid Glass is applied to **action controls**, not indiscriminately to cards, n
 ## Validation and release safety
 
 - Repository guards pin the exact Kyant optical recipe, shared Backdrop ownership, Material action-family routing, custom padding/shape compatibility, and 4.4.3 Android identity.
-- Three AGP 8.7 lint detectors that crash against Kotlin 2.2's Analysis API (`RememberInComposition`, `NullSafeMutableLiveData`, and `FrequentlyChangingValue`) are individually suppressed; broad lint suppression remains prohibited and all other lint checks stay active.
+- Four AGP 8.7 lint detectors that crash against Kotlin 2.2's Analysis API (`RememberInComposition`, `NullSafeMutableLiveData`, `FrequentlyChangingValue`, and `AutoboxingStateCreation`) are individually suppressed; broad lint suppression remains prohibited and all other lint checks stay active.
 - Publication is authorized only from the exact-source Mobile CI candidate after tests, remaining lint checks, release assembly, checksum/provenance verification, and signer continuity with the published 4.4.2 APK succeed.
 
 Physical-device Liquid Glass visual/interaction acceptance remains **UNVERIFIED** until tested on real hardware. This release does not claim hardware acceptance that has not occurred.
