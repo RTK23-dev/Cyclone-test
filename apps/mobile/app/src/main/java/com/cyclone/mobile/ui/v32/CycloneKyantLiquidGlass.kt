@@ -1,5 +1,7 @@
 package com.cyclone.mobile.ui.v32
 
+import android.graphics.RuntimeShader
+import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.VisibilityThreshold
@@ -29,6 +31,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerId
@@ -44,14 +47,11 @@ import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastFirstOrNull
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.RuntimeShader
-import com.kyant.backdrop.asComposeShader
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.isRuntimeShaderSupported
-import com.kyant.shapes.Capsule
+import com.kyant.capsule.ContinuousCapsule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -61,15 +61,15 @@ import kotlin.math.sin
 import kotlin.math.tanh
 
 /**
- * The Backdrop source used by Cyclone controls.
+ * Cyclone's app-wide implementation of Kyant0/AndroidLiquidGlass' LiquidButton.
  *
- * Rendering and interaction below intentionally follow Kyant0/AndroidLiquidGlass' published
- * LiquidButton sample at commit 65ab177e90e5c1d8c62e70cf7755841982da65f6. The effect stack is
- * kept intact: vibrancy(), blur(2dp), lens(12dp, 24dp), the same press/drag deformation and the
- * same InteractiveHighlight runtime shader. Cyclone only adds enabled-state handling and chooses
- * the sample's existing tint/surfaceColor parameters at call sites for contrast.
+ * This follows the stable 1.0.0 sample directly: ContinuousCapsule, vibrancy(), blur(2dp),
+ * lens(12dp, 24dp), the original press/drag deformation, tint/surfaceColor passes, and the
+ * original InteractiveHighlight AGSL shader. Cyclone's only behavioral additions are an enabled
+ * state and an icon-button wrapper around the same renderer.
  *
- * Upstream: https://github.com/Kyant0/AndroidLiquidGlass
+ * Upstream sample:
+ * https://github.com/Kyant0/AndroidLiquidGlass/blob/1.0.0/catalog/src/main/java/com/kyant/backdrop/catalog/components/LiquidButton.kt
  * License: Apache-2.0
  */
 internal val LocalCycloneLiquidBackdrop = compositionLocalOf<Backdrop?> { null }
@@ -94,7 +94,7 @@ internal fun CycloneKyantLiquidButton(
         modifier
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { Capsule() },
+                shape = { ContinuousCapsule },
                 effects = {
                     vibrancy()
                     blur(2f.dp.toPx())
@@ -181,7 +181,7 @@ internal fun CycloneKyantLiquidIconButton(
         modifier
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { Capsule() },
+                shape = { ContinuousCapsule },
                 effects = {
                     vibrancy()
                     blur(2f.dp.toPx())
@@ -242,7 +242,7 @@ internal fun CycloneKyantLiquidIconButton(
     )
 }
 
-/** Copied from Kyant0's catalog InteractiveHighlight, package-adjusted only. */
+/** Kyant0 1.0.0 InteractiveHighlight; package-adjusted for Cyclone. */
 private class CycloneInteractiveHighlight(
     val animationScope: CoroutineScope,
     val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset },
@@ -257,7 +257,7 @@ private class CycloneInteractiveHighlight(
     val offset: Offset get() = positionAnimation.value - startPosition
 
     private val shader =
-        if (isRuntimeShaderSupported()) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             RuntimeShader(
                 """
 uniform float2 size;
@@ -279,12 +279,12 @@ half4 main(float2 coord) {
     val modifier: Modifier = Modifier.drawWithContent {
         val progress = pressProgressAnimation.value
         if (progress > 0f) {
-            if (shader != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && shader != null) {
                 drawRect(Color.White.copy(0.08f * progress), blendMode = BlendMode.Plus)
                 shader.apply {
                     val highlightPosition = position(size, positionAnimation.value)
                     setFloatUniform("size", size.width, size.height)
-                    setColorUniform("color", Color.White.copy(0.15f * progress))
+                    setColorUniform("color", Color.White.copy(0.15f * progress).toArgb())
                     setFloatUniform("radius", size.minDimension * 1.5f)
                     setFloatUniform(
                         "position",
@@ -292,7 +292,7 @@ half4 main(float2 coord) {
                         highlightPosition.y.fastCoerceIn(0f, size.height),
                     )
                 }
-                drawRect(ShaderBrush(shader.asComposeShader()), blendMode = BlendMode.Plus)
+                drawRect(ShaderBrush(shader), blendMode = BlendMode.Plus)
             } else {
                 drawRect(Color.White.copy(0.25f * progress), blendMode = BlendMode.Plus)
             }
@@ -327,7 +327,7 @@ half4 main(float2 coord) {
     }
 }
 
-/** Copied from Kyant0's catalog DragGestureInspector, package/function-name adjusted only. */
+/** Kyant0 catalog DragGestureInspector; package/function-name adjusted only. */
 private suspend fun PointerInputScope.cycloneInspectDragGestures(
     onDragStart: (down: PointerInputChange) -> Unit = {},
     onDragEnd: (change: PointerInputChange) -> Unit = {},
