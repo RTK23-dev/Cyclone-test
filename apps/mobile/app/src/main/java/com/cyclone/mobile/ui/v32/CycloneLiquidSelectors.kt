@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -90,6 +93,60 @@ internal fun CycloneLiquidChoiceBar(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Compact binary control made from the same tray + moving refractive lens as the rest of Cyclone.
+ * The control keeps the familiar switch footprint without introducing a stock Material thumb.
+ */
+@Composable
+internal fun CycloneLiquidToggle(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    CycloneLiquidTray(
+        modifier = modifier.width(64.dp),
+        height = 40.dp,
+        contentPadding = 4.dp,
+    ) {
+        BoxWithConstraints(
+            Modifier
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .toggleable(
+                    value = checked,
+                    enabled = enabled,
+                    role = Role.Switch,
+                    onValueChange = onCheckedChange,
+                ),
+        ) {
+            CycloneLiquidSelectionLens(
+                selectedIndex = if (checked) 1 else 0,
+                itemCount = 2,
+                totalWidth = maxWidth,
+                modifier = Modifier.align(Alignment.CenterStart),
+                height = 32.dp,
+            )
+            if (checked) {
+                Box(
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(maxWidth / 2)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(17.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
         }
