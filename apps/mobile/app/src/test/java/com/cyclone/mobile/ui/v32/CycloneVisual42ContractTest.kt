@@ -39,24 +39,28 @@ class CycloneVisual42ContractTest {
         assertFalse(panel.contains("WorkspaceTaskUi("))
     }
 
-    @Test fun bottomNavigationOwnsInsetsAndDisappearsForKeyboard() {
+    @Test fun bottomNavigationOwnsInsetsAndUsesOneLiquidSelectionLens() {
         val nav = source("CycloneV32Components.kt")
         assertTrue(nav.contains("navigationBarsPadding()"))
         assertTrue(nav.contains("WindowInsets.ime"))
         assertTrue(nav.contains("if (imeVisible) return"))
+        assertTrue(nav.contains("CycloneLiquidTray(height = 66.dp"))
+        assertTrue(nav.contains("CycloneLiquidSelectionLens("))
+        assertTrue(nav.contains("selectedIndex = selected.ordinal"))
         assertFalse(nav.contains("NavigationBar("))
         assertFalse(nav.contains("Modifier.height(74.dp)"))
         assertTrue(nav.contains("ic_cyclone_ai_42"))
-        assertTrue(nav.contains("Modifier.size(48.dp)"))
     }
 
-    @Test fun segmentedControlHasOneSlidingSelectedSurface() {
+    @Test fun segmentedControlUsesOneLiquidTrayAndMovingLens() {
         val controls = source("CycloneV32Components.kt")
-        assertTrue(controls.contains("BoxWithConstraints"))
-        assertTrue(controls.contains("animateDpAsState"))
-        assertTrue(controls.contains("targetOffset"))
-        assertTrue(controls.contains("color = MaterialTheme.colorScheme.primary"))
-        assertTrue(controls.contains("animateColorAsState"))
+        val segmented = controls.substringAfter("fun CycloneSegmentedControl(")
+        assertTrue(segmented.contains("CycloneLiquidTray(modifier = modifier, height = 48.dp"))
+        assertTrue(segmented.contains("BoxWithConstraints"))
+        assertTrue(segmented.contains("CycloneLiquidSelectionLens("))
+        assertTrue(segmented.contains("selectedIndex = selected"))
+        assertTrue(segmented.contains("animateColorAsState"))
+        assertTrue(segmented.contains("selectableGroup()"))
     }
 
     @Test fun designSystemUsesCycloneIdentityAndAvoidsCardSoupBorders() {
