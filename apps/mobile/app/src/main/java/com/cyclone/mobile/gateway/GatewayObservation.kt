@@ -60,8 +60,18 @@ internal object GatewayObservationStore {
         val source = envelope.payload as GatewayObservation
         val identity = com.cyclone.mobile.runtime.session.ObservationIdentity.fromPayload(source.id, envelope.generation,
             source.execution, source.capturedAt, source.payload)
-        return source.copy(generation = envelope.generation, page = source.page.copy(observation = identity),
-            payload = JSONObject(source.payload.toString()).put("observation", identity.toJson()).put("generation", envelope.generation))
+        val elements = source.elements.mapValues { (_, element) -> element.copy(evidence = JSONObject(element.evidence.toString())
+            .put("observation", identity.toJson()).put("generation", envelope.generation)) }
+        val payload = JSONObject(source.payload.toString()).put("observation", identity.toJson()).put("generation", envelope.generation)
+        payload.optJSONObject("pageContext")?.put("observation", identity.toJson())
+        payload.optJSONArray("semanticControls")?.let { controls ->
+            for (i in 0 until controls.length()) controls.optJSONObject(i)?.let { control ->
+                control.put("observation", identity.toJson()).put("generation", envelope.generation)
+            }
+        }
+        return source.copy(generation = envelope.generation, elements = elements,
+            page = source.page.copy(observation = identity, controls = source.page.controls.map { it.copy(selector = JSONObject(it.selector.toString())) }),
+            payload = payload)
     }
     fun clear(sessionId: String? = null) { scoped.clear(sessionId) }
 }
@@ -92,8 +102,8 @@ internal object GatewayObservationAdapter {
         val snapshot = if (background) com.cyclone.mobile.runtime.background.WorkspaceRuntime.observe(execution) else service.observe(markFresh = true)
         val captureEnd = System.nanoTime() / 1_000_000
         val raw = snapshot.toJson()
-        val page = PageAwarenessRuntime.capture(context, raw)
-        val freshLegacy = com.cyclone.mobile.agent.tools.ObservationProjections.freshLegacy(raw, page)
+        val learned = PageAwarenessRuntime.capture(context, raw)
+        val page = com.cyclone.mobile.agent.tools.ObservationProjections.freshLegacy(raw, learned)
         val safeRaw = GatewayPrivacy.sanitizeAccessibilitySnapshot(raw)
         val observationId = UUID.randomUUID().toString()
         val rawNodes = safeRaw.optJSONArray("nodes") ?: JSONArray()
@@ -251,8 +261,8 @@ internal object GatewayObservationAdapter {
             nextHopHints = nextHopHints,
         )
         boundedPageEvidence.put("captureStartMonotonicMs", captureStart)
-            .put("legacyFreshnessShadow", JSONObject().put("matches", page.controls.map { it.key } == freshLegacy.controls.map { it.key })
-                .put("currentControls", freshLegacy.controls.size).put("learnedControls", page.controls.size))
+            .put("legacyFreshnessShadow", JSONObject().put("matches", learned.controls.map { it.key } == page.controls.map { it.key })
+                .put("currentControls", page.controls.size).put("learnedControls", learned.controls.size))
             .put("captureEndMonotonicMs", captureEnd).put("captureDurationMs", captureEnd - captureStart)
             .put("captureWidth", snapshot.screenWidth).put("captureHeight", snapshot.screenHeight)
             .put("imageState", "unavailable")

@@ -490,24 +490,8 @@ class CyclonePcParityBridge internal constructor(
         )
     }
 
-    private fun pageCardJson(card: AgentPageCard): JSONObject = JSONObject()
-        .put("sessionId", card.sessionId)
-        .put("displayId", card.displayId)
-        .put("observationId", card.observationId)
-        .put("generation", card.generation)
-        .put("package", card.packageName)
-        .put("activity", card.activity ?: JSONObject.NULL)
-        .put("pageKey", card.pageKey)
-        .put("structuralKey", card.structuralKey)
-        .put("contentKey", card.contentKey)
-        .put("accessibilityFingerprint", card.accessibilityFingerprint)
-        .put("pageSummary", JSONObject(card.pageSummary.toString()))
-        .put("pageText", JSONObject(card.pageText.toString()))
-        .put("pageEvidence", JSONObject(card.pageEvidence.toString()))
-        .put("controls", JSONArray().also { array -> card.controls.forEach { array.put(candidateJson(it)) } })
-        .put("nextHopHints", JSONArray(card.nextHopHints.toString()))
-        .put("perceptionMode", card.perceptionMode)
-        .put("treeUseful", card.treeUseful)
+    private fun pageCardJson(card: AgentPageCard): JSONObject =
+        com.cyclone.mobile.agent.tools.ObservationProjections.prompt(card)
 
     private fun compactText(card: AgentPageCard): String {
         val combined = buildString {

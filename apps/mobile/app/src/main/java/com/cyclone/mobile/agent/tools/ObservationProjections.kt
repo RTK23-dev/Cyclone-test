@@ -7,6 +7,8 @@ import com.cyclone.mobile.runtime.session.ObservationIdentity
 import org.json.JSONArray
 import org.json.JSONObject
 
+enum class ObservationProjectionMode { SHADOW, AUTHORITATIVE }
+
 /** Pure projections. This object has no runtime/device/source port and cannot capture. */
 internal object ObservationProjections {
     fun freshLegacy(snapshot: JSONObject, learned: com.cyclone.mobile.applearner.PageContext): com.cyclone.mobile.applearner.PageContext =
@@ -40,7 +42,7 @@ internal object ObservationProjections {
         generation: Long,
         actionable: Boolean,
     ): AgentPageCard {
-        val identity = ObservationIdentity.fromPayload(observation.id, observation.generation.takeIf { it > 0 } ?: generation, observation.execution, observation.capturedAt, observation.payload)
+        val identity = ObservationIdentity.fromPayload(observation.id, observation.generation.takeIf { it > 0 } ?: generation, observation.execution, observation.capturedAt, observation.payload).copy(freshness = if (actionable) "current" else "stale")
         val ranked = if (goal.isBlank()) {
             emptyList()
         } else {

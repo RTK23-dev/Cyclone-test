@@ -62,6 +62,7 @@ class CycloneAgentEnvironment internal constructor(
     private val runtime: CycloneAgentRuntimePort,
     private val userTaskGoal: String? = null,
     private val revalidateTargets: Boolean = false,
+    private val projectionMode: ObservationProjectionMode = ObservationProjectionMode.AUTHORITATIVE,
 ) : CycloneAgentEnvironmentApi {
     constructor(context: Context, execution: com.cyclone.mobile.runtime.session.ExecutionContext = com.cyclone.mobile.runtime.session.ExecutionContext.DEFAULT, userTaskGoal: String? = null) :
         this(AndroidCycloneAgentRuntimePort(context.applicationContext, execution), userTaskGoal, revalidateTargets = true)
@@ -77,7 +78,7 @@ class CycloneAgentEnvironment internal constructor(
     override fun observe(goal: String): AgentObservationResult = synchronized(this) {
         runCatching {
             val observation = runtime.capture()
-            val generation = scope.publish(observation.id)
+            val generation = scope.publish(observation.id, observation.generation.takeIf { it > 0 })
             AgentObservationResult(page = pageCard(observation, goal, generation, actionable = true))
         }.getOrElse { AgentObservationResult(failure = failureFromThrowable(it, AgentFailureLayer.OBSERVATION)) }
     }
@@ -85,7 +86,7 @@ class CycloneAgentEnvironment internal constructor(
     override fun locate(goal: String): AgentSearchResult = synchronized(this) {
         runCatching {
             val observation = runtime.capture()
-            val generation = scope.publish(observation.id)
+            val generation = scope.publish(observation.id, observation.generation.takeIf { it > 0 })
             AgentSearchResult(
                 page = pageCard(observation, goal, generation, actionable = true),
                 observationId = observation.id,
@@ -113,7 +114,7 @@ class CycloneAgentEnvironment internal constructor(
             )
         }
         runCatching {
-            val observation = currentVisibleObservation() ?: runtime.capture().also { scope.publish(it.id) }
+            val observation = currentVisibleObservation() ?: runtime.capture().also { scope.publish(it.id, it.generation.takeIf { it > 0 }) }
             val generation = scope.generation
             AgentSearchResult(
                 page = pageCard(observation, goal, generation, actionable = true),
@@ -256,7 +257,7 @@ class CycloneAgentEnvironment internal constructor(
                     "Target revalidation: ${report.status.name}. Inspect a fresh same-scope control.", report.status.name),
                 before, visibleGeneration)
             before = fresh
-            visibleGeneration = scope.publish(fresh.id)
+            visibleGeneration = scope.publish(fresh.id, fresh.generation.takeIf { it > 0 })
             rawElementId = report.elementId
         }
         val normalizedParams = JSONObject(params.toString())
@@ -476,7 +477,18 @@ class CycloneAgentEnvironment internal constructor(
         }
     }
 
-    private fun pageCard(
+    private fun pageCard(observation: GatewayObservation, goal: String, generation: Long, actionable: Boolean): AgentPageCard {
+        val shared = ObservationProjections.pageCard(observation, goal, generation, actionable)
+        if (projectionMode == ObservationProjectionMode.SHADOW) {
+            val legacy = legacyPageCard(observation, goal, generation, actionable)
+            legacy.pageEvidence.put("projectionShadow", ObservationProjections.shadow(legacy, shared))
+            return legacy
+        }
+        shared.pageEvidence.put("projectionMode", "authoritative")
+        return shared
+    }
+
+    private fun legacyPageCard(
         observation: GatewayObservation,
         goal: String,
         generation: Long,
@@ -535,8 +547,6 @@ class CycloneAgentEnvironment internal constructor(
             displayId = observation.execution.displayId,
             legacyPage = observation.page,
         )
-        val shadow = ObservationProjections.pageCard(observation, goal, generation, actionable)
-        legacy.pageEvidence.put("projectionShadow", ObservationProjections.shadow(legacy, shadow))
         return legacy
     }
 
@@ -911,9 +921,9 @@ internal class AgentObservationScope {
     var generation: Long = 0
         private set
 
-    fun publish(id: String): Long {
+    fun publish(id: String, sourceGeneration: Long? = null): Long {
         require(id.isNotBlank())
-        generation += 1
+        generation = sourceGeneration ?: (generation + 1)
         observationId = id
         return generation
     }

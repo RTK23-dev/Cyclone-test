@@ -1485,11 +1485,7 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
     private fun observeState(goal: String, bridge: CyclonePcParityBridge = CyclonePcParityBridge(context, execution, goal)): ObservedState? {
         val card = bridge.observe(goal) ?: return null
         val page = card.legacyPage ?: return null
-        val snapshot = JSONObject().put("observationId", card.observationId).put("generation", card.generation)
-            .put("sessionId", card.sessionId).put("displayId", card.displayId)
-            .put("package", card.packageName).put("class", card.activity ?: JSONObject.NULL)
-            .put("fingerprint", card.accessibilityFingerprint).put("pageSummary", card.pageSummary)
-            .put("pageText", card.pageText).put("pageEvidence", card.pageEvidence)
+        val snapshot = com.cyclone.mobile.agent.tools.ObservationProjections.snapshot(card)
         // No fallback to DeviceState or a cached tree when a current field is missing.
         val environment = JSONObject(snapshot.toString()).put("goal", goal)
         return ObservedState(snapshot, environment, page)
