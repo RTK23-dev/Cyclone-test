@@ -70,6 +70,7 @@ class MobileLiquidGlassGuards(unittest.TestCase):
             'disable += "RememberInComposition"',
             'disable += "NullSafeMutableLiveData"',
             'disable += "FrequentlyChangingValue"',
+            'disable += "AutoboxingStateCreation"',
         }
         disabled = {
             line.strip()
