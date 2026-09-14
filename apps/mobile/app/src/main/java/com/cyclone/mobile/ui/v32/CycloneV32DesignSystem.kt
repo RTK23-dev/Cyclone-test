@@ -122,8 +122,19 @@ val CycloneTypography = Typography(
     labelSmall = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium),
 )
 
+/**
+ * Shared Cyclone theme.
+ *
+ * Normal in-app screens own a full-canvas optical backdrop. Floating system overlays must opt out
+ * of painting that canvas; otherwise the overlay window paints the sampled gradient over whatever
+ * app is behind Cyclone, producing the photographed white/blue wash. The transparent mode keeps a
+ * Backdrop owner for Liquid controls while leaving every pixel outside the control itself clear.
+ */
 @Composable
-fun CycloneTheme(content: @Composable () -> Unit) {
+fun CycloneTheme(
+    drawBackground: Boolean = true,
+    content: @Composable () -> Unit,
+) {
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) CycloneV32DarkColors else CycloneV32LightColors,
         shapes = CycloneV32Shapes,
@@ -143,14 +154,11 @@ fun CycloneTheme(content: @Composable () -> Unit) {
         )
         CompositionLocalProvider(LocalCycloneLiquidBackdrop provides liquidBackdrop) {
             Box(Modifier.fillMaxSize()) {
-                // Keep the sampled layer separate from the controls, as Kyant's demos do. The
-                // source now has restrained tonal variation instead of flat white, so refraction is
-                // visible on light screens without inventing borders or fake glassmorphism.
                 Box(
                     Modifier
                         .fillMaxSize()
                         .layerBackdrop(liquidBackdrop)
-                        .background(opticalSource),
+                        .then(if (drawBackground) Modifier.background(opticalSource) else Modifier),
                 )
                 content()
             }
@@ -258,7 +266,10 @@ fun CyclonePageIntro(eyebrow: String, title: String, body: String) {
 }
 
 @Composable
-fun CycloneV32Theme(content: @Composable () -> Unit) = CycloneTheme(content)
+fun CycloneV32Theme(
+    drawBackground: Boolean = true,
+    content: @Composable () -> Unit,
+) = CycloneTheme(drawBackground = drawBackground, content = content)
 
 object CycloneColors {
     val Blue = Accent
