@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.cyclone.mobile.ai.CatalogModel
+import com.cyclone.mobile.ai.OpenRouterCatalog
 import com.cyclone.mobile.ai.OpenRouterCatalogClient
 import com.cyclone.mobile.ai.OpenRouterCatalogStore
 import com.cyclone.mobile.ai.OpenRouterModelAvailability
@@ -87,7 +88,7 @@ internal fun CycloneOpenRouterCatalog(context: Context, onSelectionChanged: () -
     val rows = remember(models, selected, query, onlySelected) {
         val known = models.map { it.id }.toSet()
         val missing = (selected - known).map { CatalogModel(it, it, false, true, 0, null) }
-        OpenRouterCatalogStore.search(models + missing, query).filter { !onlySelected || it.id in selected }
+        OpenRouterCatalog.search(models + missing, query).filter { !onlySelected || it.id in selected }
     }
     val key = remember(revision, keyGeneration) { OpenRouterSecretStore.read(context) }
 
@@ -98,7 +99,6 @@ internal fun CycloneOpenRouterCatalog(context: Context, onSelectionChanged: () -
             keyGeneration++
         }
 
-        // Search is interaction chrome, so it belongs to the same refractive language as navigation.
         CycloneLiquidSearchField(
             value = query,
             onValueChange = { query = it },
@@ -151,7 +151,6 @@ internal fun CycloneOpenRouterCatalog(context: Context, onSelectionChanged: () -
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else {
-            // Model rows are information, not chrome: keep them quiet and let selection be the signal.
             LazyColumn(Modifier.fillMaxWidth().height(420.dp)) {
                 items(rows, key = { it.id }) { model ->
                     val checked = model.id in selected
