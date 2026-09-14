@@ -21,6 +21,9 @@ data class ObservationIdentity(
     val height: Int? = null,
     val rotation: Int? = null,
     val freshness: String = "current",
+    val semanticRevision: Long? = null,
+    val captureClock: String? = null,
+    val executionGeneration: Long? = null,
 ) {
     fun toJson(): JSONObject = JSONObject().put("schema", 1).put("evidenceId", evidenceId)
         .put("observationId", evidenceId).put("generation", generation).put("sessionId", sessionId)
@@ -33,6 +36,9 @@ data class ObservationIdentity(
         .put("windowSignature", windowSignature ?: JSONObject.NULL)
         .put("width", width ?: JSONObject.NULL).put("height", height ?: JSONObject.NULL)
         .put("rotation", rotation ?: JSONObject.NULL)
+        .put("semanticRevision", semanticRevision ?: JSONObject.NULL)
+        .put("captureClock", captureClock ?: JSONObject.NULL)
+        .put("executionGeneration", executionGeneration ?: JSONObject.NULL)
         .put("fieldState", JSONObject().apply {
             put("tree", freshness)
             put("profile", if (profileId == null) "unavailable" else freshness)
@@ -57,7 +63,9 @@ data class ObservationIdentity(
                 long(plane, "workspaceGeneration"), ids,
                 evidence.optString("windowSignature").takeUnless { it.isBlank() || it == "null" },
                 int(evidence, "captureWidth")?.takeIf { it > 0 }, int(evidence, "captureHeight")?.takeIf { it > 0 },
-                int(evidence, "rotation"))
+                int(evidence, "rotation"), semanticRevision = long(evidence, "semanticRevision"),
+                captureClock = evidence.optString("captureClock").takeIf { it.isNotBlank() },
+                executionGeneration = long(payload, "executionGeneration"))
         }
     }
 }

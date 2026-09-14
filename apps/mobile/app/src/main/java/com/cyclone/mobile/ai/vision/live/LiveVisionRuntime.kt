@@ -178,6 +178,7 @@ object LiveVisionRuntime {
                             crop = null,
                             timestampMs = System.currentTimeMillis(),
                             displayBounds = UiBounds(rect.left, rect.top, rect.right, rect.bottom),
+                            capturedAtMonotonicMs = result.timestamp,
                         )
                     } finally {
                         if (bitmap !== wrapped) bitmap.recycle()

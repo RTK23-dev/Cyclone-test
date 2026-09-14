@@ -58,11 +58,17 @@ class CyclonePcParityBridge internal constructor(
     private var forceVision = false
     var incident: com.cyclone.mobile.agent.recovery.RecoveryIncident? = null
 
-    @Synchronized fun observe(goal: String): AgentPageCard? {
+    @Synchronized fun observe(goal: String): AgentPageCard? = observeInternal(goal, false)?.page
+
+    @Synchronized fun observeWithImage(goal: String): com.cyclone.mobile.agent.contract.AgentObservationResult? = observeInternal(goal, true)
+
+    private fun observeInternal(goal: String, withImage: Boolean): com.cyclone.mobile.agent.contract.AgentObservationResult? {
         val now = System.nanoTime() / 1_000_000
         if (observationHealth.attempts > 0 && (observationHealth.terminal || now < observationHealth.cooldownUntilMs)) return null
         val previousKey = page?.pageKey
-        val result = environment.locate(goal)
+        val result = if (withImage) environment.observeWithImage(goal) else environment.locate(goal).let {
+            com.cyclone.mobile.agent.contract.AgentObservationResult(page = it.page, failure = it.failure)
+        }
         val fresh = result.page ?: run {
             page = null
             environment.invalidateObservation()
@@ -96,7 +102,7 @@ class CyclonePcParityBridge internal constructor(
                 attemptedEvidence = memory.attemptedEvidence + EvidenceSource.CURRENT_SEMANTIC_PAGE,
             )
         }
-        return fresh
+        return result
     }
 
     fun invalidateAfterHandoff() {

@@ -13,6 +13,34 @@ import org.junit.Test
 import java.util.ArrayDeque
 
 class CycloneAgentEnvironmentTest {
+    @Test fun visualBridgeUsesOneCaptureAndSameGenerationForAllProjections() {
+        val initial = observation("visual", "home", "fp").copy(generation = 83)
+        initial.payload.put("screenshot", JSONObject().put("available", true).put("pngBase64", "fixture"))
+        val runtime = FakeRuntime(initial, null)
+        val bridge = com.cyclone.mobile.agent.integration.CyclonePcParityBridge(CycloneAgentEnvironment(runtime))
+        val captured = bridge.observeWithImage("login")!!
+        val card = captured.page!!
+        assertEquals(83L, card.generation)
+        assertEquals(83L, card.legacyPage!!.observation!!.generation)
+        assertEquals(83L, ObservationProjections.snapshot(card).getLong("generation"))
+        val prompt = bridge.promptContext("login")
+        assertEquals(83L, prompt.getJSONObject("pageCard").getLong("generation"))
+        assertFalse(prompt.toString().contains("pngBase64"))
+        assertEquals("fixture", captured.image!!.getString("pngBase64"))
+        assertEquals(1, runtime.captureCalls)
+    }
+
+    @Test fun captureRaceClearsCurrentPageAndReportsBoundedRecoveryWithoutDispatch() {
+        val runtime = FakeRuntime(observation("initial", "home", "fp"), null)
+        val bridge = com.cyclone.mobile.agent.integration.CyclonePcParityBridge(CycloneAgentEnvironment(runtime))
+        assertNotNull(bridge.observe("login"))
+        runtime.captureError = com.cyclone.mobile.agent.CaptureChanged()
+        assertNull(bridge.observeWithImage("login"))
+        assertNull(bridge.currentPage())
+        assertEquals(com.cyclone.mobile.agent.ObservationState.CAPTURE_CHANGED, bridge.observationHealth.state)
+        assertFalse(bridge.observationHealth.terminal)
+        assertEquals(0, runtime.executionCalls)
+    }
     @Test fun authoritativeBridgeProjectsTheSourceGenerationWithOneCapture() {
         val initial = observation("shared", "home", "fp").copy(generation = 82)
         val runtime = FakeRuntime(initial, null)

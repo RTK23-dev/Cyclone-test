@@ -81,6 +81,7 @@ data class AgentPageCard(
 data class AgentObservationResult(
     val page: AgentPageCard? = null,
     val failure: AgentFailure? = null,
+    val image: JSONObject? = null,
 )
 
 data class AgentSearchResult(

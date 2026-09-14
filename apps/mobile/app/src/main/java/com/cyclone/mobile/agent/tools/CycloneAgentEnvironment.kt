@@ -45,6 +45,7 @@ import java.util.UUID
 /** Native in-process eyes/hands/verification contract for the standalone mobile agent. */
 interface CycloneAgentEnvironmentApi {
     fun observe(goal: String = ""): AgentObservationResult
+    fun observeWithImage(goal: String): AgentObservationResult = observe(goal)
     fun locate(goal: String): AgentSearchResult
     fun search(query: String, goal: String = query): AgentSearchResult
     fun inspect(elementId: String): AgentInspectResult
@@ -81,6 +82,18 @@ class CycloneAgentEnvironment internal constructor(
             val generation = scope.publish(observation.id, observation.generation.takeIf { it > 0 })
             AgentObservationResult(page = pageCard(observation, goal, generation, actionable = true))
         }.getOrElse { AgentObservationResult(failure = failureFromThrowable(it, AgentFailureLayer.OBSERVATION)) }
+    }
+
+    override fun observeWithImage(goal: String): AgentObservationResult = synchronized(this) {
+        runCatching {
+            val observation = runtime.captureWithImage()
+            val generation = scope.publish(observation.id, observation.generation.takeIf { it > 0 })
+            AgentObservationResult(page = pageCard(observation, goal, generation, actionable = true),
+                image = observation.payload.optJSONObject("screenshot")?.let { JSONObject(it.toString()) })
+        }.getOrElse {
+            invalidateObservation()
+            AgentObservationResult(failure = failureFromThrowable(it, AgentFailureLayer.OBSERVATION))
+        }
     }
 
     override fun locate(goal: String): AgentSearchResult = synchronized(this) {
@@ -738,6 +751,8 @@ class CycloneAgentEnvironment internal constructor(
             else -> null
         }
         when (workspaceCode) {
+            "OBSERVATION_CHANGED_DURING_CAPTURE" -> return AgentFailure(AgentFailureClass.AFTER_OBSERVATION_FAILED,
+                AgentFailureLayer.OBSERVATION, true, "The screen or task scope changed during capture; retry a fresh same-scope observation.", workspaceCode)
             "BACKEND_DISCONNECTED" -> return AgentFailure(AgentFailureClass.DEVICE_DISCONNECTED,
                 AgentFailureLayer.OBSERVATION, false, "The workspace backend is disconnected.", workspaceCode)
             "STALE_SESSION" -> return AgentFailure(AgentFailureClass.STALE_OBSERVATION,
@@ -936,6 +951,7 @@ internal class AgentObservationScope {
 internal interface CycloneAgentRuntimePort {
     fun cameraImages(): Map<Long, Long>? = null
     fun capture(): GatewayObservation
+    fun captureWithImage(): GatewayObservation = capture()
     fun current(): GatewayObservation?
     fun search(observation: GatewayObservation, query: String, limit: Int): JSONArray
     fun element(observation: GatewayObservation, elementId: String): JSONObject
@@ -993,6 +1009,8 @@ private class AndroidCycloneAgentRuntimePort(
         JSONObject().put("sessionId", execution.sessionId).put("displayId", execution.displayId), params)
 
     override fun capture(): GatewayObservation = GatewayObservationAdapter.capture(context, scoped())
+    override fun captureWithImage(): GatewayObservation = GatewayObservationAdapter.capture(context,
+        scoped(JSONObject().put("includeScreenshot", true).put("includeScreenshotBase64", true)))
     override fun current(): GatewayObservation? = GatewayObservationStore.current(execution.sessionId)
 
     override fun search(
