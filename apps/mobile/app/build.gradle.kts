@@ -37,11 +37,12 @@ android {
     kotlinOptions { jvmTarget = "17" }
     lint {
         // AGP 8.7's bundled Compose/Lifecycle lint detectors crash against the Kotlin 2.2
-        // Analysis API required by Kyant Backdrop 1.0.0. Disable only the two detectors proven
+        // Analysis API required by Kyant Backdrop 1.0.0. Disable only the detectors proven
         // incompatible by CI; all other lint checks remain active. Remove these when Cyclone moves
         // to a lint/AGP line compatible with Kotlin 2.2.x.
         disable += "RememberInComposition"
         disable += "NullSafeMutableLiveData"
+        disable += "FrequentlyChangingValue"
     }
 }
 
