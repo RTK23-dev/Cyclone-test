@@ -21,14 +21,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -315,9 +311,9 @@ internal fun V32RoutineDetail(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            OutlinedButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, null)
-                Spacer(Modifier.size(6.dp))
+            TextButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, Modifier.size(19.dp))
+                Spacer(Modifier.size(5.dp))
                 Text("All routines")
             }
         }
@@ -354,12 +350,12 @@ internal fun V32RoutineDetail(
         }
         item {
             CycloneSimpleCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(Modifier.weight(1f)) {
                         Text("Routine is ${if (enabled) "on" else "off"}", style = MaterialTheme.typography.titleSmall)
                         Text("Turn it off without deleting it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Switch(enabled, { value ->
+                    CycloneLiquidToggle(enabled, { value ->
                         enabled = value
                         val updated = automation.copy(enabled = value)
                         AutomationRuntime.store.saveAutomation(updated)
@@ -370,18 +366,16 @@ internal fun V32RoutineDetail(
                         refresh()
                     })
                 }
-                Button(
+                CycloneLiquidTextAction(
+                    label = "Run now",
                     enabled = enabled,
+                    prominent = true,
+                    modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         AutomationRuntime.router.runManual(automation.id)
                         Toast.makeText(context, "Routine started", Toast.LENGTH_SHORT).show()
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Rounded.PlayArrow, null)
-                    Spacer(Modifier.size(6.dp))
-                    Text("Run now")
-                }
+                )
             }
         }
     }
