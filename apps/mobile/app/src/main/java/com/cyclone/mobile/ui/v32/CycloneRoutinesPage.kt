@@ -23,7 +23,6 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledIconButton
@@ -62,10 +61,13 @@ fun CycloneRoutinesPage(context: Context, refreshTick: Int, onAi: () -> Unit, re
     var create by remember { mutableStateOf(false) }
     var mode by rememberSaveable { mutableStateOf("") }
 
-    BackHandler(selected != null || group != null || mode.isNotEmpty()) {
-        selected = null
-        group = null
-        mode = ""
+    BackHandler(selected != null || group != null || mode.isNotEmpty() || create) {
+        when {
+            create -> create = false
+            selected != null -> selected = null
+            group != null -> group = null
+            else -> mode = ""
+        }
     }
 
     when {
@@ -142,8 +144,42 @@ fun CycloneRoutinesPage(context: Context, refreshTick: Int, onAi: () -> Unit, re
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        FilledIconButton(onClick = { create = true }, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.Rounded.Add, "Create routine", modifier = Modifier.size(22.dp))
+                        FilledIconButton(onClick = { create = !create }, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Rounded.Add, if (create) "Close create menu" else "Create routine", modifier = Modifier.size(22.dp))
+                        }
+                    }
+                }
+
+                if (create) {
+                    item {
+                        CycloneLiquidPanel(
+                            modifier = Modifier.fillMaxWidth(),
+                            cornerRadius = 24.dp,
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                        ) {
+                            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("Create a routine", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "Choose how you want to start.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 4.dp),
+                                )
+                                RoutineCreateRow(Icons.Rounded.AutoAwesome, "Describe it to Cyclone", "Tell Cyclone what you want in plain language") {
+                                    create = false
+                                    onAi()
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
+                                RoutineCreateRow(Icons.Rounded.School, "Teach by doing", "Use Follow Me while you perform the routine") {
+                                    create = false
+                                    mode = "teach"
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
+                                RoutineCreateRow(Icons.Rounded.Tune, "Advanced", "Build manually or inspect teaching tools") {
+                                    create = false
+                                    mode = "advanced"
+                                }
+                            }
                         }
                     }
                 }
@@ -226,30 +262,6 @@ fun CycloneRoutinesPage(context: Context, refreshTick: Int, onAi: () -> Unit, re
                 }
             }
         }
-    }
-
-    if (create) {
-        AlertDialog(
-            onDismissRequest = { create = false },
-            title = { Text("Create a routine") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    RoutineCreateRow(Icons.Rounded.AutoAwesome, "Describe it to Cyclone", "Tell Cyclone what you want in plain language") {
-                        create = false
-                        onAi()
-                    }
-                    RoutineCreateRow(Icons.Rounded.School, "Teach by doing", "Use Follow Me while you perform the routine") {
-                        create = false
-                        mode = "teach"
-                    }
-                    RoutineCreateRow(Icons.Rounded.Tune, "Advanced", "Build it manually or inspect teaching tools") {
-                        create = false
-                        mode = "advanced"
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { create = false }) { Text("Cancel") } },
-        )
     }
 }
 
@@ -360,10 +372,8 @@ private fun RoutineCreateRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-            }
+        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
