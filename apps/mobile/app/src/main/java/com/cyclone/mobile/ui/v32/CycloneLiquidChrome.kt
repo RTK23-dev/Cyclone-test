@@ -44,13 +44,11 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousCapsule
 
 /**
- * Cyclone 4.4.4 semantic Liquid Chrome.
+ * Cyclone semantic Liquid Chrome.
  *
- * The app has one interaction language: Kyant0/AndroidLiquidGlass Backdrop optics for navigation,
- * composer/search chrome and actions; quiet Material surfaces for content. These primitives use the
- * same effect values as Kyant's 1.0.0 LiquidBottomTabs/LiquidButton examples instead of imitating
- * glass with translucent cards. Larger panels keep a continuous 30-32dp corner rather than turning
- * an entire sheet into a giant capsule.
+ * One optical object owns each interaction region. Content cards remain quiet Material surfaces.
+ * Trays deliberately use Kyant's restrained blur/lens recipe: the previous 8dp blur + 24/24 lens
+ * created a thick second border on white backgrounds and made controls look nested inside boxes.
  */
 @Composable
 internal fun CycloneLiquidTray(
@@ -61,7 +59,7 @@ internal fun CycloneLiquidTray(
 ) {
     val backdrop = LocalCycloneLiquidBackdrop.current
     val dark = isSystemInDarkTheme()
-    val container = if (dark) Color(0xFF121212).copy(alpha = 0.42f) else Color(0xFFFAFAFA).copy(alpha = 0.42f)
+    val container = if (dark) Color(0xFF121212).copy(alpha = 0.30f) else Color.White.copy(alpha = 0.22f)
 
     if (backdrop == null) {
         Box(
@@ -83,8 +81,8 @@ internal fun CycloneLiquidTray(
                 shape = { ContinuousCapsule },
                 effects = {
                     vibrancy()
-                    blur(8f.dp.toPx())
-                    lens(24f.dp.toPx(), 24f.dp.toPx())
+                    blur(2f.dp.toPx())
+                    lens(12f.dp.toPx(), 24f.dp.toPx())
                 },
                 onDrawSurface = { drawRect(container) },
             )
@@ -96,10 +94,7 @@ internal fun CycloneLiquidTray(
     )
 }
 
-/**
- * Variable-height liquid chrome for the Ask Cyclone overlay and accessory panels.
- * This is interactive chrome, not a content-card replacement.
- */
+/** Variable-height chrome for the Ask Cyclone overlay and other genuine floating panels. */
 @Composable
 internal fun CycloneLiquidPanel(
     modifier: Modifier = Modifier,
@@ -110,7 +105,7 @@ internal fun CycloneLiquidPanel(
     val backdrop = LocalCycloneLiquidBackdrop.current
     val dark = isSystemInDarkTheme()
     val shape = RoundedCornerShape(cornerRadius)
-    val container = if (dark) Color(0xFF121212).copy(alpha = 0.46f) else Color.White.copy(alpha = 0.38f)
+    val container = if (dark) Color(0xFF121212).copy(alpha = 0.34f) else Color.White.copy(alpha = 0.25f)
     val base = modifier.fillMaxWidth()
 
     if (backdrop == null) {
@@ -129,8 +124,8 @@ internal fun CycloneLiquidPanel(
                 shape = { shape },
                 effects = {
                     vibrancy()
-                    blur(8f.dp.toPx())
-                    lens(24f.dp.toPx(), 24f.dp.toPx())
+                    blur(2f.dp.toPx())
+                    lens(12f.dp.toPx(), 22f.dp.toPx())
                 },
                 onDrawSurface = { drawRect(container) },
             )
@@ -140,7 +135,10 @@ internal fun CycloneLiquidPanel(
     )
 }
 
-/** Kyant-style selected lens used inside shared trays; not a second opaque button. */
+/**
+ * Selected lens inside a shared tray. A fixed inset keeps the lens visibly detached from the outer
+ * glass edge; it should read as refraction moving inside one object, never as a second box.
+ */
 @Composable
 internal fun CycloneLiquidSelectionLens(
     selectedIndex: Int,
@@ -148,27 +146,30 @@ internal fun CycloneLiquidSelectionLens(
     totalWidth: Dp,
     modifier: Modifier = Modifier,
     height: Dp = 48.dp,
+    horizontalInset: Dp = 3.dp,
 ) {
     if (itemCount <= 0) return
     val backdrop = LocalCycloneLiquidBackdrop.current ?: return
     val itemWidth = totalWidth / itemCount
+    val safeInset = horizontalInset.coerceAtMost(itemWidth / 4)
+    val lensWidth = (itemWidth - safeInset * 2).coerceAtLeast(1.dp)
     val targetOffset by animateDpAsState(
-        targetValue = itemWidth * selectedIndex.coerceIn(0, itemCount - 1),
+        targetValue = itemWidth * selectedIndex.coerceIn(0, itemCount - 1) + safeInset,
         animationSpec = tween(240),
         label = "Cyclone liquid selection",
     )
     val dark = isSystemInDarkTheme()
-    val surface = if (dark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
+    val surface = if (dark) Color.White.copy(alpha = 0.075f) else Color.Black.copy(alpha = 0.035f)
 
     Box(
         modifier
             .offset(x = targetOffset)
-            .width(itemWidth)
+            .width(lensWidth)
             .height(height)
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { ContinuousCapsule },
-                effects = { lens(10f.dp.toPx(), 14f.dp.toPx(), chromaticAberration = true) },
+                effects = { lens(7f.dp.toPx(), 11f.dp.toPx(), chromaticAberration = false) },
                 onDrawSurface = { drawRect(surface) },
             ),
     )
@@ -186,7 +187,7 @@ internal fun CycloneLiquidTextAction(
     val backdrop = LocalCycloneLiquidBackdrop.current
     if (backdrop == null) return
     val dark = isSystemInDarkTheme()
-    val neutral = if (dark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.08f)
+    val neutral = if (dark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.055f)
     CycloneKyantLiquidButton(
         onClick = onClick,
         backdrop = backdrop,
@@ -226,7 +227,7 @@ internal fun CycloneLiquidDestructiveAction(
     }
 }
 
-/** A single refractive search object; avoids stock outlined-field chrome inside a glass screen. */
+/** One refractive search object; there is no inner field container or second visible outline. */
 @Composable
 internal fun CycloneLiquidSearchField(
     value: String,
@@ -235,9 +236,9 @@ internal fun CycloneLiquidSearchField(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    CycloneLiquidTray(modifier = modifier, height = 56.dp, contentPadding = 4.dp) {
+    CycloneLiquidTray(modifier = modifier, height = 52.dp, contentPadding = 3.dp) {
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 12.dp),
+            Modifier.fillMaxWidth().heightIn(min = 46.dp).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -253,7 +254,7 @@ internal fun CycloneLiquidSearchField(
                 singleLine = true,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 10.dp, vertical = 12.dp)
+                    .padding(horizontal = 10.dp, vertical = 10.dp)
                     .semantics { contentDescription = placeholder },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -296,7 +297,7 @@ internal fun CycloneLiquidFilterChip(
 ) {
     val backdrop = LocalCycloneLiquidBackdrop.current ?: return
     val dark = isSystemInDarkTheme()
-    val neutral = if (dark) Color.White.copy(alpha = 0.13f) else Color.Black.copy(alpha = 0.075f)
+    val neutral = if (dark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.055f)
     CycloneKyantLiquidButton(
         onClick = onClick,
         backdrop = backdrop,
