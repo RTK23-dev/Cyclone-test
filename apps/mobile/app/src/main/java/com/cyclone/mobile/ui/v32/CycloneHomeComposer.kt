@@ -63,8 +63,8 @@ fun CycloneHomeComposer(onSubmit: (String) -> Unit) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Home is a launcher, not a second full chat screen. Keep the primary interaction as one
-        // compact floating panel instead of the old 112dp giant capsule/square photographed in 4.4.4.
+        // Home is a launcher, not a second AI settings surface. Model/intelligence/autonomy live in
+        // the AI workspace; this launcher stays focused on request, attachment, voice and send.
         CycloneLiquidPanel(
             modifier = Modifier.fillMaxWidth(),
             cornerRadius = 28.dp,
@@ -74,7 +74,6 @@ fun CycloneHomeComposer(onSubmit: (String) -> Unit) {
                 Modifier.fillMaxWidth().heightIn(min = 54.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CycloneIntelligenceControls(showModelPill = false)
                 CycloneTrayIconAction(
                     onClick = { tools = !tools },
                     modifier = Modifier.size(44.dp),
