@@ -64,9 +64,18 @@ class MobileLiquidGlassGuards(unittest.TestCase):
         self.assertIn("LocalCycloneLiquidBackdrop provides liquidBackdrop", source)
         self.assertIn("layerBackdrop(liquidBackdrop)", source)
 
-    def test_only_known_compose_lint_crash_is_suppressed(self):
+    def test_only_known_compose_lint_crashes_are_suppressed(self):
         build = APP_BUILD.read_text(encoding="utf-8")
-        self.assertEqual(build.count('disable += "RememberInComposition"'), 1)
+        expected = {
+            'disable += "RememberInComposition"',
+            'disable += "NullSafeMutableLiveData"',
+        }
+        disabled = {
+            line.strip()
+            for line in build.splitlines()
+            if line.strip().startswith("disable +=")
+        }
+        self.assertEqual(disabled, expected)
         self.assertNotIn("abortOnError = false", build)
         self.assertNotIn("checkReleaseBuilds = false", build)
 
