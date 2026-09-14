@@ -35,7 +35,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -251,7 +250,7 @@ fun CycloneRoutineCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Surface(
                     shape = RoundedCornerShape(13.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -275,7 +274,7 @@ fun CycloneRoutineCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Switch(checked = automation.enabled, onCheckedChange = onEnabledChange)
+                CycloneLiquidToggle(checked = automation.enabled, onCheckedChange = onEnabledChange)
             }
             Row(
                 Modifier.fillMaxWidth(),
@@ -290,17 +289,11 @@ fun CycloneRoutineCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = if (automation.enabled) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (automation.enabled) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                ) {
-                    Text(
-                        if (automation.enabled) "On" else "Off",
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
+                Text(
+                    if (automation.enabled) "On" else "Off",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (automation.enabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
