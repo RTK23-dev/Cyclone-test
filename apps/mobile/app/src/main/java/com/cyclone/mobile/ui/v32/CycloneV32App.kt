@@ -156,53 +156,29 @@ private fun V32HomePage(
         in 12..17 -> "Good afternoon"
         else -> "Good evening"
     }
+    val readinessLabel = when {
+        ready.ready -> "Ready"
+        ready.needsRepair -> "Repair"
+        else -> "Setup"
+    }
 
     LazyColumn(
         contentPadding = PaddingValues(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Text(greeting, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                TextButton(onClick = onSettings) { Text("Settings") }
-                Surface(
-                    modifier = Modifier.clickable(onClick = onSettings),
-                    shape = RoundedCornerShape(999.dp),
-                    color = when {
-                        ready.ready -> MaterialTheme.colorScheme.secondaryContainer
-                        ready.needsRepair -> MaterialTheme.colorScheme.errorContainer
-                        else -> MaterialTheme.colorScheme.tertiaryContainer
-                    },
-                    contentColor = when {
-                        ready.ready -> MaterialTheme.colorScheme.onSecondaryContainer
-                        ready.needsRepair -> MaterialTheme.colorScheme.onErrorContainer
-                        else -> MaterialTheme.colorScheme.onTertiaryContainer
-                    },
-                ) {
-                    Row(
-                        Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = when {
-                                ready.ready -> MaterialTheme.colorScheme.secondary
-                                ready.needsRepair -> MaterialTheme.colorScheme.error
-                                else -> MaterialTheme.colorScheme.tertiary
-                            },
-                            modifier = Modifier.size(6.dp),
-                        ) {}
-                        Text(
-                            when {
-                                ready.ready -> "Ready"
-                                ready.needsRepair -> "Repair"
-                                else -> "Setup"
-                            },
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-                }
+                // One action owns both navigation and readiness. 4.4.4 exposed two adjacent
+                // Settings controls targeting the same page, which made the Home header cramped.
+                CycloneLiquidTextAction(
+                    label = "Settings · $readinessLabel",
+                    onClick = onSettings,
+                )
             }
         }
 
