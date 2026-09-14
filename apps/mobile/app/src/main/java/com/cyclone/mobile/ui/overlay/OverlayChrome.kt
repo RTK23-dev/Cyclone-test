@@ -44,7 +44,6 @@ import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -90,7 +89,6 @@ import com.cyclone.mobile.ui.v32.CycloneAskTaskPanel
 import com.cyclone.mobile.ui.v32.CycloneForegroundWorkCard
 import com.cyclone.mobile.ui.v32.CycloneKyantLiquidIconButton
 import com.cyclone.mobile.ui.v32.CycloneLiquidPanel
-import com.cyclone.mobile.ui.v32.CycloneLiquidTray
 import com.cyclone.mobile.ui.v32.CyclonePendingRequests
 import com.cyclone.mobile.ui.v32.CycloneTrayIconAction
 import com.cyclone.mobile.ui.v32.CycloneV32Theme
@@ -162,6 +160,7 @@ internal class OverlayIdleActivationTracker(
         pulseSerial += 1
         activating = true
         tapCount = 0
+
         return OverlayIdleTapResult(pulseSerial, 3, 0, true, false)
     }
 
@@ -187,9 +186,6 @@ fun OverlayChrome(
     onIdleSemanticActivate: () -> Unit = { onAction(OverlayUserAction.ASK_CYCLONE) },
     modifier: Modifier = Modifier,
 ) {
-    // Overlay windows must stay optically transparent. Painting CycloneTheme's full-screen optical
-    // source here produces the photographed white/blue wash over the launcher and makes the sheet
-    // feel like it is pushing the host app away instead of floating over it.
     CycloneV32Theme(drawBackground = false) {
         val showOrb = snapshot.state == OverlayChromeState.IDLE || snapshot.minimized
         AnimatedContent(
@@ -427,17 +423,17 @@ private fun ComposerPanel(
     ) {
         CycloneLiquidPanel(
             modifier = Modifier.fillMaxWidth().wrapContentHeight(),
-            cornerRadius = 32.dp,
-            contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 10.dp),
+            cornerRadius = 28.dp,
+            contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 9.dp),
         ) {
             Column(
                 Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(9.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .height(18.dp)
+                        .height(16.dp)
                         .pointerInput(Unit) {
                             detectVerticalDragGestures(
                                 onDragStart = { settleJob?.cancel() },
@@ -453,9 +449,9 @@ private fun ComposerPanel(
                 ) {
                     Box(
                         Modifier
-                            .size(34.dp, 4.dp)
+                            .size(32.dp, 4.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = .30f)),
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = .26f)),
                     )
                 }
 
@@ -477,36 +473,30 @@ private fun ComposerPanel(
                     ScreenSharePill(sharing) { LiveCaptureService.stop(context) }
                 }
 
-                if (accessory != ComposerAccessory.NONE) {
-                    Surface(
-                        shape = RoundedCornerShape(22.dp),
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = .045f),
-                        tonalElevation = 0.dp,
-                        shadowElevation = 0.dp,
+                // Accessory content belongs to the one outer liquid sheet. 4.4.4 wrapped this in a
+                // second rounded Surface, producing the photographed box-inside-box appearance.
+                when (accessory) {
+                    ComposerAccessory.ATTACHMENTS -> Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
-                        when (accessory) {
-                            ComposerAccessory.ATTACHMENTS -> Row(
-                                Modifier.heightIn(min = 52.dp).padding(horizontal = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                TextButton(onClick = { launchExternal(Intent(context, OverlayAttachmentActivity::class.java)) }) { Text("File") }
-                                TextButton(onClick = { launchExternal(Intent(context, OverlayAttachmentActivity::class.java).putExtra("camera", true)) }) { Text("Photo") }
-                                TextButton(enabled = !sharing.active, onClick = {
-                                    launchExternal(Intent(context, LiveCaptureConsentActivity::class.java))
-                                }) { Text("Share screen") }
-                                TextButton(enabled = !sharing.active, onClick = {
-                                    launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
-                                }) { Text("Cross-app") }
-                            }
-                            ComposerAccessory.MODEL -> com.cyclone.mobile.ui.v32.CycloneModelIntelligencePanel(
-                                aiSettings.modelId,
-                                aiSettings.reasoningEffort,
-                            ) { model, effort ->
-                                onAiSettingsChanged(aiSettings.copy(modelId = model, reasoningEffort = effort))
-                            }
-                            ComposerAccessory.NONE -> Unit
-                        }
+                        TextButton(onClick = { launchExternal(Intent(context, OverlayAttachmentActivity::class.java)) }) { Text("File") }
+                        TextButton(onClick = { launchExternal(Intent(context, OverlayAttachmentActivity::class.java).putExtra("camera", true)) }) { Text("Photo") }
+                        TextButton(enabled = !sharing.active, onClick = {
+                            launchExternal(Intent(context, LiveCaptureConsentActivity::class.java))
+                        }) { Text("Share") }
+                        TextButton(enabled = !sharing.active, onClick = {
+                            launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
+                        }) { Text("Cross-app") }
                     }
+                    ComposerAccessory.MODEL -> com.cyclone.mobile.ui.v32.CycloneModelIntelligencePanel(
+                        aiSettings.modelId,
+                        aiSettings.reasoningEffort,
+                    ) { model, effort ->
+                        onAiSettingsChanged(aiSettings.copy(modelId = model, reasoningEffort = effort))
+                    }
+                    ComposerAccessory.NONE -> Unit
                 }
 
                 if (attached) {
@@ -528,7 +518,7 @@ private fun ComposerPanel(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(min = OverlayChromeContract.COMPOSER_HEIGHT_DP.dp)
-                        .padding(horizontal = 4.dp),
+                        .padding(horizontal = 3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (!compactRunning) {
@@ -540,7 +530,7 @@ private fun ComposerPanel(
                                 Icons.Rounded.Tune,
                                 "Choose model",
                                 tint = if (accessory == ComposerAccessory.MODEL) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(22.dp),
                             )
                         }
                     }
@@ -549,7 +539,12 @@ private fun ComposerPanel(
                         onClick = { accessory = accessory.toggle(ComposerAccessory.ATTACHMENTS) },
                         modifier = Modifier.size(OverlayChromeContract.COMPOSER_TOUCH_TARGET_DP.dp),
                     ) {
-                        Icon(Icons.Rounded.Add, "Add attachment", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(25.dp))
+                        Icon(
+                            Icons.Rounded.Add,
+                            "Add attachment",
+                            tint = if (accessory == ComposerAccessory.ATTACHMENTS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(23.dp),
+                        )
                     }
 
                     BasicTextField(
@@ -594,7 +589,7 @@ private fun ComposerPanel(
                                 Icons.Rounded.Mic,
                                 contentDescription = "Dictate request",
                                 tint = if (snapshot.voiceListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(22.dp),
                             )
                         }
                     }
@@ -684,33 +679,40 @@ internal enum class ComposerAccessory {
     fun toggle(next: ComposerAccessory): ComposerAccessory = if (this == next) NONE else next
 }
 
+/** Quiet inline status inside the outer overlay panel; never nests another liquid tray. */
 @Composable
 internal fun ScreenSharePill(state: com.cyclone.mobile.capture.ScreenShareState, onStop: () -> Unit) {
-    CycloneLiquidTray(modifier = Modifier.fillMaxWidth(), height = 52.dp, contentPadding = 4.dp) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(start = 12.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                when (state.phase) {
-                    ScreenSharePhase.LIVE -> "Sharing screen"
-                    ScreenSharePhase.REQUESTING_PERMISSION -> "Waiting for permission"
-                    ScreenSharePhase.STARTING -> state.message ?: "Starting screen share"
-                    ScreenSharePhase.STOPPING -> "Stopping screen share"
-                    ScreenSharePhase.ERROR -> state.message ?: "Screen sharing failed"
-                    ScreenSharePhase.REVOKED -> "Screen sharing ended"
-                    ScreenSharePhase.OFF -> "Screen sharing off"
-                },
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            if (state.active) {
-                TextButton(
-                    onClick = onStop,
-                    enabled = state.phase != ScreenSharePhase.STOPPING,
-                    modifier = Modifier.heightIn(min = 44.dp),
-                ) { Text("Stop") }
-            }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(if (state.active) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant),
+        )
+        Text(
+            when (state.phase) {
+                ScreenSharePhase.LIVE -> "Sharing screen"
+                ScreenSharePhase.REQUESTING_PERMISSION -> "Waiting for permission"
+                ScreenSharePhase.STARTING -> state.message ?: "Starting screen share"
+                ScreenSharePhase.STOPPING -> "Stopping screen share"
+                ScreenSharePhase.ERROR -> state.message ?: "Screen sharing failed"
+                ScreenSharePhase.REVOKED -> "Screen sharing ended"
+                ScreenSharePhase.OFF -> "Screen sharing off"
+            },
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        if (state.active) {
+            TextButton(
+                onClick = onStop,
+                enabled = state.phase != ScreenSharePhase.STOPPING,
+                modifier = Modifier.heightIn(min = 40.dp),
+            ) { Text("Stop") }
         }
     }
 }
