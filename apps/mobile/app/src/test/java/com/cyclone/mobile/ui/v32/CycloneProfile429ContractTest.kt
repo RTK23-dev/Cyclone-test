@@ -98,9 +98,11 @@ class CycloneProfile429ContractTest {
         assertTrue(overlay.contains("CycloneModelIntelligencePanel("))
     }
 
-    @Test fun inAppComposerDoesNotDuplicateTheModelPillInsideSettings() {
+    @Test fun inAppComposerKeepsOneModelPillAndHidesNestedModelSelector() {
         val source = source("ui/v32/CycloneV39AiChatPage.kt")
         assertTrue(source.contains("CycloneModelPill("))
-        assertTrue(source.contains("showModelPill = false"))
+        assertTrue(source.contains("CycloneModelIntelligencePanel("))
+        assertTrue(source.contains("showModelSelector = false"))
+        assertFalse(source.contains("showModelPill = false"))
     }
 }
