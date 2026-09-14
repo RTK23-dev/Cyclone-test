@@ -3,13 +3,25 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
 APP_BUILD = ROOT / "apps/mobile/app/build.gradle.kts"
-RENDERER = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/CycloneKyantLiquidGlass.kt"
+V32 = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32"
+RENDERER = V32 / "CycloneKyantLiquidGlass.kt"
 OVERRIDES = ROOT / "apps/mobile/app/src/main/java/androidx/compose/material3/CycloneLiquidGlassOverrides.kt"
-THEME = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/CycloneV32DesignSystem.kt"
+THEME = V32 / "CycloneV32DesignSystem.kt"
+LIQUID = V32 / "CycloneLiquidChrome.kt"
+SELECTORS = V32 / "CycloneLiquidSelectors.kt"
+HOME = V32 / "CycloneHomeComposer.kt"
+APP = V32 / "CycloneV32App.kt"
+AI = V32 / "CycloneV39AiChatPage.kt"
+INTELLIGENCE = V32 / "CycloneIntelligenceControls.kt"
+REASONING = V32 / "CycloneReasoningSelector.kt"
+ROUTINES = V32 / "CycloneRoutinesPage.kt"
+COMPONENTS = V32 / "CycloneV32Components.kt"
+OVERLAY = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"
 
 
 class MobileLiquidGlassGuards(unittest.TestCase):
     def test_444_identity_and_runtime_contract_are_preserved(self):
+        # Repair work stays on top of the immutable published 4.4.4 source until a release is cut.
         build = APP_BUILD.read_text(encoding="utf-8")
         self.assertIn('versionCode = 104', build)
         self.assertIn('versionName = "4.4.4"', build)
@@ -63,6 +75,60 @@ class MobileLiquidGlassGuards(unittest.TestCase):
         self.assertIn("rememberLayerBackdrop()", source)
         self.assertIn("LocalCycloneLiquidBackdrop provides liquidBackdrop", source)
         self.assertIn("layerBackdrop(liquidBackdrop)", source)
+
+    def test_overlay_theme_is_transparent_and_content_sized(self):
+        theme = THEME.read_text(encoding="utf-8")
+        overlay = OVERLAY.read_text(encoding="utf-8")
+        self.assertIn("CycloneV32Theme(drawBackground = false)", overlay)
+        self.assertIn("Box(Modifier.wrapContentSize())", theme)
+        self.assertIn(".matchParentSize()", theme)
+        self.assertIn("if (drawBackground)", theme)
+        # A floating accessibility overlay may never paint the app's full optical canvas over the host.
+        transparent_branch = theme.split("} else {", 1)[1]
+        self.assertNotIn("Modifier.fillMaxSize()", transparent_branch.split("enum class CyclonePastel", 1)[0])
+
+    def test_liquid_selection_is_inset_not_a_second_full_box(self):
+        liquid = LIQUID.read_text(encoding="utf-8")
+        selectors = SELECTORS.read_text(encoding="utf-8")
+        components = COMPONENTS.read_text(encoding="utf-8")
+        self.assertIn("horizontalInset: Dp = 3.dp", liquid)
+        self.assertIn("lensWidth = (itemWidth - safeInset * 2)", liquid)
+        self.assertIn("chromaticAberration = false", liquid)
+        self.assertIn("horizontalInset = 4.dp", selectors)
+        self.assertIn("height = 34.dp", components)
+        self.assertIn("CycloneLiquidTray(modifier = modifier, height = 44.dp", components)
+
+    def test_ai_settings_never_put_backdrop_controls_in_popup_windows(self):
+        for path in (AI, INTELLIGENCE, REASONING):
+            source = path.read_text(encoding="utf-8")
+            self.assertNotIn("DropdownMenu(", source, path.name)
+            self.assertNotIn("DropdownMenuItem(", source, path.name)
+        self.assertIn("if (intelligenceOpen)", AI.read_text(encoding="utf-8"))
+        self.assertIn("CycloneLiquidPanel(", AI.read_text(encoding="utf-8"))
+
+    def test_home_launcher_is_compact_and_has_one_settings_action(self):
+        home = HOME.read_text(encoding="utf-8")
+        app = APP.read_text(encoding="utf-8")
+        self.assertNotIn("height = 112.dp", home)
+        self.assertIn("cornerRadius = 28.dp", home)
+        self.assertNotIn("CycloneIntelligenceControls(", home)
+        self.assertIn('label = "Settings · $readinessLabel"', app)
+        self.assertNotIn('TextButton(onClick = onSettings) { Text("Settings") }', app)
+
+    def test_routines_use_one_organization_control_and_no_popup_create_dialog(self):
+        source = ROUTINES.read_text(encoding="utf-8")
+        self.assertIn('listOf("Apps", "Categories", "All")', source)
+        self.assertNotIn("AlertDialog(", source)
+        self.assertNotIn("grouped by", source.lower())
+        self.assertIn("CycloneLiquidPanel(", source)
+
+    def test_routine_switches_use_liquid_toggle(self):
+        app = APP.read_text(encoding="utf-8")
+        components = COMPONENTS.read_text(encoding="utf-8")
+        self.assertIn("CycloneLiquidToggle(enabled", app)
+        self.assertIn("CycloneLiquidToggle(checked = automation.enabled", components)
+        self.assertNotIn("Switch(checked = automation.enabled", components)
+        self.assertNotIn("Switch(enabled", app)
 
     def test_only_known_lint_crashes_are_suppressed(self):
         build = APP_BUILD.read_text(encoding="utf-8")
