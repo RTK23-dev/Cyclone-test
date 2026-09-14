@@ -20,8 +20,6 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.List
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Tune
@@ -31,7 +29,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -59,7 +56,6 @@ fun CycloneRoutinesPage(context: Context, refreshTick: Int, onAi: () -> Unit, re
     val task by com.cyclone.mobile.runtime.background.WorkspaceTasks.state.collectAsState()
     val runs = remember(refreshTick) { AutomationRuntime.store.listRuns() }
     var query by rememberSaveable { mutableStateOf("") }
-    var grouped by rememberSaveable { mutableStateOf(true) }
     var grouping by rememberSaveable { mutableIntStateOf(0) }
     var group by rememberSaveable { mutableStateOf<String?>(null) }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
@@ -125,28 +121,25 @@ fun CycloneRoutinesPage(context: Context, refreshTick: Int, onAi: () -> Unit, re
                 filtered.flatMap { routine -> keys(routine).map { key -> key to routine } }
                     .groupBy({ it.first }, { it.second })
             }
-            val showGrouped = grouped && grouping != 2 && group == null
+            val showGrouped = grouping != 2 && group == null
             val visibleRoutines = if (group == null) filtered else groups[group].orEmpty()
 
             LazyColumn(
                 contentPadding = PaddingValues(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 item {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("Routines", style = MaterialTheme.typography.headlineMedium)
                             Text(
-                                "${all.size} ${if (all.size == 1) "routine" else "routines"} · organized your way",
+                                "${all.size} ${if (all.size == 1) "routine" else "routines"}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        IconButton(onClick = { grouped = !grouped; group = null }, modifier = Modifier.size(44.dp)) {
-                            Icon(
-                                if (grouped) Icons.Rounded.List else Icons.Rounded.GridView,
-                                if (grouped) "Show individual routines" else "Show grouped routines",
-                                modifier = Modifier.size(21.dp),
                             )
                         }
                         FilledIconButton(onClick = { create = true }, modifier = Modifier.size(48.dp)) {
@@ -166,7 +159,7 @@ fun CycloneRoutinesPage(context: Context, refreshTick: Int, onAi: () -> Unit, re
 
                 item {
                     CycloneSegmentedControl(
-                        listOf("Apps", "Categories", "Specifics"),
+                        listOf("Apps", "Categories", "All"),
                         grouping,
                         onSelect = {
                             grouping = it
