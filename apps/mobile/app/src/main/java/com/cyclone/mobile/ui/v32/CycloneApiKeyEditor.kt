@@ -94,7 +94,7 @@ internal fun CycloneApiKeyEditor(context: Context, onChanged: () -> Unit = {}) {
 
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
 
-        val act = {
+        val act: () -> Unit = {
             busy = true
             val removing = hasKey
             val submitted = draft
