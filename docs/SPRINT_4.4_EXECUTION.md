@@ -83,3 +83,15 @@ Release checkpoint (07 follow-up): normalizes the workspace runtime's fixed lega
 Local gateway contracts: 199 tests passed; phone MCP: 158 tests passed. ADB reported no attached device; physical acceptance remains UNVERIFIED.
 
 Final release working-source Mobile suite: 1,033 tests passed, zero failures/errors (37s). Metadata, product and security guards passed. The initial 4.4 local tests/lint/release assembly passed (11m51s); the final workspace-code follow-up was then verified by the full Mobile suite. Exact-final-source lint/assembly and signing provenance are additionally required in the release branch CI; links and immutable source SHA are recorded by the release assets and PR #106.
+
+## Sprint 2 — 4.4.4 coherent observations
+
+Baseline: published 4.4.3 / 103, `65fc673ba5d328c57dd8502fb14d1d51dec7396d`; [Mobile CI](https://github.com/premiumcentraal-boop/Cyclone/actions/runs/34827911335) and [release](https://github.com/premiumcentraal-boop/Cyclone/actions/runs/34827911071) passed. The unrelated PC CI on that baseline failed; this sprint does not change Cyclone One. Sprint 1's `ExecutionTiming`, scoped `SessionObservationEnvelope`, recovery journal, provider lifecycle and race fixtures are present. The obvious legacy/current double capture was already removed in checkpoint 2; this sprint completes its provenance and projection contract instead of reintroducing another observer.
+
+Read the complete comparison and [proposal 15][p15] at the pinned dossier revision. Artemis is architectural evidence; no runtime source is copied.
+
+Checkpoint A introduces pure `ObservationProjections` and additive `ObservationIdentity` in shadow comparison. The current IDs remain authoritative during this checkpoint. Comparison uses the same input capture, reports only fixed difference codes, and never invokes a capture port. The session envelope's source generation is carried into the candidate legacy, card, executable control evidence, prompt and learning projections. Unknown profile/window/geometry/timing fields are explicitly unavailable, never filled from a prior page. Page provenance is transient, separate from learned-page identity.
+
+Fixture seed 0, scripted JVM source: one semantic capture serves five repeated projection passes; all projections share source generation; shadow detects scope/page races; unavailable fields remain null; projection mutation does not overwrite captured control evidence. Exact test results and checkpoint SHA are recorded by the next checkpoint before switching authority. Physical device acceptance remains UNVERIFIED.
+
+Checkpoint A validation: 1,054 Mobile JVM tests passed, zero failures/errors (4m49s clean compilation after a transient Windows Gradle cache move error). Production bridge race fixtures report matching shadow projections; five pure projection passes invoke the scripted semantic source once. Learned-control/old-preview contamination is reproduced and the fresh projection excludes it.

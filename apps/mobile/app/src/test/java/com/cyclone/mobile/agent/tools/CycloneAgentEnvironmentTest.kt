@@ -75,11 +75,13 @@ class CycloneAgentEnvironmentTest {
         val runtime = FakeRuntime(initial, null).apply { captureQueue.addLast(banner) }
         val bridge = com.cyclone.mobile.agent.integration.CyclonePcParityBridge(CycloneAgentEnvironment(runtime))
         val first = bridge.observe("login")!!
+        assertTrue(first.pageEvidence.getJSONObject("projectionShadow").getBoolean("matches"))
         assertSame(initial.page, first.legacyPage)
         assertEquals(first.pageKey, first.legacyPage!!.pageKey)
         assertEquals(1, runtime.captureQueue.size)
         assertTrue(first.controls.all { it.observationId == first.observationId })
         val second = bridge.observe("login")!!
+        assertTrue(second.pageEvidence.getJSONObject("projectionShadow").getBoolean("matches"))
         assertSame(banner.page, second.legacyPage)
         assertEquals(second.pageKey, second.legacyPage!!.pageKey)
         assertTrue(runtime.captureQueue.isEmpty())

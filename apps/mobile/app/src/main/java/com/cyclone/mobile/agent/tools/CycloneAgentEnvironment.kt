@@ -510,7 +510,7 @@ class CycloneAgentEnvironment internal constructor(
             )
         }
 
-        return AgentPageCard(
+        val legacy = AgentPageCard(
             observationId = observation.id,
             generation = generation,
             actionable = actionable,
@@ -535,6 +535,9 @@ class CycloneAgentEnvironment internal constructor(
             displayId = observation.execution.displayId,
             legacyPage = observation.page,
         )
+        val shadow = ObservationProjections.pageCard(observation, goal, generation, actionable)
+        legacy.pageEvidence.put("projectionShadow", ObservationProjections.shadow(legacy, shadow))
+        return legacy
     }
 
     private fun candidateFrom(item: JSONObject, evidence: JSONObject) = AgentElementCandidate(
