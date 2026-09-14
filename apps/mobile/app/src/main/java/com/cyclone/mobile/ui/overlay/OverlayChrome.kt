@@ -187,7 +187,10 @@ fun OverlayChrome(
     onIdleSemanticActivate: () -> Unit = { onAction(OverlayUserAction.ASK_CYCLONE) },
     modifier: Modifier = Modifier,
 ) {
-    CycloneV32Theme {
+    // Overlay windows must stay optically transparent. Painting CycloneTheme's full-screen optical
+    // source here produces the photographed white/blue wash over the launcher and makes the sheet
+    // feel like it is pushing the host app away instead of floating over it.
+    CycloneV32Theme(drawBackground = false) {
         val showOrb = snapshot.state == OverlayChromeState.IDLE || snapshot.minimized
         AnimatedContent(
             targetState = showOrb,
@@ -413,9 +416,6 @@ private fun ComposerPanel(
         }
     }
 
-    // Never inherit a full-screen sizing modifier here. The old overlay did, which turned the
-    // translucent sheet into the photographed full-screen white rectangle. This surface owns only
-    // its content height; the surrounding overlay window remains transparent and touch-through.
     Box(
         Modifier
             .fillMaxWidth()
@@ -524,8 +524,6 @@ private fun ComposerPanel(
                     }
                 }
 
-                // The editor is part of the one parent glass object. Tool icons are transparent hit
-                // targets; Send alone gets a separate primary liquid lens.
                 Row(
                     Modifier
                         .fillMaxWidth()
