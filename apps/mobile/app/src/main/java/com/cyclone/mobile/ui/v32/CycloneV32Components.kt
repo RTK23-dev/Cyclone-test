@@ -128,16 +128,17 @@ fun CycloneV32BottomBar(selected: V32Destination, onSelect: (V32Destination) -> 
         Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 7.dp),
+            .padding(start = 14.dp, end = 14.dp, top = 5.dp, bottom = 8.dp),
     ) {
-        CycloneLiquidTray(height = 66.dp, contentPadding = 4.dp) {
+        CycloneLiquidTray(height = 62.dp, contentPadding = 4.dp) {
             BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight()) {
                 CycloneLiquidSelectionLens(
                     selectedIndex = selected.ordinal,
                     itemCount = V32Destination.entries.size,
                     totalWidth = maxWidth,
                     modifier = Modifier.align(Alignment.CenterStart),
-                    height = 58.dp,
+                    height = 48.dp,
+                    horizontalInset = 4.dp,
                 )
                 Row(
                     Modifier.fillMaxWidth().fillMaxHeight().selectableGroup(),
@@ -169,10 +170,10 @@ fun CycloneV32BottomBar(selected: V32Destination, onSelect: (V32Destination) -> 
                                     },
                                 ),
                                 contentDescription = destination.label,
-                                modifier = Modifier.size(if (destination == V32Destination.AI) 24.dp else 22.dp),
+                                modifier = Modifier.size(if (destination == V32Destination.AI) 23.dp else 21.dp),
                                 tint = tint,
                             )
-                            androidx.compose.foundation.layout.Spacer(Modifier.height(3.dp))
+                            androidx.compose.foundation.layout.Spacer(Modifier.height(2.dp))
                             Text(
                                 destination.label,
                                 style = MaterialTheme.typography.labelSmall,
@@ -196,14 +197,15 @@ fun CycloneSegmentedControl(
     modifier: Modifier = Modifier,
 ) {
     if (options.isEmpty()) return
-    CycloneLiquidTray(modifier = modifier, height = 48.dp, contentPadding = 4.dp) {
+    CycloneLiquidTray(modifier = modifier, height = 44.dp, contentPadding = 3.dp) {
         BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight()) {
             CycloneLiquidSelectionLens(
                 selectedIndex = selected,
                 itemCount = options.size,
                 totalWidth = maxWidth,
                 modifier = Modifier.align(Alignment.CenterStart),
-                height = 40.dp,
+                height = 34.dp,
+                horizontalInset = 4.dp,
             )
             Row(Modifier.fillMaxWidth().fillMaxHeight().selectableGroup()) {
                 options.forEachIndexed { index, label ->
