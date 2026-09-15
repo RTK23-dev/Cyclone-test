@@ -16,7 +16,10 @@ INTELLIGENCE = V32 / "CycloneIntelligenceControls.kt"
 REASONING = V32 / "CycloneReasoningSelector.kt"
 ROUTINES = V32 / "CycloneRoutinesPage.kt"
 COMPONENTS = V32 / "CycloneV32Components.kt"
-OVERLAY = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"
+OVERLAY_ROOT = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay"
+OVERLAY = OVERLAY_ROOT / "OverlayChrome.kt"
+OVERLAY_APPLE = OVERLAY_ROOT / "OverlayAppleLiquidComposer.kt"
+OVERLAY_CONTRACT = OVERLAY_ROOT / "OverlayChromeContract.kt"
 
 
 class MobileLiquidGlassGuards(unittest.TestCase):
@@ -86,6 +89,22 @@ class MobileLiquidGlassGuards(unittest.TestCase):
         # A floating accessibility overlay may never paint the app's full optical canvas over the host.
         transparent_branch = theme.split("} else {", 1)[1]
         self.assertNotIn("Modifier.fillMaxSize()", transparent_branch.split("enum class CyclonePastel", 1)[0])
+
+    def test_overlay_resting_composer_matches_single_apple_style_glass_bar(self):
+        overlay = OVERLAY.read_text(encoding="utf-8")
+        apple = OVERLAY_APPLE.read_text(encoding="utf-8")
+        contract = OVERLAY_CONTRACT.read_text(encoding="utf-8")
+        self.assertIn("OverlayAppleComposerBar(", overlay)
+        self.assertIn("OverlayAppleToolsMenu(", overlay)
+        self.assertIn("const val COMPOSER_HEIGHT_DP = 66", contract)
+        self.assertIn("height(66.dp)", apple)
+        self.assertIn("cornerRadius = 33.dp", apple)
+        self.assertIn('contentDescription = "Ask Cyclone"', apple)
+        self.assertIn("OverlayVoiceWaveform()", apple)
+        for label in ("Camera", "Files & photos", "Share screen", "Cross-app share", "Model & intelligence"):
+            self.assertIn(f'"{label}"', apple)
+        self.assertIn("OverlayGlassStrong", apple)
+        self.assertIn("OverlayGlassRim", apple)
 
     def test_liquid_selection_is_inset_not_a_second_full_box(self):
         liquid = LIQUID.read_text(encoding="utf-8")
