@@ -187,14 +187,21 @@ internal fun OverlayAppleComposerBar(
                 Modifier
                     .size(50.dp)
                     .background(OverlayBlue, CircleShape)
-                    .clickable(role = Role.Button, onClick = onPrimary),
+                    .clickable(role = Role.Button, onClick = onPrimary)
+                    .semantics {
+                        contentDescription = when {
+                            working -> "Stop task"
+                            text.isNotBlank() -> "Send request"
+                            else -> "Start voice request"
+                        }
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 when {
                     working -> Box(Modifier.size(15.dp).background(Color.White, RoundedCornerShape(3.dp)))
                     text.isNotBlank() -> Icon(
                         Icons.Rounded.ArrowUpward,
-                        contentDescription = "Send request",
+                        contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(26.dp),
                     )
