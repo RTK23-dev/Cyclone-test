@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
@@ -127,10 +126,11 @@ val CycloneTypography = Typography(
 /**
  * Shared Cyclone theme.
  *
- * Normal in-app screens own a full-canvas optical backdrop. Floating system overlays must opt out
- * of both painting and measuring that full canvas. In transparent mode the root wraps its content,
- * while a match-parent sampled layer sits only behind that content. That keeps a WRAP_CONTENT
- * accessibility overlay genuinely bottom-sized instead of accidentally measuring as full-screen.
+ * Normal in-app screens own one full-canvas optical backdrop. A floating accessibility overlay is a
+ * different window and cannot sample pixels owned by the host app, so transparent mode deliberately
+ * owns no backdrop layer at all. Liquid components already have a translucent fallback when the
+ * backdrop local is null. This keeps a WRAP_CONTENT overlay content-sized and prevents both the old
+ * full-screen measurement bug and a fake white/blue optical wash over the app underneath it.
  */
 @Composable
 fun CycloneTheme(
@@ -142,20 +142,20 @@ fun CycloneTheme(
         shapes = CycloneV32Shapes,
         typography = CycloneTypography,
     ) {
-        val liquidBackdrop = rememberLayerBackdrop()
-        val dark = isSystemInDarkTheme()
-        val background = MaterialTheme.colorScheme.background
-        val opticalSource = Brush.verticalGradient(
-            listOf(
-                background,
-                MaterialTheme.colorScheme.primary.copy(alpha = if (dark) .12f else .055f),
-                background,
-                MaterialTheme.colorScheme.secondary.copy(alpha = if (dark) .07f else .028f),
-                background,
-            ),
-        )
-        CompositionLocalProvider(LocalCycloneLiquidBackdrop provides liquidBackdrop) {
-            if (drawBackground) {
+        if (drawBackground) {
+            val liquidBackdrop = rememberLayerBackdrop()
+            val dark = isSystemInDarkTheme()
+            val background = MaterialTheme.colorScheme.background
+            val opticalSource = Brush.verticalGradient(
+                listOf(
+                    background,
+                    MaterialTheme.colorScheme.primary.copy(alpha = if (dark) .12f else .055f),
+                    background,
+                    MaterialTheme.colorScheme.secondary.copy(alpha = if (dark) .07f else .028f),
+                    background,
+                ),
+            )
+            CompositionLocalProvider(LocalCycloneLiquidBackdrop provides liquidBackdrop) {
                 Box(Modifier.fillMaxSize()) {
                     Box(
                         Modifier
@@ -165,15 +165,10 @@ fun CycloneTheme(
                     )
                     content()
                 }
-            } else {
-                Box(Modifier.wrapContentSize()) {
-                    Box(
-                        Modifier
-                            .matchParentSize()
-                            .layerBackdrop(liquidBackdrop),
-                    )
-                    content()
-                }
+            }
+        } else {
+            CompositionLocalProvider(LocalCycloneLiquidBackdrop provides null) {
+                Box(Modifier.wrapContentSize()) { content() }
             }
         }
     }
