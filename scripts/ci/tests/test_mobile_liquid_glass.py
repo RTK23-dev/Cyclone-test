@@ -1,5 +1,6 @@
 from pathlib import Path
 import unittest
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[3]
 APP_BUILD = ROOT / "apps/mobile/app/build.gradle.kts"
@@ -9,10 +10,11 @@ THEME = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/CycloneV
 
 
 class MobileLiquidGlassGuards(unittest.TestCase):
-    def test_446_identity_and_runtime_contract_are_preserved(self):
+    def test_release_identity_and_runtime_contract_are_preserved(self):
         build = APP_BUILD.read_text(encoding="utf-8")
-        self.assertIn('versionCode = 106', build)
-        self.assertIn('versionName = "4.4.6"', build)
+        metadata = tomllib.loads((ROOT / "release/version.toml").read_text(encoding="utf-8"))
+        self.assertIn(f'versionCode = {metadata["android_version_code"]}', build)
+        self.assertIn(f'versionName = "{metadata["components"]["mobile"]}"', build)
         self.assertIn('minSdk = 33', build)
         self.assertIn('targetSdk = 35', build)
         self.assertIn('compileSdk = 36', build)

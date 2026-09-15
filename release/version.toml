@@ -1,25 +1,22 @@
-# Cyclone Mobile 4.4.6 combines the authoritative observation runtime with the reviewed 4.4.5 visual-repair candidate.
-# Preserves Cyclone One 1.5.5 compatibility and published 4.4.5 update continuity.
-# Publication is authorized only from the exact release SHA after Mobile CI, provenance and signer-continuity verification.
+# Cyclone Mobile 4.4.7: startup recovery, durable outcomes and send/pause/stop controls.
 schema = 1
-product_version = "4.4.6"
+product_version = "4.4.7"
 channel = "development"
-android_version_code = 106
+android_version_code = 107
 python_version = "4.1.0"
 
 [components]
-mobile = "4.4.6"
+mobile = "4.4.7"
 pc_companion = "1.5.5"
 device_gateway = "4.1.0"
 mcp = "4.1.0"
 
 [release]
-previous_mobile_version = "4.4.5"
+previous_mobile_version = "4.4.6"
 publication_authorized = true
 physical_pixel8 = "UNVERIFIED"
 physical_pixel8_ui_acceptance = "UNVERIFIED"
 android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-4.4.6-observation-plus-visual-repair"
-# Final candidate combines the 4.4.5 observation release line with the audited Liquid Glass/overlay repair branch.
+candidate_generation = "cyclone-4.4.7-startup-outcomes-composer"
