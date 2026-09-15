@@ -62,7 +62,15 @@ class MobileLiquidGlassGuards(unittest.TestCase):
             "fun OutlinedIconButton(",
         ):
             self.assertIn(component, source)
-        self.assertIn("surfaceColor = neutralGlassSurface", source)
+        self.assertIn("surfaceColor = surface", source)
+
+    def test_material_actions_have_safe_transparent_overlay_fallback(self):
+        source = OVERRIDES.read_text(encoding="utf-8")
+        self.assertNotIn("requireCycloneBackdrop", source)
+        self.assertIn("private fun FallbackButton(", source)
+        self.assertIn("private fun FallbackIconButton(", source)
+        self.assertGreaterEqual(source.count("if (backdrop == null)"), 9)
+        self.assertIn(".clickable(enabled = enabled, role = Role.Button, onClick = onClick)", source)
 
     def test_custom_material_shape_and_padding_still_resolve_to_kyant_glass(self):
         source = OVERRIDES.read_text(encoding="utf-8")
