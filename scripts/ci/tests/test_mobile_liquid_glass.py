@@ -47,7 +47,9 @@ class MobileLiquidGlassGuards(unittest.TestCase):
             "fun OutlinedIconButton(",
         ):
             self.assertIn(component, source)
-        self.assertIn("surfaceColor = neutralGlassSurface", source)
+        self.assertIn("surfaceColor = surface", source)
+        self.assertIn("private fun FallbackButton(", source)
+        self.assertIn("private fun FallbackIconButton(", source)
 
     def test_custom_material_shape_and_padding_still_resolve_to_kyant_glass(self):
         source = OVERRIDES.read_text(encoding="utf-8")
