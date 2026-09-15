@@ -149,7 +149,7 @@ internal fun CycloneLiquidSelectionLens(
     horizontalInset: Dp = 3.dp,
 ) {
     if (itemCount <= 0) return
-    val backdrop = LocalCycloneLiquidBackdrop.current ?: return
+    val backdrop = LocalCycloneLiquidBackdrop.current
     val itemWidth = totalWidth / itemCount
     val safeInset = horizontalInset.coerceAtMost(itemWidth / 4)
     val lensWidth = (itemWidth - safeInset * 2).coerceAtLeast(1.dp)
@@ -160,18 +160,20 @@ internal fun CycloneLiquidSelectionLens(
     )
     val dark = isSystemInDarkTheme()
     val surface = if (dark) Color.White.copy(alpha = 0.075f) else Color.Black.copy(alpha = 0.035f)
+    val base = modifier.offset(x = targetOffset).width(lensWidth).height(height)
+
+    if (backdrop == null) {
+        Box(base.background(surface, ContinuousCapsule))
+        return
+    }
 
     Box(
-        modifier
-            .offset(x = targetOffset)
-            .width(lensWidth)
-            .height(height)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { ContinuousCapsule },
-                effects = { lens(7f.dp.toPx(), 11f.dp.toPx(), chromaticAberration = false) },
-                onDrawSurface = { drawRect(surface) },
-            ),
+        base.drawBackdrop(
+            backdrop = backdrop,
+            shape = { ContinuousCapsule },
+            effects = { lens(7f.dp.toPx(), 11f.dp.toPx(), chromaticAberration = false) },
+            onDrawSurface = { drawRect(surface) },
+        ),
     )
 }
 
@@ -185,9 +187,32 @@ internal fun CycloneLiquidTextAction(
     prominent: Boolean = false,
 ) {
     val backdrop = LocalCycloneLiquidBackdrop.current
-    if (backdrop == null) return
     val dark = isSystemInDarkTheme()
     val neutral = if (dark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.055f)
+    if (backdrop == null) {
+        val shape = RoundedCornerShape(999.dp)
+        val surface = if (prominent) {
+            MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else .45f)
+        } else {
+            neutral.copy(alpha = neutral.alpha * if (enabled) 1f else .45f)
+        }
+        Box(
+            modifier
+                .heightIn(min = 44.dp)
+                .background(surface, shape)
+                .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                color = (if (prominent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+                    .copy(alpha = if (enabled) 1f else .55f),
+            )
+        }
+        return
+    }
     CycloneKyantLiquidButton(
         onClick = onClick,
         backdrop = backdrop,
@@ -213,14 +238,33 @@ internal fun CycloneLiquidDestructiveAction(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    val backdrop = LocalCycloneLiquidBackdrop.current ?: return
+    val backdrop = LocalCycloneLiquidBackdrop.current
     val dark = isSystemInDarkTheme()
+    val surface = MaterialTheme.colorScheme.error.copy(alpha = if (dark) 0.18f else 0.10f)
+    if (backdrop == null) {
+        val shape = RoundedCornerShape(999.dp)
+        Box(
+            modifier
+                .heightIn(min = 44.dp)
+                .background(surface, shape)
+                .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.error.copy(alpha = if (enabled) 1f else .55f),
+            )
+        }
+        return
+    }
     CycloneKyantLiquidButton(
         onClick = onClick,
         backdrop = backdrop,
         modifier = modifier,
         enabled = enabled,
-        surfaceColor = MaterialTheme.colorScheme.error.copy(alpha = if (dark) 0.18f else 0.10f),
+        surfaceColor = surface,
         contentPadding = PaddingValues(horizontal = 14.dp),
     ) {
         Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error)
@@ -295,9 +339,27 @@ internal fun CycloneLiquidFilterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val backdrop = LocalCycloneLiquidBackdrop.current ?: return
+    val backdrop = LocalCycloneLiquidBackdrop.current
     val dark = isSystemInDarkTheme()
     val neutral = if (dark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.055f)
+    if (backdrop == null) {
+        val shape = RoundedCornerShape(999.dp)
+        Box(
+            modifier
+                .heightIn(min = 40.dp)
+                .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = .18f) else neutral, shape)
+                .clickable(role = Role.Button, onClick = onClick)
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        return
+    }
     CycloneKyantLiquidButton(
         onClick = onClick,
         backdrop = backdrop,
