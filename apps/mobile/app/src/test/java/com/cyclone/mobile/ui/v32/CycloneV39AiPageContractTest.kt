@@ -35,16 +35,19 @@ class CycloneV39AiPageContractTest {
         assertTrue(text.contains("restoreAttachmentAfterChatFailure"))
     }
 
-    @Test fun taskAreaAndModelPillStayAboveComposer() {
+    @Test fun taskAreaAndModelPillStayAboveLiquidComposer() {
         val text = source("com/cyclone/mobile/ui/v32/CycloneV39AiChatPage.kt")
         val current = text.indexOf("CycloneAskTaskPanel(current)")
         val queued = text.indexOf("CyclonePendingRequests()")
         val modelPill = text.indexOf("CycloneModelPill(")
+        val liquidComposer = text.indexOf("CycloneLiquidPanel(", modelPill)
         val composer = text.lastIndexOf("BasicTextField(")
         assertTrue(current in 0 until composer)
         assertTrue(queued in 0 until composer)
-        assertTrue(modelPill in 0 until composer)
-        assertTrue(text.contains("showModelPill = false"))
+        assertTrue(modelPill in 0 until liquidComposer)
+        assertTrue(liquidComposer in 0 until composer)
+        assertTrue(text.contains("CycloneModelIntelligencePanel("))
+        assertTrue(text.contains("showModelSelector = false"))
         assertTrue(text.contains("heightIn(max = if (keyboardOpen) 132.dp else 230.dp)"))
     }
 
@@ -67,13 +70,15 @@ class CycloneV39AiPageContractTest {
         assertFalse(stopWindow.contains("WorkspaceTasks.command"))
     }
 
-    @Test fun navigationIsCustomInsetSafeAndUsesCycloneAiAsset() {
+    @Test fun navigationIsLiquidInsetSafeAndUsesCycloneAiAsset() {
         val nav = source("com/cyclone/mobile/ui/v32/CycloneV32Components.kt")
         assertTrue(nav.contains("navigationBarsPadding()"))
         assertTrue(nav.contains("WindowInsets.ime"))
         assertTrue(nav.contains("if (imeVisible) return"))
         assertTrue(nav.contains("ic_cyclone_ai_42"))
-        assertTrue(nav.contains("Modifier.size(48.dp)"))
+        assertTrue(nav.contains("CycloneLiquidTray(height = 66.dp"))
+        assertTrue(nav.contains("CycloneLiquidSelectionLens("))
+        assertTrue(nav.contains("height = 58.dp"))
         assertFalse(nav.contains("NavigationBarItem("))
         assertFalse(nav.contains("Modifier.height(74.dp)"))
     }

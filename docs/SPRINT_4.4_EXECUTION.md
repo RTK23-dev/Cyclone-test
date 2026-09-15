@@ -111,3 +111,9 @@ The cumulative consumer contract is [OBSERVATION_CONTRACT.md](OBSERVATION_CONTRA
 Release collision discovered during final metadata inspection: v4.4.4 / 104 was independently published for the Liquid Glass redesign at b539608fc919bad7585f49c7a5ff9ce62aff67a1 (Mobile CI 34866683775 and release 34866683357 passed). Preserve its immutable APK and UI work. This sprint will integrate that verified release and use the next available Mobile version, 4.4.5 / 105. The working branch retains its original 4.4.4 sprint name for checkpoint continuity.
 
 Checkpoint C final working-source suite: 1,066 JVM tests passed, zero failures/errors (36s), including cancellation and current-workspace lease validation. 78 repository guard tests, metadata/product/security guards passed. Local boundary-source lint and release assembly passed (10m23s); final scope-binding follow-ups were then covered by the full JVM rerun. Exact combined-release-source CI remains required after the verified 4.4.4 merge.
+
+Checkpoint C SHA: 7ab32e8f7cf7d308e5ab6af6f9d0482a26279121.
+
+Combined release candidate: merge the exact verified v4.4.4 release into the observation branch, preserving all 25 files of its published UI/release changes. No conflicts. Mobile advances to 4.4.5 / 105; Cyclone One remains 1.5.5. Release notes are docs/RELEASE_4.4.5.md. The release workflow must build/verify this exact combined source and compare its signer against the published v4.4.4 APK before publication.
+
+Combined candidate local validation: 1,066 JVM tests passed (53s), 78 guard tests and metadata/product/security guards passed. Checkpoint C exact push CI 34903268783 also passed. An external audit identified buffered-frame freshness versus request-boundary mismatch, premature visual-budget consumption, and incomplete shadow comparison. These remain release blockers pending dedicated fixes; the combined integration checkpoint is not publication approval.

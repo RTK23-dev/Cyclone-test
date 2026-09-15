@@ -72,27 +72,31 @@ class CycloneV39AiChatPageTest {
         assertTrue(page.contains("RequestDispatch.QUEUE_PHONE_TASK"))
     }
 
-    @Test fun composerIsMultilineAndHasOneSendAction() {
+    @Test fun composerIsMultilineLiquidChromeWithOnePrimarySendControl() {
         val page = source("CycloneV39AiChatPage.kt")
+        assertTrue(page.contains("CycloneLiquidPanel("))
         assertTrue(page.contains("BasicTextField("))
         assertTrue(page.contains("contentDescription = \"Ask Cyclone composer\""))
         assertTrue(page.contains("maxLines = 4"))
         assertTrue(page.contains("ImeAction.Send"))
-        assertEquals(1, Regex("FilledIconButton\\(").findAll(page).count())
+        assertEquals(1, Regex("CycloneKyantLiquidIconButton\\(").findAll(page).count())
+        assertTrue(page.contains("tint = MaterialTheme.colorScheme.primary"))
+        assertFalse(page.contains("FilledIconButton("))
     }
 
     @Test fun modelPillCannotStealComposerWidthAndKeyboardDoesNotDoubleInset() {
         val page = source("CycloneV39AiChatPage.kt")
         val pill = page.indexOf("CycloneModelPill(")
-        val askGlass = page.indexOf(".clip(RoundedCornerShape(32.dp))", pill)
+        val askGlass = page.indexOf("CycloneLiquidPanel(", pill)
         val composer = page.indexOf("BasicTextField(", askGlass)
         assertTrue(pill >= 0)
         assertTrue(askGlass > pill)
         assertTrue(composer > askGlass)
-        assertTrue(page.contains("showModelPill = false"))
+        assertTrue(page.contains("CycloneModelIntelligencePanel("))
+        assertTrue(page.contains("showModelSelector = false"))
         assertTrue(page.contains("if (!keyboardOpen)"))
         assertFalse(page.contains(".imePadding()"))
-        assertFalse(page.contains("CycloneIntelligenceControls(enabled = !session.busy, onChanged"))
+        assertEquals(1, Regex("CycloneModelPill\\(").findAll(page).count())
     }
 
     @Test fun chatAndPhoneDispatchUseSeparateExistingPaths() {
@@ -114,7 +118,8 @@ class CycloneV39AiChatPageTest {
         assertTrue(controls.contains("OpenRouterCatalogStore.setActive(context"))
         assertTrue(reasoning.contains("OpenRouterCatalogStore.setReasoningEffort(context, canonical, value)"))
         assertTrue(reasoning.contains("reasoningSelectorMode(options)"))
-        assertTrue(page.contains("showModelPill = false"))
+        assertTrue(page.contains("CycloneModelIntelligencePanel("))
+        assertTrue(page.contains("showModelSelector = false"))
     }
 
     @Test fun missingKeyBlocksChatButNotPhoneRoutingContract() {
