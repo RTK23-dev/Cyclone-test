@@ -84,11 +84,13 @@ class MobileLiquidGlassGuards(unittest.TestCase):
         overlay = OVERLAY.read_text(encoding="utf-8")
         self.assertIn("CycloneV32Theme(drawBackground = false)", overlay)
         self.assertIn("Box(Modifier.wrapContentSize())", theme)
-        self.assertIn(".matchParentSize()", theme)
+        self.assertIn("LocalCycloneLiquidBackdrop provides null", theme)
         self.assertIn("if (drawBackground)", theme)
-        # A floating accessibility overlay may never paint the app's full optical canvas over the host.
+        # A floating accessibility overlay cannot sample another app and may never create its own
+        # full-canvas backdrop. The transparent branch must stay content-sized and optically neutral.
         transparent_branch = theme.split("} else {", 1)[1]
         self.assertNotIn("Modifier.fillMaxSize()", transparent_branch.split("enum class CyclonePastel", 1)[0])
+        self.assertNotIn("layerBackdrop(liquidBackdrop)", transparent_branch.split("enum class CyclonePastel", 1)[0])
 
     def test_overlay_resting_composer_matches_single_apple_style_glass_bar(self):
         overlay = OVERLAY.read_text(encoding="utf-8")
