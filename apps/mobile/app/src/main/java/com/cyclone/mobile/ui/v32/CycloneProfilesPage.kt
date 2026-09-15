@@ -22,12 +22,15 @@ import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -203,7 +206,6 @@ fun CycloneProfilesPage(context: Context, refreshTick: Int, onAsk: () -> Unit) {
     val activeProfiles = clusters.filter { it.active }.sortedBy { it.label.lowercase() }
     val allProfiles = clusters.sortedWith(compareByDescending<ProfileCluster> { it.current }.thenByDescending { it.active }.thenBy { it.label.lowercase() })
     val appGroups = remember(clusters) { buildAppGroups(clusters) }
-    val currentProfile = clusters.firstOrNull { it.current }
     val selectedProfile = clusters.firstOrNull { it.key == selectedProfileKey }
 
     BackHandler(selectedProfileKey != null || selectedGroupPackage != null) {
@@ -287,15 +289,11 @@ fun CycloneProfilesPage(context: Context, refreshTick: Int, onAsk: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("Profiles", style = MaterialTheme.typography.headlineMedium)
                     Text(
-                        if (currentProfile != null) "Your phone spaces" else "Current profile not verified",
+                        clusters.firstOrNull { it.current }?.let { "Current profile: ${it.label}" } ?: "Current profile not verified",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -307,42 +305,16 @@ fun CycloneProfilesPage(context: Context, refreshTick: Int, onAsk: () -> Unit) {
         }
 
         item {
-            CycloneSimpleCard(Modifier.fillMaxWidth()) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Person, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(currentProfile?.label ?: "Current profile", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            currentProfile?.let { "${it.packages.size} ${if (it.packages.size == 1) "app" else "apps"} · current" }
-                                ?: "Verify your current phone profile to start tasks here.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    currentProfile?.let { ProfileStatePill429(if (it.active) "Live" else "Current") }
-                }
-                CycloneLiquidTextAction(
-                    label = "New task",
-                    onClick = onAsk,
-                    enabled = ProfilePresentationPolicy.canStartTask(processUser, processUser, verifiedCurrentUser, busy),
-                    prominent = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            Button(
+                onClick = onAsk,
+                enabled = ProfilePresentationPolicy.canStartTask(processUser, processUser, verifiedCurrentUser, busy),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("New task in current profile") }
         }
-
         item { CyclonePendingRequests() }
         item {
             CycloneSegmentedControl(
-                listOf("Active (${activeProfiles.size})", "All", "Apps"),
+                listOf("Active (${activeProfiles.size})", "All profiles", "Groups"),
                 tab.ordinal,
                 { tab = ProfilesTab.entries[it] },
             )
@@ -377,12 +349,7 @@ fun CycloneProfilesPage(context: Context, refreshTick: Int, onAsk: () -> Unit) {
                         Text(issue.headline, style = MaterialTheme.typography.titleMedium)
                         Text(issue.reason, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (issue.retryUseful) {
-                            CycloneLiquidTextAction(
-                                label = issue.action,
-                                onClick = { setup = true },
-                                prominent = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
+                            Button(onClick = { setup = true }, modifier = Modifier.fillMaxWidth()) { Text(issue.action) }
                         } else {
                             Text(issue.action, style = MaterialTheme.typography.bodyMedium)
                         }
@@ -425,13 +392,7 @@ fun CycloneProfilesPage(context: Context, refreshTick: Int, onAsk: () -> Unit) {
                         QuietProfilesEmpty(
                             title = "Add your first profile",
                             body = "Create a separate phone space, name it, and choose the apps you want inside.",
-                            action = {
-                                CycloneLiquidTextAction(
-                                    label = "Add profile",
-                                    onClick = { setup = true },
-                                    prominent = true,
-                                )
-                            },
+                            action = { Button(onClick = { setup = true }) { Text("Add profile") } },
                         )
                     }
                 } else {
@@ -522,20 +483,14 @@ private fun ActiveProfileCard429(
                 LinearProgressIndicator(Modifier.fillMaxWidth().height(4.dp))
             }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (task != null) {
-                    CycloneLiquidTextAction(
-                        label = "View progress",
+                    FilledTonalButton(
                         onClick = { UiTask(task).open(context) },
                         modifier = Modifier.weight(1f),
-                    )
+                    ) { Text("View progress") }
                 }
-                CycloneLiquidTextAction(
-                    label = "Open profile",
-                    onClick = onOpenProfile,
-                    prominent = true,
-                    modifier = Modifier.weight(1f),
-                )
+                Button(onClick = onOpenProfile, modifier = Modifier.weight(1f)) { Text("Open profile") }
             }
         }
     }
@@ -570,7 +525,7 @@ private fun ProfileIdentityCard429(profile: ProfileCluster, onOpen: () -> Unit) 
             }
             if (profile.packages.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    profile.packages.take(5).forEach { pkg -> CycloneAppIcon(pkg, Modifier.size(27.dp))
+                    profile.packages.take(5).forEach { pkg -> CycloneAppIcon(pkg, Modifier.size(27.dp)) }
                     if (profile.packages.size > 5) {
                         Text("+${profile.packages.size - 5}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -623,7 +578,7 @@ private fun AppGroupDetail429(
         contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item { TextButton(onClick = onBack) { Text("‹ Apps") } }
+        item { TextButton(onClick = onBack) { Text("‹ Groups") } }
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 CycloneAppIcon(group.packageName, Modifier.size(46.dp))
@@ -708,22 +663,15 @@ private fun ProfileDetail429(
         if (task != null) item { CycloneTaskProgress(task) }
 
         item {
-            CycloneLiquidTextAction(
-                label = if (busy) switchMessage else "Open profile",
-                enabled = profile.ready && !busy,
-                onClick = onOpenProfile,
-                prominent = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Button(enabled = profile.ready && !busy, onClick = onOpenProfile, modifier = Modifier.fillMaxWidth()) {
+                Text(if (busy) switchMessage else "Open profile")
+            }
         }
 
         item {
-            CycloneLiquidTextAction(
-                label = "New task in ${profile.label}",
-                onClick = onAsk,
-                enabled = canStartTask,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            OutlinedButton(onClick = onAsk, enabled = canStartTask, modifier = Modifier.fillMaxWidth()) {
+                Text("New task in ${profile.label}")
+            }
             if (!canStartTask) Text("Open this profile first to start a task here.", style = MaterialTheme.typography.bodySmall)
         }
         item { CycloneSectionTitle("Apps") }
@@ -777,11 +725,7 @@ private fun ProfileDetail429(
         }
 
         item {
-            CycloneLiquidTextAction(
-                label = "Manage apps & profile",
-                onClick = onManage,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            OutlinedButton(onClick = onManage, modifier = Modifier.fillMaxWidth()) { Text("Manage apps & profile") }
         }
         if (localMessage.isNotBlank()) item { Text(localMessage, style = MaterialTheme.typography.bodySmall) }
         if (error.isNotBlank()) item { Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
