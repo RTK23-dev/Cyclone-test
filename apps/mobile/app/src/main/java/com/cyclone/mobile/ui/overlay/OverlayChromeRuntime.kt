@@ -525,6 +525,7 @@ object OverlayChromeRuntime {
         val agent = synchronized(lock) { adaptiveAgent } ?: return
         val taskId = synchronized(lock) { suspendedTaskId } ?: return
         val context = synchronized(lock) { service } ?: return
+        val expectedTaskId = foregroundTaskId
         val job = aiScope.launch {
             mutate { machine ->
                 when (machine.state()) {
@@ -547,7 +548,7 @@ object OverlayChromeRuntime {
                     mutate { it.updateStatus("Checking the current page") }
                 }
             }
-            handleAgentResult(result)
+            handleAgentResult(result, expectedTaskId)
         }
         synchronized(lock) { aiJob = job }
     }

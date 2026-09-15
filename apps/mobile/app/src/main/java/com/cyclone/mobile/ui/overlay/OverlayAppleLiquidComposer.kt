@@ -182,18 +182,18 @@ internal fun OverlayAppleComposerBar(
                 },
             )
 
-            if (!working) {
+            run {
                 Box(
                     Modifier
                         .size(46.dp)
-                        .clickable(role = Role.Button, onClick = onDictate)
+                        .clickable(enabled = !working, role = Role.Button, onClick = onDictate)
                         .semantics { contentDescription = "Dictate request" },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Rounded.Mic,
                         contentDescription = null,
-                        tint = if (voiceListening) OverlayBlue else OverlayText,
+                        tint = if (working) OverlaySecondaryText else if (voiceListening) OverlayBlue else OverlayText,
                         modifier = Modifier.size(26.dp),
                     )
                 }

@@ -264,11 +264,11 @@ class OpenRouterAdaptiveAgent(private val context: Context,
     }
 
     fun cancelActiveTask() {
-        requestTraceId?.let { AgentTraceRuntime.finish(context, it, "CANCELLED", "Request stopped by you.",
-            activeLocalSession?.context?.providerRequests ?: 0) }
         activeLocalSession?.context?.stopRequested = true
         activeLocalSession?.agent?.cancel()
         activeLocalSession?.context?.providerCancellation?.cancel()
+        requestTraceId?.let { AgentTraceRuntime.finish(context, it, "CANCELLED", "Request stopped by you.",
+            activeLocalSession?.context?.providerRequests ?: 0) }
     }
 
     private fun createLocalSession(
