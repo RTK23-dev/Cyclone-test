@@ -116,6 +116,7 @@ internal object GatewayObservationAdapter {
                     val result = com.cyclone.mobile.PhoneToolExecutor.execute(context, com.cyclone.mobile.PhoneToolRequest(
                         "observation-image-${UUID.randomUUID()}", "phone.screenshot", JSONObject()
                             .put("sessionId", execution.sessionId).put("displayId", execution.displayId)
+                            .put("minCapturedAtMonotonicMs", android.os.SystemClock.uptimeMillis())
                             .put("includeBase64", args.optBoolean("includeScreenshotBase64", false))))
                     if (!result.ok) JSONObject().put("available", false).put("errorCode", "SCREENSHOT_FAILED")
                     else result.payload as? JSONObject ?: JSONObject().put("available", false)

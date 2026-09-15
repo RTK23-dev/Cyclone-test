@@ -1353,13 +1353,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         if (!model.vision) return PageAgentDecision("blocked", "",
             "This page needs visual evidence. Choose an image-capable model in Settings → Model & API.",
             emptyList(), null, "model.image_input_required")
-        if (!bridge.claimVisionCapture()) return PageAgentDecision("blocked", "",
-            "Visual evidence was already checked without progress; a different strategy is required.",
-            emptyList(), null, "vision.capture_budget_exhausted")
-        AgentTraceRuntime.event(context, traceId, "VISION", "Structured page context is ambiguous; capturing one visual fallback for this page", code = "page.vision_once", ok = true)
-        val captured = bridge.observeWithImage(goal) ?: return PageAgentDecision("blocked", "",
-            "Screen changed or observation is unavailable; a fresh scoped observation is required.",
-            emptyList(), null, "observation.capture_unavailable")
+        AgentTraceRuntime.event(context, traceId, "VISION", "Capturing bounded current visual evidence", code = "page.vision_once", ok = true)
+        val captured = bridge.captureVisualEvidence(goal) ?: return PageAgentDecision("blocked", "",
+            "Current visual capture is unavailable after bounded recovery or its usable-image budget is exhausted.",
+            emptyList(), null, "observation.visual_capture_unavailable")
         val afterImage = captured.page ?: return null
         onCaptured(afterImage)
         val shotData = captured.image ?: return null

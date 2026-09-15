@@ -56,6 +56,8 @@ class CyclonePcParityBridge internal constructor(
     private var brainEvidence: JSONObject? = null
     private var routeEvidence: JSONObject? = null
     private var forceVision = false
+    private var visualCaptureAttempts = 0
+    private var visualCaptureInFlight = false
     var incident: com.cyclone.mobile.agent.recovery.RecoveryIncident? = null
 
     @Synchronized fun observe(goal: String): AgentPageCard? = observeInternal(goal, false)?.page
@@ -112,6 +114,8 @@ class CyclonePcParityBridge internal constructor(
         searchEvidence = emptyList()
         inspectionEvidence = emptyList()
         memory = RecoveryMemory()
+        visualCaptureAttempts = 0
+        visualCaptureInFlight = false
         lastRecovery = null
         forceVision = false
     }
@@ -205,6 +209,8 @@ class CyclonePcParityBridge internal constructor(
         val recoveryJson = JSONObject()
             .put("attemptedLevels", JSONArray(memory.attemptedLevels.sortedBy { it.stage }.map { it.name }))
             .put("attemptedEvidence", JSONArray(memory.attemptedEvidence.map { it.name }))
+            .put("visualCaptureAttempts", visualCaptureAttempts)
+            .put("usableVisualCaptures", memory.capturesForSemanticState)
             .put("semanticSearchExhausted", memory.semanticSearchExhausted)
             .put("materiallyDifferentActionsWithoutProgress", memory.materiallyDifferentActionsWithoutProgress)
         lastRecovery?.let {
@@ -334,10 +340,6 @@ class CyclonePcParityBridge internal constructor(
             }
             RecoveryLevel.SILENT_SCREENSHOT_VISION -> {
                 forceVision = true
-                memory = memory.copy(
-                    attemptedLevels = memory.attemptedLevels + RecoveryLevel.SILENT_SCREENSHOT_VISION,
-                    attemptedEvidence = memory.attemptedEvidence + EvidenceSource.SCREENSHOT_VISION,
-                )
             }
             RecoveryLevel.BACKTRACK_OR_REPLAN -> {
                 memory = memory.copy(
@@ -372,17 +374,43 @@ class CyclonePcParityBridge internal constructor(
         return value
     }
 
-    /** Both model-requested and recovery-requested screenshots consume the same budget. */
-    fun claimVisionCapture(): Boolean {
-        if (memory.capturesForSemanticState > 0) return false
-        memory = memory.copy(capturesForSemanticState = 1,
-            attemptedLevels = memory.attemptedLevels + RecoveryLevel.SILENT_SCREENSHOT_VISION,
-            attemptedEvidence = memory.attemptedEvidence + EvidenceSource.SCREENSHOT_VISION)
+    /** Attempts are bounded separately from usable visual evidence. */
+    @Synchronized fun claimVisionCapture(): Boolean {
+        if (visualCaptureInFlight || visualCaptureAttempts >= 2 || memory.capturesForSemanticState > 0) return false
+        visualCaptureAttempts++
+        visualCaptureInFlight = true
         forceVision = false
         return true
     }
 
+    @Synchronized fun finishVisionCapture(usable: Boolean) {
+        if (!visualCaptureInFlight) return
+        visualCaptureInFlight = false
+        if (usable) memory = memory.copy(capturesForSemanticState = 1,
+            attemptedLevels = memory.attemptedLevels + RecoveryLevel.SILENT_SCREENSHOT_VISION,
+            attemptedEvidence = memory.attemptedEvidence + EvidenceSource.SCREENSHOT_VISION)
+    }
+
+    /** One bounded retry for unavailable pixels, with no provider call until usable evidence exists. */
+    fun captureVisualEvidence(goal: String, pause: (Long) -> Unit = { Thread.sleep(it) }): com.cyclone.mobile.agent.contract.AgentObservationResult? {
+        var result: com.cyclone.mobile.agent.contract.AgentObservationResult? = null
+        repeat(2) { attempt ->
+            if (!claimVisionCapture()) return result
+            var usable = false
+            try {
+                result = observeWithImage(goal)
+                usable = result?.page != null && result?.image?.optBoolean("available", false) == true &&
+                    !result?.image?.optString("pngBase64").isNullOrBlank()
+            } finally { finishVisionCapture(usable) }
+            if (usable || observationHealth.terminal || visualCaptureAttempts >= 2 || attempt == 1) return result
+            pause(500)
+        }
+        return result
+    }
+
     fun markVerifiedProgress() {
+        visualCaptureAttempts = 0
+        visualCaptureInFlight = false
         memory = RecoveryMemory(
             attemptedLevels = setOf(RecoveryLevel.CURRENT_SEMANTIC_PAGE),
             attemptedEvidence = setOf(EvidenceSource.CURRENT_SEMANTIC_PAGE),

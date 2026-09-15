@@ -559,6 +559,8 @@ class CycloneAgentEnvironment internal constructor(
             sessionId = observation.execution.sessionId,
             displayId = observation.execution.displayId,
             legacyPage = observation.page,
+            observation = com.cyclone.mobile.runtime.session.ObservationIdentity.fromPayload(observation.id, generation,
+                observation.execution, observation.capturedAt, observation.payload).copy(freshness = if (actionable) "current" else "stale"),
         )
         return legacy
     }

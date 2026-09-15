@@ -172,10 +172,26 @@ internal object ObservationProjections {
             if (legacy.observationId != candidate.observationId) add("observation_id")
             if (legacy.sessionId != candidate.sessionId || legacy.displayId != candidate.displayId) add("scope")
             if (legacy.pageKey != candidate.pageKey || legacy.contentKey != candidate.contentKey) add("page")
-            if (legacy.controls.map { Triple(it.elementId, it.label, it.role) } != candidate.controls.map { Triple(it.elementId, it.label, it.role) }) add("controls")
+            if (legacy.observation != candidate.observation || legacy.generation != candidate.generation ||
+                legacy.capturedAtMs != candidate.capturedAtMs || legacy.actionable != candidate.actionable) add("identity")
+            if (legacy.controls.map { listOf(it.elementId, it.observationId, it.label, it.role, it.semanticName, it.source) } !=
+                candidate.controls.map { listOf(it.elementId, it.observationId, it.label, it.role, it.semanticName, it.source) }) add("controls")
+            for (field in listOf("bounds", "enabled", "clickable", "longClickable", "editable", "scrollable", "visibleToUser",
+                "actions", "androidActions", "selected", "checked", "focused", "resourceId", "contentDescription", "selector")) {
+                if (legacy.controls.map { canonical(it.evidence.opt(field)) } != candidate.controls.map { canonical(it.evidence.opt(field)) })
+                    add("control_$field")
+            }
         }
         return JSONObject().put("mode", "shadow").put("matches", differences.isEmpty())
             .put("differences", JSONArray(differences)).put("evidenceId", candidate.observationId)
             .put("sourceGeneration", candidate.generation).put("projectionCaptureCount", 0)
+    }
+
+    private fun canonical(value: Any?): String = when (value) {
+        is JSONObject -> value.keys().asSequence().toList().sorted().joinToString(prefix = "{", postfix = "}") { key ->
+            JSONObject.quote(key) + ":" + canonical(value.opt(key))
+        }
+        is JSONArray -> (0 until value.length()).joinToString(prefix = "[", postfix = "]") { canonical(value.opt(it)) }
+        else -> JSONObject().put("value", value ?: JSONObject.NULL).toString()
     }
 }

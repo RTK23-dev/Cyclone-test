@@ -9,6 +9,32 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ObservationProjectionTest {
+    @Test fun shadowDetectsEachExecutableFieldIndependentlyWithoutLeakingValues() {
+        val card = ObservationProjections.pageCard(source(), "", 1, true)
+        val changes = mapOf<String, Any>("bounds" to JSONObject().put("left", 50), "enabled" to false,
+            "clickable" to false, "longClickable" to true, "editable" to true, "scrollable" to true,
+            "visibleToUser" to false, "actions" to JSONArray().put("private_action"),
+            "androidActions" to JSONArray().put("private_action"), "selected" to true, "checked" to true,
+            "focused" to true, "resourceId" to "private_id", "contentDescription" to "private_text",
+            "selector" to JSONObject().put("text", "private_text"))
+        changes.forEach { (field, value) ->
+            val changed = card.copy(controls = card.controls.map { it.copy(evidence = JSONObject(it.evidence.toString()).put(field, value)) })
+            val report = ObservationProjections.shadow(card, changed)
+            assertFalse(field, report.getBoolean("matches"))
+            assertTrue(report.getJSONArray("differences").toString().contains("control_$field"))
+            assertFalse(report.toString().contains("private_"))
+        }
+    }
+
+    @Test fun shadowComparesCompleteCaptureIdentityAndActionability() {
+        val card = ObservationProjections.pageCard(source(), "", 1, true)
+        val identity = card.observation!!
+        val changes = listOf(identity.copy(profileId = 13), identity.copy(windowSignature = "other"),
+            identity.copy(rotation = 2), identity.copy(generation = 78), identity.copy(startedMonotonicMs = 11),
+            identity.copy(executionGeneration = 2), identity.copy(captureClock = "other"), identity.copy(freshness = "stale"))
+        changes.forEach { assertFalse(ObservationProjections.shadow(card, card.copy(observation = it)).getBoolean("matches")) }
+        assertFalse(ObservationProjections.shadow(card, card.copy(actionable = false)).getBoolean("matches"))
+    }
     @Test fun learnedControlsAndPreviewCannotMasqueradeAsCurrentEvidence() {
         val learned = source().page.copy(controls = listOf(com.cyclone.mobile.applearner.PageControl(
             "historical", "Old button", "old", "button", JSONObject(), emptyList(), com.cyclone.mobile.applearner.ActionRisk.SAFE)),

@@ -16,6 +16,9 @@ version rather than replacing its immutable APK.
   window changes, scope changes and background execution-generation changes.
 - Visual escalation uses one new semantic/image bundle. Failed or stale screenshots are unavailable;
   a stable semantic tree remains usable. Cancellation cannot publish a successful image bundle.
+- Streamed image requests wait for a frame captured after the request boundary. Transient pixel
+  failures have one paced retry and do not consume the single usable-image budget.
+- Shadow comparison covers full capture identity and executable control state, bounds and capabilities.
 - Capture changes clear the current page and report a precise bounded-recovery state. PhoneToolExecutor,
   current-target revalidation, human ownership, approval gates, overlay exclusion and secret redaction remain.
 

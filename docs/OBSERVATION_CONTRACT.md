@@ -20,7 +20,7 @@ Mutation of a projected JSON object must not overwrite captured evidence.
 
 Future perception, grounding and memory work must consume this envelope and identity. It must
 not reconstruct current state from learned history, global foreground state or another capture
-inside a projection. A new capture is an explicit generation boundary. Page-changing actions still
+inside a projection. Shadow checks include complete capture identity, actionability, control bounds, state and capabilities; matching IDs/labels alone are insufficient. A new capture is an explicit generation boundary. Page-changing actions still
 require a fresh observation, and PhoneToolExecutor remains the canonical mutation authority.
 
 ## Identity and availability
@@ -51,7 +51,13 @@ semantic traversals. Pixels are associated only when scope and geometry match, t
 falls inside the measured image interval, and total capture skew is at most 1,500ms. Cropped window
 images must map to valid in-display bounds matching their pixel dimensions. Rotation, scope or
 window changes invalidate the entire bundle. Failed, cached, delayed or incompatible pixels are
-unavailable; a stable semantic tree remains usable. Image bytes are ephemeral and excluded from
+unavailable; a stable semantic tree remains usable. Observation image requests pass a minimum frame
+capture time to the live producer. The producer uses the same FrameSelection rules for request freshness,
+post-action boundaries and scope, waiting at most 800ms for an eligible frame instead of immediately
+returning a healthy but pre-request buffered image. A stopped/replaced source cannot satisfy that wait.
+Visual capture attempts are separate from usable evidence: at most two attempts with a 500ms pause,
+and at most one usable visual capture until verified progress or handoff. Failed pixels are not recorded
+as inspected screenshot evidence. Image bytes are ephemeral and excluded from
 Page Cards, prompt-context diagnostics and learning projections. Image failure details use fixed
 codes, without raw paths or exception text.
 
