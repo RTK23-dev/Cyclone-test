@@ -86,11 +86,21 @@ class MobileLiquidGlassGuards(unittest.TestCase):
         self.assertIn("Box(Modifier.wrapContentSize())", theme)
         self.assertIn("LocalCycloneLiquidBackdrop provides null", theme)
         self.assertIn("if (drawBackground)", theme)
-        # A floating accessibility overlay cannot sample another app and may never create its own
-        # full-canvas backdrop. The transparent branch must stay content-sized and optically neutral.
         transparent_branch = theme.split("} else {", 1)[1]
         self.assertNotIn("Modifier.fillMaxSize()", transparent_branch.split("enum class CyclonePastel", 1)[0])
         self.assertNotIn("layerBackdrop(liquidBackdrop)", transparent_branch.split("enum class CyclonePastel", 1)[0])
+
+    def test_transparent_overlay_fallback_controls_remain_visible_and_interactive(self):
+        source = LIQUID.read_text(encoding="utf-8")
+        selection = source.split("internal fun CycloneLiquidSelectionLens(", 1)[1].split("/** Compact neutral", 1)[0]
+        text_action = source.split("internal fun CycloneLiquidTextAction(", 1)[1].split("/** Destructive", 1)[0]
+        destructive = source.split("internal fun CycloneLiquidDestructiveAction(", 1)[1].split("/** One refractive", 1)[0]
+        filter_chip = source.split("internal fun CycloneLiquidFilterChip(", 1)[1].split("/** Transparent hit", 1)[0]
+        self.assertIn("Box(base.background(surface, ContinuousCapsule))", selection)
+        self.assertNotIn("if (backdrop == null) return", text_action)
+        self.assertNotIn("?: return", destructive)
+        self.assertNotIn("?: return", filter_chip)
+        self.assertIn(".clickable(enabled = enabled, role = Role.Button, onClick = onClick)", text_action)
 
     def test_overlay_resting_composer_matches_single_apple_style_glass_bar(self):
         overlay = OVERLAY.read_text(encoding="utf-8")
@@ -102,6 +112,8 @@ class MobileLiquidGlassGuards(unittest.TestCase):
         self.assertIn("height(66.dp)", apple)
         self.assertIn("cornerRadius = 33.dp", apple)
         self.assertIn('contentDescription = "Ask Cyclone"', apple)
+        self.assertIn('working -> "Stop task"', apple)
+        self.assertIn('else -> "Start voice request"', apple)
         self.assertIn("OverlayVoiceWaveform()", apple)
         for label in ("Camera", "Files & photos", "Share screen", "Cross-app share", "Model & intelligence"):
             self.assertIn(f'"{label}"', apple)
@@ -124,8 +136,11 @@ class MobileLiquidGlassGuards(unittest.TestCase):
             source = path.read_text(encoding="utf-8")
             self.assertNotIn("DropdownMenu(", source, path.name)
             self.assertNotIn("DropdownMenuItem(", source, path.name)
+        intelligence = INTELLIGENCE.read_text(encoding="utf-8")
         self.assertIn("if (intelligenceOpen)", AI.read_text(encoding="utf-8"))
         self.assertIn("CycloneLiquidPanel(", AI.read_text(encoding="utf-8"))
+        self.assertIn(".heightIn(max = 320.dp)", intelligence)
+        self.assertIn(".verticalScroll(rememberScrollState())", intelligence)
 
     def test_home_launcher_is_compact_and_has_one_settings_action(self):
         home = HOME.read_text(encoding="utf-8")
