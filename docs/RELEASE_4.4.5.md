@@ -31,7 +31,7 @@ pixels and cancellation. They verify one semantic traversal per bundle, one scre
 visual bundle, and zero additional captures for repeated projections. A semantic observation followed
 by visual escalation is two explicit generations overall. Injected timing is not real-device latency.
 
-The combined release candidate must additionally pass exact-source Mobile CI tests, lint and APK
+The external-review fixes passed 1,074 local Mobile JVM tests and all 78 repository guard tests. The combined release candidate must additionally pass exact-source Mobile CI tests, lint and APK
 assembly. Publication verifies APK identity, SHA-256/provenance and signer continuity against v4.4.4.
 Android setup explicitly requests `platform-tools` because the old action default requested the
 unavailable `tools` package; no validation or signing check is disabled.

@@ -22,3 +22,4 @@ android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
 candidate_generation = "cyclone-4.4.5-authoritative-observations"
+# Final observation release seal: exact-head tests, lint, assembly and signing provenance are mandatory.
