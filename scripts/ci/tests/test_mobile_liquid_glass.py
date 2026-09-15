@@ -23,11 +23,11 @@ OVERLAY_CONTRACT = OVERLAY_ROOT / "OverlayChromeContract.kt"
 
 
 class MobileLiquidGlassGuards(unittest.TestCase):
-    def test_444_identity_and_runtime_contract_are_preserved(self):
-        # Repair work stays on top of the immutable published 4.4.4 source until a release is cut.
+    def test_445_identity_and_runtime_contract_are_preserved(self):
+        # The release cut is 4.4.5 and remains on the same Android/Kyant runtime contract.
         build = APP_BUILD.read_text(encoding="utf-8")
-        self.assertIn('versionCode = 104', build)
-        self.assertIn('versionName = "4.4.4"', build)
+        self.assertIn('versionCode = 105', build)
+        self.assertIn('versionName = "4.4.5"', build)
         self.assertIn('minSdk = 33', build)
         self.assertIn('targetSdk = 35', build)
         self.assertIn('compileSdk = 36', build)
