@@ -559,8 +559,8 @@ internal class InstagramColdDmsRunner(
         if (verify && !recipientVerified(handle, displayName)) return ColdDmAction.Failed("Recipient $handle could not be verified in the opened thread")
         when (val typed = phone.typeMessage(message)) { ColdDmAction.Ok -> Unit; else -> return typed }
         if (!delay(600)) return ColdDmAction.Failed("Stopped before send")
-        if (verify && !composerReady(message)) return ColdDmAction.Failed("Exact message text could not be verified in the composer for $handle")
-
+        // Source tolerates unreadable pre-send OCR and lets the post-send checks decide whether the tap worked.
+        // Keep that tolerance on Android: a sparse accessibility tree must not become a false hard failure here.
         return sendAndVerify(handle, message, verify)
     }
 
