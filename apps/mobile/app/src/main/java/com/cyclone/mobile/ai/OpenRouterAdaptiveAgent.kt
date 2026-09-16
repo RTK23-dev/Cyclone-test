@@ -128,6 +128,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         val providerCancellation: ProviderCancellation = ProviderCancellation(),
         var decisionDeadlineMs: Long = Long.MAX_VALUE,
         var progress: (String) -> Unit = {},
+        val difficulty: com.cyclone.mobile.agent.plan.TaskDifficultyTier =
+            com.cyclone.mobile.agent.plan.TaskDifficulty.classify(goal),
+        var trajectory: com.cyclone.mobile.agent.plan.TaskTrajectory =
+            com.cyclone.mobile.agent.plan.TaskTrajectory.seed(goal),
     )
 
     private data class ActiveLocalSession(
@@ -298,7 +302,9 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         lateinit var localAgent: CycloneLocalAgent
         val model = object : CycloneAgentModel {
             override fun plan(taskState: CycloneTaskState, observation: CycloneObservation): CyclonePlanResult {
-                session.decisionDeadlineMs = ProviderRequests.now() + 35_000
+                val horizonBudget = if (session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD &&
+                    !session.trajectory.horizonPlanned) 55_000L else 35_000L
+                session.decisionDeadlineMs = ProviderRequests.now() + horizonBudget
                 return try { planNext(taskState, observation) } catch (error: ExecutionPhaseTimeout) {
                     CyclonePlanResult.Valid(CycloneModelTurn(CycloneModelDirective.BLOCKED, reason = error.message))
                 }
@@ -314,7 +320,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     )
                 }
 
-                if (session.bridge.verifiedSimpleNavigation(goal)) {
+                if (session.bridge.verifiedSimpleNavigation(goal) || session.bridge.verifiedNamedAppOpen(goal)) {
                     return CyclonePlanResult.Valid(CycloneModelTurn(
                         CycloneModelDirective.DONE,
                         payload = PageAgentDecision("done", "", "The requested website is visible.",
@@ -342,6 +348,36 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                         CycloneModelTurn(CycloneModelDirective.NEED_HUMAN, reason = "photo.saved_evidence_unavailable",
                             payload = PageAgentDecision("need_human", "", "The shutter was requested once. Please check the photo; I cannot verify a newly saved image and will not take another.", emptyList(), null, "photo.saved_evidence_unavailable")))
                     else -> Unit
+                }
+
+                session.trajectory = session.trajectory.advanceIfSatisfied(session.state.page)
+                if (session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD &&
+                    !session.trajectory.horizonPlanned && session.apiKey.isNotBlank()) {
+                    requestHorizonPlan(session, goal)?.let { planned ->
+                        session.trajectory = planned
+                        onProgress(planned.current?.summary ?: "Mapped the long-horizon route")
+                        AgentTraceRuntime.event(
+                            context, traceId, "PLAN",
+                            "Mapped a long-horizon waypoint plan",
+                            code = "horizon.plan",
+                            ok = true,
+                            detail = "tier=HARD waypoints=${planned.waypoints.size} from=${planned.from} to=${planned.to}",
+                        )
+                    } ?: run { session.trajectory = session.trajectory.copy(horizonPlanned = true) }
+                }
+                val waypoint = session.trajectory.current
+                if (waypoint?.kind == com.cyclone.mobile.agent.plan.WaypointKind.STOP_HUMAN &&
+                    com.cyclone.mobile.agent.plan.TaskTrajectory.looksLikeLoginWall(session.state.page) &&
+                    session.trajectory.index > 0) {
+                    val summary = waypoint.summary.ifBlank { "This screen needs your sign-in" }
+                    onProgress(summary)
+                    return CyclonePlanResult.Valid(
+                        CycloneModelTurn(
+                            CycloneModelDirective.NEED_HUMAN,
+                            reason = "trajectory.login_wall",
+                            payload = PageAgentDecision("need_human", session.state.page.title, summary, emptyList(), null, "trajectory.login_wall"),
+                        ),
+                    )
                 }
 
                 val landing = com.cyclone.mobile.fastpath.FastPathLanding.resolve(goal)
@@ -477,6 +513,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 session.providerRequests++
                 val agentContext = decisionPhase(session, ExecutionPhase.PROMPT) { session.bridge.promptContext(goal) }
                     .put("operatingMode", session.adaptiveMode)
+                    .put("taskTier", session.difficulty.name)
+                    .put("trajectory", session.trajectory.toJson())
                     .put("noProgressFailures", session.consecutiveNoProgressFailures)
                     .put("runtimeFeedback", JSONObject()
                         .put("recentFailures", JSONArray(taskState.recentFailedActions.takeLast(8)))
@@ -756,13 +794,18 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             model = model,
             tools = tools,
             convergence = CycloneConvergencePolicy(
-                taskTimeoutMs = 300_000,
+                taskTimeoutMs = when (session.difficulty) {
+                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.EASY -> 90_000
+                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.MEDIUM -> 300_000
+                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD -> 480_000
+                },
                 maxRepeatedIdenticalActionWithoutProgress = 2,
-                maxConsecutiveRecoveryCyclesWithoutNewEvidence = 8,
+                maxConsecutiveRecoveryCyclesWithoutNewEvidence = if (session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD) 12 else 8,
                 maxMalformedModelResponses = 3,
                 maxVisionAttemptsOnUnchangedState = 1,
                 maxBacktrackAttempts = 3,
                 maxStaleTargetRetries = 2,
+                maxMutationsWithoutVerifiedProgress = if (session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD) 16 else 10,
             ),
             trace = traceSink,
             checkpoints = checkpointStore,
@@ -795,6 +838,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     ),
                     session.context.skillSignatures,
                     onProgress,
+                    session.context,
                 )
             }
             is CycloneAgentRunResult.Suspended -> {
@@ -826,6 +870,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     ),
                     session.context.skillSignatures,
                     onProgress,
+                    session.context,
                 )
             }
             is CycloneAgentRunResult.Stopped -> {
@@ -859,6 +904,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     ),
                     session.context.skillSignatures,
                     onProgress,
+                    session.context,
                 )
             }
         }
@@ -1379,6 +1425,28 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         )
     }
 
+    private fun requestHorizonPlan(session: LocalSessionContext, goal: String): com.cyclone.mobile.agent.plan.TaskTrajectory? {
+        session.providerRequests++
+        session.progress("Mapping the long-horizon route…")
+        val user = JSONObject()
+            .put("USER_GOAL", goal)
+            .put("TIER", "HARD")
+            .put("CURRENT_PAGE", session.state.page.toAgentJson(goal))
+            .put("SEEDED_TRAJECTORY", session.trajectory.toJson())
+            .put("rule", "Replace the seeded landing with a compact waypoint plan. Destinations only. No click scripts.")
+        val response = pageChat(
+            session.apiKey,
+            session.config.model,
+            JSONArray()
+                .put(JSONObject().put("role", "system").put("content", com.cyclone.mobile.agent.plan.HorizonPlanner.SYSTEM_PROMPT))
+                .put(JSONObject().put("role", "user").put("content", user.toString())),
+            session.config.providerSort,
+        )
+        if (providerBoundary(response, session.traceId) != null) return null
+        val raw = response.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty()
+        return com.cyclone.mobile.agent.plan.HorizonPlanner.parse(raw, goal, session.state.page.title)
+    }
+
     private fun requestPageDecision(
         apiKey: String,
         model: OpenRouterModelPreset,
@@ -1606,6 +1674,7 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
         result: QuickAgentResult,
         skillSignatures: List<String>,
         onProgress: (String) -> Unit,
+        session: LocalSessionContext? = null,
     ): QuickAgentResult {
         // Make learning visible before the overlay/task disappears.
         onProgress("Writing verified results to Second Brain…")
@@ -1617,6 +1686,16 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
         )
 
         runCatching { AdaptiveBrainRuntime.recordRunPath(context, goal, skillSignatures, result.ok) }
+        if (session != null && !result.ok && result.classification != CycloneTaskClassification.CANCELLED.name) {
+            val waypoint = session.trajectory.current?.summary ?: session.trajectory.to
+            runCatching {
+                AdaptiveBrainRuntime.addUserNote(
+                    context,
+                    "Tier ${session.difficulty.name}: failed '${goal.take(120)}' at '$waypoint'. ${result.message.orEmpty().take(160)}",
+                    "TRAJECTORY_FAILURE",
+                )
+            }
+        }
 
         // Finish first so the legacy V2.6 task report sees the real final status and endedAt.
         val status = if (result.ok) "COMPLETED"

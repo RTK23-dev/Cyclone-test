@@ -73,6 +73,16 @@ class GoalContractTest {
         })
     }
 
+    @Test fun namedAppOpenCompletesWhenTheAppIsForeground() {
+        val contract = GoalContractCompiler.compile("open Facebook")
+        assertTrue(contract.requirements.any { it.kind == GoalRequirementKind.NAMED_APP && it.value == "com.facebook.katana" })
+        val launcher = page("com.google.android.apps.nexuslauncher", "Home")
+        assertFalse(GoalContractCompiler.evaluate(contract, launcher, emptyList()).satisfied)
+        val facebook = page("com.facebook.katana", "Facebook")
+        assertTrue(GoalContractCompiler.evaluate(contract, facebook, emptyList()).satisfied)
+        assertFalse(GoalContractCompiler.evaluate(GoalContractCompiler.compile("open Facebook and login"), facebook, emptyList()).satisfied)
+    }
+
     @Test fun onlySimpleHostNavigationQualifiesForLocalCompletion() {
         listOf("open ad.nl", "Go to https://www.ad.nl/", "please navigate to victor.ceo").forEach {
             assertTrue(GoalContractCompiler.isSimpleWebNavigation(it))

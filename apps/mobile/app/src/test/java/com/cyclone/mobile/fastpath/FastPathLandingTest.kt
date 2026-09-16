@@ -63,6 +63,8 @@ class FastPathLandingTest {
         assertTrue(landing >= 0)
         assertTrue(agent.contains("webFallback(landing.packageName)"))
         assertTrue(agent.contains("launchFailure"))
+        assertTrue(agent.contains("horizon.plan"))
+        assertTrue(agent.contains("taskTier"))
     }
 
     @Test

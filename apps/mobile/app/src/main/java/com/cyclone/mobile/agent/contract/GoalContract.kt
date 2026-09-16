@@ -13,6 +13,7 @@ enum class GoalRequirementKind {
     SITE_NOTIFICATION_PERMISSION,
     VERIFIED_TARGET_INTERACTION,
     GENERIC_SEMANTIC_EVIDENCE,
+    NAMED_APP,
 }
 
 data class GoalRequirement(
@@ -110,6 +111,12 @@ object GoalContractCompiler {
             .containsMatchIn(clean)
         if (loginIntent && !loginNavigationOnly) {
             requirements += GoalRequirement(GoalRequirementKind.AUTHENTICATED_SESSION, host)
+        }
+
+        if (com.cyclone.mobile.agent.plan.TaskDifficulty.isNamedAppOpenOnly(clean)) {
+            com.cyclone.mobile.fastpath.FastPathLanding.namedApp(clean)?.second?.let { packageName ->
+                requirements += GoalRequirement(GoalRequirementKind.NAMED_APP, packageName)
+            }
         }
 
         if (Regex("(?i)\\b(scroll|swipe)\\b").containsMatchIn(clean)) {
@@ -277,6 +284,17 @@ object GoalContractCompiler {
                 )
             }
 
+            GoalRequirementKind.NAMED_APP -> {
+                val expected = requirement.value.orEmpty()
+                val matched = currentPage != null && expected.isNotBlank() &&
+                    com.cyclone.mobile.fastpath.FastPathLanding.launchCandidates(expected)
+                        .any { it == currentPage.packageName }
+                GoalRequirementResult(
+                    requirement,
+                    matched,
+                    if (matched) "requested app is the current task surface" else "requested app has not been verified in the foreground",
+                )
+            }
             GoalRequirementKind.GENERIC_SEMANTIC_EVIDENCE -> {
                 val pageMatch = currentPage?.let { pageMatchesTerms(it, requirement.terms) } == true
                 val verifiedMutation = successful.isNotEmpty()

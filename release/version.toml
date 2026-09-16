@@ -1,22 +1,22 @@
-# Cyclone Mobile 4.5.8: local named-app landing, launch failures are not fatal.
+# Cyclone Mobile 4.5.9: easy/medium/hard task tiers with horizon planning.
 schema = 1
-product_version = "4.5.8"
+product_version = "4.5.9"
 channel = "development"
-android_version_code = 117
+android_version_code = 118
 python_version = "4.1.0"
 
 [components]
-mobile = "4.5.8"
+mobile = "4.5.9"
 pc_companion = "1.5.5"
 device_gateway = "4.1.0"
 mcp = "4.1.0"
 
 [release]
-previous_mobile_version = "4.5.7"
+previous_mobile_version = "4.5.8"
 publication_authorized = true
 physical_pixel8 = "UNVERIFIED"
 physical_pixel8_ui_acceptance = "UNVERIFIED"
 android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-4.5.8-facebook-landing-ci3"
+candidate_generation = "cyclone-4.5.9-task-tiers-ci"
