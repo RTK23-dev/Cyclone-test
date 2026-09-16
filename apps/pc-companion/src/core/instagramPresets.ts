@@ -3,6 +3,7 @@ import type { DesktopService, Layer2Status } from "../services/types.js";
 export const INSTAGRAM_ANDROID_PACKAGE = "com.instagram.android";
 export const INSTAGRAM_PRESET_SOURCE_REPOSITORY = "kevinbadi/Kevs-IOS-Agents";
 export const INSTAGRAM_PRESET_SOURCE_REF = "b909752df7af7a595714ed660af7cc971ec408d5";
+export const INSTAGRAM_LAYER2_GOAL_MAX = 500;
 
 export type InstagramPresetId = "warmup" | "engage-following" | "cold-dms" | "post";
 export type InstagramPersonality = "skimmer" | "casual" | "engaged" | "dialed";
@@ -14,7 +15,7 @@ export interface InstagramPresetDefinition {
   title: string;
   description: string;
   workspaceId: string;
-  requiresSendGate: boolean;
+  consequential: boolean;
 }
 
 export interface InstagramPresetParams {
@@ -47,33 +48,33 @@ export const INSTAGRAM_PRESETS: readonly InstagramPresetDefinition[] = [
     id: "warmup",
     sourceTaskType: "doomscroll",
     title: "Instagram warmup",
-    description: "Browse the Instagram home feed with personality-based pacing and optional likes/comments.",
+    description: "Browse Home with personality-based pacing and optional verified engagement.",
     workspaceId: "instagram-warmup",
-    requiresSendGate: false,
+    consequential: false,
   },
   {
     id: "engage-following",
     sourceTaskType: "doomscroll-following",
     title: "Engage following",
-    description: "Browse the Following feed with the same bounded personality and engagement controls.",
+    description: "Browse Following with the same bounded pacing and engagement controls.",
     workspaceId: "instagram-following",
-    requiresSendGate: false,
+    consequential: false,
   },
   {
     id: "cold-dms",
     sourceTaskType: "cold-dms",
     title: "Cold DMs",
-    description: "Send one verified message to an explicit bounded list of Instagram handles.",
+    description: "Send a verified message to an explicit bounded recipient list.",
     workspaceId: "instagram-cold-dms",
-    requiresSendGate: true,
+    consequential: true,
   },
   {
     id: "post",
     sourceTaskType: "post",
     title: "Instagram post",
-    description: "Create a verified Instagram draft or publish after explicit confirmation.",
+    description: "Create a verified draft or publish only after explicit confirmation.",
     workspaceId: "instagram-post",
-    requiresSendGate: true,
+    consequential: true,
   },
 ] as const;
 
@@ -81,15 +82,11 @@ const PRESET_BY_ID = new Map(INSTAGRAM_PRESETS.map((preset) => [preset.id, prese
 const PERSONAS = new Set<InstagramPersonality>(["skimmer", "casual", "engaged", "dialed"]);
 
 export function defaultInstagramPresetParams(id: InstagramPresetId): InstagramPresetParams {
-  switch (id) {
-    case "warmup":
-    case "engage-following":
-      return { durationMinutes: 15, personality: "casual", likeEnabled: true, commentEnabled: false };
-    case "cold-dms":
-      return { handles: [], message: "", cycles: 1 };
-    case "post":
-      return { destination: "draft", caption: "", mediaInstructions: "", publishConfirmed: false };
+  if (id === "warmup" || id === "engage-following") {
+    return { durationMinutes: 15, personality: "casual", likeEnabled: true, commentEnabled: false };
   }
+  if (id === "cold-dms") return { handles: [], message: "", cycles: 1 };
+  return { destination: "draft", caption: "", mediaInstructions: "", publishConfirmed: false };
 }
 
 export function buildInstagramPresetInvocation(
@@ -113,6 +110,10 @@ export function buildInstagramPresetInvocation(
   };
 }
 
+/**
+ * Queue only: One stores the goal in Android Layer 2 / Up next. Actual UI actions still cross the
+ * phone's canonical executor, verification and GATE paths. This function never sends ADB/shell input.
+ */
 export async function queueInstagramPreset(
   service: DesktopService,
   deviceId: string,
@@ -146,21 +147,20 @@ function engagementGoal(id: "warmup" | "engage-following", raw: InstagramPresetP
   const duration = boundedInteger(raw.durationMinutes, 15, 1, 180, "Duration");
   const personality = raw.personality ?? "casual";
   if (!PERSONAS.has(personality)) throw new Error("Unknown Instagram personality");
-  const likes = raw.likeEnabled !== false;
   const comments = raw.commentEnabled === true;
   const commentText = String(raw.commentText ?? "").trim();
   if (comments && !commentText) throw new Error("Comment text is required when comments are enabled");
   if (commentText.length > 150) throw new Error("Comment text must be 150 characters or fewer");
-  const feed = id === "engage-following" ? "Following feed" : "home feed";
-  return boundedGoal([
-    `Open Instagram (${INSTAGRAM_ANDROID_PACKAGE})${account ? ` and use account @${account}` : ""}.`,
-    `For ${duration} minutes, browse the ${feed} with the ${personality} pacing style: vary dwell and scroll timing naturally instead of repeating a fixed cadence.`,
-    likes ? "Like only when the currently observed post is a reasonable engagement candidate; verify the like state after acting." : "Do not like posts.",
-    comments
-      ? `Comments are allowed only with this exact operator-provided text: ${quote(commentText)}. Treat posting a comment as SEND: respect Cyclone GATE/human confirmation and verify the comment after submission.`
-      : "Do not post comments.",
-    "After every interaction, re-observe and verify semantic progress. Recover from transient overlays by re-observing; do not repeat a click merely because the screen was slow to change.",
-    "Stop rather than bypass login, challenge, permission, safety, or human-confirmation boundaries.",
+  const feed = id === "engage-following" ? "Following" : "Home";
+  const commentRule = comments
+    ? `Comment exactly ${quote(commentText)}; comment is SEND, require phone GATE and verify it.`
+    : "No comments.";
+  return fitGoal([
+    `IG ${id}. Open ${INSTAGRAM_ANDROID_PACKAGE}${account ? ` as @${account}` : ""}.`,
+    `Browse ${feed} for ${duration}m, ${personality} pacing with varied dwell/scroll.`,
+    raw.likeEnabled === false ? "No likes." : "Likes allowed; verify like state.",
+    commentRule,
+    "Re-observe after actions; no blind double-clicks. Stop on login/challenge/permission/human boundary.",
   ]);
 }
 
@@ -170,15 +170,13 @@ function coldDmGoal(raw: InstagramPresetParams, account?: string): string {
   if (handles.length > 25) throw new Error("Cold DMs are limited to 25 explicit handles per preset run");
   const message = String(raw.message ?? "").trim();
   if (!message) throw new Error("DM message is required");
-  if (message.length > 2000) throw new Error("DM message is too long");
+  if (message.length > 240) throw new Error("For the One preset queue, keep the DM message to 240 characters or fewer");
   const cycles = boundedInteger(raw.cycles, 1, 1, 10, "Cycles");
-  return boundedGoal([
-    `Open Instagram (${INSTAGRAM_ANDROID_PACKAGE})${account ? ` and use account @${account}` : ""}.`,
-    `Process only these explicit recipients: ${handles.map((handle) => `@${handle}`).join(", ")}. Run at most ${cycles} cycle${cycles === 1 ? "" : "s"}.`,
-    `For each recipient, verify the profile/thread identity before typing. Send this exact operator-provided message: ${quote(message)}.`,
-    "Every DM is an external SEND action: never bypass Cyclone GATE or human confirmation. If confirmation is unavailable, pause that recipient instead of sending.",
-    "After Send, re-observe and require recipient/thread evidence plus a sent-state witness (for example composer reset or the new message appearing) before marking that recipient complete.",
-    "If recipient identity is ambiguous, the account is private/unavailable, a challenge appears, or verification fails, do not guess and do not retry a blind second Send.",
+  return fitGoal([
+    `IG cold-dms. Open ${INSTAGRAM_ANDROID_PACKAGE}${account ? ` as @${account}` : ""}.`,
+    `Recipients:${handles.map((handle) => `@${handle}`).join(",")}; cycles:${cycles}. Message exactly:${quote(message)}.`,
+    "Before each SEND verify recipient/thread. Every DM requires phone GATE/human confirmation.",
+    "After Send verify recipient/thread plus sent-state; never blind-retry. Stop on ambiguity/challenge/unavailable target.",
   ]);
 }
 
@@ -196,16 +194,25 @@ function postGoal(raw: InstagramPresetParams, account?: string): string {
   if (musicUrl && !/^https:\/\/(?:www\.)?instagram\.com\//i.test(musicUrl)) {
     throw new Error("Music URL must be an HTTPS Instagram URL");
   }
-  return boundedGoal([
-    `Open Instagram (${INSTAGRAM_ANDROID_PACKAGE})${account ? ` and use account @${account}` : ""}.`,
-    `Create a post using 1–3 phone media items matching this operator description: ${quote(media)}. Never substitute uncertain media; if the requested items cannot be identified, pause for human selection.`,
-    caption ? `Use this exact caption: ${quote(caption)}.` : "Leave the caption empty.",
-    musicUrl ? `Use the Instagram music reference ${musicUrl} only if the app exposes a verifiable matching music flow.` : "Do not add music unless already selected by the operator.",
-    destination === "draft"
-      ? "Save the post as a draft. Verify that Instagram shows a draft/saved-state witness; do not publish."
-      : "Publish only after Cyclone's SEND/human confirmation is satisfied. Re-observe after the publish action and require a posted-state witness before declaring success.",
-    "Treat picker selection, Next transitions, caption entry, draft/publish, and any account switch as separately verified steps. Never retry the final draft/publish control blindly.",
+  const resultRule = destination === "publish"
+    ? "PUBLISH requires phone SEND/GATE; after action verify posted-state. Never blind-retry publish."
+    : "Save DRAFT; verify saved/draft-state and never publish.";
+  return fitGoal([
+    `IG post. Open ${INSTAGRAM_ANDROID_PACKAGE}${account ? ` as @${account}` : ""}.`,
+    `Select 1-3 phone media matching:${quote(media)}; pause if ambiguous.`,
+    caption ? `Caption exactly:${quote(caption)}.` : "Caption empty.",
+    musicUrl ? `Music:${musicUrl}.` : "No new music.",
+    resultRule,
+    "Verify picker selection and each Next transition.",
   ]);
+}
+
+function fitGoal(parts: string[]): string {
+  const goal = parts.join(" ").replace(/\s+/g, " ").trim();
+  if (goal.length > INSTAGRAM_LAYER2_GOAL_MAX) {
+    throw new Error("Preset details exceed the phone's 500-character Up next contract; shorten handles, message, caption or media description");
+  }
+  return goal;
 }
 
 function cleanAccount(value?: string): string | undefined {
@@ -238,14 +245,4 @@ function boundedInteger(value: number | undefined, fallback: number, min: number
 
 function quote(value: string): string {
   return `“${value.replace(/[\r\n]+/g, " ").trim()}”`;
-}
-
-function boundedGoal(parts: string[]): string {
-  const goal = parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-  if (goal.length > 500) {
-    // Layer 2 deliberately caps stored goals at 500 characters. Keep the highest-value safety and
-    // task semantics rather than silently relying on the Gateway to truncate arbitrary text.
-    return `${goal.slice(0, 496).trimEnd()} …`;
-  }
-  return goal;
 }
