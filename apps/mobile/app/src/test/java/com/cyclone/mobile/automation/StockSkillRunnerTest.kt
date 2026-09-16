@@ -44,8 +44,10 @@ class StockSkillRunnerTest {
     }
 
     @Test
-    fun stockSkillHumanReviewUsesNormalWaitingCheckpoint() {
+    fun stockSkillHumanReviewUsesNormalWaitingCheckpointAndTakeover() {
         val store = AutomationStore.inMemory()
+        var takeoverReason: String? = null
+        var takeoverStep: String? = null
         val runner = runner(
             store = store,
             stockSkills = StockSkillGateway {
@@ -55,6 +57,11 @@ class StockSkillRunnerTest {
                     waitingForHuman = true,
                     message = "human review is required",
                 )
+            },
+            takeover = TakeoverGateway { reason, _, stepId ->
+                takeoverReason = reason
+                takeoverStep = stepId
+                true
             },
         )
         val automation = AutomationDefinition(
@@ -73,18 +80,24 @@ class StockSkillRunnerTest {
 
         assertEquals(RunState.WAITING_FOR_HUMAN, run.state)
         assertEquals("waiting_for_human", run.variables["reason"])
+        assertEquals("human review is required", takeoverReason)
+        assertEquals("native-step", takeoverStep)
         val checkpoint = store.getCheckpoint(run.id)
         assertNotNull(checkpoint)
         assertTrue(checkpoint!!.waitingForHuman)
         assertEquals(0, checkpoint.nextStepIndex)
     }
 
-    private fun runner(store: AutomationStore, stockSkills: StockSkillGateway) = AutomationRunner(
+    private fun runner(
+        store: AutomationStore,
+        stockSkills: StockSkillGateway,
+        takeover: TakeoverGateway = TakeoverGateway { _, _, _ -> true },
+    ) = AutomationRunner(
         store = store,
         phoneTools = PhoneToolGateway { PhoneToolResult(true) },
         integrations = object : IntegrationGateway {},
         confirmations = ConfirmationGateway { _, _ -> true },
-        takeover = TakeoverGateway { _, _, _ -> true },
+        takeover = takeover,
         stockSkills = stockSkills,
         sleep = {},
         now = { 1_000L },
