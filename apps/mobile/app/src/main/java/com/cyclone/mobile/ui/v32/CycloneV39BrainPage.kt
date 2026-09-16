@@ -5,7 +5,6 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -78,7 +77,7 @@ internal fun CycloneV39BrainPage(context: Context, refreshTick: Int) {
 
     var tab by remember { mutableIntStateOf(0) }
     LazyColumn(
-        contentPadding = PaddingValues(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 96.dp),
+        contentPadding = cyclonePageInsets(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {

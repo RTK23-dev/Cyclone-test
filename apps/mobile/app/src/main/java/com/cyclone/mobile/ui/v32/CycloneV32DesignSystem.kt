@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -292,7 +293,16 @@ object CycloneSpacing {
     val Page = 20.dp
     val Section = 28.dp
     val ComposerLift = 30.dp
+    /** Extra list breathing room after Scaffold already inset the tab bar. */
+    val ScreenBottom = 24.dp
 }
+
+fun cyclonePageInsets(top: androidx.compose.ui.unit.Dp = 14.dp) = PaddingValues(
+    start = CycloneSpacing.Page,
+    top = top,
+    end = CycloneSpacing.Page,
+    bottom = CycloneSpacing.ScreenBottom,
+)
 
 @Composable
 fun CycloneSurface(modifier: Modifier = Modifier, content: @Composable () -> Unit) {

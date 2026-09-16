@@ -39,7 +39,7 @@ fun CycloneFollowMePage(context: Context, refreshTick: Int, onBack: () -> Unit) 
     var message by remember { mutableStateOf("") }
 
     LazyColumn(
-        contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 96.dp),
+        contentPadding = cyclonePageInsets(top = 10.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {

@@ -127,7 +127,7 @@ fun CycloneRoutinesPage(context: Context, refreshTick: Int, onAi: () -> Unit, re
             val visibleRoutines = if (group == null) filtered else groups[group].orEmpty()
 
             LazyColumn(
-                contentPadding = PaddingValues(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 96.dp),
+                contentPadding = cyclonePageInsets(),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 item {

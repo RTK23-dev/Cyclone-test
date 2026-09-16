@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,24 +41,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
-import com.cyclone.mobile.ai.AgentTraceRuntime
-import com.cyclone.mobile.ai.TaskResultNotifierV292
-import com.cyclone.mobile.applearner.AppLearnerRuntime
 import com.cyclone.mobile.automation.AutomationDefinition
 import com.cyclone.mobile.automation.AutomationRuntime
 import com.cyclone.mobile.automation.TriggerType
-import com.cyclone.mobile.brain.AdaptiveBrainRuntime
-import com.cyclone.mobile.brain.BrainChatRuntime
-import com.cyclone.mobile.brain.CycloneBrainRuntime
-import com.cyclone.mobile.guided.RoutineTeachingRuntime
 import com.cyclone.mobile.permissions.CyclonePermissionSetup
 import com.cyclone.mobile.runtime.background.TaskPhase
+import com.cyclone.mobile.ui.ProfileRescueBar
 import java.time.LocalTime
 
 @Composable
@@ -72,15 +69,6 @@ fun CycloneMobileV32App() {
         }
         androidx.activity.compose.BackHandler(settingsOpen) { backFromSettings() }
         var refreshTick by remember { mutableIntStateOf(0) }
-
-        AutomationRuntime.initialize(context)
-        AppLearnerRuntime.initialize(context)
-        AdaptiveBrainRuntime.initialize(context)
-        CycloneBrainRuntime.initialize(context)
-        BrainChatRuntime.initialize(context)
-        RoutineTeachingRuntime.initialize(context)
-        AgentTraceRuntime.initialize(context)
-        TaskResultNotifierV292.ensureChannel(context)
 
         val task by com.cyclone.mobile.runtime.background.WorkspaceTasks.state.collectAsState()
         val routinesRevision by AutomationRuntime.store.revision.collectAsState()
@@ -114,25 +102,30 @@ fun CycloneMobileV32App() {
             },
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
-                if (settingsOpen) {
-                    CycloneSettingsPage426(context, refreshTick, { refreshTick++ }, settingsSection) { settingsSection = it }
-                } else {
-                    when (destination) {
-                        V32Destination.HOME -> V32HomePage(
-                            context = context,
-                            refreshTick = refreshTick,
-                            onAi = { destination = V32Destination.AI },
-                            onRoutines = { destination = V32Destination.ROUTINES },
-                            onSettings = { settingsOpen = true },
-                        )
-                        V32Destination.PROFILES -> CycloneProfilesPage(context, refreshTick) { destination = V32Destination.AI }
-                        V32Destination.AI -> V39AiChatPage(context, refreshTick) { settingsOpen = true }
-                        V32Destination.ROUTINES -> CycloneRoutinesPage(
-                            context,
-                            refreshTick,
-                            { destination = V32Destination.AI },
-                        ) { refreshTick++ }
-                        V32Destination.BRAIN -> CycloneV39BrainPage(context, refreshTick)
+                Column(Modifier.fillMaxSize()) {
+                    ProfileRescueBar()
+                    Box(Modifier.weight(1f).fillMaxSize()) {
+                        if (settingsOpen) {
+                            CycloneSettingsPage426(context, refreshTick, { refreshTick++ }, settingsSection) { settingsSection = it }
+                        } else {
+                            when (destination) {
+                                V32Destination.HOME -> V32HomePage(
+                                    context = context,
+                                    refreshTick = refreshTick,
+                                    onAi = { destination = V32Destination.AI },
+                                    onRoutines = { destination = V32Destination.ROUTINES },
+                                    onSettings = { settingsOpen = true },
+                                )
+                                V32Destination.PROFILES -> CycloneProfilesPage(context, refreshTick) { destination = V32Destination.AI }
+                                V32Destination.AI -> V39AiChatPage(context, refreshTick) { settingsOpen = true }
+                                V32Destination.ROUTINES -> CycloneRoutinesPage(
+                                    context,
+                                    refreshTick,
+                                    { destination = V32Destination.AI },
+                                ) { refreshTick++ }
+                                V32Destination.BRAIN -> CycloneV39BrainPage(context, refreshTick)
+                            }
+                        }
                     }
                 }
             }
@@ -161,9 +154,14 @@ private fun V32HomePage(
         ready.needsRepair -> "Repair"
         else -> "Setup"
     }
+    val readinessBody = when {
+        ready.ready -> "Ready when you are"
+        ready.needsRepair -> "Phone control needs a moment"
+        else -> "A few steps to get set up"
+    }
 
     LazyColumn(
-        contentPadding = PaddingValues(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 96.dp),
+        contentPadding = cyclonePageInsets(),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
@@ -172,13 +170,24 @@ private fun V32HomePage(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(greeting, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                // One action owns both navigation and readiness. 4.4.4 exposed two adjacent
-                // Settings controls targeting the same page, which made the Home header cramped.
-                CycloneLiquidTextAction(
-                    label = "Settings · $readinessLabel",
-                    onClick = onSettings,
-                )
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(greeting, style = MaterialTheme.typography.headlineLarge)
+                    Text(
+                        readinessBody,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Box(
+                    Modifier
+                        .clickable(onClick = onSettings)
+                        .semantics { contentDescription = "Settings, $readinessLabel" }
+                        .heightIn(min = 44.dp)
+                        .padding(horizontal = 2.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CycloneStatusPill(readinessLabel, positive = ready.ready)
+                }
             }
         }
 

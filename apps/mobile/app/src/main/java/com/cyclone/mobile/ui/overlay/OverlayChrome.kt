@@ -37,6 +37,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -569,7 +570,7 @@ private fun GatePanel(
                     }
                 }
                 Text(OverlayCopy.GATE, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(
+                Button(
                     onClick = { onAction(OverlayUserAction.GATE_CONFIRM) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) { Text(OverlayCopy.CONFIRM) }

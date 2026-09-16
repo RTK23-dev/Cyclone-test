@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -285,7 +284,7 @@ fun CycloneProfilesPage(context: Context, refreshTick: Int, onAsk: () -> Unit) {
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 96.dp),
+        contentPadding = cyclonePageInsets(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -575,7 +574,7 @@ private fun AppGroupDetail429(
     onProfileDetail: (ProfileCluster) -> Unit,
 ) {
     LazyColumn(
-        contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 96.dp),
+        contentPadding = cyclonePageInsets(top = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item { TextButton(onClick = onBack) { Text("‹ Groups") } }
@@ -637,7 +636,7 @@ private fun ProfileDetail429(
     val scope = rememberCoroutineScope()
     var localMessage by remember { mutableStateOf("") }
     LazyColumn(
-        contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 96.dp),
+        contentPadding = cyclonePageInsets(top = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item { TextButton(onClick = onBack) { Text("‹ Profiles") } }

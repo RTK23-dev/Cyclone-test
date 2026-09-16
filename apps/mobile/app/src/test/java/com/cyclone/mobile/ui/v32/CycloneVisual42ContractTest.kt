@@ -15,8 +15,14 @@ class CycloneVisual42ContractTest {
         assertTrue(home.contains("takeIf { it.phase != TaskPhase.STOPPED }"))
         assertTrue(home.contains("V39AiChatSessionRuntime.pendingRequest = request"))
         assertTrue(home.contains("CycloneAskTaskPanel(current)"))
+        assertTrue(home.contains("headlineLarge"))
+        assertTrue(home.contains("cyclonePageInsets()"))
+        assertTrue(home.contains("CycloneStatusPill(readinessLabel"))
+        assertTrue(home.contains("ProfileRescueBar()"))
         assertFalse(home.contains("Your phone, simplified"))
         assertFalse(home.contains("Button(onClick = onAi"))
+        assertFalse(home.contains("Settings ·"))
+        assertFalse(home.contains("bottom = 96.dp"))
     }
 
     @Test fun homeRoutinesAreObjectsNotRawTextButtons() {
@@ -74,6 +80,8 @@ class CycloneVisual42ContractTest {
         assertTrue(design.contains("Color(0xFF07101F)"))
         assertTrue(design.contains("Color(0xFF0E1A2B)"))
         assertTrue(design.contains("val Page = 20.dp"))
+        assertTrue(design.contains("val ScreenBottom = 24.dp"))
+        assertTrue(design.contains("fun cyclonePageInsets"))
         assertFalse(design.contains("border = BorderStroke"))
     }
 

@@ -413,33 +413,23 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         )
                     }
                 } else if (toolsOpen) {
-                    CycloneLiquidPanel(
-                        modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 24.dp,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TextButton(onClick = {
-                                toolsOpen = false
-                                context.startActivity(Intent(context, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java))
-                            }) { Text("File") }
-                            TextButton(onClick = {
-                                toolsOpen = false
-                                context.startActivity(
-                                    Intent(context, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java)
-                                        .putExtra("camera", true),
-                                )
-                            }) { Text("Photo") }
-                            TextButton(onClick = {
-                                toolsOpen = false
-                                context.startActivity(Intent(context, com.cyclone.mobile.capture.LiveCaptureConsentActivity::class.java))
-                            }) { Text("Share screen") }
-                        }
-                    }
+                    CycloneAttachmentTools(
+                        onCamera = {
+                            toolsOpen = false
+                            context.startActivity(
+                                Intent(context, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java)
+                                    .putExtra("camera", true),
+                            )
+                        },
+                        onFiles = {
+                            toolsOpen = false
+                            context.startActivity(Intent(context, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java))
+                        },
+                        onShareScreen = {
+                            toolsOpen = false
+                            context.startActivity(Intent(context, com.cyclone.mobile.capture.LiveCaptureConsentActivity::class.java))
+                        },
+                    )
                 }
 
                 CycloneLiquidPanel(
