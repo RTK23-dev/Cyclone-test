@@ -30,9 +30,11 @@ class CookieInterruptionPolicy {
         val consentChoices = actionable.any { normalize(it.label) in consentLabels || isAcceptLabel(it.label) }
         val reject = ranked(actionable) { isRejectLabel(it.label) && (normalize(it.label).contains("cookie") || consentChoices) }
         if (reject != null) return once(page, reject, "cookie.reject_optional")
-        if (!consentChoices) return CookieInterruptionDecision(CookieInterruptionOutcome.NOT_APPLICABLE, reason = "cookie.no_consent_controls")
-        val settings = ranked(actionable) { isSettingsLabel(it.label) }
+        val settings = if (consentChoices) ranked(actionable) { isSettingsLabel(it.label) } else null
         if (settings != null) return once(page, settings, "cookie.open_settings")
+        if (!consentChoices && page.controls.none { isRejectLabel(it.label) }) {
+            return CookieInterruptionDecision(CookieInterruptionOutcome.NOT_APPLICABLE, reason = "cookie.no_consent_controls")
+        }
         return CookieInterruptionDecision(CookieInterruptionOutcome.UNRESOLVED, reason = "cookie.reject_unavailable")
     }
 
