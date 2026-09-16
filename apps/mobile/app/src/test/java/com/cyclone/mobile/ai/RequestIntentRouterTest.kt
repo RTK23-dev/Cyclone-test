@@ -62,6 +62,9 @@ class RequestIntentRouterTest {
             "Look up Gangnam Style popularity today",
             "browse for new running shoes",
             "Can you search for coffee shops?",
+            "find a hotel close by",
+            "look when I have that appointment",
+            "What's on my calendar today",
         ).forEach { prompt ->
             val result = RequestIntentRouter.route(prompt)
             assertEquals(prompt, RequestIntent.PHONE_TASK, result.intent)

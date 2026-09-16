@@ -51,6 +51,7 @@ import com.cyclone.mobile.skills.SemanticSelector
 import com.cyclone.mobile.skills.SkillEscalateTo
 import com.cyclone.mobile.skills.SkillReplayResult
 import com.cyclone.mobile.skills.SkillRuntime
+import com.cyclone.mobile.fastpath.InstalledAppInventory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
@@ -299,6 +300,9 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         graphAttempts: MutableSet<String>,
         onProgress: (String) -> Unit,
     ): ActiveLocalSession {
+        InstalledAppInventory.replace(
+            runCatching { InstalledAppInventory.fromLauncher(context) }.getOrElse { emptyList() },
+        )
         val session = LocalSessionContext(
             traceId = traceId,
             goal = goal,
@@ -488,8 +492,14 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     val landingKey = "fastpath:${landing.uri}"
                     if (landingKey !in session.compiledAttempts) {
                         session.compiledAttempts += landingKey
-                        val summary = "Open ${landing.uri} in Chrome"
+                        val summary = when {
+                            landing.uri.orEmpty().startsWith("geo:") ->
+                                landing.reason.take(96).ifBlank { "Search nearby in Maps" }
+                            else -> "Open ${landing.uri} in Chrome"
+                        }
                         onProgress(summary)
+                        val params = JSONObject().put("uri", landing.uri)
+                        landing.packageName?.takeIf { it.isNotBlank() }?.let { params.put("package", it) }
                         return planFromDecision(
                             PageAgentDecision(
                                 "act",
@@ -499,7 +509,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                                     PageAgentAction(
                                         "phone.launch_intent",
                                         null,
-                                        JSONObject().put("uri", landing.uri),
+                                        params,
                                         true,
                                         summary,
                                     ),

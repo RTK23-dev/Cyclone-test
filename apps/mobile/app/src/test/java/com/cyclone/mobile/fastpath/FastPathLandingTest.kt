@@ -67,7 +67,8 @@ class FastPathLandingTest {
         assertTrue(agent.contains("taskTier"))
         assertTrue(agent.contains("easy.unopened"))
         assertTrue(agent.contains("tierRule"))
-        assertTrue(agent.contains("localHardPlan") || agent.contains("horizonPlanned"))
+        assertTrue(agent.contains("InstalledAppInventory"))
+        assertTrue(agent.contains("geo:"))
     }
 
     @Test

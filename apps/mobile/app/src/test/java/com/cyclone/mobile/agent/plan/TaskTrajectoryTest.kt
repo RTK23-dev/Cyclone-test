@@ -3,6 +3,8 @@ package com.cyclone.mobile.agent.plan
 import com.cyclone.mobile.applearner.ActionRisk
 import com.cyclone.mobile.applearner.PageContext
 import com.cyclone.mobile.applearner.PageControl
+import com.cyclone.mobile.fastpath.InstalledApp
+import com.cyclone.mobile.fastpath.InstalledAppInventory
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -16,6 +18,22 @@ class TaskTrajectoryTest {
         assertEquals(WaypointKind.OPEN_APP, trajectory.waypoints.first().kind)
         assertEquals("com.facebook.katana", trajectory.waypoints.first().packageName)
         assertTrue(trajectory.horizonPlanned)
+    }
+
+    @Test
+    fun unnamedHotelJobSeedsTheInstalledMapsLanding() {
+        InstalledAppInventory.replace(
+            listOf(InstalledApp("com.google.android.apps.maps", "Maps", 2)),
+        )
+        try {
+            val trajectory = TaskTrajectory.seed("find a hotel close by")
+            assertEquals(TaskDifficultyTier.MEDIUM, trajectory.tier)
+            assertEquals(WaypointKind.LAUNCH_INTENT, trajectory.waypoints.first().kind)
+            assertTrue(trajectory.waypoints.first().uri.orEmpty().startsWith("geo:"))
+            assertTrue(trajectory.waypoints.any { it.kind == WaypointKind.SCENE })
+        } finally {
+            InstalledAppInventory.replace(emptyList())
+        }
     }
 
     @Test

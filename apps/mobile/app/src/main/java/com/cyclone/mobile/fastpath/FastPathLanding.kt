@@ -66,7 +66,7 @@ object FastPathLanding {
     private val URL = Regex("(?i)https?://[^\\s]+")
     private val HOST = Regex("(?i)\\b(?:[a-z0-9-]+\\.)+[a-z]{2,}\\b")
 
-    fun resolve(goal: String): FastPathLandingHint? {
+    fun resolve(goal: String, installed: List<InstalledApp> = InstalledAppInventory.snapshot): FastPathLandingHint? {
         val trimmed = goal.trim()
         if (trimmed.isBlank()) return null
 
@@ -107,6 +107,8 @@ object FastPathLanding {
                 reason = "Goal names a web host. Prefer phone.launch_intent over hunting a browser icon.",
             )
         }
+
+        ImplicitAppRouter.resolve(trimmed, installed)?.landing()?.let { return it }
         return null
     }
 
@@ -119,6 +121,10 @@ object FastPathLanding {
 
     fun sanitizeUri(raw: String): String? {
         val clean = raw.trim().substringBefore('#').substringBefore('?').trimEnd('/')
+        if (clean.startsWith("geo:", ignoreCase = true)) {
+            return raw.trim().take(240).takeIf { ':' !in it.substringAfter("geo:").substringBefore('?').substringBefore(',') }
+                ?: raw.trim().take(240)
+        }
         if (!(clean.startsWith("https://", ignoreCase = true) || clean.startsWith("http://", ignoreCase = true))) {
             return null
         }

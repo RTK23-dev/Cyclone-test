@@ -27,6 +27,8 @@ class TaskDifficultyTest {
         assertEquals(TaskDifficultyTier.MEDIUM, TaskDifficulty.classify("Open Chrome and search for Pixel 8"))
         assertEquals(TaskDifficultyTier.MEDIUM, TaskDifficulty.classify("Open Settings, then Picture-in-picture"))
         assertEquals(TaskDifficultyTier.MEDIUM, TaskDifficulty.classify("open WhatsApp then send a message to Jacob"))
+        assertEquals(TaskDifficultyTier.MEDIUM, TaskDifficulty.classify("find a hotel close by"))
+        assertEquals(TaskDifficultyTier.MEDIUM, TaskDifficulty.classify("look when I have that appointment"))
     }
 
     @Test

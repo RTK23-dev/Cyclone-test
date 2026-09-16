@@ -187,7 +187,7 @@ class CyclonePcParityBridge internal constructor(
             out.put("fastPathLanding", landing.toJson())
             out.put(
                 "landingRule",
-                "Prefer this open_app/intent landing before hunting launcher icons. 3.9.12 Ask→workspace already routes a uniquely named installed app.",
+                "Prefer this open_app/intent landing before hunting launcher icons. Named apps and installed-app jobs both land locally.",
             )
         }
         card?.let { current ->

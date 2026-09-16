@@ -183,6 +183,15 @@ object RequestIntentRouter {
             )
         }
 
+        com.cyclone.mobile.fastpath.ImplicitAppRouter.job(clean)?.let { job ->
+            return phone(
+                confidence = RequestIntentConfidence.HIGH,
+                reason = "The request is a phone job for ${job.label} even though no app was named.",
+                hasAttachment = hasAttachment,
+                appHint = appHint ?: job.label,
+            )
+        }
+
         if (explicitPhoneAction) {
             return phone(
                 confidence = RequestIntentConfidence.HIGH,
