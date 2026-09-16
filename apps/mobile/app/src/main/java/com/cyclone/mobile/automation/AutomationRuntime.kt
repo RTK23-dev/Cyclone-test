@@ -135,6 +135,10 @@ object AutomationRuntime {
             val existing = store.getSkill(definition.id)
             if (existing == null || existing.version < definition.version) store.saveSkill(definition)
         }
+        InstagramStockSkillCollectionGateway.routines().forEach { routine ->
+            val existing = store.getAutomation(routine.id)
+            if (existing == null || existing.version < routine.version) store.saveAutomation(routine)
+        }
     }
 
     private fun seedExamples() {
