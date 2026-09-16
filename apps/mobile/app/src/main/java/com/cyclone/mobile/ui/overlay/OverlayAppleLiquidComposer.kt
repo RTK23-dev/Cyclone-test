@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.*
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -61,15 +62,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cyclone.mobile.ui.v32.LocalCycloneInsideLiquidHost
 import com.cyclone.mobile.ui.v32.LocalCycloneLiquidBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 
-private val OverlayGlass = Color(0xFF111216).copy(alpha = 0.86f)
-private val OverlayGlassStrong = Color(0xFF111216).copy(alpha = 0.91f)
-private val OverlayGlassRim = Color.White.copy(alpha = 0.15f)
+private val OverlayGlass = Color(0xFF111216).copy(alpha = 0.54f)
+private val OverlayGlassStrong = Color(0xFF111216).copy(alpha = 0.62f)
 private val OverlayGlassInner = Color.White.copy(alpha = 0.075f)
 private val OverlayText = Color(0xFFF5F5F7)
 private val OverlaySecondaryText = Color(0xFFAEAEB2)
@@ -98,18 +99,20 @@ private fun OverlayAppleGlass(
             effects = {
                 vibrancy()
                 blur(2f.dp.toPx())
-                lens(10f.dp.toPx(), 20f.dp.toPx(), chromaticAberration = false)
+                lens(12f.dp.toPx(), 24f.dp.toPx(), chromaticAberration = true)
             },
             onDrawSurface = { drawRect(surface) },
         )
     } else {
         modifier.background(surface, shape)
     }
-    Box(
-        glassModifier.border(1.dp, OverlayGlassRim, shape),
-        contentAlignment = Alignment.Center,
-        content = content,
-    )
+    CompositionLocalProvider(LocalCycloneInsideLiquidHost provides true) {
+        Box(
+            glassModifier,
+            contentAlignment = Alignment.Center,
+            content = content,
+        )
+    }
 }
 
 @Composable

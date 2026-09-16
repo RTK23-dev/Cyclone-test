@@ -1,7 +1,7 @@
 package com.cyclone.mobile.ui.v32
 
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -26,6 +26,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,9 +49,12 @@ import com.kyant.capsule.ContinuousCapsule
  * Cyclone semantic Liquid Chrome.
  *
  * One optical object owns each interaction region. Content cards remain quiet Material surfaces.
- * Trays deliberately use Kyant's restrained blur/lens recipe: the previous 8dp blur + 24/24 lens
- * created a thick second border on white backgrounds and made controls look nested inside boxes.
+ * Trays use Kyant's refractive recipe with chromatic aberration so the rim splits as the
+ * surface moves. Nested option bars must not draw a second tray inside a panel; they inherit
+ * [LocalCycloneInsideLiquidHost] and only move the inner lens.
  */
+internal val LocalCycloneInsideLiquidHost = compositionLocalOf { false }
+
 @Composable
 internal fun CycloneLiquidTray(
     modifier: Modifier = Modifier,
@@ -82,7 +87,7 @@ internal fun CycloneLiquidTray(
                 effects = {
                     vibrancy()
                     blur(2f.dp.toPx())
-                    lens(12f.dp.toPx(), 24f.dp.toPx())
+                    lens(12f.dp.toPx(), 24f.dp.toPx(), chromaticAberration = true)
                 },
                 onDrawSurface = { drawRect(container) },
             )
@@ -109,30 +114,34 @@ internal fun CycloneLiquidPanel(
     val base = modifier.fillMaxWidth()
 
     if (backdrop == null) {
-        Box(
-            base.background(container, shape).padding(contentPadding),
-            contentAlignment = Alignment.Center,
-            content = content,
-        )
+        CompositionLocalProvider(LocalCycloneInsideLiquidHost provides true) {
+            Box(
+                base.background(container, shape).padding(contentPadding),
+                contentAlignment = Alignment.Center,
+                content = content,
+            )
+        }
         return
     }
 
-    Box(
-        base
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { shape },
-                effects = {
-                    vibrancy()
-                    blur(2f.dp.toPx())
-                    lens(12f.dp.toPx(), 22f.dp.toPx())
-                },
-                onDrawSurface = { drawRect(container) },
-            )
-            .padding(contentPadding),
-        contentAlignment = Alignment.Center,
-        content = content,
-    )
+    CompositionLocalProvider(LocalCycloneInsideLiquidHost provides true) {
+        Box(
+            base
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { shape },
+                    effects = {
+                        vibrancy()
+                        blur(2f.dp.toPx())
+                        lens(12f.dp.toPx(), 22f.dp.toPx(), chromaticAberration = true)
+                    },
+                    onDrawSurface = { drawRect(container) },
+                )
+                .padding(contentPadding),
+            contentAlignment = Alignment.Center,
+            content = content,
+        )
+    }
 }
 
 /**
@@ -155,15 +164,15 @@ internal fun CycloneLiquidSelectionLens(
     val lensWidth = (itemWidth - safeInset * 2).coerceAtLeast(1.dp)
     val targetOffset by animateDpAsState(
         targetValue = itemWidth * selectedIndex.coerceIn(0, itemCount - 1) + safeInset,
-        animationSpec = tween(240),
+        animationSpec = spring(dampingRatio = 0.84f, stiffness = 420f),
         label = "Cyclone liquid selection",
     )
     val dark = isSystemInDarkTheme()
-    val surface = if (dark) Color.White.copy(alpha = 0.075f) else Color.Black.copy(alpha = 0.035f)
+    val frost = if (dark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.48f)
     val base = modifier.offset(x = targetOffset).width(lensWidth).height(height)
 
     if (backdrop == null) {
-        Box(base.background(surface, ContinuousCapsule))
+        Box(base.background(frost, ContinuousCapsule))
         return
     }
 
@@ -171,8 +180,8 @@ internal fun CycloneLiquidSelectionLens(
         base.drawBackdrop(
             backdrop = backdrop,
             shape = { ContinuousCapsule },
-            effects = { lens(7f.dp.toPx(), 11f.dp.toPx(), chromaticAberration = false) },
-            onDrawSurface = { drawRect(surface) },
+            effects = { lens(8f.dp.toPx(), 14f.dp.toPx(), chromaticAberration = true) },
+            onDrawSurface = { drawRect(frost) },
         ),
     )
 }

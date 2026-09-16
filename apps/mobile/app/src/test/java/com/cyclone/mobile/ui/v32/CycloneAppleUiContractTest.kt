@@ -110,6 +110,27 @@ class CycloneAppleUiContractTest {
         assertFalse(ask.contains("Text(\"You\""))
     }
 
+    @Test fun liquidSelectorsAreOneObjectWithChromaticMotion() {
+        val chrome = source("CycloneLiquidChrome.kt")
+        val selectors = source("CycloneLiquidSelectors.kt")
+        val overlay = sequenceOf(
+            File("src/main/java/com/cyclone/mobile/ui/overlay/OverlayAppleLiquidComposer.kt"),
+            File("apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/OverlayAppleLiquidComposer.kt"),
+        ).first { it.isFile }.readText()
+        assertTrue(chrome.contains("LocalCycloneInsideLiquidHost"))
+        assertTrue(chrome.contains("chromaticAberration = true"))
+        assertTrue(chrome.contains("spring(dampingRatio = 0.84f, stiffness = 420f)"))
+        assertTrue(chrome.contains("Color.White.copy(alpha = 0.48f)"))
+        assertFalse(chrome.contains("chromaticAberration = false"))
+        assertFalse(chrome.contains("Color.Black.copy(alpha = 0.035f)"))
+        assertTrue(selectors.contains("LocalCycloneInsideLiquidHost.current"))
+        assertTrue(selectors.contains("if (embedded)"))
+        assertTrue(overlay.contains("chromaticAberration = true"))
+        assertTrue(overlay.contains("LocalCycloneInsideLiquidHost provides true"))
+        assertFalse(overlay.contains("chromaticAberration = false"))
+        assertFalse(overlay.contains("OverlayGlassRim"))
+    }
+
     @Test fun overlayIdleGlowStaysCoolNotMagenta() {
         val overlay = sequenceOf(
             File("src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"),
