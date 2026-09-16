@@ -351,6 +351,35 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     ))
                 }
 
+                val landing = com.cyclone.mobile.fastpath.FastPathLanding.resolve(goal)
+                if (landing?.tool == "phone.launch_intent" && !landing.uri.isNullOrBlank()) {
+                    val landingKey = "fastpath:${landing.uri}"
+                    if (landingKey !in session.compiledAttempts) {
+                        session.compiledAttempts += landingKey
+                        val summary = "Open ${landing.uri} in Chrome"
+                        onProgress(summary)
+                        return planFromDecision(
+                            PageAgentDecision(
+                                "act",
+                                session.state.page.title,
+                                summary,
+                                listOf(
+                                    PageAgentAction(
+                                        "phone.launch_intent",
+                                        null,
+                                        JSONObject().put("uri", landing.uri),
+                                        true,
+                                        summary,
+                                    ),
+                                ),
+                                null,
+                                null,
+                            ),
+                            session.state.page.pageKey,
+                        )
+                    }
+                }
+
                 val compiled = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) { if (session.adaptiveMode == "FREE") null
                 else SkillRuntime.match(
                     packageName = session.state.page.packageName,

@@ -6,6 +6,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FastPathLandingTest {
+    @Test fun browserFirstWebsiteSkipsRedundantAppLaunch() {
+        val hint = FastPathLanding.resolve("open chrome and go to Shopify")
+        assertEquals("phone.launch_intent", hint?.tool)
+        assertEquals("https://shopify.com", hint?.uri)
+    }
+
     @Test
     fun websiteGoalPrefersLaunchIntentOverIconHunting() {
         val hint = FastPathLanding.resolve("Open ad.nl")

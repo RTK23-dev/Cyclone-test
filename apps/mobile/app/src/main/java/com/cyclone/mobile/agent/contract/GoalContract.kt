@@ -102,7 +102,7 @@ object GoalContractCompiler {
             requirements += GoalRequirement(GoalRequirementKind.WEB_HOST, host)
         }
 
-        if (host != null && Regex("(?i)\\bchrome\\b").containsMatchIn(clean)) {
+        if (navigation?.chrome == true || (host != null && Regex("(?i)\\bchrome\\b").containsMatchIn(clean))) {
             requirements += GoalRequirement(GoalRequirementKind.BROWSER_PACKAGE, "com.android.chrome")
         }
         val loginIntent = Regex("(?i)\\b(log\\s*in|sign\\s*in)\\b").containsMatchIn(clean)
@@ -206,9 +206,8 @@ object GoalContractCompiler {
                     !it.evidence.optBoolean("focused") && listOf("url_bar", "urlbar", "location_bar", "address_bar")
                         .any(it.evidence.optString("resourceId").lowercase()::contains)
                 }?.label
-                val matched = intent != null && loadedHost != null && intent.accepts(loadedHost) &&
-                    (!intent.chrome || currentPage.packageName == "com.android.chrome") &&
-                    pageShowsHost(currentPage, loadedHost.removePrefix("https://").removePrefix("www.").trimEnd('/'))
+                val matched = intent != null && loadedHost != null && intent.acceptsLoaded(loadedHost) &&
+                    (!intent.chrome || currentPage.packageName == "com.android.chrome")
                 GoalRequirementResult(requirement, matched, if (matched) "requested site loaded in the requested browser" else "site host and browser have not been verified")
             }
             GoalRequirementKind.WEB_HOST -> {
