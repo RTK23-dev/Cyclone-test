@@ -49,9 +49,7 @@ fun CyclonePendingRequests(onOpen: () -> Unit = {}) {
     val currentTask by WorkspaceTasks.state.collectAsState()
     val context = LocalContext.current
     val clearedCards = TaskCardDismissals.cleared(context)
-    val currentCardVisible = currentTask?.let {
-        it.phase != TaskPhase.STOPPED && (UiTask(it).active || "task:${it.taskId}" !in clearedCards)
-    } == true
+    val currentCardVisible = taskCardVisible(currentTask, clearedCards)
     if (requests.isEmpty() || currentCardVisible) return
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     var steering by remember { mutableStateOf<PendingWorkspaceRequest?>(null) }

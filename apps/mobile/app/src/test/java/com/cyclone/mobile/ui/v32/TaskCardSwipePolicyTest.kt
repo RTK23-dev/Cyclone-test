@@ -29,4 +29,14 @@ class TaskCardSwipePolicyTest {
     @Test fun unmeasuredCardCannotTriggerAction() {
         assertEquals(TaskCardSwipeTarget.CLOSED, TaskCardSwipePolicy.settle(100f, 0f, 100f, true))
     }
+    @Test fun activeCardsKeepPriorityEvenIfTheirIdWasPreviouslyCleared() {
+        com.cyclone.mobile.runtime.background.TaskPhase.entries.forEach { phase ->
+            val task = com.cyclone.mobile.runtime.background.WorkspaceTaskUi(
+                "t", app = "App", packageName = "com.app", goal = "Goal", phase = phase,
+            )
+            assertEquals(UiTask(task).active, taskCardVisible(task, setOf("task:t")))
+            assertEquals(phase != com.cyclone.mobile.runtime.background.TaskPhase.STOPPED, taskCardVisible(task, emptySet()))
+        }
+        assertEquals(false, taskCardVisible(null, emptySet()))
+    }
 }

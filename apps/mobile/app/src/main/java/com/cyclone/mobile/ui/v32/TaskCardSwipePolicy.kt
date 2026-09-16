@@ -16,3 +16,10 @@ internal object TaskCardSwipePolicy {
         }
     }
 }
+
+/** The queue only shares the surface after the current card has actually gone away. */
+internal fun taskCardVisible(
+    task: com.cyclone.mobile.runtime.background.WorkspaceTaskUi?,
+    cleared: Set<String>,
+): Boolean = task != null && task.phase != com.cyclone.mobile.runtime.background.TaskPhase.STOPPED &&
+    (UiTask(task).active || "task:${task.taskId}" !in cleared)
