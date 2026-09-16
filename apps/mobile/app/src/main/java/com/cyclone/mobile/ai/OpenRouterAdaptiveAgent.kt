@@ -314,15 +314,16 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     )
                 }
 
+                if (session.bridge.verifiedSimpleNavigation(goal)) {
+                    return CyclonePlanResult.Valid(CycloneModelTurn(
+                        CycloneModelDirective.DONE,
+                        payload = PageAgentDecision("done", "", "The requested website is visible.",
+                            emptyList(), "Opened the requested website.", null),
+                    ))
+                }
+
                 val interruption = decisionPhase(session, ExecutionPhase.LOCAL_POLICY) {
                     session.cookieInterruptions.evaluate(session.bridge.currentPage(), goal)
-                }
-                if (interruption.outcome in setOf(CookieInterruptionOutcome.AMBIGUOUS, CookieInterruptionOutcome.UNRESOLVED)) {
-                    localAgent.openIncident(com.cyclone.mobile.agent.recovery.IncidentEffect.CONSENT_REMOVED, interruption.reason)
-                    val summary = CookieInterruptionPolicy.explanation(interruption.reason)
-                    onProgress(summary)
-                    return CyclonePlanResult.Valid(CycloneModelTurn(CycloneModelDirective.NEED_HUMAN, reason = interruption.reason,
-                        payload = PageAgentDecision("need_human", "", summary, emptyList(), null, interruption.reason)))
                 }
                 interruption.target?.let { target ->
                     val summary = "Rejecting optional cookies, then continuing your task."
@@ -341,14 +342,6 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                         CycloneModelTurn(CycloneModelDirective.NEED_HUMAN, reason = "photo.saved_evidence_unavailable",
                             payload = PageAgentDecision("need_human", "", "The shutter was requested once. Please check the photo; I cannot verify a newly saved image and will not take another.", emptyList(), null, "photo.saved_evidence_unavailable")))
                     else -> Unit
-                }
-
-                if (session.bridge.verifiedSimpleNavigation(goal)) {
-                    return CyclonePlanResult.Valid(CycloneModelTurn(
-                        CycloneModelDirective.DONE,
-                        payload = PageAgentDecision("done", "", "The requested website is visible.",
-                            emptyList(), "Opened the requested website.", null),
-                    ))
                 }
 
                 val landing = com.cyclone.mobile.fastpath.FastPathLanding.resolve(goal)

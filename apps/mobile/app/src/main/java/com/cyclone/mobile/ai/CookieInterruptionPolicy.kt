@@ -52,9 +52,9 @@ class CookieInterruptionPolicy {
         private val rejectLabels = setOf(
             "reject optional cookies", "reject non-essential cookies", "reject nonessential cookies", "reject all cookies",
             "decline optional cookies", "only necessary cookies", "necessary cookies only", "essential cookies only",
-            "use necessary cookies only", "continue without accepting", "reject all", "decline all",
+            "use necessary cookies only", "continue without accepting", "reject all", "decline all", "reject", "decline",
             "optionele cookies weigeren", "alle cookies weigeren", "alleen noodzakelijke cookies",
-            "alleen essentiële cookies", "doorgaan zonder accepteren", "alles weigeren",
+            "alleen essentiële cookies", "doorgaan zonder accepteren", "alles weigeren", "weigeren",
         )
     }
 }

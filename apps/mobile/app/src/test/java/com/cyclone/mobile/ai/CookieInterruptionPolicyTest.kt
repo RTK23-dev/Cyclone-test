@@ -8,6 +8,34 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CookieInterruptionPolicyTest {
+    @Test fun cookiePauseDoesNotAskTheUserToTakeOverWhenTheSiteIsAlreadyOpen() {
+        val agent = sequenceOf(
+            java.io.File("src/main/java/com/cyclone/mobile/ai/OpenRouterAdaptiveAgent.kt"),
+            java.io.File("apps/mobile/app/src/main/java/com/cyclone/mobile/ai/OpenRouterAdaptiveAgent.kt"),
+        ).first { it.isFile }.readText()
+        val complete = agent.indexOf("verifiedSimpleNavigation(goal)")
+        val cookies = agent.indexOf("cookieInterruptions.evaluate")
+        val takeover = agent.indexOf("CookieInterruptionOutcome.AMBIGUOUS")
+        assertTrue(complete >= 0 && cookies > complete)
+        assertEquals(-1, takeover)
+        assertFalse(agent.contains("NEED_HUMAN, reason = interruption.reason"))
+    }
+
+    @Test fun shopifyAcceptAllAndRejectIsAUniqueLocalReject() {
+        val accept = AgentElementCandidate("semantic:obs:accept", "obs", "Accept all", "accept all",
+            "button", "semantic", 1.0, JSONObject().put("enabled", true).put("clickable", true))
+        val reject = accept.copy(elementId = "semantic:obs:reject", label = "Reject", semanticName = "reject")
+        val card = page().copy(
+            pageSummary = JSONObject().put("summary", "Shopify"),
+            pageText = JSONObject().put("text", "We use cookies"),
+            controls = listOf(accept, reject),
+        )
+        val decision = CookieInterruptionPolicy().evaluate(card, "open chrome and go to Shopify")
+        assertEquals(CookieInterruptionOutcome.HANDLED, decision.outcome)
+        assertEquals("Reject", decision.target?.label)
+        assertEquals("cookie.reject_optional", decision.reason)
+    }
+
     @Test fun dutchRejectIsLocalAndAuthenticationControlsAreExcluded() {
         val card = page()
         val reject = card.controls.single().copy(label = "Alleen noodzakelijke cookies")

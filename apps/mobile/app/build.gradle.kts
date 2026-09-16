@@ -11,8 +11,8 @@ android {
         applicationId = "com.cyclone.mobile"
         minSdk = 33
         targetSdk = 35
-        versionCode = 113
-        versionName = "4.5.4"
+        versionCode = 114
+        versionName = "4.5.5"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
