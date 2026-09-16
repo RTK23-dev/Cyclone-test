@@ -253,6 +253,8 @@ enum class PhoneToolErrorCode {
     SECURITY_RESTRICTION,
     POLICY_DENIED,
     INTERNAL_ERROR,
+    WORKSPACE_SCOPE_CONFLICT,
+    TARGET_SCOPE_MISMATCH,
 }
 
 data class PhoneToolError(val code: PhoneToolErrorCode, val message: String) {

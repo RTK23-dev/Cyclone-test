@@ -62,7 +62,7 @@ class FastPathLandingTest {
         val landing = agent.indexOf("landing?.tool == \"phone.open_app\"")
         assertTrue(landing >= 0)
         assertTrue(agent.contains("webFallback(landing.packageName)"))
-        assertTrue(agent.contains("launchFailure"))
+        assertTrue(agent.contains("ActionOutcomePolicy.hardBlocker"))
         assertTrue(agent.contains("horizon.plan"))
         assertTrue(agent.contains("taskTier"))
         assertTrue(agent.contains("easy.unopened"))

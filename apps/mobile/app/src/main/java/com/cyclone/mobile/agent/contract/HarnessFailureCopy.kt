@@ -18,6 +18,10 @@ object HarnessFailureCopy {
             "The action was dispatched, but its required after-state was not demonstrated. Re-observe before choosing a different action."
         "APP_NOT_FOUND" ->
             "That app is not installed. Observe the current page, then try another installed app or the website."
+        "WORKSPACE_SCOPE_CONFLICT", "MUTATE_LOCK" ->
+            "A leftover workspace lease blocked this foreground action. Observe the current session and retry."
+        "TARGET_SCOPE_MISMATCH", "TARGET_MISMATCH" ->
+            "The workspace target no longer matches. Observe the current session before choosing another action."
         "TIMEOUT" -> "The action timed out; execution may have occurred. Observe before deciding what remains to do."
         else -> "The operation did not establish a verified result. Observe the current page before choosing the next action."
     }

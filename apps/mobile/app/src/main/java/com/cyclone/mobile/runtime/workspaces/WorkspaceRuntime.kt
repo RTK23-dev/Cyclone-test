@@ -189,6 +189,10 @@ object Layer2Workspaces {
     fun requireMutation(ctx: Context, request: PhoneToolRequest) {
         initialize(ctx)
         val id = request.params.optString("workspaceId").takeIf { it.isNotBlank() }
+        if (id == null) {
+            engine.releaseForForegroundTask()
+            return
+        }
         engine.requireMutation(id, request.params.optLong("workspaceGeneration", -1), ::gated, ::observe)
     }
     fun command(ctx: Context, request: PhoneToolRequest): PhoneToolResult = synchronized(engine.mutationLock) {

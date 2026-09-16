@@ -99,21 +99,14 @@ object PhoneToolExecutor {
         return result.copy(payload = SessionContract.attach(payload, plane))
     }
 
-    private fun scopeErrorCode(error: Exception): PhoneToolErrorCode {
-        val reason = error.message.orEmpty().uppercase()
-        return when {
-            "HUMAN" in reason -> PhoneToolErrorCode.HUMAN_HAS_CONTROL
-            "POLICY" in reason || "GATE" in reason -> PhoneToolErrorCode.POLICY_DENIED
-            "STALE" in reason || "GENERATION" in reason || "EXPIRED" in reason -> PhoneToolErrorCode.FRESH_OBSERVATION_REQUIRED
-            "MISMATCH" in reason -> PhoneToolErrorCode.INVALID_REQUEST
-            else -> PhoneToolErrorCode.CAPABILITY_UNAVAILABLE
-        }
-    }
+    private fun scopeErrorCode(error: Exception): PhoneToolErrorCode = PhoneToolScopeErrors.code(error)
 
     private fun scopeFailure(request: PhoneToolRequest, error: Exception): PhoneToolResult {
         val now = System.currentTimeMillis()
-        return PhoneToolResult(request.commandId, request.tool, false, now, now,
-            error = PhoneToolError(scopeErrorCode(error), "Execution scope unavailable; observe the current session again."))
+        return PhoneToolResult(
+            request.commandId, request.tool, false, now, now,
+            error = PhoneToolError(scopeErrorCode(error), PhoneToolScopeErrors.message(error)),
+        )
     }
 
     private fun executeWorkspace(context: Context, request: PhoneToolRequest,

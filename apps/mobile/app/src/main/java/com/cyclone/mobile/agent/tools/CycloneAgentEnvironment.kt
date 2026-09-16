@@ -23,6 +23,7 @@ import com.cyclone.mobile.agent.contract.AgentSearchResult
 import com.cyclone.mobile.agent.contract.AgentSemanticVerification
 import com.cyclone.mobile.agent.contract.AgentStateDelta
 import com.cyclone.mobile.agent.contract.AgentVerificationStatus
+import com.cyclone.mobile.agent.recovery.ActionOutcomePolicy
 import com.cyclone.mobile.ai.CycloneAiAccessPolicy
 import com.cyclone.mobile.ai.CycloneAiAccessProfileStore
 import com.cyclone.mobile.gateway.GatewayAppGraphAdapter
@@ -347,7 +348,7 @@ class CycloneAgentEnvironment internal constructor(
 
         val executorAssertionFailed = result.error?.code == PhoneToolErrorCode.ASSERTION_FAILED
         val androidExecutionOk = result.ok || executorAssertionFailed
-        val after = if (androidExecutionOk) {
+        val after = if (ActionOutcomePolicy.shouldCaptureAfter(result.error?.code)) {
             runCatching { runtime.captureAfter(tool, normalizedParams, before) }.getOrNull()
         } else {
             null
@@ -699,13 +700,27 @@ class CycloneAgentEnvironment internal constructor(
             PhoneToolErrorCode.CAPABILITY_UNAVAILABLE -> AgentFailure(
                 AgentFailureClass.CAPABILITY_UNAVAILABLE,
                 AgentFailureLayer.CAPABILITY,
-                false,
+                true,
                 message,
                 code.name,
             )
             PhoneToolErrorCode.APP_NOT_FOUND -> AgentFailure(
                 AgentFailureClass.TARGET_NOT_FOUND,
                 AgentFailureLayer.EXECUTION,
+                true,
+                message,
+                code.name,
+            )
+            PhoneToolErrorCode.WORKSPACE_SCOPE_CONFLICT -> AgentFailure(
+                AgentFailureClass.EXECUTION_FAILED,
+                AgentFailureLayer.EXECUTION,
+                true,
+                message,
+                code.name,
+            )
+            PhoneToolErrorCode.TARGET_SCOPE_MISMATCH -> AgentFailure(
+                AgentFailureClass.STALE_OBSERVATION,
+                AgentFailureLayer.OBSERVATION,
                 true,
                 message,
                 code.name,
@@ -806,7 +821,7 @@ class CycloneAgentEnvironment internal constructor(
                 "CAPABILITY_UNAVAILABLE" -> AgentFailure(
                     AgentFailureClass.CAPABILITY_UNAVAILABLE,
                     AgentFailureLayer.CAPABILITY,
-                    false,
+                    true,
                     com.cyclone.mobile.agent.contract.HarnessFailureCopy.describe(error.code),
                     error.code,
                 )

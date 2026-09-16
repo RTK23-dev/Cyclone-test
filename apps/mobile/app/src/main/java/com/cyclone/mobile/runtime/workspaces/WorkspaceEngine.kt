@@ -45,6 +45,16 @@ class WorkspaceEngine(private val persist: (List<Workspace>) -> Unit = {}) {
     private fun revoke() { lease = null; generation++; changed() }
     fun pause() = synchronized(mutationLock) { revoke(); selected?.let { state(it, WorkspaceState.paused) } }
     fun clearSelection() = synchronized(mutationLock) { pause(); selected = null; armed.clear() }
+    /**
+     * Ask Cyclone / default-foreground owns the human display. A leftover Layer-2
+     * selection must not convert phone.open_app into a capability failure.
+     * Armed jobs stay queued; only the live lease is released.
+     */
+    fun releaseForForegroundTask() = synchronized(mutationLock) {
+        if (selected == null) return@synchronized
+        pause()
+        selected = null
+    }
     /** Close exactly one task and invalidate its lease without dropping other armed jobs. */
     fun closeTask(id: String, expectedGeneration: Long) = synchronized(mutationLock) {
         if (selected == id) {

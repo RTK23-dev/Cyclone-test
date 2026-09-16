@@ -349,6 +349,53 @@ class CycloneAgentEnvironmentTest {
         assertEquals(AgentFailureClass.AFTER_OBSERVATION_FAILED, result.errorClass)
     }
 
+    @Test fun failedOpenAppStillCapturesAfterStateAndStaysRetryable() {
+        val before = observation("obs-1", "launcher", "fp-1")
+        val after = observation("obs-2", "launcher", "fp-2")
+        val runtime = FakeRuntime(before, after).apply {
+            executionOk = false
+            executionError = com.cyclone.mobile.PhoneToolError(
+                com.cyclone.mobile.PhoneToolErrorCode.CAPABILITY_UNAVAILABLE,
+                "Execution scope unavailable (MUTATE_LOCK); observe the current session again.",
+            )
+        }
+        val env = CycloneAgentEnvironment(runtime)
+        env.observe("open Facebook and login")
+        val result = env.act(
+            "phone.open_app",
+            JSONObject().put("package", "com.facebook.katana"),
+            "open Facebook and login",
+        )
+        assertFalse(result.androidExecutionOk)
+        assertEquals(1, runtime.afterCaptureCalls)
+        assertEquals("obs-2", result.afterObservationId)
+        assertTrue(result.retryable)
+        assertEquals(AgentFailureClass.CAPABILITY_UNAVAILABLE, result.errorClass)
+        assertFalse(
+            com.cyclone.mobile.agent.recovery.ActionOutcomePolicy.hardBlocker(
+                result.errorClass,
+                result.safeMessage,
+            ),
+        )
+    }
+
+    @Test fun accessibilityLossDoesNotCaptureAfter() {
+        val before = observation("obs-1", "home", "fp-1")
+        val runtime = FakeRuntime(before, observation("obs-2", "home", "fp-2")).apply {
+            executionOk = false
+            executionError = com.cyclone.mobile.PhoneToolError(
+                com.cyclone.mobile.PhoneToolErrorCode.ACCESSIBILITY_NOT_CONNECTED,
+                "Accessibility is disconnected.",
+            )
+        }
+        val env = CycloneAgentEnvironment(runtime)
+        env.observe("Continue")
+        val result = env.act("phone.click", JSONObject().put("elementId", elementId(before)), "Continue")
+        assertEquals(0, runtime.afterCaptureCalls)
+        assertNull(result.afterObservationId)
+        assertEquals(AgentFailureClass.ACCESSIBILITY_UNAVAILABLE, result.errorClass)
+    }
+
     @Test fun recentHistoryKeepsNewestEightOutcomesInChronologicalOrder() {
         val first = observation("obs-0", "page-0", "fp-0")
         val runtime = FakeRuntime(first, first)
@@ -472,6 +519,9 @@ class CycloneAgentEnvironmentTest {
         var executionCalls = 0
         var lastParams: JSONObject? = null
         var learningCalls = 0
+        var executionOk = true
+        var executionError: com.cyclone.mobile.PhoneToolError? = null
+        var afterCaptureCalls = 0
 
         override fun capture(): GatewayObservation {
             captureCalls++
@@ -492,9 +542,10 @@ class CycloneAgentEnvironmentTest {
         override fun execute(requestId: String, tool: String, params: JSONObject): PhoneToolResult {
             lastParams = JSONObject(params.toString())
             executionCalls += 1
-            return PhoneToolResult(requestId, tool, true, 1, 2)
+            return PhoneToolResult(requestId, tool, executionOk, 1, 2, error = executionError)
         }
         override fun captureAfter(tool: String, params: JSONObject, before: GatewayObservation): GatewayObservation? {
+            afterCaptureCalls += 1
             currentObservation = afterObservation
             return afterObservation
         }

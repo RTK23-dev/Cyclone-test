@@ -25,6 +25,7 @@ import com.cyclone.mobile.agent.CycloneTraceEventType
 import com.cyclone.mobile.agent.CycloneVerificationResult
 import com.cyclone.mobile.agent.contract.*
 import com.cyclone.mobile.agent.integration.CyclonePcParityBridge
+import com.cyclone.mobile.agent.recovery.ActionOutcomePolicy
 import com.cyclone.mobile.agent.recovery.ProgressClassification
 import com.cyclone.mobile.agent.recovery.RecoverableCause
 import com.cyclone.mobile.PhoneToolExecutor
@@ -1250,11 +1251,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 AgentFailureClass.AUTH_REQUIRED,
             )
             val policyDenied = envelope.errorClass == AgentFailureClass.POLICY_DENIED
-            val unsupportedModelTool = envelope.errorClass == AgentFailureClass.CAPABILITY_UNAVAILABLE &&
-                envelope.safeMessage?.contains("not exposed", ignoreCase = true) == true
-            val launchFailure = action.tool in setOf("phone.open_app", "phone.launch_intent")
-            val hardBlocker = policyDenied ||
-                (envelope.errorClass == AgentFailureClass.CAPABILITY_UNAVAILABLE && !unsupportedModelTool && !launchFailure)
+            val hardBlocker = ActionOutcomePolicy.hardBlocker(envelope.errorClass, envelope.safeMessage)
             val stale = envelope.errorClass == AgentFailureClass.STALE_OBSERVATION
 
             if (!verified) {
@@ -1489,10 +1486,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 AgentFailureClass.HUMAN_HAS_CONTROL,
                 AgentFailureClass.AUTH_REQUIRED,
             ),
-            hardBlocker = envelope.errorClass == AgentFailureClass.POLICY_DENIED ||
-                (envelope.errorClass == AgentFailureClass.CAPABILITY_UNAVAILABLE &&
-                    envelope.safeMessage?.contains("not exposed", ignoreCase = true) != true &&
-                    envelope.tool !in setOf("phone.open_app", "phone.launch_intent")),
+            hardBlocker = ActionOutcomePolicy.hardBlocker(envelope.errorClass, envelope.safeMessage),
             staleTarget = envelope.errorClass == AgentFailureClass.STALE_OBSERVATION,
             gateClass = if (envelope.errorClass in setOf(
                 AgentFailureClass.GATE_REQUIRED,
