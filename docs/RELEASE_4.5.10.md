@@ -14,6 +14,6 @@ Difficulty is decided locally from the ask, then the screen can only raise it:
 - Medium: one app with leftover work (DM, search, login). Page agent after landing. Chrome custom tabs do not count as a second app.
 - Hard: two or more real destinations. Named apps/sites get a local waypoint plan with no extra model call. Unnamed long-horizon work still maps once.
 
-Unnamed jobs now pick an installed app the way a person would: “find a hotel close by” opens Maps (or Booking if that’s the app they actually use); “look when I have that appointment” opens Calendar. Named apps still win. Easy/Medium/Hard stay local.
+Optional **User notes** (`user.md`): a short personal sheet you can edit in Settings. When on, Cyclone attaches only the matching lines (Jacob → Instagram/WhatsApp, ask which). The live agent never writes it. Finished runs add People/Apps locally; a cheap model only compresses after several new facts and never touches `# Me`.
 
 Release requires Mobile CI tests, lint, assembly and existing signing/update-continuity gates.

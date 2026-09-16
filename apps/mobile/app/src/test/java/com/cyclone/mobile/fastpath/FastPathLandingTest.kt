@@ -69,6 +69,8 @@ class FastPathLandingTest {
         assertTrue(agent.contains("tierRule"))
         assertTrue(agent.contains("InstalledAppInventory"))
         assertTrue(agent.contains("geo:"))
+        assertTrue(agent.contains("user.md.ask_which"))
+        assertTrue(agent.contains("userMd"))
     }
 
     @Test

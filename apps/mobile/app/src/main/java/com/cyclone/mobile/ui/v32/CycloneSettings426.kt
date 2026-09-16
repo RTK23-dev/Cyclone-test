@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,7 +31,7 @@ import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.ScreenShare
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -92,6 +94,7 @@ internal fun CycloneSettingsPage426(
     onSection: (String) -> Unit,
 ) {
     val prefs = context.getSharedPreferences(V39AiChatContract.PREFS, Context.MODE_PRIVATE)
+    com.cyclone.mobile.brain.UserMdRuntime.initialize(context)
     var selectedModel by rememberSaveable(refreshTick) {
         mutableStateOf(com.cyclone.mobile.ai.OpenRouterCatalogStore.activeId(context))
     }
@@ -122,6 +125,7 @@ internal fun CycloneSettingsPage426(
                     Settings426Row("Model & API", "Model & API", Icons.Rounded.Psychology, modelValue()),
                     Settings426Row("Default intelligence", "Default intelligence", Icons.Rounded.Tune, effortValue()),
                     Settings426Row("Phone autonomy", "Phone autonomy", Icons.Rounded.PhoneAndroid, settingsAutonomyLabel(accessProfile)),
+                    Settings426Row("User notes", "User notes", Icons.Rounded.Person, if (com.cyclone.mobile.brain.UserMdRuntime.enabled) "On" else "Off"),
                 ),
                 "Phone" to listOf(
                     Settings426Row("Quick setup", "Quick setup", Icons.Rounded.Bolt, "With root"),
@@ -221,6 +225,8 @@ internal fun CycloneSettingsPage426(
                     }
                 }
             }
+
+            "User notes" -> item { UserNotes426Card(context, refresh) }
 
             "Phone control" -> item {
                 Settings426Surface {
@@ -499,6 +505,7 @@ private fun Settings426DetailSubtitle(section: String): String? = when (section)
     "Model & API" -> "Choose the model Cyclone uses and secure your API access."
     "Default intelligence" -> "Set the default reasoning level for new tasks."
     "Phone autonomy" -> "Choose how independently Cyclone may use phone tools."
+    "User notes" -> "A short personal sheet Cyclone can use when you mention people or jobs without naming the app."
     "Phone control" -> "Core phone access and reliability."
     "Notifications" -> "Triggers and task-result alerts."
     "Background work" -> "Work while you keep using your main screen."
@@ -511,4 +518,55 @@ private fun Settings426DetailSubtitle(section: String): String? = when (section)
 
 private fun open426(context: Context, intent: Intent) {
     context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
+@Composable
+private fun UserNotes426Card(context: Context, refresh: () -> Unit) {
+    var enabled by rememberSaveable { mutableStateOf(com.cyclone.mobile.brain.UserMdRuntime.enabled) }
+    var draft by rememberSaveable { mutableStateOf(com.cyclone.mobile.brain.UserMdRuntime.markdown()) }
+    Settings426Surface {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Attach to tasks", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Only matching lines are sent — never the whole page.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                CycloneLiquidToggle(enabled, { on ->
+                    enabled = on
+                    com.cyclone.mobile.brain.UserMdRuntime.save(context, draft)
+                    com.cyclone.mobile.brain.UserMdRuntime.setEnabled(context, on)
+                    refresh()
+                })
+            }
+            Text(
+                "Edit freely. Cyclone fills People and Apps after finished runs. It never changes # Me.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                modifier = Modifier.fillMaxWidth().height(280.dp),
+                textStyle = MaterialTheme.typography.bodySmall,
+            )
+            CycloneLiquidTextAction(
+                label = "Save notes",
+                prominent = true,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    com.cyclone.mobile.brain.UserMdRuntime.save(context, draft)
+                    draft = com.cyclone.mobile.brain.UserMdRuntime.markdown()
+                    refresh()
+                },
+            )
+        }
+    }
 }

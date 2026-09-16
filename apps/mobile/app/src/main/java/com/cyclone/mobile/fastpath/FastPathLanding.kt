@@ -109,6 +109,7 @@ object FastPathLanding {
         }
 
         ImplicitAppRouter.resolve(trimmed, installed)?.landing()?.let { return it }
+        com.cyclone.mobile.brain.UserMdRuntime.landing(trimmed)?.let { return it }
         return null
     }
 

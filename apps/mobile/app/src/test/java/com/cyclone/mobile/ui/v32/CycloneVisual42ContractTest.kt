@@ -90,6 +90,7 @@ class CycloneVisual42ContractTest {
         val settings = source("CycloneSettings426.kt")
         assertTrue(app.contains("CycloneSettingsPage426(context, refreshTick,"))
         assertTrue(settings.contains("Settings426Row(\"Model & API\""))
+        assertTrue(settings.contains("Settings426Row(\"User notes\""))
         assertTrue(settings.contains("Settings426Row(\"Phone control\""))
         assertTrue(settings.contains("Settings426Row(\"Profile engine\""))
         assertTrue(settings.contains("Settings426Row(\"PC Gateway\""))

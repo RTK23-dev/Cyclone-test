@@ -413,6 +413,29 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                         )
                     } ?: run { session.trajectory = session.trajectory.copy(horizonPlanned = true) }
                 }
+                com.cyclone.mobile.brain.UserMdRuntime.slice(goal)?.let { slice ->
+                    if (slice.askWhich.isNotEmpty() &&
+                        com.cyclone.mobile.fastpath.FastPathLanding.namedApp(goal) == null
+                    ) {
+                        val summary = slice.text.lines().firstOrNull().orEmpty()
+                            .ifBlank { "This person is on more than one app. Which should I use?" }
+                        onProgress(summary)
+                        return CyclonePlanResult.Valid(
+                            CycloneModelTurn(
+                                CycloneModelDirective.NEED_HUMAN,
+                                reason = "user.md.ask_which",
+                                payload = PageAgentDecision(
+                                    "need_human",
+                                    session.state.page.title,
+                                    summary,
+                                    emptyList(),
+                                    null,
+                                    "user.md.ask_which",
+                                ),
+                            ),
+                        )
+                    }
+                }
                 val loginPage = session.bridge.currentPage()
                 if (!com.cyclone.mobile.agent.plan.TaskDifficulty.isEasy(goal) &&
                     loginPage != null &&
@@ -686,6 +709,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                         .put("recentFailures", JSONArray(taskState.recentFailedActions.takeLast(8)))
                         .put("recoveryCyclesWithoutProgress", taskState.consecutiveRecoveryCyclesWithoutNewEvidence)
                         .put("rule", "A rejected completion claim requires missing goal evidence or a different action, not another unsupported DONE."))
+                com.cyclone.mobile.brain.UserMdRuntime.slice(goal)?.let { slice ->
+                    agentContext.put("userMd", slice.text)
+                    agentContext.put("userMdRule", "Use only these personal cues. If they say to ask which app, do not guess.")
+                }
                 if (session.adaptiveMode == "FREE") {
                     agentContext.put(
                         "freeModeRule",
@@ -893,6 +920,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 observation: CycloneObservation,
                 turn: CycloneModelTurn,
             ): CycloneTaskClassification {
+                if (turn.reason == "user.md.ask_which") return CycloneTaskClassification.HUMAN_OR_GATE
                 if (turn.reason?.startsWith("cookie.") == true) return CycloneTaskClassification.HUMAN_OR_GATE
                 if (turn.reason?.startsWith("login.") == true || turn.reason == "trajectory.login_wall") {
                     session.pendingLoginAutofill = true

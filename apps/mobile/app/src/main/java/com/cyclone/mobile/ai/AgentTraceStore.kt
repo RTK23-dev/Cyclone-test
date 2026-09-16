@@ -86,6 +86,7 @@ object AgentTraceRuntime {
             runCatching { AgentRunDiagnosticV39.ensureCanonical(context.applicationContext, sessionId) }
             TaskResultNotifierV292.notify(context, sessionId, ok, result, compiled.summary)
         }
+        runCatching { com.cyclone.mobile.brain.UserMdCompiler.enqueue(context.applicationContext, sessionId) }
     }
 }
 
