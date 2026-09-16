@@ -171,7 +171,7 @@ class CycloneV39AiChatPageTest {
 
     @Test fun alpineEmptyStateUsesPreferredProgressComposition() {
         val page = source("CycloneV39AiChatPage.kt")
-        assertTrue(page.contains("CycloneAlpineBackdrop"))
+        assertFalse(page.contains("CycloneAlpineBackdrop"))
         assertTrue(page.contains("\"Ask Cyclone\""))
         assertTrue(page.contains("\"Tell Cyclone what to do on your phone.\""))
         assertFalse(page.contains("progress today"))

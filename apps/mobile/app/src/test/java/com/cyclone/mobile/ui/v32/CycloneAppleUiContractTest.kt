@@ -18,9 +18,21 @@ class CycloneAppleUiContractTest {
             "CycloneMobileV291App.kt",
             "CycloneMobileV292App.kt",
             "SetupExperience.kt",
+            "CycloneAlpineBackdrop.kt",
+            "GatewayAiCard.kt",
+            "SetupComposeCompat.kt",
         ).forEach { name ->
-            assertFalse("retired UI shell still present: $name", names.contains(name))
+            assertFalse("retired UI shell still present: $name", names.contains(name) || File(uiDir(), name).isFile)
         }
+        assertFalse(File(uiDir(), "v31").isDirectory)
+        assertFalse(File(uiDir(), "modules").isDirectory)
+        assertFalse(File(uiDir(), "GatewayAiCard.kt").isFile)
+        assertFalse(File(uiDir(), "v32/CycloneAlpineBackdrop.kt").isFile)
+        val features = source("CycloneV32FeaturePages.kt")
+        assertTrue(features.contains("internal fun V32TeachPage"))
+        assertFalse(features.contains("internal fun V32AiPage"))
+        assertFalse(features.contains("internal fun V32BrainPage"))
+        assertFalse(features.contains("internal fun V32SettingsPage"))
         assertTrue(File(uiDir(), "CycloneMobileApp.kt").isFile)
         val theme = File(uiDir(), "CycloneMobileApp.kt").readText()
         assertTrue(theme.contains("CycloneIdentityTheme"))
@@ -90,9 +102,9 @@ class CycloneAppleUiContractTest {
 
     @Test fun askEmptyStateIsAProductTitleNotAQuoteCard() {
         val ask = source("CycloneV39AiChatPage.kt")
-        assertTrue(ask.contains("CycloneAlpineBackdrop"))
         assertTrue(ask.contains("\"Ask Cyclone\""))
         assertTrue(ask.contains("\"Tell Cyclone what to do on your phone.\""))
+        assertFalse(ask.contains("CycloneAlpineBackdrop"))
         assertFalse(ask.contains("progress today"))
         assertFalse(ask.contains("Ideas become real"))
         assertFalse(ask.contains("Text(\"You\""))

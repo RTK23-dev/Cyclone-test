@@ -262,11 +262,10 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
         }
     }
 
-    CycloneAlpineBackdrop {
-        Column(
-            Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
             LazyColumn(
                 Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -553,7 +552,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                 }
             }
         }
-    }
 }
 
 @Composable
