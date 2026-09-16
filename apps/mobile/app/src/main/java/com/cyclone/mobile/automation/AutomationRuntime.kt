@@ -8,8 +8,7 @@ import com.cyclone.mobile.BridgeClient
 import com.cyclone.mobile.DeviceState
 import com.cyclone.mobile.PhoneToolExecutor
 import com.cyclone.mobile.PhoneToolRequest as NativePhoneToolRequest
-import com.cyclone.mobile.automation.stock.instagram.InstagramReelsWarmupStockSkill
-import com.cyclone.mobile.automation.stock.instagram.InstagramStockSkillGateway
+import com.cyclone.mobile.automation.stock.instagram.InstagramStockSkillCollectionGateway
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -38,7 +37,7 @@ object AutomationRuntime {
                 DeviceState.addLog("Automation takeover required run=$runId step=$stepId reason=$reason")
                 true
             },
-            stockSkills = InstagramStockSkillGateway(app),
+            stockSkills = InstagramStockSkillCollectionGateway(app),
         )
         router = AutomationEventRouter(store, runner)
         seedStockSkills()
@@ -132,8 +131,7 @@ object AutomationRuntime {
     }
 
     private fun seedStockSkills() {
-        val definitions = listOf(InstagramReelsWarmupStockSkill.definition)
-        definitions.forEach { definition ->
+        InstagramStockSkillCollectionGateway.definitions.forEach { definition ->
             val existing = store.getSkill(definition.id)
             if (existing == null || existing.version < definition.version) store.saveSkill(definition)
         }
