@@ -326,10 +326,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     session.cookieInterruptions.evaluate(session.bridge.currentPage(), goal)
                 }
                 interruption.target?.let { target ->
-                    val summary = "Rejecting optional cookies, then continuing your task."
+                    val summary = CookieInterruptionPolicy.explanation(interruption.reason)
                     onProgress(summary)
                     AgentTraceRuntime.event(context, traceId, "INTERRUPTION", summary,
-                        code = "cookie.reject_optional", ok = true)
+                        code = interruption.reason, ok = true)
                     return planFromDecision(PageAgentDecision("act", "Cookie consent", summary,
                         listOf(PageAgentAction("phone.click", target.elementId, JSONObject(), true, summary)),
                         null, null), session.state.page.pageKey, com.cyclone.mobile.agent.recovery.IncidentEffect.CONSENT_REMOVED)

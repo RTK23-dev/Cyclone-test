@@ -1,22 +1,22 @@
-# Cyclone Mobile 4.5.5: cookie banners do not pause simple website landings.
+# Cyclone Mobile 4.5.6: Artemis-style cookie bursts, never Take Over.
 schema = 1
-product_version = "4.5.5"
+product_version = "4.5.6"
 channel = "development"
-android_version_code = 114
+android_version_code = 115
 python_version = "4.1.0"
 
 [components]
-mobile = "4.5.5"
+mobile = "4.5.6"
 pc_companion = "1.5.5"
 device_gateway = "4.1.0"
 mcp = "4.1.0"
 
 [release]
-previous_mobile_version = "4.5.4"
+previous_mobile_version = "4.5.5"
 publication_authorized = true
 physical_pixel8 = "UNVERIFIED"
 physical_pixel8_ui_acceptance = "UNVERIFIED"
 android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-4.5.5-cookie-handoff-ci2"
+candidate_generation = "cyclone-4.5.6-artemis-cookies-ci"
