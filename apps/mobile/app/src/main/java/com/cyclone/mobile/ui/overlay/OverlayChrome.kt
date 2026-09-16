@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -335,7 +334,8 @@ private fun ComposerPanel(
     val task = workspace?.takeIf { com.cyclone.mobile.ui.v32.taskCardVisible(it, clearedCards) }
     val foregroundWorking = snapshot.state == OverlayChromeState.WORKING || snapshot.state == OverlayChromeState.LIVE
     val activeWork = task?.working == true || foregroundWorking
-    val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val imePx = LocalOverlayImeBottomPx.current
+    val keyboardOpen = imePx > 0 || WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val taskAreaMax = if (keyboardOpen) {
         OverlayChromeContract.TASK_AREA_KEYBOARD_MAX_HEIGHT_DP
     } else {
@@ -403,8 +403,7 @@ private fun ComposerPanel(
         Modifier
             .fillMaxWidth()
             .wrapContentHeight()
-            .navigationBarsPadding()
-            .padding(start = 12.dp, end = 12.dp, bottom = OverlayChromeContract.COMPOSER_BOTTOM_GAP_DP.dp)
+            .padding(horizontal = 12.dp)
             .graphicsLayer { translationY = dragOffset }
             .onSizeChanged { sheetHeight = it.height.toFloat().coerceAtLeast(1f) },
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -549,8 +548,7 @@ private fun GatePanel(
         Modifier
             .fillMaxWidth()
             .wrapContentHeight()
-            .navigationBarsPadding()
-            .padding(start = 12.dp, end = 12.dp, bottom = OverlayChromeContract.COMPOSER_BOTTOM_GAP_DP.dp),
+            .padding(horizontal = 12.dp),
     ) {
         OverlayAppleGlass(
             modifier = Modifier.fillMaxWidth(),
