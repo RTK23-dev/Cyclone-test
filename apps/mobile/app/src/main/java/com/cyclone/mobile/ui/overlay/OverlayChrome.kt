@@ -18,7 +18,6 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -79,7 +78,6 @@ import com.cyclone.mobile.runtime.background.TaskPhase
 import com.cyclone.mobile.runtime.background.WorkspaceTasks
 import com.cyclone.mobile.ui.v32.CycloneAskTaskPanel
 import com.cyclone.mobile.ui.v32.CycloneForegroundWorkCard
-import com.cyclone.mobile.ui.v32.CycloneLiquidPanel
 import com.cyclone.mobile.ui.v32.CyclonePendingRequests
 import com.cyclone.mobile.ui.v32.CycloneTrayIconAction
 import com.cyclone.mobile.ui.v32.CycloneV32Theme
@@ -431,14 +429,15 @@ private fun ComposerPanel(
         )
 
         if (task != null || foregroundWorking || queued.isNotEmpty()) {
-            CycloneLiquidPanel(
+            OverlayAppleGlass(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = 24.dp,
-                contentPadding = PaddingValues(10.dp),
+                strong = true,
             ) {
                 Column(
                     Modifier
                         .fillMaxWidth()
+                        .padding(10.dp)
                         .heightIn(max = taskAreaMax.dp)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -487,16 +486,18 @@ private fun ComposerPanel(
                 modifier = Modifier.fillMaxWidth(.82f),
             )
 
-            ComposerAccessory.MODEL -> CycloneLiquidPanel(
+            ComposerAccessory.MODEL -> OverlayAppleGlass(
                 modifier = Modifier.fillMaxWidth(),
-                cornerRadius = 26.dp,
-                contentPadding = PaddingValues(12.dp),
+                cornerRadius = 30.dp,
+                strong = true,
             ) {
-                com.cyclone.mobile.ui.v32.CycloneModelIntelligencePanel(
-                    aiSettings.modelId,
-                    aiSettings.reasoningEffort,
-                ) { model, effort ->
-                    onAiSettingsChanged(aiSettings.copy(modelId = model, reasoningEffort = effort))
+                Box(Modifier.padding(12.dp)) {
+                    com.cyclone.mobile.ui.v32.CycloneModelIntelligencePanel(
+                        aiSettings.modelId,
+                        aiSettings.reasoningEffort,
+                    ) { model, effort ->
+                        onAiSettingsChanged(aiSettings.copy(modelId = model, reasoningEffort = effort))
+                    }
                 }
             }
 
@@ -551,12 +552,12 @@ private fun GatePanel(
             .navigationBarsPadding()
             .padding(start = 12.dp, end = 12.dp, bottom = OverlayChromeContract.COMPOSER_BOTTOM_GAP_DP.dp),
     ) {
-        CycloneLiquidPanel(
+        OverlayAppleGlass(
             modifier = Modifier.fillMaxWidth(),
             cornerRadius = 28.dp,
-            contentPadding = PaddingValues(18.dp),
+            strong = true,
         ) {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "Confirmation needed",

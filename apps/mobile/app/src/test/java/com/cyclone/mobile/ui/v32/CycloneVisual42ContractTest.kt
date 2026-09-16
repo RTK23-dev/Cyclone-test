@@ -63,11 +63,11 @@ class CycloneVisual42ContractTest {
     @Test fun segmentedControlUsesOneCompactTrayAndInsetMovingLens() {
         val controls = source("CycloneV32Components.kt")
         val segmented = controls.substringAfter("fun CycloneSegmentedControl(")
-        assertTrue(segmented.contains("CycloneLiquidTray(modifier = modifier, height = 44.dp"))
+        assertTrue(segmented.contains("CycloneLiquidTray(modifier = modifier.fillMaxWidth(), height = 48.dp"))
         assertTrue(segmented.contains("BoxWithConstraints"))
         assertTrue(segmented.contains("CycloneLiquidSelectionLens("))
         assertTrue(segmented.contains("selectedIndex = selected"))
-        assertTrue(segmented.contains("height = 34.dp"))
+        assertTrue(segmented.contains("height = 38.dp"))
         assertTrue(segmented.contains("horizontalInset = 4.dp"))
         assertTrue(segmented.contains("animateColorAsState"))
         assertTrue(segmented.contains("selectableGroup()"))

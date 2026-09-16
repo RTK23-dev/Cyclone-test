@@ -120,15 +120,32 @@ class CycloneAppleUiContractTest {
         assertTrue(chrome.contains("LocalCycloneInsideLiquidHost"))
         assertTrue(chrome.contains("chromaticAberration = true"))
         assertTrue(chrome.contains("spring(dampingRatio = 0.84f, stiffness = 420f)"))
-        assertTrue(chrome.contains("Color.White.copy(alpha = 0.48f)"))
+        assertTrue(chrome.contains("0.88f"))
+        assertTrue(chrome.contains("0.84f"))
+        assertTrue(chrome.contains("Color.White.copy(alpha = 0.62f)"))
+        assertTrue(chrome.contains("blur(8f.dp.toPx())"))
+        assertTrue(chrome.contains("blur(14f.dp.toPx())"))
+        assertTrue(chrome.contains("LocalCycloneOverlayChrome"))
+        assertFalse(chrome.contains("Color.White.copy(alpha = 0.22f)"))
+        assertFalse(chrome.contains("Color.White.copy(alpha = 0.25f)"))
+        assertFalse(chrome.contains("Color.White.copy(alpha = 0.48f)"))
         assertFalse(chrome.contains("chromaticAberration = false"))
         assertFalse(chrome.contains("Color.Black.copy(alpha = 0.035f)"))
         assertTrue(selectors.contains("LocalCycloneInsideLiquidHost.current"))
         assertTrue(selectors.contains("if (embedded)"))
         assertTrue(overlay.contains("chromaticAberration = true"))
-        assertTrue(overlay.contains("LocalCycloneInsideLiquidHost provides true"))
+        assertTrue(overlay.contains("OverlayDarkScheme"))
+        assertTrue(overlay.contains("0.90f"))
+        assertTrue(overlay.contains("blur(16f.dp.toPx())"))
+        assertTrue(overlay.contains("LocalCycloneOverlayChrome provides true"))
         assertFalse(overlay.contains("chromaticAberration = false"))
         assertFalse(overlay.contains("OverlayGlassRim"))
+        val overlayChrome = sequenceOf(
+            File("src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"),
+            File("apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"),
+        ).first { it.isFile }.readText()
+        assertTrue(overlayChrome.contains("ComposerAccessory.MODEL -> OverlayAppleGlass("))
+        assertFalse(overlayChrome.contains("ComposerAccessory.MODEL -> CycloneLiquidPanel("))
     }
 
     @Test fun overlayIdleGlowStaysCoolNotMagenta() {

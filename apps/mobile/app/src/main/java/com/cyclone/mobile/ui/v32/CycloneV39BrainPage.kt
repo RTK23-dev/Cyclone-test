@@ -111,10 +111,12 @@ internal fun CycloneV39BrainPage(context: Context, refreshTick: Int) {
         }
 
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BrainMetric("Verified skills", verified.size.toString(), Modifier.weight(1f))
-                BrainMetric("Learned apps", learnedApps.size.toString(), Modifier.weight(1f))
-                BrainMetric("Confidence", "$averageConfidence%", Modifier.weight(1f))
+            CycloneLiquidTray(height = 74.dp, contentPadding = 6.dp) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    BrainMetric("Skills", verified.size.toString(), Modifier.weight(1f))
+                    BrainMetric("Apps", learnedApps.size.toString(), Modifier.weight(1f))
+                    BrainMetric("Confidence", "$averageConfidence%", Modifier.weight(1f))
+                }
             }
         }
 
@@ -339,11 +341,13 @@ private fun V39RunCard(run: V39RunRow, onOpen: () -> Unit) {
 
 @Composable
 private fun BrainMetric(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f)) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-        }
+    Column(
+        modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
 }
 
