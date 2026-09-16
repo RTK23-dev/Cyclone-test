@@ -12,6 +12,7 @@ class InstagramStockSkillCollectionGateway(private val context: Context) : Stock
         InstagramStockSkillIds.REELS_WARMUP -> InstagramReelsWarmupRunner(context).run(request)
         InstagramReelsFollowingStockSkill.ID -> InstagramReelsFollowingRunner(context).run(request)
         InstagramColdDmsStockSkill.ID -> InstagramColdDmsRunner(context).run(request)
+        InstagramPreparePostStockSkill.ID -> InstagramPreparePostRunner(context).run(request)
         else -> StockSkillResult(false, message = "unknown_stock_skill:${request.skillId}")
     }
 
@@ -20,6 +21,7 @@ class InstagramStockSkillCollectionGateway(private val context: Context) : Stock
             InstagramReelsWarmupStockSkill.definition,
             InstagramReelsFollowingStockSkill.definition,
             InstagramColdDmsStockSkill.definition,
+            InstagramPreparePostStockSkill.definition,
         )
     }
 }
