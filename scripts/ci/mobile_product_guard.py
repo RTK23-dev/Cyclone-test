@@ -38,6 +38,7 @@ FORBIDDEN_FEATURES = (
 REQUIRED_SETTINGS_426 = (
     "internal fun CycloneSettingsPage426",
     'Settings426Row("Model & API"',
+    'Settings426Row("User notes"',
     'Settings426Row("Phone control"',
     'Settings426Row("Profile engine"',
     'Settings426Row("PC Gateway"',
