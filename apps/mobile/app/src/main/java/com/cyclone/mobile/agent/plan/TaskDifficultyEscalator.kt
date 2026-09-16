@@ -4,7 +4,7 @@ import com.cyclone.mobile.applearner.PageContext
 
 /**
  * Evidence-only promotion. The ask starts the tier; the screen can only raise it.
- * A router model is never required. Easy cannot be demoted back after a bump.
+ * Chrome custom tabs, launchers and IME never count as a second app.
  */
 object TaskDifficultyEscalator {
     fun next(
@@ -15,9 +15,12 @@ object TaskDifficultyEscalator {
         consecutiveNoProgress: Int,
     ): TaskDifficultyTier {
         if (current == TaskDifficultyTier.HARD) return current
-        val apps = userApps(packagesSeen)
-        if (apps.size >= 2) return TaskDifficultyTier.HARD
-        if (consecutiveNoProgress >= 2 && TaskDifficulty.namedAppCount(goal) >= 2) {
+        val families = TaskDifficulty.evidenceFamilies(packagesSeen, goal)
+        if (families.size >= 2) return TaskDifficultyTier.HARD
+        if (current == TaskDifficultyTier.MEDIUM &&
+            consecutiveNoProgress >= 2 &&
+            TaskDifficulty.assess(goal).destinationCount >= 2
+        ) {
             return TaskDifficultyTier.HARD
         }
         if (current == TaskDifficultyTier.EASY && leftoverNeedsScene(goal, page)) {
@@ -27,15 +30,9 @@ object TaskDifficultyEscalator {
     }
 
     fun leftoverNeedsScene(goal: String, page: PageContext): Boolean {
-        if (!TaskDifficulty.isEasy(goal)) return true
+        if (TaskDifficulty.classify(goal) != TaskDifficultyTier.EASY) return true
         return TaskTrajectory.looksLikeLoginWall(page) && TaskDifficulty.hasAuthenticatedSession(goal)
     }
 
-    fun userApps(packagesSeen: Set<String>): Set<String> = packagesSeen.filterNot { packageName ->
-        val lower = packageName.lowercase()
-        lower.contains("launcher") ||
-            lower.startsWith("com.cyclone.") ||
-            lower == "com.android.systemui" ||
-            lower.contains("inputmethod")
-    }.toSet()
+    fun userApps(packagesSeen: Set<String>): Set<String> = TaskDifficulty.nativeFamilies(packagesSeen)
 }

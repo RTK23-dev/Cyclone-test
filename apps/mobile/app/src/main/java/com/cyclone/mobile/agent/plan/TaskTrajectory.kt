@@ -64,7 +64,17 @@ data class TaskTrajectory(
 
     companion object {
         fun seed(goal: String, fromPage: String = "current"): TaskTrajectory {
-            val tier = TaskDifficulty.classify(goal)
+            val assessment = TaskDifficulty.assess(goal)
+            val hardPlan = TaskDifficulty.hardWaypoints(goal)
+            if (hardPlan != null) {
+                return TaskTrajectory(
+                    tier = TaskDifficultyTier.HARD,
+                    from = fromPage,
+                    to = goal.trim().take(180),
+                    waypoints = hardPlan,
+                    horizonPlanned = true,
+                )
+            }
             val landing = FastPathLanding.resolve(goal)
             val waypoints = mutableListOf<TaskWaypoint>()
             when (landing?.tool) {
@@ -88,7 +98,7 @@ data class TaskTrajectory(
                     until = "login_wall",
                     summary = "Stop at login so you can sign in",
                 )
-                TaskDifficulty.isEasy(goal) -> waypoints += TaskWaypoint(
+                assessment.tier == TaskDifficultyTier.EASY -> waypoints += TaskWaypoint(
                     WaypointKind.DONE,
                     until = "goal_contract",
                     summary = "Finish once the app or site is open",
@@ -100,11 +110,11 @@ data class TaskTrajectory(
                 )
             }
             return TaskTrajectory(
-                tier = tier,
+                tier = assessment.tier,
                 from = fromPage,
                 to = goal.trim().take(180),
                 waypoints = waypoints,
-                horizonPlanned = tier != TaskDifficultyTier.HARD,
+                horizonPlanned = assessment.tier != TaskDifficultyTier.HARD,
             )
         }
 

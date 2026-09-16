@@ -8,6 +8,12 @@ Login walls now offer three real actions: **Autofill**, **Take Over**, and **I'm
 - Take Over hands the screen to you. I'm Done continues after you finish.
 - Easy named-app opens still complete without this gate. "Open Facebook and login" and DMs stay Medium and cannot finish just because the app opened.
 
-Difficulty still starts from the ask (Easy / Medium / Hard). The screen can only raise the tier: two real apps in one run, or two no-progress turns on a two-app goal, become Hard. A router model is not used.
+Difficulty is decided locally from the ask, then the screen can only raise it:
+
+- Easy: open one named app or site. No model. Completes when that app or site is visible.
+- Medium: one app with leftover work (DM, search, login). Page agent after landing. Chrome custom tabs do not count as a second app.
+- Hard: two or more real destinations. Named apps/sites get a local waypoint plan with no extra model call. Unnamed long-horizon work still maps once.
+
+Aliases collapse (`facebook`/`fb`, `google maps`/`maps`). One-app sequences like "open WhatsApp then send a message" stay Medium.
 
 Release requires Mobile CI tests, lint, assembly and existing signing/update-continuity gates.

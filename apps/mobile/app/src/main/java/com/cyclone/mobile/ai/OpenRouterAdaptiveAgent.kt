@@ -315,8 +315,12 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         lateinit var localAgent: CycloneLocalAgent
         val model = object : CycloneAgentModel {
             override fun plan(taskState: CycloneTaskState, observation: CycloneObservation): CyclonePlanResult {
-                val horizonBudget = if (session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD &&
-                    !session.trajectory.horizonPlanned) 55_000L else 35_000L
+                val horizonBudget = when {
+                    session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD &&
+                        !session.trajectory.horizonPlanned -> 55_000L
+                    session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.EASY -> 8_000L
+                    else -> 22_000L
+                }
                 session.decisionDeadlineMs = ProviderRequests.now() + horizonBudget
                 return try { planNext(taskState, observation) } catch (error: ExecutionPhaseTimeout) {
                     CyclonePlanResult.Valid(CycloneModelTurn(CycloneModelDirective.BLOCKED, reason = error.message))
@@ -561,6 +565,51 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     }
                 }
 
+                if (session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.EASY) {
+                    val landing = com.cyclone.mobile.fastpath.FastPathLanding.resolve(goal)
+                    val expected = landing?.packageName
+                    if (!expected.isNullOrBlank() &&
+                        com.cyclone.mobile.fastpath.FastPathLanding.launchCandidates(expected)
+                            .any { it == session.state.page.packageName }
+                    ) {
+                        return CyclonePlanResult.Valid(
+                            CycloneModelTurn(
+                                CycloneModelDirective.DONE,
+                                payload = PageAgentDecision(
+                                    "done",
+                                    "",
+                                    "The requested app is open.",
+                                    emptyList(),
+                                    "Opened the requested app.",
+                                    null,
+                                ),
+                            ),
+                        )
+                    }
+                    val web = expected?.let { com.cyclone.mobile.fastpath.FastPathLanding.webFallback(it) }
+                    val host = web?.substringAfter("://")?.substringBefore('/')?.removePrefix("www.")
+                    if (!host.isNullOrBlank() && session.state.page.title.contains(host, ignoreCase = true)) {
+                        return CyclonePlanResult.Valid(
+                            CycloneModelTurn(
+                                CycloneModelDirective.DONE,
+                                payload = PageAgentDecision(
+                                    "done",
+                                    "",
+                                    "The requested site is visible.",
+                                    emptyList(),
+                                    "Opened the requested site.",
+                                    null,
+                                ),
+                            ),
+                        )
+                    }
+                    if (session.compiledAttempts.any { it.startsWith("fastpath:") }) {
+                        return CyclonePlanResult.Valid(
+                            CycloneModelTurn(CycloneModelDirective.BLOCKED, reason = "easy.unopened"),
+                        )
+                    }
+                }
+
                 val compiled = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) { if (session.adaptiveMode == "FREE") null
                 else SkillRuntime.match(
                     packageName = session.state.page.packageName,
@@ -613,6 +662,14 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 val agentContext = decisionPhase(session, ExecutionPhase.PROMPT) { session.bridge.promptContext(goal) }
                     .put("operatingMode", session.adaptiveMode)
                     .put("taskTier", session.difficulty.name)
+                    .put("tierRule", when (session.difficulty) {
+                        com.cyclone.mobile.agent.plan.TaskDifficultyTier.EASY ->
+                            "Open-only. Do not invent extra work. Complete when the named app or site is visible."
+                        com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD ->
+                            "Follow PC_AGENT_CONTEXT.trajectory waypoints. One scene at a time. Do not replan the horizon."
+                        else ->
+                            "Stay in the current app until the goal contract is verified."
+                    })
                     .put("trajectory", session.trajectory.toJson())
                     .put("noProgressFailures", session.consecutiveNoProgressFailures)
                     .put("runtimeFeedback", JSONObject()
@@ -831,6 +888,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     session.pendingLoginAutofill = true
                     return CycloneTaskClassification.HUMAN_OR_GATE
                 }
+                if (turn.reason == "easy.unopened") return CycloneTaskClassification.HARD_BLOCKER
                 if (turn.reason?.startsWith("phase.timeout.") == true) return CycloneTaskClassification.HARD_BLOCKER
                 if (turn.reason == API_KEY_BLOCKER) return CycloneTaskClassification.HARD_BLOCKER
                 if (ProviderFailure.message(turn.reason.orEmpty()) != null || turn.reason?.startsWith("provider.") == true) return CycloneTaskClassification.HARD_BLOCKER
@@ -898,17 +956,25 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             tools = tools,
             convergence = CycloneConvergencePolicy(
                 taskTimeoutMs = when (session.difficulty) {
-                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.EASY -> 90_000
-                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.MEDIUM -> 300_000
+                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.EASY -> 45_000
+                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.MEDIUM -> 240_000
                     com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD -> 480_000
                 },
                 maxRepeatedIdenticalActionWithoutProgress = 2,
-                maxConsecutiveRecoveryCyclesWithoutNewEvidence = if (session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD) 12 else 8,
+                maxConsecutiveRecoveryCyclesWithoutNewEvidence = when (session.difficulty) {
+                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.EASY -> 3
+                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD -> 12
+                    else -> 8
+                },
                 maxMalformedModelResponses = 3,
                 maxVisionAttemptsOnUnchangedState = 1,
                 maxBacktrackAttempts = 3,
                 maxStaleTargetRetries = 2,
-                maxMutationsWithoutVerifiedProgress = if (session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD) 16 else 10,
+                maxMutationsWithoutVerifiedProgress = when (session.difficulty) {
+                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.EASY -> 4
+                    com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD -> 16
+                    else -> 10
+                },
             ),
             trace = traceSink,
             checkpoints = checkpointStore,

@@ -48,6 +48,15 @@ class TaskTrajectoryTest {
         assertTrue(parsed.horizonPlanned)
     }
 
+    @Test
+    fun namedMultiAppSeedsLocalHardPlanWithoutWaitingForAModel() {
+        val trajectory = TaskTrajectory.seed("open Gmail then send this to WhatsApp")
+        assertEquals(TaskDifficultyTier.HARD, trajectory.tier)
+        assertTrue(trajectory.horizonPlanned)
+        assertEquals(2, trajectory.waypoints.count { it.kind == WaypointKind.OPEN_APP })
+        assertEquals("com.google.android.gm", trajectory.waypoints.first { it.kind == WaypointKind.OPEN_APP }.packageName)
+    }
+
     private fun control(label: String) = PageControl(
         key = label.lowercase(),
         label = label,

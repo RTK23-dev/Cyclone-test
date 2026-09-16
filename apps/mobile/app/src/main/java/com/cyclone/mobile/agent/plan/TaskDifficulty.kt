@@ -10,24 +10,65 @@ enum class TaskDifficultyTier {
     HARD,
 }
 
+data class TaskDestination(
+    val kind: String,
+    val value: String,
+    val index: Int,
+)
+
+data class TaskDifficultyAssessment(
+    val goal: String,
+    val tier: TaskDifficultyTier,
+    val packages: Set<String>,
+    val hosts: Set<String>,
+    val destinations: List<TaskDestination>,
+    val reasons: List<String>,
+) {
+    val destinationCount: Int get() = destinations.size
+    val localHardPlan: Boolean get() = tier == TaskDifficultyTier.HARD && destinationCount >= 2
+}
+
 /**
- * Three execution tiers:
- * EASY — named app / website open only. Local landing, no planner.
- * MEDIUM — one app or site, short in-scene work. Current page agent after landing.
- * HARD — multi-app or long-horizon. One waypoint plan, then local execute.
+ * Three execution tiers, decided locally from the ask:
+ * EASY — named app / website open only. Reflex landing, no model.
+ * MEDIUM — one app or site, in-scene work. Page agent after landing.
+ * HARD — two or more destinations. Local waypoint plan when named; model plan only if unnamed.
  */
 object TaskDifficulty {
-    private val THEN = Regex("(?i)\\b(then|after that|afterwards|and then)\\b")
-    private val CROSS_APP = Regex("(?i)\\b(send|share|email|message|whatsapp|gmail|order|checkout|post|forward)\\b")
-    private val EXTRA_WORK = Regex("(?i)\\b(search|type|send|buy|order|post|message|dm|text|tell|reply|like|follow|log\\s*in|sign\\s*in|scroll|click|tap|then)\\b")
+    private val EXTRA_WORK = Regex(
+        "(?i)\\b(search|type|send|buy|order|post|message|dm|text|tell|reply|like|follow|" +
+            "log\\s*in|sign\\s*in|scroll|click|tap|then|write|draft|fill|book|apply|compare|research)\\b",
+    )
     private val HOST = Regex("(?i)\\b(?:[a-z0-9-]+\\.)+[a-z]{2,}\\b")
+    private val BROWSERS = setOf("com.android.chrome", "com.chrome.beta", "org.mozilla.firefox", "com.microsoft.emmx")
+    private val SYSTEM = listOf("launcher", "systemui", "inputmethod", "permissioncontroller")
 
-    fun classify(goal: String): TaskDifficultyTier {
+    fun classify(goal: String): TaskDifficultyTier = assess(goal).tier
+
+    fun assess(goal: String): TaskDifficultyAssessment {
         val clean = goal.trim()
-        if (clean.isBlank()) return TaskDifficultyTier.MEDIUM
-        if (isHard(clean)) return TaskDifficultyTier.HARD
-        if (isEasy(clean)) return TaskDifficultyTier.EASY
-        return TaskDifficultyTier.MEDIUM
+        if (clean.isBlank()) {
+            return TaskDifficultyAssessment(clean, TaskDifficultyTier.MEDIUM, emptySet(), emptySet(), emptyList(), listOf("empty"))
+        }
+        val destinations = destinationsInOrder(clean)
+        val packages = destinations.filter { it.kind == "app" }.map { it.value }.toSet()
+        val hosts = destinations.filter { it.kind == "host" }.map { it.value }.toSet()
+        val reasons = mutableListOf<String>()
+        val tier = when {
+            destinations.size >= 2 -> {
+                reasons += "destinations=${destinations.size}"
+                TaskDifficultyTier.HARD
+            }
+            isEasy(clean, destinations) -> {
+                reasons += "open-only"
+                TaskDifficultyTier.EASY
+            }
+            else -> {
+                reasons += "one-destination-scene"
+                TaskDifficultyTier.MEDIUM
+            }
+        }
+        return TaskDifficultyAssessment(clean, tier, packages, hosts, destinations, reasons)
     }
 
     fun isNamedAppOpenOnly(goal: String): Boolean {
@@ -42,22 +83,106 @@ object TaskDifficulty {
         return leftover.isEmpty()
     }
 
-    fun isEasy(goal: String): Boolean =
-        GoalContractCompiler.isSimpleWebNavigation(goal) || isNamedAppOpenOnly(goal)
+    fun isEasy(goal: String): Boolean = assess(goal).tier == TaskDifficultyTier.EASY
 
-    private fun isHard(goal: String): Boolean {
-        if (namedAppCount(goal) >= 2) return true
-        if (HOST.findAll(goal).map { it.value.lowercase().removePrefix("www.") }.distinct().count() >= 2) return true
-        return THEN.containsMatchIn(goal) && CROSS_APP.containsMatchIn(goal)
+    private fun isEasy(goal: String, destinations: List<TaskDestination>): Boolean {
+        if (destinations.size > 1) return false
+        return GoalContractCompiler.isSimpleWebNavigation(goal) || isNamedAppOpenOnly(goal)
     }
 
-    fun namedAppCount(goal: String): Int {
+    fun namedAppCount(goal: String): Int = namedPackages(goal).size
+
+    fun namedPackages(goal: String): Set<String> = destinationsInOrder(goal)
+        .filter { it.kind == "app" }
+        .map { it.value }
+        .toSet()
+
+    fun destinationsInOrder(goal: String): List<TaskDestination> {
         val lower = goal.lowercase()
-        return FastPathLanding.APP_PACKAGE_ALIASES.keys.count { alias ->
-            Regex("(?i)(?<![\\p{L}\\p{N}])" + Regex.escape(alias) + "(?![\\p{L}\\p{N}])").containsMatchIn(lower)
+        val found = mutableListOf<TaskDestination>()
+        val packages = mutableSetOf<String>()
+        FastPathLanding.APP_PACKAGE_ALIASES.entries
+            .sortedByDescending { it.key.length }
+            .forEach { (alias, packageName) ->
+                if (packageName in packages) return@forEach
+                val match = Regex("(?i)(?<![\\p{L}\\p{N}])" + Regex.escape(alias) + "(?![\\p{L}\\p{N}])").find(lower)
+                    ?: return@forEach
+                packages += packageName
+                found += TaskDestination("app", packageName, match.range.first)
+            }
+        val hosts = mutableSetOf<String>()
+        HOST.findAll(lower).forEach { match ->
+            val host = match.value.removePrefix("www.")
+            if (host == "android.com" || host in hosts) return@forEach
+            if (packages.any { FastPathLanding.webFallback(it)?.contains(host) == true }) return@forEach
+            hosts += host
+            found += TaskDestination("host", host, match.range.first)
         }
+        val ordered = found.sortedBy { it.index }
+        if (hosts.isNotEmpty()) {
+            return ordered.filterNot { it.kind == "app" && it.value in BROWSERS }
+        }
+        return ordered
     }
 
     fun hasAuthenticatedSession(goal: String): Boolean =
         GoalContractCompiler.compile(goal).requirements.any { it.kind == GoalRequirementKind.AUTHENTICATED_SESSION }
+
+    fun familyOf(packageName: String): String {
+        val lower = packageName.lowercase()
+        return when {
+            lower.startsWith("com.facebook.") -> "facebook"
+            lower.startsWith("com.whatsapp") -> "whatsapp"
+            lower.startsWith("com.instagram.") -> "instagram"
+            lower in BROWSERS || lower.contains("browser") -> "browser"
+            SYSTEM.any { lower.contains(it) } -> "system"
+            lower.startsWith("com.cyclone.") -> "cyclone"
+            else -> packageName
+        }
+    }
+
+    fun nativeFamilies(packages: Set<String>): Set<String> = packages.map(::familyOf)
+        .filterNot { it in setOf("system", "cyclone") }
+        .toSet()
+
+    fun evidenceFamilies(packages: Set<String>, goal: String): Set<String> {
+        val families = nativeFamilies(packages)
+        val named = namedPackages(goal).map(::familyOf).toSet()
+        val nativeNamed = named.filterNot { it == "browser" }
+        return if (nativeNamed.size <= 1 && destinationsInOrder(goal).count { it.kind == "app" && it.value !in BROWSERS } <= 1) {
+            families.filterNot { it == "browser" }.toSet()
+        } else {
+            families
+        }
+    }
+
+    fun hardWaypoints(goal: String): List<TaskWaypoint>? {
+        val assessment = assess(goal)
+        if (!assessment.localHardPlan) return null
+        val waypoints = mutableListOf<TaskWaypoint>()
+        assessment.destinations.forEach { destination ->
+            when (destination.kind) {
+                "app" -> waypoints += TaskWaypoint(
+                    WaypointKind.OPEN_APP,
+                    packageName = destination.value,
+                    until = "app_foreground",
+                    summary = "Open ${destination.value}",
+                )
+                "host" -> waypoints += TaskWaypoint(
+                    WaypointKind.LAUNCH_INTENT,
+                    uri = "https://${destination.value}",
+                    until = "host_visible",
+                    summary = "Open ${destination.value}",
+                )
+            }
+            waypoints += TaskWaypoint(WaypointKind.LOCAL_INTERRUPTIONS, until = "clear", summary = "Dismiss cookie and notice banners")
+            waypoints += if (hasAuthenticatedSession(goal) && destination == assessment.destinations.last()) {
+                TaskWaypoint(WaypointKind.STOP_HUMAN, until = "login_wall", summary = "Stop at login so you can sign in")
+            } else {
+                TaskWaypoint(WaypointKind.SCENE, until = "goal_contract", summary = "Continue until this stop is done")
+            }
+        }
+        waypoints += TaskWaypoint(WaypointKind.DONE, until = "goal_contract", summary = "Finish when the original goal is verified")
+        return waypoints
+    }
 }

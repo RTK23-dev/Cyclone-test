@@ -65,6 +65,9 @@ class FastPathLandingTest {
         assertTrue(agent.contains("launchFailure"))
         assertTrue(agent.contains("horizon.plan"))
         assertTrue(agent.contains("taskTier"))
+        assertTrue(agent.contains("easy.unopened"))
+        assertTrue(agent.contains("tierRule"))
+        assertTrue(agent.contains("localHardPlan") || agent.contains("horizonPlanned"))
     }
 
     @Test

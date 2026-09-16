@@ -64,6 +64,34 @@ class TaskDifficultyEscalatorTest {
         )
     }
 
+    @Test
+    fun chromeCustomTabDoesNotPromoteAOneAppTask() {
+        assertEquals(
+            TaskDifficultyTier.MEDIUM,
+            TaskDifficultyEscalator.next(
+                TaskDifficultyTier.MEDIUM,
+                "DM Jacob on Instagram that I am late",
+                page("com.instagram.android"),
+                setOf("com.instagram.android", "com.android.chrome"),
+                1,
+            ),
+        )
+    }
+
+    @Test
+    fun facebookLiteDoesNotCountAsASecondApp() {
+        assertEquals(
+            TaskDifficultyTier.EASY,
+            TaskDifficultyEscalator.next(
+                TaskDifficultyTier.EASY,
+                "open Facebook",
+                page("com.facebook.lite"),
+                setOf("com.facebook.katana", "com.facebook.lite"),
+                0,
+            ),
+        )
+    }
+
     private fun page(packageName: String) = PageContext(
         pageKey = "$packageName:page",
         packageName = packageName,
