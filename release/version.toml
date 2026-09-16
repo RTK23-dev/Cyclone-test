@@ -1,22 +1,22 @@
-# Cyclone Mobile 4.4.7: startup recovery, durable outcomes and send/pause/stop controls.
+# Cyclone Mobile 4.4.8: lock-screen overlay suppression and task card swipes.
 schema = 1
-product_version = "4.4.7"
+product_version = "4.4.8"
 channel = "development"
-android_version_code = 107
+android_version_code = 108
 python_version = "4.1.0"
 
 [components]
-mobile = "4.4.7"
+mobile = "4.4.8"
 pc_companion = "1.5.5"
 device_gateway = "4.1.0"
 mcp = "4.1.0"
 
 [release]
-previous_mobile_version = "4.4.6"
+previous_mobile_version = "4.4.7"
 publication_authorized = true
 physical_pixel8 = "UNVERIFIED"
 physical_pixel8_ui_acceptance = "UNVERIFIED"
 android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-4.4.7-startup-outcomes-composer"
+candidate_generation = "cyclone-4.4.8-lock-screen-task-swipes"

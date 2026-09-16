@@ -1,5 +1,10 @@
 package com.cyclone.mobile.ai
 
+import android.app.KeyguardManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
+import android.os.PowerManager
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -54,6 +59,11 @@ import com.cyclone.mobile.ui.overlay.OverlayChromeSnapshot
 import com.cyclone.mobile.ui.overlay.OverlayChromeState
 import com.cyclone.mobile.ui.overlay.OverlayCopy
 import com.cyclone.mobile.ui.overlay.OverlayUserAction
+
+internal object OverlayLockScreenPolicy {
+    fun blocked(screenOff: Boolean, keyguardLocked: Boolean, interactive: Boolean): Boolean =
+        screenOff || keyguardLocked || !interactive
+}
 
 internal data class OverlayWindowContract(
     val matchParentWidth: Boolean,
@@ -136,6 +146,50 @@ class OverlayChromeController(
 ) {
     private val wm = service.getSystemService(WindowManager::class.java)
     private val main = Handler(Looper.getMainLooper())
+    private val keyguard = service.getSystemService(KeyguardManager::class.java)
+    private val power = service.getSystemService(PowerManager::class.java)
+    private var screenOff = false
+    private var lockReceiverRegistered = false
+    private var lastLockBlocked: Boolean? = null
+    private fun lockScreenBlocked() = OverlayLockScreenPolicy.blocked(screenOff, keyguard.isKeyguardLocked, power.isInteractive)
+    private fun hideLockedWindows(): Boolean {
+        if (!lockScreenBlocked()) return false
+        val attached = listOfNotNull(root, haloRoot, shareRoot, activeBorder)
+        if (attached.any { it.visibility == View.VISIBLE }) speechRecognizer?.cancel()
+        attached.forEach { it.visibility = View.GONE }
+        return true
+    }
+    private val lockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            screenOff = when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> true
+                Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> false
+                else -> screenOff
+            }
+            render(latest)
+        }
+    }
+    private val lockCheck = object : Runnable {
+        override fun run() {
+            if (!lockReceiverRegistered) return
+            val blocked = lockScreenBlocked()
+            if (blocked != lastLockBlocked) {
+                lastLockBlocked = blocked
+                render(latest)
+            }
+            main.postDelayed(this, 500)
+        }
+    }
+    private fun watchLockScreen() {
+        if (lockReceiverRegistered) return
+        ContextCompat.registerReceiver(service, lockReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }, ContextCompat.RECEIVER_NOT_EXPORTED)
+        lockReceiverRegistered = true
+        main.postDelayed(lockCheck, 500)
+    }
     private var lifecycle = OverlayComposeLifecycle()
     @Volatile private var generation = 0L
     private var backgroundTask by mutableStateOf<com.cyclone.mobile.runtime.background.WorkspaceTaskUi?>(null)
@@ -147,6 +201,7 @@ class OverlayChromeController(
     fun attachedWindowCount(): Int = windows.size
     fun attachedLauncherCount(): Int = if (root?.isAttachedToWindow == true) 1 else 0
     private fun addWindow(view: View, layout: WindowManager.LayoutParams) {
+        if (lockScreenBlocked()) view.visibility = View.GONE
         wm.addView(view, layout)
         windows.attached(view)
     }
@@ -178,6 +233,8 @@ class OverlayChromeController(
     fun show(snapshot: OverlayChromeSnapshot) {
         onMain {
             latest = snapshot
+            watchLockScreen()
+            if (hideLockedWindows()) return@onMain
             aiSettings = getAiSettings()
             if (root != null) {
                 applyLayout(snapshot)
@@ -271,6 +328,7 @@ class OverlayChromeController(
     fun render(snapshot: OverlayChromeSnapshot) {
         onMain {
             latest = snapshot
+            if (hideLockedWindows()) return@onMain
             if (root != null && root?.isAttachedToWindow != true) {
                 dismiss()
                 show(snapshot)
@@ -288,6 +346,8 @@ class OverlayChromeController(
     fun dismiss() {
         onMain {
             generation++
+            if (lockReceiverRegistered) service.unregisterReceiver(lockReceiver)
+            lockReceiverRegistered = false
             main.removeCallbacksAndMessages(null)
             latest = OverlayChromeSnapshot(idleChipVisible = false)
             backgroundTask = null
@@ -307,6 +367,8 @@ class OverlayChromeController(
     }
 
     private fun applyLayout(snapshot: OverlayChromeSnapshot) {
+        if (hideLockedWindows()) return
+        shareRoot?.visibility = View.VISIBLE
         renderActiveBorder(snapshot)
         val view = root ?: return
         val layout = params ?: return
