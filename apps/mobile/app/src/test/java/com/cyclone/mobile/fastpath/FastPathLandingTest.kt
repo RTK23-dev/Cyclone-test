@@ -59,6 +59,7 @@ class FastPathLandingTest {
             java.io.File("src/main/java/com/cyclone/mobile/ai/OpenRouterAdaptiveAgent.kt"),
             java.io.File("apps/mobile/app/src/main/java/com/cyclone/mobile/ai/OpenRouterAdaptiveAgent.kt"),
         ).first { it.isFile }.readText()
+        val landing = agent.indexOf("landing?.tool == \"phone.open_app\"")
         assertTrue(landing >= 0)
         assertTrue(agent.contains("webFallback(landing.packageName)"))
         assertTrue(agent.contains("launchFailure"))
