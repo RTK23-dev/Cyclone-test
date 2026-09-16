@@ -111,6 +111,9 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
                             onTakeOver = {
                                 WorkspaceTasks.command(context, task, "handoff")
                             },
+                            onAutofill = {
+                                WorkspaceTasks.command(context, task, "autofill")
+                            },
                             onDone = {
                                 WorkspaceTasks.command(context, task, "resume")
                             },
@@ -141,6 +144,7 @@ private fun WorkingBody(task: WorkspaceTaskUi, onProgress: () -> Unit) {
 private fun ActionNeededBody(
     task: WorkspaceTaskUi,
     onTakeOver: () -> Unit,
+    onAutofill: () -> Unit,
     onDone: () -> Unit,
     onProgress: () -> Unit,
 ) {
@@ -152,6 +156,7 @@ private fun ActionNeededBody(
         else -> task.subtitle
     }.trim()
     val canTakeOver = task.canTakeOverFromUi()
+    val canAutofill = task.canAutofillFromUi()
     val canContinue = task.canContinueAfterHumanFromUi()
 
     Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -163,12 +168,21 @@ private fun ActionNeededBody(
             )
         }
 
-        // Only show actions that are actually available in this exact runtime state. Dead/future
-        // controls do not belong on the primary task surface.
+        if (canAutofill) {
+            Button(
+                onClick = onAutofill,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp).semantics {
+                    contentDescription = "Autofill sign-in for ${task.app}"
+                },
+                shape = RoundedCornerShape(15.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+            ) { Text("Autofill") }
+        }
+
         if (canTakeOver || canContinue) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 if (canTakeOver) {
-                    Button(
+                    OutlinedButton(
                         onClick = onTakeOver,
                         modifier = Modifier.weight(1f).heightIn(min = 46.dp).semantics {
                             contentDescription = "Take over ${task.app}"

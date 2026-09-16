@@ -60,7 +60,7 @@ data class NavigationIntent(val target: String, val chrome: Boolean) {
 
         private val NAMED_APPS = setOf(
             "camera", "chrome", "photos", "settings", "gmail", "youtube",
-            "facebook", "instagram", "messenger", "whatsapp", "reddit",
+            "facebook", "fb", "instagram", "insta", "ig", "messenger", "whatsapp", "reddit",
             "maps", "phone", "contacts", "messages", "files", "clock",
         )
     }

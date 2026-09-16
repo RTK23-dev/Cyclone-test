@@ -26,6 +26,13 @@ class TaskHarnessStateTest {
         assertEquals(1L, human.controlRevision)
         assertTrue(human.interruption!!.canResumeAfterHuman)
         assertFalse(human.interruption!!.canAutofill)
+        val login = TaskHarnessState.normalize(
+            t,
+            t.copy(phase = TaskPhase.REVIEW, loginAutofill = true, sessionId = "session", displayId = 7),
+        )
+        assertTrue(login.interruption!!.canAutofill)
+        assertTrue(login.interruption!!.canTakeOver)
+        assertTrue(login.interruption!!.canResumeAfterHuman)
         val resumed = TaskHarnessState.begin(human.copy(phase = TaskPhase.WORKING), "phone.back")
         assertEquals(resumed, TaskHarnessState.finish(resumed, evidence()))
         assertFalse(TaskHarnessState.interruption(t.copy(phase = TaskPhase.REVIEW))!!.canResumeAfterHuman)

@@ -31,6 +31,7 @@ import com.cyclone.mobile.ui.v32.CycloneAppIcon
 import com.cyclone.mobile.ui.v32.CycloneTaskStatusPill
 import com.cyclone.mobile.ui.v32.CycloneTaskVisualState
 import com.cyclone.mobile.ui.v32.TaskHumanizer
+import com.cyclone.mobile.ui.v32.canAutofillFromUi
 import com.cyclone.mobile.ui.v32.canContinueAfterHumanFromUi
 import com.cyclone.mobile.ui.v32.taskVisualState
 
@@ -130,6 +131,15 @@ private fun HumanTakeoverRibbon(task: WorkspaceTaskUi) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            if (task.canAutofillFromUi()) {
+                Button(
+                    onClick = { WorkspaceTasks.command(context, task, "autofill") },
+                    modifier = Modifier.heightIn(min = 44.dp).semantics {
+                        contentDescription = "Autofill sign-in for ${task.app}"
+                    },
+                    shape = RoundedCornerShape(15.dp),
+                ) { Text("Autofill") }
             }
             Button(
                 onClick = { WorkspaceTasks.command(context, task, "resume") },

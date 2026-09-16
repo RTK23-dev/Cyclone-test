@@ -68,7 +68,8 @@ class Cyclone422TaskGlassTest {
         val capabilities = source("ui/v32/TaskStatusVisuals.kt")
         assertTrue(capabilities.contains("interruption?.canResumeAfterHuman == true"))
         assertTrue(capabilities.contains("interruption?.canTakeOver == true"))
-        assertFalse(panel.contains("Text(\"Autofill\")"))
+        assertTrue(panel.contains("task.canAutofillFromUi()"))
+        assertTrue(panel.contains("Text(\"Autofill\")"))
         assertFalse(panel.contains("Text(\"Soon\")"))
         assertFalse(panel.contains("task.resumable &&"))
     }

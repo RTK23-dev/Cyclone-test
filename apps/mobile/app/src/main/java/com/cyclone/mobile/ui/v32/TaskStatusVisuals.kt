@@ -38,7 +38,11 @@ fun WorkspaceTaskUi.canTakeOverFromUi(): Boolean =
 
 fun WorkspaceTaskUi.canContinueAfterHumanFromUi(): Boolean =
     !sessionId.isNullOrBlank() && displayId != null && interruption?.canResumeAfterHuman == true &&
-        resumable && confirmation == null && phase in setOf(TaskPhase.HUMAN, TaskPhase.PAUSED)
+        resumable && confirmation == null && phase in setOf(TaskPhase.HUMAN, TaskPhase.PAUSED, TaskPhase.REVIEW)
+
+fun WorkspaceTaskUi.canAutofillFromUi(): Boolean =
+    !sessionId.isNullOrBlank() && displayId != null && interruption?.canAutofill == true &&
+        resumable && confirmation == null && phase in setOf(TaskPhase.REVIEW, TaskPhase.HUMAN, TaskPhase.PAUSED)
 
 @Composable
 fun CycloneTaskStatusPill(

@@ -55,6 +55,7 @@ import com.cyclone.mobile.ui.v32.CycloneTaskStatusPill
 import com.cyclone.mobile.ui.v32.CycloneTaskVisualState
 import com.cyclone.mobile.ui.v32.CycloneV32Theme
 import com.cyclone.mobile.ui.v32.TaskHumanizer
+import com.cyclone.mobile.ui.v32.canAutofillFromUi
 import com.cyclone.mobile.ui.v32.canContinueAfterHumanFromUi
 import com.cyclone.mobile.ui.v32.canTakeOverFromUi
 import com.cyclone.mobile.ui.v32.taskVisualState
@@ -278,21 +279,13 @@ class WorkspaceProgressActivity : ComponentActivity() {
                             ) { Text("I'm Done") }
                         }
                     }
-                }
 
-                OutlinedButton(
-                    onClick = {},
-                    enabled = false,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
-                    shape = RoundedCornerShape(15.dp),
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("Autofill")
-                        Text("Soon", style = MaterialTheme.typography.labelSmall)
+                    if (task.canAutofillFromUi()) {
+                        Button(
+                            onClick = { WorkspaceTasks.command(this@WorkspaceProgressActivity, task, "autofill") },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                            shape = RoundedCornerShape(15.dp),
+                        ) { Text("Autofill") }
                     }
                 }
             }

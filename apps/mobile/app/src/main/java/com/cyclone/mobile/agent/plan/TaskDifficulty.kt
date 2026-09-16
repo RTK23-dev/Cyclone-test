@@ -19,7 +19,7 @@ enum class TaskDifficultyTier {
 object TaskDifficulty {
     private val THEN = Regex("(?i)\\b(then|after that|afterwards|and then)\\b")
     private val CROSS_APP = Regex("(?i)\\b(send|share|email|message|whatsapp|gmail|order|checkout|post|forward)\\b")
-    private val EXTRA_WORK = Regex("(?i)\\b(search|type|send|buy|order|post|message|log\\s*in|sign\\s*in|scroll|click|tap|then)\\b")
+    private val EXTRA_WORK = Regex("(?i)\\b(search|type|send|buy|order|post|message|dm|text|tell|reply|like|follow|log\\s*in|sign\\s*in|scroll|click|tap|then)\\b")
     private val HOST = Regex("(?i)\\b(?:[a-z0-9-]+\\.)+[a-z]{2,}\\b")
 
     fun classify(goal: String): TaskDifficultyTier {

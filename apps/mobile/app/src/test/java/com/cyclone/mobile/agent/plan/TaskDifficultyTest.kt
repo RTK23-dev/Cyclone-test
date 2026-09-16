@@ -9,15 +9,18 @@ class TaskDifficultyTest {
     @Test
     fun easyIsNamedOpenOrSimpleWebsite() {
         assertEquals(TaskDifficultyTier.EASY, TaskDifficulty.classify("open Facebook"))
+        assertEquals(TaskDifficultyTier.EASY, TaskDifficulty.classify("open fb"))
         assertEquals(TaskDifficultyTier.EASY, TaskDifficulty.classify("open shopify.com"))
         assertTrue(TaskDifficulty.isNamedAppOpenOnly("open Facebook"))
         assertFalse(TaskDifficulty.isNamedAppOpenOnly("open Facebook and login"))
+        assertFalse(TaskDifficulty.isNamedAppOpenOnly("DM Jacob on Instagram that I am late"))
         assertFalse(com.cyclone.mobile.agent.contract.GoalContractCompiler.isSimpleWebNavigation("open Facebook"))
     }
 
     @Test
     fun mediumIsOneAppWithInSceneWork() {
         assertEquals(TaskDifficultyTier.MEDIUM, TaskDifficulty.classify("open Facebook and login"))
+        assertEquals(TaskDifficultyTier.MEDIUM, TaskDifficulty.classify("DM Jacob on Instagram that I am late"))
         assertEquals(TaskDifficultyTier.MEDIUM, TaskDifficulty.classify("Open Chrome and search for Pixel 8"))
         assertEquals(TaskDifficultyTier.MEDIUM, TaskDifficulty.classify("Open Settings, then Picture-in-picture"))
     }

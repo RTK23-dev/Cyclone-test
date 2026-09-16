@@ -133,6 +133,9 @@ object CycloneAiAccessPolicy {
             )
         }
         if (tool in setOf("phone.click", "phone.long_press", "phone.tap") && consequentialTargetWords.any(target::contains)) {
+            if (params.optBoolean("autofill_authorized") && LoginAutofillPolicy.isLoginSubmitLabel(target)) {
+                return CycloneAiAccessDecision(true, "LOGIN_AUTOFILL_AUTHORIZED", "User authorized login autofill.")
+            }
             return denied(
                 "LOCAL_CONFIRMATION_REQUIRED",
                 "Cyclone stopped before a consequential action that needs your confirmation.",

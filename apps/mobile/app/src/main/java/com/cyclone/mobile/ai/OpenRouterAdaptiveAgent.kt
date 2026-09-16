@@ -123,15 +123,19 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         val playbookSteps: MutableList<PlaybookHintStep> = mutableListOf(),
         val compiledAttempts: MutableSet<String> = mutableSetOf(),
         val cookieInterruptions: CookieInterruptionPolicy = CookieInterruptionPolicy(),
+        val loginAutofill: LoginAutofillPolicy = LoginAutofillPolicy(),
         val executedActions: ExecutedActionMemory = ExecutedActionMemory(),
         var playbookPackage: String? = null,
         val providerCancellation: ProviderCancellation = ProviderCancellation(),
         var decisionDeadlineMs: Long = Long.MAX_VALUE,
         var progress: (String) -> Unit = {},
-        val difficulty: com.cyclone.mobile.agent.plan.TaskDifficultyTier =
+        var difficulty: com.cyclone.mobile.agent.plan.TaskDifficultyTier =
             com.cyclone.mobile.agent.plan.TaskDifficulty.classify(goal),
         var trajectory: com.cyclone.mobile.agent.plan.TaskTrajectory =
             com.cyclone.mobile.agent.plan.TaskTrajectory.seed(goal),
+        val packagesSeen: MutableSet<String> = mutableSetOf(),
+        var pendingAutofill: Boolean = false,
+        var pendingLoginAutofill: Boolean = false,
     )
 
     private data class ActiveLocalSession(
@@ -222,6 +226,14 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         } }
     }
 
+    fun authorizeAutofill(): Boolean {
+        val session = activeLocalSession ?: return false
+        session.context.pendingAutofill = true
+        session.context.pendingLoginAutofill = true
+        session.context.loginAutofill.reset()
+        return true
+    }
+
     /**
      * Resume the exact same suspended task. Returning controller ownership to AGENT is a hard
      * prerequisite and CycloneLocalAgent forces the first resumed graph step through OBSERVE.
@@ -243,7 +255,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 session.context.config.model.id,
                 taskId = session.context.traceId,
                 classification = CycloneTaskClassification.HUMAN_OR_GATE.name,
-                gateClass = session.context.pendingGateClass?.wire,
+                gateClass = session.context.pendingGateClass?.wire
+                    ?: if (session.context.pendingLoginAutofill) "login" else null,
             )
         }
         session.context.pendingGateClass = null
@@ -351,6 +364,33 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 }
 
                 session.trajectory = session.trajectory.advanceIfSatisfied(session.state.page)
+                session.packagesSeen += session.state.page.packageName
+                val promoted = com.cyclone.mobile.agent.plan.TaskDifficultyEscalator.next(
+                    session.difficulty,
+                    goal,
+                    session.state.page,
+                    session.packagesSeen,
+                    session.consecutiveNoProgressFailures,
+                )
+                if (promoted != session.difficulty) {
+                    if (promoted == com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD) {
+                        session.trajectory = session.trajectory.copy(
+                            tier = promoted,
+                            horizonPlanned = false,
+                        )
+                        onProgress("This needs a longer route…")
+                    } else {
+                        session.trajectory = session.trajectory.copy(tier = promoted)
+                    }
+                    session.difficulty = promoted
+                    AgentTraceRuntime.event(
+                        context, traceId, "PLAN",
+                        "Raised task difficulty from evidence",
+                        code = "tier.escalate",
+                        ok = true,
+                        detail = "tier=${promoted.name}",
+                    )
+                }
                 if (session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.HARD &&
                     !session.trajectory.horizonPlanned && session.apiKey.isNotBlank()) {
                     requestHorizonPlan(session, goal)?.let { planned ->
@@ -365,19 +405,78 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                         )
                     } ?: run { session.trajectory = session.trajectory.copy(horizonPlanned = true) }
                 }
-                val waypoint = session.trajectory.current
-                if (waypoint?.kind == com.cyclone.mobile.agent.plan.WaypointKind.STOP_HUMAN &&
-                    com.cyclone.mobile.agent.plan.TaskTrajectory.looksLikeLoginWall(session.state.page) &&
-                    session.trajectory.index > 0) {
-                    val summary = waypoint.summary.ifBlank { "This screen needs your sign-in" }
-                    onProgress(summary)
-                    return CyclonePlanResult.Valid(
-                        CycloneModelTurn(
-                            CycloneModelDirective.NEED_HUMAN,
-                            reason = "trajectory.login_wall",
-                            payload = PageAgentDecision("need_human", session.state.page.title, summary, emptyList(), null, "trajectory.login_wall"),
-                        ),
-                    )
+                val loginPage = session.bridge.currentPage()
+                if (!com.cyclone.mobile.agent.plan.TaskDifficulty.isEasy(goal) &&
+                    loginPage != null &&
+                    LoginAutofillPolicy.isLoginWall(loginPage)
+                ) {
+                    val autofill = session.loginAutofill.evaluate(loginPage, session.pendingAutofill)
+                    when (autofill.outcome) {
+                        LoginAutofillOutcome.FOCUS_FIELD, LoginAutofillOutcome.SUBMIT -> {
+                            val target = autofill.target
+                                ?: return CyclonePlanResult.Valid(
+                                    CycloneModelTurn(
+                                        CycloneModelDirective.NEED_HUMAN,
+                                        reason = "login.ask_user",
+                                        payload = PageAgentDecision(
+                                            "need_human",
+                                            session.state.page.title,
+                                            LoginAutofillPolicy.explanation("login.ask_user"),
+                                            emptyList(),
+                                            null,
+                                            "login.ask_user",
+                                        ),
+                                    ),
+                                )
+                            val summary = LoginAutofillPolicy.explanation(autofill.reason)
+                            onProgress(summary)
+                            val params = JSONObject()
+                            if (autofill.outcome == LoginAutofillOutcome.SUBMIT) {
+                                params.put("autofill_authorized", true)
+                                params.put("selector", JSONObject().put("text", target.label))
+                            }
+                            return planFromDecision(
+                                PageAgentDecision(
+                                    "act",
+                                    session.state.page.title,
+                                    summary,
+                                    listOf(
+                                        PageAgentAction(
+                                            "phone.click",
+                                            target.elementId,
+                                            params,
+                                            autofill.outcome == LoginAutofillOutcome.SUBMIT,
+                                            summary,
+                                        ),
+                                    ),
+                                    null,
+                                    autofill.reason,
+                                ),
+                                session.state.page.pageKey,
+                            )
+                        }
+                        LoginAutofillOutcome.ASK_USER, LoginAutofillOutcome.UNRESOLVED -> {
+                            session.pendingAutofill = false
+                            session.pendingLoginAutofill = true
+                            val summary = LoginAutofillPolicy.explanation(autofill.reason)
+                            onProgress(summary)
+                            return CyclonePlanResult.Valid(
+                                CycloneModelTurn(
+                                    CycloneModelDirective.NEED_HUMAN,
+                                    reason = "login.ask_user",
+                                    payload = PageAgentDecision(
+                                        "need_human",
+                                        session.state.page.title,
+                                        summary,
+                                        emptyList(),
+                                        null,
+                                        "login.ask_user",
+                                    ),
+                                ),
+                            )
+                        }
+                        LoginAutofillOutcome.NOT_APPLICABLE -> Unit
+                    }
                 }
 
                 val landing = com.cyclone.mobile.fastpath.FastPathLanding.resolve(goal)
@@ -728,6 +827,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 turn: CycloneModelTurn,
             ): CycloneTaskClassification {
                 if (turn.reason?.startsWith("cookie.") == true) return CycloneTaskClassification.HUMAN_OR_GATE
+                if (turn.reason?.startsWith("login.") == true || turn.reason == "trajectory.login_wall") {
+                    session.pendingLoginAutofill = true
+                    return CycloneTaskClassification.HUMAN_OR_GATE
+                }
                 if (turn.reason?.startsWith("phase.timeout.") == true) return CycloneTaskClassification.HARD_BLOCKER
                 if (turn.reason == API_KEY_BLOCKER) return CycloneTaskClassification.HARD_BLOCKER
                 if (ProviderFailure.message(turn.reason.orEmpty()) != null || turn.reason?.startsWith("provider.") == true) return CycloneTaskClassification.HARD_BLOCKER
@@ -851,7 +954,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     session.context.config.model.id,
                     taskId = session.context.traceId,
                     classification = CycloneTaskClassification.HUMAN_OR_GATE.name,
-                    gateClass = session.context.pendingGateClass?.wire,
+                    gateClass = session.context.pendingGateClass?.wire
+                    ?: if (session.context.pendingLoginAutofill) "login" else null,
                 )
             }
             is CycloneAgentRunResult.Cancelled -> {

@@ -71,5 +71,8 @@ class FastPathLandingTest {
     fun settingsAliasResolvesToSystemPackage() {
         assertEquals("com.android.settings", FastPathLanding.namedApp("Open Settings")?.second)
         assertEquals("settings", FastPathLanding.namedApp("Open Settings")?.first)
+        assertEquals("com.facebook.katana", FastPathLanding.namedApp("open fb")?.second)
+        assertEquals("phone.open_app", FastPathLanding.resolve("open fb")?.tool)
+        assertEquals("com.instagram.android", FastPathLanding.namedApp("DM Jacob on insta")?.second)
     }
 }

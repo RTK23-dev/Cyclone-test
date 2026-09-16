@@ -490,30 +490,44 @@ object OverlayChromeRuntime {
             }
             "resume" -> {
                 if (task.interruption?.canResumeAfterHuman != true) return
-                val prior = synchronized(lock) {
-                    if (foregroundResuming) return
-                    foregroundResuming = true
-                    aiJob
-                }
-                aiScope.launch {
-                    try {
-                        prior?.join()
-                        val current = WorkspaceTasks.state.value
-                        if (current?.taskId != id || current.controlRevision != task.controlRevision ||
-                            current.interruption?.canResumeAfterHuman != true) return@launch
-                        DeviceState.setController(DeviceState.Controller.AGENT)
-                        if (snapshot().userPaused) mutate { it.dispatch(OverlayUserAction.TAKE_CONTROL) }
-                        resumeSuspendedTask()
-                    } finally {
-                        synchronized(lock) { foregroundResuming = false }
-                    }
-                }
+                resumeForeground(id, task)
+            }
+            "autofill" -> {
+                if (task.interruption?.canAutofill != true) return
+                adaptiveAgent?.authorizeAutofill()
+                DeviceState.setController(DeviceState.Controller.AGENT)
+                resumeForeground(id, task, requireResumeCapability = false)
             }
             "cancel" -> {
                 dispatch(OverlayUserAction.STOP_TASK)
                 WorkspaceTasks.clearClosedTask(id, task.sessionId)
                 service?.let { AgentTaskNotificationRuntime.cancel(it) }
                 foregroundTaskId = null
+            }
+        }
+    }
+
+    private fun resumeForeground(
+        id: String,
+        task: WorkspaceTaskUi,
+        requireResumeCapability: Boolean = true,
+    ) {
+        val prior = synchronized(lock) {
+            if (foregroundResuming) return
+            foregroundResuming = true
+            aiJob
+        }
+        aiScope.launch {
+            try {
+                prior?.join()
+                val current = WorkspaceTasks.state.value
+                if (current?.taskId != id || current.controlRevision != task.controlRevision) return@launch
+                if (requireResumeCapability && current.interruption?.canResumeAfterHuman != true) return@launch
+                DeviceState.setController(DeviceState.Controller.AGENT)
+                if (snapshot().userPaused) mutate { it.dispatch(OverlayUserAction.TAKE_CONTROL) }
+                resumeSuspendedTask()
+            } finally {
+                synchronized(lock) { foregroundResuming = false }
             }
         }
     }
@@ -554,13 +568,21 @@ object OverlayChromeRuntime {
         if (expectedTaskId != foregroundTaskId) return
         val context = synchronized(lock) { service }
         foregroundTaskId?.let { id -> WorkspaceTasks.update(id) { task ->
-            if (!task.working && result.classification == "HUMAN_OR_GATE") task.copy(resumable = true)
-            else task.copy(message = result.message, phase = when (result.classification) {
-                "COMPLETE" -> TaskPhase.DONE
-                "HUMAN_OR_GATE" -> TaskPhase.REVIEW
-                "CANCELLED" -> TaskPhase.STOPPED
-                else -> TaskPhase.FAILED
-            }, resumable = result.classification == "HUMAN_OR_GATE")
+            if (!task.working && result.classification == "HUMAN_OR_GATE") task.copy(
+                resumable = true,
+                loginAutofill = result.gateClass == "login",
+            )
+            else task.copy(
+                message = result.message,
+                phase = when (result.classification) {
+                    "COMPLETE" -> TaskPhase.DONE
+                    "HUMAN_OR_GATE" -> TaskPhase.REVIEW
+                    "CANCELLED" -> TaskPhase.STOPPED
+                    else -> TaskPhase.FAILED
+                },
+                resumable = result.classification == "HUMAN_OR_GATE",
+                loginAutofill = result.gateClass == "login",
+            )
         } }
         when (result.classification) {
             "HUMAN_OR_GATE" -> {

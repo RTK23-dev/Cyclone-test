@@ -32,7 +32,8 @@ class VisualHierarchyRegressionTest {
         val taskPanel = source("ui/v32/CycloneAskTaskPanel.kt")
         assertTrue(taskPanel.contains("focusManager.clearFocus(force = true)"))
         assertTrue(taskPanel.contains("keyboard?.hide()"))
-        assertFalse(taskPanel.contains("Text(\"Autofill\")"))
+        assertTrue(taskPanel.contains("task.canAutofillFromUi()"))
+        assertTrue(taskPanel.contains("Text(\"Autofill\")"))
         assertFalse(taskPanel.contains("Text(\"Soon\")"))
     }
 

@@ -53,6 +53,15 @@ object TaskHarnessState {
 
     fun interruption(task: WorkspaceTaskUi): TaskInterruption? {
         val bound = !task.sessionId.isNullOrBlank() && task.displayId != null
+        if (task.loginAutofill && task.phase in setOf(TaskPhase.REVIEW, TaskPhase.HUMAN, TaskPhase.PAUSED)) {
+            return TaskInterruption(
+                "LOGIN_WALL",
+                "This screen needs your sign-in. Take Over, Autofill from your password manager, or tap I'm Done when finished.",
+                canTakeOver = bound && task.phase != TaskPhase.HUMAN,
+                canResumeAfterHuman = bound && task.resumable,
+                canAutofill = bound && task.resumable,
+            )
+        }
         return when (task.phase) {
             TaskPhase.HUMAN -> TaskInterruption("HUMAN_CONTROL", "Finish your changes, then select I'm Done.",
                 canResumeAfterHuman = bound && task.resumable)

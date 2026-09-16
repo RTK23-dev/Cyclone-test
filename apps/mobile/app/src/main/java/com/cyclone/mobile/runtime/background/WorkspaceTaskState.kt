@@ -38,6 +38,7 @@ data class WorkspaceTaskUi(
     val workspaceId: String? = null,
     val workspaceGeneration: Long? = null,
     val glassStepKind: GlassStepKind? = null,
+    val loginAutofill: Boolean = false,
 ) {
     val foreground get() = sessionId == "default-foreground" && workspaceId == null
     val working get() = phase == TaskPhase.STARTING || phase == TaskPhase.WORKING

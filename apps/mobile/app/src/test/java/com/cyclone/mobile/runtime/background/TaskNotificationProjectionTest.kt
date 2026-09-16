@@ -9,7 +9,8 @@ class TaskNotificationProjectionTest {
             assertEquals(state.title, TaskNotificationProjection.title(state))
             assertEquals(state.interruption?.canResumeAfterHuman == true,
                 TaskNotificationProjection.actions(state).any { it.first == "resume" })
-            assertFalse(TaskNotificationProjection.actions(state).any { it.first == "autofill" })
+            assertEquals(state.interruption?.canAutofill == true,
+                TaskNotificationProjection.actions(state).any { it.first == "autofill" })
         }
     }
     @Test fun failedIsTerminalRatherThanActionNeeded() {

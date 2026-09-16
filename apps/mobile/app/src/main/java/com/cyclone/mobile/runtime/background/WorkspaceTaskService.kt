@@ -61,6 +61,7 @@ class WorkspaceTaskService : Service() {
                 "cancel" -> stopTask()
                 "handoff" -> transferToHuman()
                 "resume" -> continueTask()
+                "autofill" -> autofillLogin()
                 "confirm" -> {
                     val token = intent.getStringExtra("confirmation")
                     if (token != null && token == current?.confirmation?.token && current?.phase == TaskPhase.REVIEW) {
@@ -169,7 +170,10 @@ class WorkspaceTaskService : Service() {
                 result.ok -> it.copy(phase = TaskPhase.DONE, resumable = false,
                     message = WorkspaceCopy.result(result.message), steps = it.steps + "Checked the result")
                 result.classification == "HUMAN_OR_GATE" -> it.copy(phase = TaskPhase.REVIEW,
-                    message = "Review the prepared page in ${it.app} before continuing.")
+                    message = if (result.gateClass == "login")
+                        "This screen needs your sign-in. Take Over, Autofill, or tap I'm Done when finished."
+                    else "Review the prepared page in ${it.app} before continuing.",
+                    loginAutofill = result.gateClass == "login")
                 else -> it.copy(phase = TaskPhase.FAILED, resumable = false,
                     message = "I couldn't finish. Your place in ${it.app} is saved for you.")
             }
@@ -204,6 +208,12 @@ class WorkspaceTaskService : Service() {
                 update { it.copy(phase = TaskPhase.PAUSED, message = "Couldn't move this page. Your task is paused safely.") }
             } finally { switching = false }
         }
+    }
+    private fun autofillLogin() {
+        val task = current ?: return
+        if (switching || task.interruption?.canAutofill != true) return
+        agent?.authorizeAutofill()
+        continueTask(confirmed = true)
     }
     private fun continueTask(confirmed: Boolean = false) {
         val id = sessionId ?: return
