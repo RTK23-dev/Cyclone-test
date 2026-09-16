@@ -54,8 +54,14 @@ data class NavigationIntent(val target: String, val chrome: Boolean) {
             val intent = NavigationIntent(target, chrome)
             if ('.' in target) return intent.takeIf { it.accepts(target) }
             if (!Regex("[a-z][a-z0-9-]*").matches(target)) return null
-            if (target in setOf("camera", "chrome", "photos", "settings", "gmail", "youtube")) return null
+            if (target in NAMED_APPS) return null
             return intent
         }
+
+        private val NAMED_APPS = setOf(
+            "camera", "chrome", "photos", "settings", "gmail", "youtube",
+            "facebook", "instagram", "messenger", "whatsapp", "reddit",
+            "maps", "phone", "contacts", "messages", "files", "clock",
+        )
     }
 }

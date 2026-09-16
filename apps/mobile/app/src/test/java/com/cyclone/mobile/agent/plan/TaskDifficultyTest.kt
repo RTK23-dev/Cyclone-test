@@ -12,6 +12,7 @@ class TaskDifficultyTest {
         assertEquals(TaskDifficultyTier.EASY, TaskDifficulty.classify("open shopify.com"))
         assertTrue(TaskDifficulty.isNamedAppOpenOnly("open Facebook"))
         assertFalse(TaskDifficulty.isNamedAppOpenOnly("open Facebook and login"))
+        assertFalse(com.cyclone.mobile.agent.contract.GoalContractCompiler.isSimpleWebNavigation("open Facebook"))
     }
 
     @Test
