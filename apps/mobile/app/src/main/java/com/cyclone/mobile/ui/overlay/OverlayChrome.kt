@@ -87,8 +87,7 @@ import kotlinx.coroutines.launch
 
 private val AuroraBlue = Color(0xFF4A8DFF)
 private val AuroraCyan = Color(0xFF80E9FF)
-private val AuroraViolet = Color(0xFF8568FF)
-private val AuroraMagenta = Color(0xFFE56CFF)
+private val AuroraWhite = Color(0xFFE8F4FF)
 
 data class OverlayAiSettings(
     val modelId: String = "",
@@ -275,7 +274,7 @@ internal fun OverlayIdleHalo(
                     Color.Transparent,
                     AuroraBlue.copy(alpha = 0.07f + response * 0.07f),
                     AuroraCyan.copy(alpha = 0.15f + response * 0.11f),
-                    AuroraMagenta.copy(alpha = 0.10f + response * 0.09f),
+                    AuroraWhite.copy(alpha = 0.10f + response * 0.09f),
                     Color.Transparent,
                 ),
             ),
@@ -288,7 +287,7 @@ internal fun OverlayIdleHalo(
             brush = Brush.radialGradient(
                 listOf(
                     AuroraCyan.copy(alpha = 0.06f + response * 0.13f),
-                    AuroraViolet.copy(alpha = 0.025f + response * 0.06f),
+                    AuroraBlue.copy(alpha = 0.025f + response * 0.06f),
                     Color.Transparent,
                 ),
                 center = center,

@@ -8,14 +8,14 @@ import org.junit.Test
 class CycloneVisual42ContractTest {
     @Test fun homeReadsRealReadinessRoutinesAndTaskState() {
         val home = source("CycloneV32App.kt")
-        assertTrue(home.contains("Text(greeting"))
+        assertTrue(home.contains("CyclonePageHeader("))
+        assertTrue(home.contains("title = greeting"))
         assertTrue(home.contains("CyclonePermissionSetup.phoneControlSnapshot(context)"))
         assertTrue(home.contains("AutomationRuntime.store.listAutomations()"))
         assertTrue(home.contains("WorkspaceTasks.state.collectAsState()"))
         assertTrue(home.contains("takeIf { it.phase != TaskPhase.STOPPED }"))
         assertTrue(home.contains("V39AiChatSessionRuntime.pendingRequest = request"))
         assertTrue(home.contains("CycloneAskTaskPanel(current)"))
-        assertTrue(home.contains("headlineLarge"))
         assertTrue(home.contains("cyclonePageInsets()"))
         assertTrue(home.contains("CycloneStatusPill(readinessLabel"))
         assertTrue(home.contains("ProfileRescueBar()"))

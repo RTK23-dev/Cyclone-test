@@ -6,9 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -19,7 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Icon
@@ -27,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -165,30 +161,22 @@ private fun V32HomePage(
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(greeting, style = MaterialTheme.typography.headlineLarge)
-                    Text(
-                        readinessBody,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Box(
-                    Modifier
-                        .clickable(onClick = onSettings)
-                        .semantics { contentDescription = "Settings, $readinessLabel" }
-                        .heightIn(min = 44.dp)
-                        .padding(horizontal = 2.dp, vertical = 4.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CycloneStatusPill(readinessLabel, positive = ready.ready)
-                }
-            }
+            CyclonePageHeader(
+                title = greeting,
+                subtitle = readinessBody,
+                trailing = {
+                    Box(
+                        Modifier
+                            .clickable(onClick = onSettings)
+                            .semantics { contentDescription = "Settings, $readinessLabel" }
+                            .heightIn(min = 44.dp)
+                            .padding(horizontal = 2.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CycloneStatusPill(readinessLabel, positive = ready.ready)
+                    }
+                },
+            )
         }
 
         item {
@@ -205,7 +193,15 @@ private fun V32HomePage(
 
         item {
             CycloneSectionTitle("Your routines") {
-                TextButton(onClick = onRoutines) { Text("See all") }
+                Text(
+                    "See all",
+                    modifier = Modifier
+                        .clickable(onClick = onRoutines)
+                        .heightIn(min = 44.dp)
+                        .padding(horizontal = 4.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
         }
 
@@ -215,7 +211,7 @@ private fun V32HomePage(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
                     color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = 1.dp,
+                    shadowElevation = 0.dp,
                 ) {
                     Row(
                         Modifier.fillMaxWidth().clickable(onClick = onRoutines).padding(15.dp),
@@ -253,7 +249,7 @@ private fun HomeRoutineRow(routine: AutomationDefinition, onOpen: () -> Unit) {
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 1.dp,
+        shadowElevation = 0.dp,
     ) {
         Row(
             Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -292,16 +288,10 @@ internal fun V32RoutineDetail(
 ) {
     var enabled by remember(automation.id, automation.enabled) { mutableStateOf(automation.enabled) }
     LazyColumn(
-        contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 72.dp),
+        contentPadding = cyclonePageInsets(top = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            TextButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, Modifier.size(19.dp))
-                Spacer(Modifier.size(5.dp))
-                Text("All routines")
-            }
-        }
+        item { CycloneBackRow("Routines", onBack) }
         item { CyclonePageIntro("Routine", automation.name, "${automation.steps.size} steps · ${automation.v32TriggerSummary()}") }
         item { CycloneRoutineAssociations(automation, refresh) }
         item { CycloneSectionTitle("Steps") }

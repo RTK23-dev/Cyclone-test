@@ -63,6 +63,54 @@ class CycloneAppleUiContractTest {
         assertTrue(main.contains("CycloneMobileV32App()"))
     }
 
+    @Test fun consumerPagesShareOneLargeTitleAndNativeBack() {
+        val design = source("CycloneV32DesignSystem.kt")
+        assertTrue(design.contains("fun CyclonePageHeader("))
+        assertTrue(design.contains("fun CycloneBackRow("))
+        assertTrue(design.contains("fun CycloneHairline("))
+        assertTrue(design.contains("headlineLarge = TextStyle(fontSize = 32.sp"))
+        assertTrue(design.contains("defaultElevation = 0.dp"))
+        assertTrue(design.contains("shadowElevation = 0.dp"))
+        assertFalse(design.contains("eyebrow.uppercase()"))
+
+        listOf(
+            "CycloneV32App.kt",
+            "CycloneProfilesPage.kt",
+            "CycloneRoutinesPage.kt",
+            "CycloneV39BrainPage.kt",
+        ).forEach { name ->
+            val text = source(name)
+            assertTrue("$name should use CyclonePageHeader", text.contains("CyclonePageHeader("))
+            assertFalse("$name still uses ASCII back chevrons", text.contains("‹"))
+        }
+        assertTrue(source("CycloneSettings426.kt").contains("CycloneHairline("))
+        assertTrue(source("CycloneSettings426.kt").contains("cyclonePageInsets("))
+        assertFalse(source("CycloneSettings426.kt").contains("shadowElevation = 1.dp"))
+    }
+
+    @Test fun askEmptyStateIsAProductTitleNotAQuoteCard() {
+        val ask = source("CycloneV39AiChatPage.kt")
+        assertTrue(ask.contains("CycloneAlpineBackdrop"))
+        assertTrue(ask.contains("\"Ask Cyclone\""))
+        assertTrue(ask.contains("\"Tell Cyclone what to do on your phone.\""))
+        assertFalse(ask.contains("progress today"))
+        assertFalse(ask.contains("Ideas become real"))
+        assertFalse(ask.contains("Text(\"You\""))
+    }
+
+    @Test fun overlayIdleGlowStaysCoolNotMagenta() {
+        val overlay = sequenceOf(
+            File("src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"),
+            File("apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"),
+        ).first { it.isFile }.readText()
+        assertTrue(overlay.contains("AuroraBlue"))
+        assertTrue(overlay.contains("AuroraCyan"))
+        assertFalse(overlay.contains("0xFFE56CFF"))
+        assertFalse(overlay.contains("0xFF8568FF"))
+        assertFalse(overlay.contains("AuroraMagenta"))
+        assertFalse(overlay.contains("AuroraViolet"))
+    }
+
     private fun uiDir(): File = sequenceOf(
         File("src/main/java/com/cyclone/mobile/ui"),
         File("apps/mobile/app/src/main/java/com/cyclone/mobile/ui"),

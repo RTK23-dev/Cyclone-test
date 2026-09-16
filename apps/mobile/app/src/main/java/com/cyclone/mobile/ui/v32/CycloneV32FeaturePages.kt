@@ -359,7 +359,7 @@ internal fun V32SettingsPage(context: Context, refreshTick: Int, refresh: () -> 
         return
     }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { TextButton(onClick = { section = "" }) { Text("‹ $section") } }
+        item { CycloneBackRow(section) { section = "" } }
         if (section == "Default intelligence") item {
             CycloneSimpleCard {
                 Text("How much should Cyclone think?", style = MaterialTheme.typography.titleMedium)

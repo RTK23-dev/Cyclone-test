@@ -2,6 +2,7 @@ package com.cyclone.mobile.ui.v32
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -81,10 +82,7 @@ internal fun CycloneV39BrainPage(context: Context, refreshTick: Int) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Brain", style = MaterialTheme.typography.headlineMedium)
-                Text("What Cyclone knows and trusts", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            CyclonePageHeader("Brain", "What Cyclone knows and trusts")
         }
 
         task?.takeIf { UiTask(it).active }?.let { active ->
@@ -143,7 +141,7 @@ internal fun CycloneV39BrainPage(context: Context, refreshTick: Int) {
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     ) {
                         Row(
                             Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
@@ -196,7 +194,7 @@ internal fun CycloneV39BrainPage(context: Context, refreshTick: Int) {
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     ) {
                         Row(
                             Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
@@ -223,7 +221,16 @@ internal fun CycloneV39BrainPage(context: Context, refreshTick: Int) {
             else -> {
                 item { CycloneSectionTitle("Recent outcomes") }
                 if (cleared.isNotEmpty()) {
-                    item { androidx.compose.material3.TextButton(onClick = { TaskCardDismissals.restore(context) }) { Text("Restore cleared cards") } }
+                    item {
+                        Text(
+                            "Restore cleared cards",
+                            modifier = Modifier
+                                .clickable { TaskCardDismissals.restore(context) }
+                                .padding(vertical = 12.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
                 if (visibleRuns.isEmpty()) {
                     item { BrainEmptyState("No outcomes yet", "Completed Cyclone tasks will appear here with concise results.") }
@@ -244,7 +251,7 @@ internal fun CycloneV39BrainPage(context: Context, refreshTick: Int) {
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(18.dp),
                             color = MaterialTheme.colorScheme.surface,
-                            shadowElevation = 1.dp,
+                            shadowElevation = 0.dp,
                         ) {
                             Row(
                                 Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -268,7 +275,7 @@ private fun BrainEmptyState(title: String, body: String) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 1.dp,
+        shadowElevation = 0.dp,
     ) {
         Row(
             Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
@@ -298,7 +305,7 @@ private fun V39RunCard(run: V39RunRow, onOpen: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
             Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
