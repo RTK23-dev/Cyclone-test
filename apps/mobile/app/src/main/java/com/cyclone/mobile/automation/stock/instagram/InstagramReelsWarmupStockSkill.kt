@@ -516,14 +516,18 @@ internal class InstagramReelsWarmupRunner(
         if (onProfile.hasLabel(normalized)) return AndroidActionResult.Ok
 
         var opened = false
-        repeat(4) {
+        for (attempt in 1..4) {
             when (val trigger = phone.clickAccountSwitcher()) {
-                AndroidActionResult.Ok -> opened = true
+                AndroidActionResult.Ok -> {
+                    opened = true
+                    break
+                }
                 is AndroidActionResult.HumanReview -> return trigger
                 is AndroidActionResult.Failed -> Unit
             }
-            if (opened) return@repeat
-            if (!delayCancellable(clamp(deadline, 1_000), deadline)) return AndroidActionResult.Failed("Stopped while opening account switcher")
+            if (attempt < 4 && !delayCancellable(clamp(deadline, 1_000), deadline)) {
+                return AndroidActionResult.Failed("Stopped while opening account switcher")
+            }
         }
         if (!opened) return AndroidActionResult.Failed("Could not open Instagram account switcher semantically")
         if (!delayCancellable(clamp(deadline, 800), deadline)) return AndroidActionResult.Failed("Stopped while opening account switcher")
