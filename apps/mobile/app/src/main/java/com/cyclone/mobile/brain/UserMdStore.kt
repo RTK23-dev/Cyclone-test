@@ -36,6 +36,8 @@ object UserMdRuntime {
         target.writeText(document.render())
     }
 
+    fun markdown(): String = document.render()
+
     fun replace(next: UserMdDocument, context: Context? = null) {
         document = next
         context?.let { save(it, next.render()) }
