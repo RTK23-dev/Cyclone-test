@@ -41,5 +41,9 @@ class PhoneToolScopeErrorsTest {
             PhoneToolErrorCode.INVALID_REQUEST,
             PhoneToolScopeErrors.code(IllegalArgumentException("Display/session mismatch")),
         )
+        assertEquals(
+            PhoneToolErrorCode.HUMAN_HAS_CONTROL,
+            PhoneToolScopeErrors.code(IllegalStateException("HUMAN_HAS_CONTROL: stale input authority")),
+        )
     }
 }

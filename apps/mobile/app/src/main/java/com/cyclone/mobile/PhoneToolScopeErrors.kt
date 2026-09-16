@@ -3,19 +3,23 @@ package com.cyclone.mobile
 /**
  * Pre-dispatch / execution-scope failures must keep a stable code.
  * Dumping them into CAPABILITY_UNAVAILABLE made leftover Layer-2 leases look like
- * "Facebook launching is not supported" and killed the task.
+ * "this app cannot be launched" and killed the task.
+ *
+ * Token order is specific-before-generic: MUTATE_LOCK messages mention
+ * workspaceGeneration, and GATE messages mention "human review".
  */
 object PhoneToolScopeErrors {
     fun code(error: Exception): PhoneToolErrorCode {
         val reason = error.message.orEmpty().uppercase()
         return when {
-            "HUMAN" in reason -> PhoneToolErrorCode.HUMAN_HAS_CONTROL
-            "POLICY" in reason || "GATE" in reason -> PhoneToolErrorCode.POLICY_DENIED
-            "STALE" in reason || "GENERATION" in reason || "EXPIRED" in reason ->
-                PhoneToolErrorCode.FRESH_OBSERVATION_REQUIRED
             "MUTATE_LOCK" in reason || "LEASE" in reason || "QUEUE_EMPTY" in reason ->
                 PhoneToolErrorCode.WORKSPACE_SCOPE_CONFLICT
             "TARGET_MISMATCH" in reason -> PhoneToolErrorCode.TARGET_SCOPE_MISMATCH
+            "POLICY" in reason || "GATE" in reason -> PhoneToolErrorCode.POLICY_DENIED
+            "HUMAN_HAS_CONTROL" in reason || "OWNS DEVICE INPUT" in reason || "OWNS INPUT" in reason ->
+                PhoneToolErrorCode.HUMAN_HAS_CONTROL
+            "STALE" in reason || "EXPIRED" in reason || "FRESH_OBSERVATION" in reason ->
+                PhoneToolErrorCode.FRESH_OBSERVATION_REQUIRED
             "MISMATCH" in reason -> PhoneToolErrorCode.INVALID_REQUEST
             else -> PhoneToolErrorCode.ACTION_FAILED
         }

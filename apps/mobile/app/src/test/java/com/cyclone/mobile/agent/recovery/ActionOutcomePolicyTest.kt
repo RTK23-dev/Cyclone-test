@@ -1,14 +1,16 @@
 package com.cyclone.mobile.agent.recovery
 
 import com.cyclone.mobile.PhoneToolErrorCode
+import com.cyclone.mobile.agent.CycloneTaskClassification
 import com.cyclone.mobile.agent.contract.AgentFailureClass
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ActionOutcomePolicyTest {
     @Test
-    fun facebookStyleCapabilityMissIsARecoveryIncident() {
+    fun leftoverLeaseCapabilityMissIsARecoveryIncident() {
         assertFalse(
             ActionOutcomePolicy.hardBlocker(
                 AgentFailureClass.CAPABILITY_UNAVAILABLE,
@@ -16,7 +18,7 @@ class ActionOutcomePolicyTest {
             ),
         )
         assertFalse(ActionOutcomePolicy.hardBlocker(AgentFailureClass.EXECUTION_FAILED, "Workspace lease blocked open_app"))
-        assertFalse(ActionOutcomePolicy.hardBlocker(AgentFailureClass.TARGET_NOT_FOUND, "Facebook is not installed"))
+        assertFalse(ActionOutcomePolicy.hardBlocker(AgentFailureClass.TARGET_NOT_FOUND, "App is not installed"))
     }
 
     @Test
@@ -37,5 +39,25 @@ class ActionOutcomePolicyTest {
         assertTrue(ActionOutcomePolicy.shouldCaptureAfter(PhoneToolErrorCode.ACTION_FAILED))
         assertFalse(ActionOutcomePolicy.shouldCaptureAfter(PhoneToolErrorCode.ACCESSIBILITY_NOT_CONNECTED))
         assertFalse(ActionOutcomePolicy.shouldCaptureAfter(PhoneToolErrorCode.HUMAN_HAS_CONTROL))
+    }
+
+    @Test
+    fun providerMissesAreNotHardBlockers() {
+        assertEquals(
+            CycloneTaskClassification.HUMAN_OR_GATE,
+            ActionOutcomePolicy.providerBoundary("NO_PROVIDER_AVAILABLE"),
+        )
+        assertEquals(
+            CycloneTaskClassification.RECOVERABLE,
+            ActionOutcomePolicy.providerBoundary("provider.deadline"),
+        )
+        assertEquals(
+            CycloneTaskClassification.RECOVERABLE,
+            ActionOutcomePolicy.providerBoundary("NETWORK_FAILURE"),
+        )
+        assertEquals(
+            CycloneTaskClassification.HUMAN_OR_GATE,
+            ActionOutcomePolicy.providerBoundary("PROVIDER_AUTH_FAILED"),
+        )
     }
 }

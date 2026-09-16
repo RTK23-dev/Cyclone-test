@@ -54,6 +54,14 @@ class FastPathLandingTest {
     }
 
     @Test
+    fun destinationCueBeatsAnInstrumentAlias() {
+        assertEquals("com.android.chrome", FastPathLanding.namedApp("open Chrome using maps")?.second)
+        assertEquals("com.google.android.apps.maps", FastPathLanding.namedApp("directions on maps using Chrome")?.second)
+        assertEquals("com.instagram.android", FastPathLanding.namedApp("make a new account on Instagram using my Gmail")?.second)
+        assertTrue(FastPathLanding.namedAppHits("make a new account on Instagram using my Gmail").any { it.alias == "gmail" && it.instrumentOnly })
+    }
+
+    @Test
     fun namedAppOpenIsALocalPlannerLanding() {
         val agent = sequenceOf(
             java.io.File("src/main/java/com/cyclone/mobile/ai/OpenRouterAdaptiveAgent.kt"),
@@ -62,7 +70,10 @@ class FastPathLandingTest {
         val landing = agent.indexOf("landing?.tool == \"phone.open_app\"")
         assertTrue(landing >= 0)
         assertTrue(agent.contains("webFallback(landing.packageName)"))
+        assertTrue(agent.contains("APP_NOT_FOUND"))
+        assertTrue(agent.contains("ActionOutcomePolicy.providerBoundary"))
         assertTrue(agent.contains("ActionOutcomePolicy.hardBlocker"))
+        assertTrue(agent.contains("phone.wait_for"))
         assertTrue(agent.contains("horizon.plan"))
         assertTrue(agent.contains("taskTier"))
         assertTrue(agent.contains("easy.unopened"))

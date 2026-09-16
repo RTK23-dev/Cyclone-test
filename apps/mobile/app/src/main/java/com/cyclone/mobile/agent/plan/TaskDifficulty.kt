@@ -101,14 +101,12 @@ object TaskDifficulty {
         val lower = goal.lowercase()
         val found = mutableListOf<TaskDestination>()
         val packages = mutableSetOf<String>()
-        FastPathLanding.APP_PACKAGE_ALIASES.entries
-            .sortedByDescending { it.key.length }
-            .forEach { (alias, packageName) ->
-                if (packageName in packages) return@forEach
-                val match = Regex("(?i)(?<![\\p{L}\\p{N}])" + Regex.escape(alias) + "(?![\\p{L}\\p{N}])").find(lower)
-                    ?: return@forEach
-                packages += packageName
-                found += TaskDestination("app", packageName, match.range.first)
+        FastPathLanding.namedAppHits(goal)
+            .filterNot { it.instrumentOnly }
+            .forEach { hit ->
+                if (hit.packageName in packages) return@forEach
+                packages += hit.packageName
+                found += TaskDestination("app", hit.packageName, hit.index)
             }
         val hosts = mutableSetOf<String>()
         HOST.findAll(lower).forEach { match ->

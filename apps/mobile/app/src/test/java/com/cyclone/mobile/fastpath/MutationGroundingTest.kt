@@ -15,4 +15,12 @@ class MutationGroundingTest {
         assertTrue(MutationGrounding.verifiedTransition(true, true))
         assertFalse(MutationGrounding.verifiedTransition(false, true))
     }
+    @Test fun plannerLandingsDoNotNeedAFreshObservationId() {
+        assertFalse(MutationGrounding.requiredFor("phone.open_app"))
+        assertFalse(MutationGrounding.requiredFor("phone.launch_intent"))
+        assertFalse(MutationGrounding.requiredFor("phone.home"))
+        assertFalse(MutationGrounding.requiredFor("phone.wait_for"))
+        assertTrue(MutationGrounding.requiredFor("phone.click"))
+        assertTrue(MutationGrounding.requiredFor("phone.type"))
+    }
 }

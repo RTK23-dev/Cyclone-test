@@ -360,11 +360,11 @@ class CycloneAgentEnvironmentTest {
             )
         }
         val env = CycloneAgentEnvironment(runtime)
-        env.observe("open Facebook and login")
+        env.observe("open Settings")
         val result = env.act(
             "phone.open_app",
-            JSONObject().put("package", "com.facebook.katana"),
-            "open Facebook and login",
+            JSONObject().put("package", "com.android.settings"),
+            "open Settings",
         )
         assertFalse(result.androidExecutionOk)
         assertEquals(1, runtime.afterCaptureCalls)

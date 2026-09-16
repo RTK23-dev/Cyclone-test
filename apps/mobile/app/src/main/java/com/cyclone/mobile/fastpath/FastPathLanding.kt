@@ -19,6 +19,14 @@ data class FastPathLandingHint(
         .put("workspaceNamedApp", workspaceNamedApp)
 }
 
+data class NamedAppHit(
+    val alias: String,
+    val packageName: String,
+    val index: Int,
+    val destinationCue: Boolean,
+    val instrumentOnly: Boolean,
+)
+
 /**
  * Prefer intent / deep-link / open_app before hunting launcher icons.
  * Named-app matches are the same signal 3.9.12 Ask→workspace routing already uses.
@@ -65,6 +73,8 @@ object FastPathLanding {
 
     private val URL = Regex("(?i)https?://[^\\s]+")
     private val HOST = Regex("(?i)\\b(?:[a-z0-9-]+\\.)+[a-z]{2,}\\b")
+    private val DESTINATION_CUE = Regex("(?i)(?:open|launch|start|go to|navigate to|on|in)\\s+(?:the\\s+|my\\s+)?$")
+    private val INSTRUMENT_CUE = Regex("(?i)(?:using|with|via)\\s+(?:the\\s+|my\\s+)?$")
 
     fun resolve(goal: String, installed: List<InstalledApp> = InstalledAppInventory.snapshot): FastPathLandingHint? {
         val trimmed = goal.trim()
@@ -85,7 +95,7 @@ object FastPathLanding {
             return FastPathLandingHint(
                 tool = "phone.launch_intent",
                 uri = uri,
-                reason = "Goal contains an http(s) URL. Prefer phone.launch_intent over icon hunting.",
+                reason = "Goal contains an http(s) URL. Prefer phone.launch_intent over hunting a launcher icon.",
             )
         }
 
@@ -113,11 +123,41 @@ object FastPathLanding {
         return null
     }
 
-    fun namedApp(goal: String): Pair<String, String>? {
+    fun namedAppHits(goal: String): List<NamedAppHit> {
         val lower = goal.lowercase()
-        return APP_PACKAGE_ALIASES.entries.firstOrNull { (alias, _) ->
-            Regex("(?i)(?<![\\p{L}\\p{N}])" + Regex.escape(alias) + "(?![\\p{L}\\p{N}])").containsMatchIn(lower)
-        }?.toPair()
+        val hits = mutableListOf<NamedAppHit>()
+        val packages = mutableSetOf<String>()
+        APP_PACKAGE_ALIASES.entries
+            .sortedByDescending { it.key.length }
+            .forEach { (alias, packageName) ->
+                if (packageName in packages) return@forEach
+                val match = Regex("(?i)(?<![\\p{L}\\p{N}])" + Regex.escape(alias) + "(?![\\p{L}\\p{N}])").find(lower)
+                    ?: return@forEach
+                packages += packageName
+                val before = lower.substring(0, match.range.first)
+                val destinationCue = DESTINATION_CUE.containsMatchIn(before)
+                val instrumentCue = INSTRUMENT_CUE.containsMatchIn(before)
+                hits += NamedAppHit(
+                    alias = alias,
+                    packageName = packageName,
+                    index = match.range.first,
+                    destinationCue = destinationCue,
+                    instrumentOnly = instrumentCue && !destinationCue,
+                )
+            }
+        return hits.sortedBy { it.index }
+    }
+
+    fun namedApp(goal: String): Pair<String, String>? {
+        val hits = namedAppHits(goal)
+        if (hits.isEmpty()) return null
+        val preferred = hits.filterNot { it.instrumentOnly }.ifEmpty { hits }
+        val chosen = preferred.minWithOrNull(
+            compareByDescending<NamedAppHit> { if (it.destinationCue) 1 else 0 }
+                .thenByDescending { it.alias.length }
+                .thenBy { it.index },
+        ) ?: return null
+        return chosen.alias to chosen.packageName
     }
 
     fun sanitizeUri(raw: String): String? {

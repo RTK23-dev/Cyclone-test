@@ -46,6 +46,15 @@ class TaskDifficultyTest {
     }
 
     @Test
+    fun instrumentAliasIsNotASecondDestination() {
+        val assessment = TaskDifficulty.assess("make a new account on Instagram using my Gmail")
+        assertEquals(1, assessment.destinationCount)
+        assertEquals(TaskDifficultyTier.MEDIUM, assessment.tier)
+        assertEquals(setOf("com.instagram.android"), assessment.packages)
+        assertEquals("com.instagram.android", com.cyclone.mobile.fastpath.FastPathLanding.namedApp("make a new account on Instagram using my Gmail")?.second)
+    }
+
+    @Test
     fun chromePlusAWebsiteIsOneDestination() {
         val assessment = TaskDifficulty.assess("open chrome and go to shopify.com")
         assertEquals(1, assessment.destinationCount)

@@ -240,7 +240,9 @@ object PhoneToolExecutor {
         }
         val requestedObservation = request.params.optString("observationId").ifBlank {
             request.params.optString("currentObservationId") }
-        if (mutating && requestedObservation.isNotBlank()) {
+        if (mutating && requestedObservation.isNotBlank() &&
+            com.cyclone.mobile.fastpath.MutationGrounding.requiredFor(request.tool)
+        ) {
             val observation = GatewayObservationStore.current()
             if (!com.cyclone.mobile.fastpath.MutationGrounding.matches(requestedObservation, observation?.id,
                     observation?.payload?.optString("accessibilityFingerprint"), before,

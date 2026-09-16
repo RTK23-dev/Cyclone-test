@@ -275,8 +275,10 @@ class CycloneAgentEnvironment internal constructor(
             rawElementId = report.elementId
         }
         val normalizedParams = JSONObject(params.toString())
-            .put("observationId", before.id)
             .put("fastPath", true)
+        if (com.cyclone.mobile.fastpath.MutationGrounding.requiredFor(tool)) {
+            normalizedParams.put("observationId", before.id)
+        }
         if (before.execution.sessionId != "default-foreground") {
             normalizedParams.put("executionGeneration", before.payload.optLong("executionGeneration"))
         }
@@ -923,6 +925,7 @@ class CycloneAgentEnvironment internal constructor(
             "phone.home",
             "phone.open_app",
             "phone.launch_intent",
+            "phone.wait_for",
         )
         private val ELEMENT_ID_REQUIRED_TOOLS = setOf(
             "phone.click",

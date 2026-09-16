@@ -35,7 +35,7 @@ data class SanitizedProviderFailure(
     }
 }
 
-/** Provider failures are task blockers, never Android-navigation evidence. */
+/** Provider failures are model-boundary events, never Android-navigation evidence. */
 internal object ProviderFailure {
     fun classify(
         httpStatus: Int,

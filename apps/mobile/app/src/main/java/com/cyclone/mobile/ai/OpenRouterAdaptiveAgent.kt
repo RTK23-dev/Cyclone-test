@@ -138,6 +138,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         val packagesSeen: MutableSet<String> = mutableSetOf(),
         var pendingAutofill: Boolean = false,
         var pendingLoginAutofill: Boolean = false,
+        var splashWaits: Int = 0,
     )
 
     private data class ActiveLocalSession(
@@ -546,57 +547,95 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     }
                 }
                 if (landing?.tool == "phone.open_app" && !landing.packageName.isNullOrBlank()) {
-                    val landingKey = "fastpath:${landing.packageName}"
-                    if (landingKey !in session.compiledAttempts) {
-                        session.compiledAttempts += landingKey
-                        val summary = "Open ${landing.packageName}"
-                        onProgress(summary)
-                        return planFromDecision(
-                            PageAgentDecision(
-                                "act",
-                                session.state.page.title,
-                                summary,
-                                listOf(
-                                    PageAgentAction(
-                                        "phone.open_app",
-                                        null,
-                                        JSONObject().put("package", landing.packageName),
-                                        true,
-                                        summary,
-                                    ),
-                                ),
-                                null,
-                                null,
-                            ),
-                            session.state.page.pageKey,
-                        )
+                    val pkg = landing.packageName
+                    val landingKey = "fastpath:$pkg"
+                    val onTarget = com.cyclone.mobile.fastpath.FastPathLanding.launchCandidates(pkg)
+                        .any { it == session.state.page.packageName }
+                    val notInstalled = session.failedActions.any { failure ->
+                        failure.startsWith("phone.open_app:") &&
+                            (failure.contains("TARGET_NOT_FOUND") || failure.contains("APP_NOT_FOUND"))
                     }
                     val web = com.cyclone.mobile.fastpath.FastPathLanding.webFallback(landing.packageName)
-                    val webKey = web?.let { "fastpath:$it" }
-                    if (web != null && webKey !in session.compiledAttempts) {
-                        session.compiledAttempts += webKey!!
-                        val summary = "Open $web in Chrome"
-                        onProgress(summary)
-                        return planFromDecision(
-                            PageAgentDecision(
-                                "act",
-                                session.state.page.title,
-                                summary,
-                                listOf(
-                                    PageAgentAction(
-                                        "phone.launch_intent",
-                                        null,
-                                        JSONObject().put("uri", web),
-                                        true,
-                                        summary,
+                    if (!onTarget && notInstalled) {
+                        val webKey = web?.let { "fastpath:$it" }
+                        if (web != null && webKey !in session.compiledAttempts) {
+                            session.compiledAttempts += webKey!!
+                            val summary = "Open $web in Chrome"
+                            onProgress(summary)
+                            return planFromDecision(
+                                PageAgentDecision(
+                                    "act",
+                                    session.state.page.title,
+                                    summary,
+                                    listOf(
+                                        PageAgentAction(
+                                            "phone.launch_intent",
+                                            null,
+                                            JSONObject().put("uri", web),
+                                            true,
+                                            summary,
+                                        ),
                                     ),
+                                    null,
+                                    null,
                                 ),
-                                null,
-                                null,
-                            ),
-                            session.state.page.pageKey,
-                        )
+                                session.state.page.pageKey,
+                            )
+                        }
+                    } else if (!onTarget) {
+                        val tries = session.compiledAttempts.count { it.startsWith("$landingKey#") }
+                        if (tries < 2) {
+                            session.compiledAttempts += "$landingKey#$tries"
+                            val summary = "Open ${landing.packageName}"
+                            onProgress(summary)
+                            return planFromDecision(
+                                PageAgentDecision(
+                                    "act",
+                                    session.state.page.title,
+                                    summary,
+                                    listOf(
+                                        PageAgentAction(
+                                            "phone.open_app",
+                                            null,
+                                            JSONObject().put("package", landing.packageName),
+                                            true,
+                                            summary,
+                                        ),
+                                    ),
+                                    null,
+                                    null,
+                                ),
+                                session.state.page.pageKey,
+                            )
+                        }
                     }
+                }
+
+                if (session.state.page.controls.isEmpty() && session.splashWaits < 2 &&
+                    (session.compiledAttempts.any { it.startsWith("fastpath:") } ||
+                        session.state.page.packageName != "com.cyclone.mobile")
+                ) {
+                    session.splashWaits += 1
+                    val fingerprint = session.bridge.currentPage()?.accessibilityFingerprint.orEmpty()
+                    val summary = "Waiting for the screen to finish loading"
+                    onProgress(summary)
+                    val params = JSONObject().put("timeoutMs", 2_000L).put("pollMs", 250L)
+                    if (fingerprint.isNotBlank()) {
+                        params.put("type", "fingerprint_changed").put("from", fingerprint)
+                    } else {
+                        params.put("type", "text_contains").put("text", "\u0001")
+                    }
+                    return planFromDecision(
+                        PageAgentDecision(
+                            "act",
+                            session.state.page.title,
+                            summary,
+                            listOf(PageAgentAction("phone.wait_for", null, params, false, summary)),
+                            null,
+                            null,
+                        ),
+                        session.state.page.pageKey,
+                    )
                 }
 
                 if (session.difficulty == com.cyclone.mobile.agent.plan.TaskDifficultyTier.EASY) {
@@ -863,8 +902,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                             val providerMessage = ProviderFailure.message(decision.reason.orEmpty())
                             return CycloneToolResult(
                                 ok = complete,
-                                gateRequired = decision.status == "need_human",
-                                hardBlocker = providerMessage != null,
+                                gateRequired = decision.status == "need_human" ||
+                                    ActionOutcomePolicy.providerBoundary(decision.reason) ==
+                                    CycloneTaskClassification.HUMAN_OR_GATE,
+                                hardBlocker = false,
                                 message = providerMessage ?: decision.answer ?: decision.reason ?: decision.displaySummary,
                                 payload = LocalExecution(session.state, complete, complete, observation.evidenceIdentity,
                                     complete = complete, message = decision.answer),
@@ -930,7 +971,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 if (turn.reason == "easy.unopened") return CycloneTaskClassification.HARD_BLOCKER
                 if (turn.reason?.startsWith("phase.timeout.") == true) return CycloneTaskClassification.HARD_BLOCKER
                 if (turn.reason == API_KEY_BLOCKER) return CycloneTaskClassification.HARD_BLOCKER
-                if (ProviderFailure.message(turn.reason.orEmpty()) != null || turn.reason?.startsWith("provider.") == true) return CycloneTaskClassification.HARD_BLOCKER
+                ActionOutcomePolicy.providerBoundary(turn.reason)?.let { return it }
                 if (!ownsInput() || deterministicHumanBoundary(session.state.page)) {
                     session.pendingGateClass = deterministicGateClass(session.state.page)
                     return CycloneTaskClassification.HUMAN_OR_GATE

@@ -10,4 +10,12 @@ object MutationGrounding {
 
     fun verifiedTransition(executed: Boolean, changed: Boolean?, expectationVerified: Boolean = false): Boolean =
         executed && (expectationVerified || changed == true)
+
+    /**
+     * Planner landings (open_app / launch_intent / home / wait) change the foreground
+     * package. Requiring the pre-launch observation ID turns launcher churn into
+     * STALE_OBSERVATION and skips the launch. UI tools still need a fresh target.
+     */
+    fun requiredFor(tool: String): Boolean =
+        FastPathSurface.roleForPhoneTool(tool) == FastPathToolRole.UI
 }
