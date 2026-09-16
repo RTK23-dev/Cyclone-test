@@ -223,6 +223,9 @@ class AutomationRunner(
                 val arguments = resolveMap(step.parameters - "skillId", variables)
                 val result = stockSkills.execute(StockSkillRequest(skillId, runId, step.id, arguments))
                 result.output.forEach { (key, value) -> variables[key] = value }
+                if (result.waitingForHuman) {
+                    takeover.request(result.message ?: "Stock skill requires human review: ${step.name}", runId, step.id)
+                }
                 StepExecution(
                     success = result.success,
                     output = result.output,
