@@ -70,6 +70,5 @@ fun CycloneTaskProgress(task: WorkspaceTaskUi, modifier: Modifier = Modifier) {
                 }
             }
         }
-}
-
+    }
 }

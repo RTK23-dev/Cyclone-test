@@ -124,7 +124,6 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
             }
         }
     }
-
 }
 
 @Composable

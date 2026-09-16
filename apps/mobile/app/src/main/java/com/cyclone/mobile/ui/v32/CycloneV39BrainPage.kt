@@ -329,7 +329,6 @@ private fun V39RunCard(run: V39RunRow, onOpen: () -> Unit) {
             }
         }
     }
-
 }
 
 @Composable
