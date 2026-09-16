@@ -11,6 +11,7 @@ class InstagramStockSkillCollectionGateway(private val context: Context) : Stock
     override fun execute(request: StockSkillRequest): StockSkillResult = when (request.skillId) {
         InstagramStockSkillIds.REELS_WARMUP -> InstagramReelsWarmupRunner(context).run(request)
         InstagramReelsFollowingStockSkill.ID -> InstagramReelsFollowingRunner(context).run(request)
+        InstagramColdDmsStockSkill.ID -> InstagramColdDmsRunner(context).run(request)
         else -> StockSkillResult(false, message = "unknown_stock_skill:${request.skillId}")
     }
 
@@ -18,6 +19,7 @@ class InstagramStockSkillCollectionGateway(private val context: Context) : Stock
         val definitions: List<SkillDefinition> = listOf(
             InstagramReelsWarmupStockSkill.definition,
             InstagramReelsFollowingStockSkill.definition,
+            InstagramColdDmsStockSkill.definition,
         )
     }
 }
