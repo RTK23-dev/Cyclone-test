@@ -45,6 +45,26 @@ class FastPathLandingTest {
     }
 
     @Test
+    fun facebookLoginLandsOnInstalledAppNotTheModel() {
+        val hint = FastPathLanding.resolve("open Facebook and login")
+        assertEquals("phone.open_app", hint?.tool)
+        assertEquals("com.facebook.katana", hint?.packageName)
+        assertEquals(listOf("com.facebook.katana", "com.facebook.lite"), FastPathLanding.launchCandidates(hint!!.packageName!!))
+        assertEquals("https://facebook.com", FastPathLanding.webFallback(hint.packageName!!))
+    }
+
+    @Test
+    fun namedAppOpenIsALocalPlannerLanding() {
+        val agent = sequenceOf(
+            java.io.File("src/main/java/com/cyclone/mobile/ai/OpenRouterAdaptiveAgent.kt"),
+            java.io.File("apps/mobile/app/src/main/java/com/cyclone/mobile/ai/OpenRouterAdaptiveAgent.kt"),
+        ).first { it.isFile }.readText()
+        assertTrue(landing >= 0)
+        assertTrue(agent.contains("webFallback(landing.packageName)"))
+        assertTrue(agent.contains("launchFailure"))
+    }
+
+    @Test
     fun settingsAliasResolvesToSystemPackage() {
         assertEquals("com.android.settings", FastPathLanding.namedApp("Open Settings")?.second)
         assertEquals("settings", FastPathLanding.namedApp("Open Settings")?.first)

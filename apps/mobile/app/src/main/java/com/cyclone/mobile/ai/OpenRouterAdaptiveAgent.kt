@@ -372,6 +372,59 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                         )
                     }
                 }
+                if (landing?.tool == "phone.open_app" && !landing.packageName.isNullOrBlank()) {
+                    val landingKey = "fastpath:${landing.packageName}"
+                    if (landingKey !in session.compiledAttempts) {
+                        session.compiledAttempts += landingKey
+                        val summary = "Open ${landing.packageName}"
+                        onProgress(summary)
+                        return planFromDecision(
+                            PageAgentDecision(
+                                "act",
+                                session.state.page.title,
+                                summary,
+                                listOf(
+                                    PageAgentAction(
+                                        "phone.open_app",
+                                        null,
+                                        JSONObject().put("package", landing.packageName),
+                                        true,
+                                        summary,
+                                    ),
+                                ),
+                                null,
+                                null,
+                            ),
+                            session.state.page.pageKey,
+                        )
+                    }
+                    val web = com.cyclone.mobile.fastpath.FastPathLanding.webFallback(landing.packageName)
+                    val webKey = web?.let { "fastpath:$it" }
+                    if (web != null && webKey !in session.compiledAttempts) {
+                        session.compiledAttempts += webKey!!
+                        val summary = "Open $web in Chrome"
+                        onProgress(summary)
+                        return planFromDecision(
+                            PageAgentDecision(
+                                "act",
+                                session.state.page.title,
+                                summary,
+                                listOf(
+                                    PageAgentAction(
+                                        "phone.launch_intent",
+                                        null,
+                                        JSONObject().put("uri", web),
+                                        true,
+                                        summary,
+                                    ),
+                                ),
+                                null,
+                                null,
+                            ),
+                            session.state.page.pageKey,
+                        )
+                    }
+                }
 
                 val compiled = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) { if (session.adaptiveMode == "FREE") null
                 else SkillRuntime.match(
@@ -945,8 +998,9 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             val policyDenied = envelope.errorClass == AgentFailureClass.POLICY_DENIED
             val unsupportedModelTool = envelope.errorClass == AgentFailureClass.CAPABILITY_UNAVAILABLE &&
                 envelope.safeMessage?.contains("not exposed", ignoreCase = true) == true
+            val launchFailure = action.tool in setOf("phone.open_app", "phone.launch_intent")
             val hardBlocker = policyDenied ||
-                (envelope.errorClass == AgentFailureClass.CAPABILITY_UNAVAILABLE && !unsupportedModelTool)
+                (envelope.errorClass == AgentFailureClass.CAPABILITY_UNAVAILABLE && !unsupportedModelTool && !launchFailure)
             val stale = envelope.errorClass == AgentFailureClass.STALE_OBSERVATION
 
             if (!verified) {
@@ -1183,7 +1237,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             ),
             hardBlocker = envelope.errorClass == AgentFailureClass.POLICY_DENIED ||
                 (envelope.errorClass == AgentFailureClass.CAPABILITY_UNAVAILABLE &&
-                    envelope.safeMessage?.contains("not exposed", ignoreCase = true) != true),
+                    envelope.safeMessage?.contains("not exposed", ignoreCase = true) != true &&
+                    envelope.tool !in setOf("phone.open_app", "phone.launch_intent")),
             staleTarget = envelope.errorClass == AgentFailureClass.STALE_OBSERVATION,
             gateClass = if (envelope.errorClass in setOf(
                 AgentFailureClass.GATE_REQUIRED,
