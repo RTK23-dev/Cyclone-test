@@ -273,7 +273,7 @@ class OverlayChromeController(
                         applyLayout(latest)
                     }
                     if (glass()) {
-                        com.cyclone.mobile.ui.v32.CycloneV32Theme {
+                        com.cyclone.mobile.ui.v32.CycloneV32Theme(drawBackground = false) {
                             com.cyclone.mobile.ui.overlay.BackgroundTaskGlass(backgroundTask!!) { onAction(OverlayUserAction.ASK_CYCLONE) }
                         }
                     } else {
@@ -376,6 +376,13 @@ class OverlayChromeController(
             speechRecognizer?.destroy()
             speechRecognizer = null
             lifecycle.destroy()
+        }
+    }
+
+    fun keyboardClosed() {
+        onMain {
+            imeBottomPx = 0
+            applyLayout(latest)
         }
     }
 

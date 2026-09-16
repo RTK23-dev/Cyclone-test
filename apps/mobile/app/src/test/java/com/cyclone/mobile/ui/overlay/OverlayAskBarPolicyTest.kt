@@ -80,4 +80,14 @@ class OverlayAskBarPolicyTest {
         assertFalse(overlay.contains("navigationBarsPadding()"))
         assertFalse(overlay.contains("imePadding()"))
     }
+
+    @Test
+    fun workingTaskKeepsAskCycloneInPlaceWithoutFullScreenWash() {
+        val runtime = source("ui/overlay/OverlayChromeRuntime.kt")
+        val controller = source("ai/OverlayChromeController.kt")
+        assertTrue(runtime.contains("it.enterWorking()"))
+        assertFalse(runtime.contains("it.dispatch(OverlayUserAction.MINIMIZE)"))
+        assertTrue(controller.contains("CycloneV32Theme(drawBackground = false)"))
+        assertTrue(controller.contains("fun keyboardClosed()"))
+    }
 }
