@@ -173,10 +173,20 @@ class CycloneV39AiChatPageTest {
         val page = source("CycloneV39AiChatPage.kt")
         assertFalse(page.contains("CycloneAlpineBackdrop"))
         assertTrue(page.contains("\"Ask Cyclone\""))
+        assertTrue(page.contains("\"Ready when you are\""))
         assertTrue(page.contains("\"Tell Cyclone what to do on your phone.\""))
         assertFalse(page.contains("progress today"))
         assertFalse(page.contains("Ideas become real"))
         assertFalse(page.contains("Contributor · prompts and responses may be used for training."))
+    }
+
+    @Test fun plusPanelAndVoiceStayBehindOneComposer() {
+        val page = source("CycloneV39AiChatPage.kt")
+        assertTrue(page.contains("CycloneAttachmentTools("))
+        assertTrue(page.contains("Take screenshot"))
+        assertTrue(page.contains("AskCycloneVoiceMode"))
+        assertTrue(page.contains("Listening…"))
+        assertEquals(1, Regex("Icons\\.Rounded\\.Add").findAll(page).count())
     }
 
     @Test fun routineBuilderHasNoCallSurfaceFromChatPage() {

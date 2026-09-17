@@ -5,6 +5,7 @@ import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.ScreenShare
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -197,16 +201,62 @@ internal fun CycloneAttachmentTools(
     onCamera: () -> Unit,
     onFiles: () -> Unit,
     onShareScreen: () -> Unit,
+    extras: List<Pair<ImageVector, String>> = emptyList(),
+    onExtra: (String) -> Unit = {},
 ) {
-    CycloneLiquidPanel(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 22.dp,
-        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Column(Modifier.fillMaxWidth()) {
-            CycloneAttachmentToolRow(Icons.Rounded.CameraAlt, "Camera", onCamera)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .padding(top = 2.dp, bottom = 2.dp)
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = .45f)),
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            CyclonePlusTile(Icons.Rounded.CameraAlt, "Camera", Modifier.weight(1f), onCamera)
+            CyclonePlusTile(Icons.Rounded.PhotoLibrary, "Photos", Modifier.weight(1f), onFiles)
+        }
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            extras.forEach { (icon, label) ->
+                CycloneAttachmentToolRow(icon, label) { onExtra(label) }
+            }
             CycloneAttachmentToolRow(Icons.Rounded.AttachFile, "Files & photos", onFiles)
             CycloneAttachmentToolRow(Icons.Rounded.ScreenShare, "Share screen", onShareScreen)
+        }
+    }
+}
+
+@Composable
+private fun CyclonePlusTile(
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = modifier
+            .heightIn(min = 88.dp)
+            .clickable(role = Role.Button, onClick = onClick),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .88f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(26.dp))
+            Text(label, style = MaterialTheme.typography.titleSmall)
         }
     }
 }

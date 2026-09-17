@@ -103,6 +103,7 @@ class CycloneAppleUiContractTest {
     @Test fun askEmptyStateIsAProductTitleNotAQuoteCard() {
         val ask = source("CycloneV39AiChatPage.kt")
         assertTrue(ask.contains("\"Ask Cyclone\""))
+        assertTrue(ask.contains("\"Ready when you are\""))
         assertTrue(ask.contains("\"Tell Cyclone what to do on your phone.\""))
         assertFalse(ask.contains("CycloneAlpineBackdrop"))
         assertFalse(ask.contains("progress today"))

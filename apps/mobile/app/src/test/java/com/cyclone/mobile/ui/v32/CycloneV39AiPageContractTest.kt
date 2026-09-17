@@ -54,6 +54,7 @@ class CycloneV39AiPageContractTest {
     @Test fun emptyStateMatchesAlpineProgressConcept() {
         val page = source("com/cyclone/mobile/ui/v32/CycloneV39AiChatPage.kt")
         assertTrue(page.contains("\"Ask Cyclone\""))
+        assertTrue(page.contains("\"Ready when you are\""))
         assertTrue(page.contains("\"Tell Cyclone what to do on your phone.\""))
         assertFalse(page.contains("CycloneAlpineBackdrop"))
         assertFalse(page.contains("cyclone_alpine"))
