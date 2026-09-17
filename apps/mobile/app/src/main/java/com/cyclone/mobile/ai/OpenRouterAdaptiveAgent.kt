@@ -441,7 +441,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     loginPage != null &&
                     LoginAutofillPolicy.shouldHandle(goal, loginPage)
                 ) {
-                    val autofill = session.loginAutofill.evaluate(loginPage, session.pendingAutofill)
+                    val autofill = session.loginAutofill.evaluate(loginPage, session.pendingAutofill, goal)
                     when (autofill.outcome) {
                         LoginAutofillOutcome.FOCUS_FIELD, LoginAutofillOutcome.SUBMIT -> {
                             val target = autofill.target
