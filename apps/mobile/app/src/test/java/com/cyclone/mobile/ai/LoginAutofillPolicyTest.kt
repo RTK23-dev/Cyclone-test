@@ -37,6 +37,51 @@ class LoginAutofillPolicyTest {
     }
 
     @Test
+    fun signupGoalSuppressesAutofillEvenWhenLoginControlsAreAlsoVisible() {
+        val base = loginPage()
+        val card = base.copy(
+            controls = base.controls + control("signup", "Create new account", "button"),
+        )
+
+        assertTrue(LoginAutofillPolicy.isLoginWall(card))
+        assertFalse(LoginAutofillPolicy.shouldHandle("open Facebook and make an account using my email", card))
+        assertEquals(
+            LoginAutofillOutcome.NOT_APPLICABLE,
+            LoginAutofillPolicy().evaluate(card, authorized = true, goal = "sign up for Facebook").outcome,
+        )
+    }
+
+    @Test
+    fun explicitLoginStillUsesAutofillWhenCreateAccountLinkIsSecondary() {
+        val base = loginPage()
+        val card = base.copy(
+            controls = base.controls + control("signup", "Create new account", "button"),
+        )
+
+        assertTrue(LoginAutofillPolicy.shouldHandle("log in to Facebook", card))
+        assertEquals(
+            LoginAutofillOutcome.FOCUS_FIELD,
+            LoginAutofillPolicy().evaluate(card, authorized = true, goal = "log in to Facebook").outcome,
+        )
+    }
+
+    @Test
+    fun primaryRegistrationFormIsNotTreatedAsLoginWall() {
+        val obs = "obs"
+        val card = loginPage().copy(
+            pageText = JSONObject().put("text", "Create your account"),
+            controls = listOf(
+                control("email", "Email", "edittext", obs, JSONObject().put("editable", true).put("enabled", true).put("visibleToUser", true)),
+                control("pass", "Password", "edittext", obs, JSONObject().put("editable", true).put("password", true).put("enabled", true).put("visibleToUser", true)),
+                control("signup", "Sign up", "button", obs, JSONObject().put("clickable", true).put("enabled", true).put("visibleToUser", true)),
+            ),
+        )
+
+        assertFalse(LoginAutofillPolicy.isLoginWall(card))
+        assertFalse(LoginAutofillPolicy.shouldHandle("continue", card))
+    }
+
+    @Test
     fun signedInHomeIsNotALoginWall() {
         val card = loginPage().copy(
             controls = listOf(
