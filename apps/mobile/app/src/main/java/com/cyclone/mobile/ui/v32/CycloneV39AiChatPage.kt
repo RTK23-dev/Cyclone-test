@@ -114,7 +114,7 @@ import java.util.concurrent.atomic.AtomicLong
 internal enum class V39ChatRole { USER, CYCLONE }
 internal data class V39ChatMessage(val id: Long, val role: V39ChatRole, val text: String, val ok: Boolean? = null)
 
-/** Process-session chat only. Brain owns persistent run diagnostics. */
+/** Process-session chat only. Brain owns persistent run diagnostics. The Ask page is the live workspace. */
 internal object V39AiChatSessionRuntime {
     private val nextId = AtomicLong(1L)
     val messages = mutableStateListOf<V39ChatMessage>()
