@@ -330,6 +330,8 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             .fillMaxSize()
             .background(askCycloneCanvasBrush()),
     ) {
+        AskCycloneDotField(Modifier.matchParentSize())
+
         Column(
             Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -355,7 +357,10 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             )
 
             if (emptyCanvas && composer.isBlank()) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.weight(1f).fillMaxWidth().padding(bottom = 48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
                     AskCycloneEmptyState()
                 }
             } else {
@@ -442,7 +447,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             }
 
             CycloneLiquidPanel(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 cornerRadius = 30.dp,
                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 5.dp),
             ) {
@@ -694,37 +699,133 @@ private fun AskCycloneHeader(
 
 @Composable
 private fun AskCycloneEmptyState() {
+    val greeting = when (java.time.LocalTime.now().hour) {
+        in 5..11 -> "Good morning"
+        in 12..17 -> "Good afternoon"
+        else -> "Good evening"
+    }
     Column(
         Modifier
             .fillMaxWidth()
-            .semantics { contentDescription = "Tell Cyclone what to do on your phone." },
+            .semantics { contentDescription = "Ready when you are. Tell Cyclone what to do on your phone." },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         AskCycloneOrb()
         Text(
-            "Ready when you are",
-            style = MaterialTheme.typography.headlineSmall,
+            greeting,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            "What can I do for you?",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
 @Composable
 private fun askCycloneCanvasBrush(): Brush {
-    return if (isSystemInDarkTheme()) {
-        Brush.verticalGradient(
-            0f to Color(0xFF1A4A86),
-            0.34f to Color(0xFF0B1A33),
-            1f to Color(0xFF000000),
-        )
-    } else {
-        Brush.verticalGradient(
-            0f to Color(0xFFFCFDFE),
-            0.42f to Color(0xFFF3F6FA),
-            1f to Color(0xFFD4E6F8),
-        )
+    val base = if (isSystemInDarkTheme()) Color.Black else Color.White
+    return Brush.verticalGradient(listOf(base, base))
+}
+
+/**
+ * One animated dot field owns the entire Ask Cyclone canvas. The dots stay fixed in position and only
+ * breathe in size/opacity, which keeps the motion calm while the smooth spatial envelope gives the
+ * lower page a soft bowl of blue/cyan/lilac without drawing a visible U-shaped edge. Because this is
+ * the first child of the full-screen page Box, it continues behind the floating composer.
+ */
+@Composable
+private fun AskCycloneDotField(modifier: Modifier = Modifier) {
+    val dark = isSystemInDarkTheme()
+    val motion = rememberInfiniteTransition(label = "askDotField")
+    val phase by motion.animateFloat(
+        initialValue = 0f,
+        targetValue = (Math.PI * 2.0).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 20_000,
+                easing = androidx.compose.animation.core.LinearEasing,
+            ),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "askDotPhase",
+    )
+
+    val lilac = if (dark) Color(0xFF9B8CFF) else Color(0xFF7D83FF)
+    val blue = if (dark) Color(0xFF69A7FF) else Color(0xFF3D8DFF)
+    val cyan = if (dark) Color(0xFF5DD8FF) else Color(0xFF43C6F6)
+
+    Canvas(modifier) {
+        if (size.width <= 0f || size.height <= 0f) return@Canvas
+
+        val spacing = 17.dp.toPx()
+        val tinyRadius = 0.45.dp.toPx()
+        val radiusRange = 2.65.dp.toPx()
+        val columns = (size.width / spacing).toInt() + 2
+        val rows = (size.height / spacing).toInt() + 2
+        val startX = (size.width - (columns - 1) * spacing) / 2f
+
+        fun smoothStep(edge0: Float, edge1: Float, value: Float): Float {
+            val t = ((value - edge0) / (edge1 - edge0)).coerceIn(0f, 1f)
+            return t * t * (3f - 2f * t)
+        }
+
+        fun blend(a: Color, b: Color, amount: Float): Color {
+            val t = amount.coerceIn(0f, 1f)
+            return Color(
+                red = a.red + (b.red - a.red) * t,
+                green = a.green + (b.green - a.green) * t,
+                blue = a.blue + (b.blue - a.blue) * t,
+                alpha = 1f,
+            )
+        }
+
+        for (row in 0 until rows) {
+            val y = row * spacing
+            val ny = (y / size.height).coerceIn(0f, 1f)
+            for (column in 0 until columns) {
+                val x = startX + column * spacing
+                val nx = (x / size.width).coerceIn(0f, 1f)
+                val edge = (kotlin.math.abs(nx - 0.5f) * 2f).coerceIn(0f, 1f)
+                val edge2 = edge * edge
+
+                // The sides begin slightly higher than the middle, but the smooth fade prevents a hard U.
+                val rise = 0.44f - 0.12f * edge2
+                val vertical = smoothStep(rise, 1f, ny)
+                val bottom = smoothStep(0.66f, 1f, ny)
+                val bowl = 0.18f + 0.82f * edge2
+
+                val broadDrift = 0.92f + 0.08f * kotlin.math.sin(
+                    (phase * 0.55f + nx * 4.6f - ny * 3.3f).toDouble(),
+                ).toFloat()
+                val envelope = ((vertical * bowl) + (bottom * bottom * 0.16f))
+                    .times(broadDrift)
+                    .coerceIn(0f, 1f)
+                if (envelope < 0.012f) continue
+
+                val localWave = 0.5f + 0.5f * kotlin.math.sin(
+                    (phase + column * 0.43f + row * 0.31f).toDouble(),
+                ).toFloat()
+                val pulseScale = 0.78f + localWave * 0.42f
+                val radius = (tinyRadius + radiusRange * envelope) * pulseScale
+                val opacity = envelope * (if (dark) 0.66f else 0.56f) * (0.90f + localWave * 0.10f)
+
+                val tint = if (nx < 0.5f) {
+                    blend(lilac, blue, nx * 2f)
+                } else {
+                    blend(blue, cyan, (nx - 0.5f) * 2f)
+                }
+                drawCircle(
+                    color = tint.copy(alpha = opacity.coerceIn(0f, 0.72f)),
+                    radius = radius,
+                    center = Offset(x, y),
+                )
+            }
+        }
     }
 }
 
@@ -740,13 +841,13 @@ private fun AskCycloneOrb() {
         ),
         label = "glow",
     )
-    Canvas(Modifier.size(88.dp)) {
+    Canvas(Modifier.size(58.dp)) {
         val c = center
         val r = size.minDimension / 2f
         drawCircle(
             brush = Brush.radialGradient(
-                0.28f to Color(0xFF5B8CFF).copy(alpha = glow * 0.55f),
-                0.62f to Color(0xFF7A5CFF).copy(alpha = glow * 0.22f),
+                0.28f to Color(0xFF5B8CFF).copy(alpha = glow * 0.48f),
+                0.62f to Color(0xFF7A5CFF).copy(alpha = glow * 0.18f),
                 1f to Color.Transparent,
             ),
             radius = r,
