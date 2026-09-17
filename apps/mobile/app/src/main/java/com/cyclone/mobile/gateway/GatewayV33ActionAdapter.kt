@@ -54,12 +54,18 @@ internal object GatewayV33ActionAdapter {
         "phone.back",
         "phone.home",
         "phone.open_app",
+        "phone.launch_intent",
         "phone.set_clipboard",
     )
 
     private val pageTransitionTools = setOf(
-        "phone.click", "phone.long_press", "phone.back", "phone.home", "phone.open_app",
+        "phone.click", "phone.long_press", "phone.back", "phone.home", "phone.open_app", "phone.launch_intent",
     )
+
+    internal fun requiresMutationObservation(tool: String): Boolean = tool in mutatingTools
+
+    internal fun pageTransitionSettleMs(tool: String): Long =
+        if (tool in pageTransitionTools) 1_800L else 0L
 
     fun execute(context: Context, requestId: String, args: JSONObject): JSONObject {
         val tool = args.optString("tool").trim()
@@ -89,7 +95,7 @@ internal object GatewayV33ActionAdapter {
         publicCapability: Boolean,
     ): JSONObject {
         val bound = bindIdentity(requestId, args)
-        val beforeObservation = if (tool in mutatingTools) {
+        val beforeObservation = if (requiresMutationObservation(tool)) {
             requireFreshObservation(requestId, args, bound)
         } else {
             try { GatewayObservationStore.current(bound) } catch (_: SessionIdentityException) { null }
@@ -101,7 +107,7 @@ internal object GatewayV33ActionAdapter {
             JSONObject((args.optJSONObject("params") ?: JSONObject()).toString()),
             bound,
         )
-        if (beforeObservation != null && tool in mutatingTools) {
+        if (beforeObservation != null && requiresMutationObservation(tool)) {
             normalizedParams.put("observationId", beforeObservation.id)
             if (bound.sessionId != "default-foreground") normalizedParams.put("executionGeneration", beforeObservation.payload.optLong("executionGeneration", -1))
         }
@@ -247,7 +253,7 @@ internal object GatewayV33ActionAdapter {
             .put("afterState", afterObservation?.let(::compactAfterState) ?: JSONObject.NULL)
             .put("verification", verification)
             .put("routeLearning", routeLearning)
-            .put("requiresReobserveBeforeNextMutation", tool in mutatingTools)
+            .put("requiresReobserveBeforeNextMutation", requiresMutationObservation(tool))
             .put("publicCapability", publicCapability)
     }
 
@@ -260,7 +266,7 @@ internal object GatewayV33ActionAdapter {
     ): GatewayObservation? {
         val identity = bound ?: ExecutionRequestScope.bind(params)
         val captureArgs = ExecutionRequestScope.attach(JSONObject(params.toString()), identity)
-        val deadline = System.currentTimeMillis() + if (tool in pageTransitionTools) 1_800L else 0L
+        val deadline = System.currentTimeMillis() + pageTransitionSettleMs(tool)
         var after = runCatching { GatewayObservationAdapter.capture(context, captureArgs) }.getOrNull()
         while (
             after != null &&
