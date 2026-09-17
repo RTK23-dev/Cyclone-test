@@ -432,7 +432,7 @@ private fun ComposerPanel(
         )
 
         if (!keyboardOpen) {
-        if (task != null || foregroundWorking || queued.isNotEmpty()) {
+            if (task != null || foregroundWorking || queued.isNotEmpty()) {
             OverlayAppleGlass(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = 24.dp,
@@ -453,9 +453,8 @@ private fun ComposerPanel(
                     CyclonePendingRequests { onAction(OverlayUserAction.MINIMIZE) }
                 }
             }
-        }
 
-        if (sharing.phase != ScreenSharePhase.OFF) {
+            if (sharing.phase != ScreenSharePhase.OFF) {
             OverlayAppleStatusPill(
                 text = when (sharing.phase) {
                     ScreenSharePhase.LIVE -> "Sharing screen"
@@ -471,8 +470,8 @@ private fun ComposerPanel(
             )
         }
 
-        when (accessory) {
-            ComposerAccessory.ATTACHMENTS -> OverlayAppleToolsMenu(
+            when (accessory) {
+                ComposerAccessory.ATTACHMENTS -> OverlayAppleToolsMenu(
                 sharingActive = sharing.active,
                 onCamera = {
                     launchExternal(Intent(context, OverlayAttachmentActivity::class.java).putExtra("camera", true))
@@ -490,7 +489,7 @@ private fun ComposerPanel(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            ComposerAccessory.MODEL -> OverlayAppleGlass(
+                ComposerAccessory.MODEL -> OverlayAppleGlass(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = 30.dp,
                 strong = true,
@@ -505,17 +504,16 @@ private fun ComposerPanel(
                 }
             }
 
-            ComposerAccessory.NONE -> Unit
-        }
+                ComposerAccessory.NONE -> Unit
+            }
 
-        if (attached) {
+            if (attached) {
             OverlayAppleStatusPill(
                 text = "Reference attached",
                 actionLabel = "Remove",
                 onAction = { PendingTaskAttachment.take() },
             )
-        }
-
+            }
         }
 
         OverlayAppleComposerBar(
