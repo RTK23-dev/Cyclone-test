@@ -439,7 +439,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 val loginPage = session.bridge.currentPage()
                 if (!com.cyclone.mobile.agent.plan.TaskDifficulty.isEasy(goal) &&
                     loginPage != null &&
-                    LoginAutofillPolicy.isLoginWall(loginPage)
+                    LoginAutofillPolicy.shouldHandle(goal, loginPage)
                 ) {
                     val autofill = session.loginAutofill.evaluate(loginPage, session.pendingAutofill)
                     when (autofill.outcome) {
