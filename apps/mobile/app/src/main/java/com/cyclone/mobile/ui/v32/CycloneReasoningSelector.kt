@@ -42,6 +42,7 @@ internal fun reasoningEffortLabel(value: String): String = value.replace('_', ' 
 internal fun CycloneReasoningSelector(
     modelId: String,
     compact: Boolean = false,
+    showHelper: Boolean = true,
     onChanged: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -65,11 +66,13 @@ internal fun CycloneReasoningSelector(
                     style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text(
-                    "This model does not expose selectable intelligence levels, so Cyclone leaves reasoning under the model's control.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (showHelper) {
+                    Text(
+                        "This model does not expose selectable intelligence levels, so Cyclone leaves reasoning under the model's control.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -83,23 +86,25 @@ internal fun CycloneReasoningSelector(
                     modifier = Modifier.fillMaxWidth(),
                     compact = compact,
                 )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        if (selected == null) {
-                            "Model default${defaultEffort?.let { ": ${reasoningEffortLabel(it)}" }.orEmpty()}"
-                        } else {
-                            "Exact provider level · ${reasoningEffortLabel(selected)}"
-                        },
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (selected != null) {
-                        CycloneLiquidTextAction(label = "Default", onClick = { choose(null) })
+                if (showHelper) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            if (selected == null) {
+                                "Model default${defaultEffort?.let { ": ${reasoningEffortLabel(it)}" }.orEmpty()}"
+                            } else {
+                                "Exact provider level · ${reasoningEffortLabel(selected)}"
+                            },
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (selected != null) {
+                            CycloneLiquidTextAction(label = "Default", onClick = { choose(null) })
+                        }
                     }
                 }
             }
@@ -116,7 +121,7 @@ internal fun CycloneReasoningSelector(
                     compact = compact,
                 )
                 if (menuOpen) {
-                    val values = listOf<String?>(null) + options
+                    val values: List<String?> = if (showHelper) listOf(null) + options else options
                     values.forEachIndexed { index, effort ->
                         val active = if (effort == null) selected == null else selected == effort
                         Row(

@@ -195,7 +195,12 @@ class CycloneV39AiChatPageTest {
     @Test fun plusPanelAndVoiceStayBehindOneComposer() {
         val page = source("CycloneV39AiChatPage.kt")
         assertTrue(page.contains("CycloneAttachmentTools("))
-        assertTrue(page.contains("Take screenshot"))
+        assertTrue(page.contains("filesLabel = \"Files\""))
+        assertTrue(page.contains("Create a routine"))
+        assertFalse(page.contains("Take screenshot"))
+        assertFalse(page.contains("Deep research"))
+        assertFalse(page.contains("Explain this screen"))
+        assertFalse(page.contains("Open app"))
         assertTrue(page.contains("AskCycloneVoiceMode"))
         assertTrue(page.contains("Listening…"))
         assertEquals(1, Regex("Icons\\.Rounded\\.Add").findAll(page).count())

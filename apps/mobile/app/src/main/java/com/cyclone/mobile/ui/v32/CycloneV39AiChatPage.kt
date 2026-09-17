@@ -47,18 +47,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.CropOriginal
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Stop
-import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -316,7 +311,10 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
     }
 
     LaunchedEffect(keyboardOpen) {
-        if (keyboardOpen) modelMenuOpen = false
+        if (keyboardOpen) {
+            modelMenuOpen = false
+            toolsOpen = false
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -580,7 +578,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .heightIn(max = 560.dp)
+                        .heightIn(max = 420.dp)
                         .padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
                     shape = RoundedCornerShape(28.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = .98f),
@@ -597,26 +595,13 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                             onCamera = { openCamera() },
                             onFiles = { openFiles() },
                             onShareScreen = { shareScreen() },
-                            tileExtras = listOf(
-                                Icons.Rounded.CropOriginal to "Take screenshot",
-                                Icons.Rounded.Apps to "Open app",
-                                Icons.Rounded.Edit to "Write text",
-                            ),
+                            filesLabel = "Files",
                             extras = listOf(
                                 Icons.Rounded.Bolt to "Create a routine",
-                                Icons.Rounded.AutoAwesome to "Deep research",
-                                Icons.Rounded.Visibility to "Explain this screen",
                             ),
                             onExtra = { label ->
                                 toolsOpen = false
-                                when (label) {
-                                    "Take screenshot" -> composer = "Take a screenshot"
-                                    "Open app" -> composer = "Open "
-                                    "Write text" -> composer = ""
-                                    "Explain this screen" -> shareScreen()
-                                    "Create a routine" -> composer = "Create a routine"
-                                    "Deep research" -> composer = "Research "
-                                }
+                                if (label == "Create a routine") composer = "Create a routine"
                             },
                         )
                         CycloneModelIntelligencePanel(

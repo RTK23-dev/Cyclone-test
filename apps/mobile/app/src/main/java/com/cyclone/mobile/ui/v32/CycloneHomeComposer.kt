@@ -76,8 +76,8 @@ fun CycloneHomeComposer(onSubmit: (String) -> Unit) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Home is a launcher, not a second AI settings surface. Model/intelligence/autonomy live in
-        // the AI workspace; this launcher stays focused on request, attachment, voice and send.
+        // Home is a launcher, not a second AI settings surface. Model and intelligence live in
+        // the AI workspace; phone autonomy lives in Settings.
         CycloneLiquidPanel(
             modifier = Modifier.fillMaxWidth(),
             cornerRadius = 28.dp,
@@ -206,6 +206,7 @@ internal fun CycloneAttachmentTools(
     extras: List<Pair<ImageVector, String>> = emptyList(),
     tileExtras: List<Pair<ImageVector, String>> = emptyList(),
     onExtra: (String) -> Unit = {},
+    filesLabel: String = "Files & photos",
 ) {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
@@ -223,7 +224,7 @@ internal fun CycloneAttachmentTools(
         val tiles = buildList {
             add(Triple(Icons.Rounded.CameraAlt, "Camera", onCamera))
             add(Triple(Icons.Rounded.PhotoLibrary, "Photos", onFiles))
-            add(Triple(Icons.Rounded.AttachFile, "Files & photos", onFiles))
+            add(Triple(Icons.Rounded.AttachFile, filesLabel, onFiles))
             tileExtras.forEach { (icon, label) -> add(Triple(icon, label, { onExtra(label) })) }
         }
         tiles.chunked(3).forEach { row ->

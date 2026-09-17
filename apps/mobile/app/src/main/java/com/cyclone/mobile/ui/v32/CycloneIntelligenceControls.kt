@@ -271,51 +271,18 @@ private fun OverlaySettingsWizard(
 @Composable
 private fun StandardIntelligencePanel(modelId: String, effort: String, onChange: (String, String) -> Unit) {
     val context = LocalContext.current
-    var autonomy by remember { mutableStateOf(CycloneAiAccessProfileStore.read(context)) }
     val canonical = OpenRouterCatalogStore.canonicalId(modelId)
 
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(11.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Intelligence", style = MaterialTheme.typography.titleSmall)
-            Text(
-                "Exact options for the selected OpenRouter model.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         if (canonical.isBlank()) {
             Text("Choose an available model first.", style = MaterialTheme.typography.bodySmall)
         } else {
-            CycloneReasoningSelector(canonical) { selected -> onChange(modelId, selected) }
-        }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
-
-        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("Phone autonomy", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
-            CycloneLiquidChoiceBar(
-                options = autonomyProfiles.map(::autonomyLabel),
-                selectedIndex = autonomyProfiles.indexOf(autonomy).coerceAtLeast(0),
-                onSelect = { index ->
-                    autonomy = autonomyProfiles[index]
-                    CycloneAiAccessProfileStore.write(context, autonomy)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                compact = true,
-            )
-            Text(
-                autonomy.summary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                "Sensitive actions still ask for confirmation.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            CycloneReasoningSelector(canonical, compact = true, showHelper = false) { selected ->
+                onChange(modelId, selected)
+            }
         }
     }
 }
