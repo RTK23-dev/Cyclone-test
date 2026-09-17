@@ -307,7 +307,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
 
     fun shareScreen() {
         toolsOpen = false
-        context.startActivity(Intent(context, com.cyclone.mobile.capture.LiveCaptureConsentActivity::class.java))
+        com.cyclone.mobile.capture.LiveScreenShare.start(context)
     }
 
     LaunchedEffect(keyboardOpen) {

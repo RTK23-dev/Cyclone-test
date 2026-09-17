@@ -476,7 +476,7 @@ private fun ComposerPanel(
                     launchExternal(Intent(context, OverlayAttachmentActivity::class.java))
                 },
                 onShareScreen = {
-                    launchExternal(Intent(context, LiveCaptureConsentActivity::class.java))
+                    launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
                 },
                 onCrossAppShare = {
                     launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))

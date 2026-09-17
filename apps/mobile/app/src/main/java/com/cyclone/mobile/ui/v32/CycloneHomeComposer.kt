@@ -182,7 +182,7 @@ fun CycloneHomeComposer(onSubmit: (String) -> Unit) {
                 },
                 onShareScreen = {
                     tools = false
-                    context.startActivity(Intent(context, com.cyclone.mobile.capture.LiveCaptureConsentActivity::class.java))
+                    com.cyclone.mobile.capture.LiveScreenShare.start(context)
                 },
             )
         }

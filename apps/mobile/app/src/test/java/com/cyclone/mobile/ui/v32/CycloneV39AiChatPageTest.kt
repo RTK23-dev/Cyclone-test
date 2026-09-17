@@ -106,6 +106,7 @@ class CycloneV39AiChatPageTest {
         assertTrue(page.contains("WorkspaceTasks.queueRequest(normalized)"))
         assertTrue(page.contains("OverlayChromeRuntime.submitRequest(normalized)"))
         assertFalse(page.contains("AccessibilityService"))
+        assertTrue(page.contains("LiveScreenShare.start(context)"))
         assertFalse(page.contains("MediaProjectionManager"))
     }
 

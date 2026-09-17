@@ -318,7 +318,9 @@ class OverlayChromeController(
                 setContent {
                     val sharing by LiveCaptureSessionManager.state.collectAsState()
                     val externalActive by OverlayExternalInteraction.active.collectAsState()
-                    if (!externalActive && isCompact(latest) && sharing.active) {
+                    if (!externalActive && isCompact(latest) && sharing.active &&
+                        sharing.phase != com.cyclone.mobile.capture.ScreenSharePhase.REQUESTING_PERMISSION
+                    ) {
                         com.cyclone.mobile.ui.v32.CycloneV32Theme {
                             androidx.compose.foundation.layout.Box(Modifier.padding(8.dp)) {
                                 ScreenSharePill(sharing) { LiveCaptureService.stop(service) }
