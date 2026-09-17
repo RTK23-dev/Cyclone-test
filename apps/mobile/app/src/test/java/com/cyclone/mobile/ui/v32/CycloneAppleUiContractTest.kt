@@ -100,11 +100,14 @@ class CycloneAppleUiContractTest {
         assertFalse(source("CycloneSettings426.kt").contains("shadowElevation = 1.dp"))
     }
 
-    @Test fun askEmptyStateIsAProductTitleNotAQuoteCard() {
+    @Test fun askEmptyStateIsAProductGreetingNotAQuoteCard() {
         val ask = source("CycloneV39AiChatPage.kt")
         assertTrue(ask.contains("\"Ask Cyclone\""))
-        assertTrue(ask.contains("\"Ready when you are\""))
-        assertTrue(ask.contains("\"Tell Cyclone what to do on your phone.\""))
+        assertTrue(ask.contains("\"Good morning\""))
+        assertTrue(ask.contains("\"Good afternoon\""))
+        assertTrue(ask.contains("\"Good evening\""))
+        assertTrue(ask.contains("\"What can I do for you?\""))
+        assertTrue(ask.contains("AskCycloneDotField(Modifier.matchParentSize())"))
         assertFalse(ask.contains("CycloneAlpineBackdrop"))
         assertFalse(ask.contains("progress today"))
         assertFalse(ask.contains("Ideas become real"))
