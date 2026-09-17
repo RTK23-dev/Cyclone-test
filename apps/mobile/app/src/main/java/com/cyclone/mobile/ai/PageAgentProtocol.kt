@@ -192,7 +192,8 @@ Schema:
             action.params.optString("appName"),
             action.displaySummary,
         ).joinToString(" ").lowercase()
-        return FastPathLanding.APP_PACKAGE_ALIASES.entries.firstOrNull { (alias, _) -> hint.contains(alias) }?.value
+        return FastPathLanding.packageForName(hint)
+            ?: FastPathLanding.APP_PACKAGE_ALIASES.entries.firstOrNull { (alias, _) -> hint.contains(alias) }?.value
             ?: APP_PACKAGE_ALIASES.entries.firstOrNull { (alias, _) -> hint.contains(alias) }?.value
     }
 

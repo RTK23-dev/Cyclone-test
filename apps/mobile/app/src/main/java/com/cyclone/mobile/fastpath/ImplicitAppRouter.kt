@@ -91,10 +91,10 @@ object ImplicitAppRouter {
     private val INBOX_CHECK = Regex("(?i)\\b(?:check|open|read|show)\\b.*\\b(?:my )?(?:e-?mail|inbox|unread mail)\\b")
     private val MESSAGES_CHECK = Regex("(?i)\\b(?:check|open|read|show)\\b.*\\b(?:my )?(?:texts?|sms|messages)\\b")
 
-    fun job(goal: String): PhoneJob? {
+    fun job(goal: String, installed: List<InstalledApp> = InstalledAppInventory.snapshot): PhoneJob? {
         val clean = goal.trim()
         if (clean.isBlank()) return null
-        if (FastPathLanding.namedApp(clean) != null) return null
+        if (FastPathLanding.namedApp(clean, installed) != null) return null
         if (com.cyclone.mobile.agent.contract.NavigationIntent.parse(clean) != null) return null
         return when {
             LODGING_FIND.containsMatchIn(clean) || LODGING_NEAR.containsMatchIn(clean) -> PhoneJob(
@@ -136,7 +136,7 @@ object ImplicitAppRouter {
     }
 
     fun resolve(goal: String, installed: List<InstalledApp>): ImplicitAppChoice? {
-        val phoneJob = job(goal) ?: return null
+        val phoneJob = job(goal, installed) ?: return null
         val ranked = installed.mapNotNull { app ->
             val index = phoneJob.packages.indexOf(app.packageName)
             val hintHit = phoneJob.labelHints.any { hint ->
@@ -191,6 +191,10 @@ object InstalledAppInventory {
 
     fun replace(apps: List<InstalledApp>) {
         snapshot = apps
+    }
+
+    fun refresh(context: android.content.Context) {
+        replace(runCatching { fromLauncher(context) }.getOrElse { emptyList() })
     }
 
     fun fromLauncher(context: android.content.Context): List<InstalledApp> {

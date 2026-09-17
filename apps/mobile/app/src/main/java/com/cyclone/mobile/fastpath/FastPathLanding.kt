@@ -73,7 +73,7 @@ object FastPathLanding {
 
     private val URL = Regex("(?i)https?://[^\\s]+")
     private val HOST = Regex("(?i)\\b(?:[a-z0-9-]+\\.)+[a-z]{2,}\\b")
-    private val DESTINATION_CUE = Regex("(?i)(?:open|launch|start|go to|navigate to|on|in)\\s+(?:the\\s+|my\\s+)?$")
+    private val DESTINATION_CUE = Regex("(?i)(?:open|launch|start|go to|navigate to|on|in|then)\\s+(?:the\\s+|my\\s+)?$")
     private val INSTRUMENT_CUE = Regex("(?i)(?:using|with|via)\\s+(?:the\\s+|my\\s+)?$")
 
     fun resolve(goal: String, installed: List<InstalledApp> = InstalledAppInventory.snapshot): FastPathLandingHint? {
@@ -99,7 +99,7 @@ object FastPathLanding {
             )
         }
 
-        namedApp(trimmed)?.let { (alias, packageName) ->
+        namedApp(trimmed, installed)?.let { (alias, packageName) ->
             return FastPathLandingHint(
                 tool = "phone.open_app",
                 packageName = packageName,
@@ -123,23 +123,24 @@ object FastPathLanding {
         return null
     }
 
-    fun namedAppHits(goal: String): List<NamedAppHit> {
+    fun namedAppHits(goal: String, installed: List<InstalledApp> = InstalledAppInventory.snapshot): List<NamedAppHit> {
         val lower = goal.lowercase()
         val hits = mutableListOf<NamedAppHit>()
         val packages = mutableSetOf<String>()
-        APP_PACKAGE_ALIASES.entries
-            .sortedByDescending { it.key.length }
-            .forEach { (alias, packageName) ->
-                if (packageName in packages) return@forEach
-                val match = Regex("(?i)(?<![\\p{L}\\p{N}])" + Regex.escape(alias) + "(?![\\p{L}\\p{N}])").find(lower)
+        InstalledAppLexicon.triggers(installed)
+            .sortedByDescending { it.alias.length }
+            .forEach { trigger ->
+                if (trigger.packageName in packages) return@forEach
+                val match = Regex("(?i)(?<![\\p{L}\\p{N}])" + Regex.escape(trigger.alias) + "(?![\\p{L}\\p{N}])").find(lower)
                     ?: return@forEach
-                packages += packageName
                 val before = lower.substring(0, match.range.first)
                 val destinationCue = DESTINATION_CUE.containsMatchIn(before)
                 val instrumentCue = INSTRUMENT_CUE.containsMatchIn(before)
+                if (trigger.generic && !destinationCue) return@forEach
+                packages += trigger.packageName
                 hits += NamedAppHit(
-                    alias = alias,
-                    packageName = packageName,
+                    alias = trigger.alias,
+                    packageName = trigger.packageName,
                     index = match.range.first,
                     destinationCue = destinationCue,
                     instrumentOnly = instrumentCue && !destinationCue,
@@ -148,8 +149,8 @@ object FastPathLanding {
         return hits.sortedBy { it.index }
     }
 
-    fun namedApp(goal: String): Pair<String, String>? {
-        val hits = namedAppHits(goal)
+    fun namedApp(goal: String, installed: List<InstalledApp> = InstalledAppInventory.snapshot): Pair<String, String>? {
+        val hits = namedAppHits(goal, installed)
         if (hits.isEmpty()) return null
         val preferred = hits.filterNot { it.instrumentOnly }.ifEmpty { hits }
         val chosen = preferred.minWithOrNull(
@@ -158,6 +159,13 @@ object FastPathLanding {
                 .thenBy { it.index },
         ) ?: return null
         return chosen.alias to chosen.packageName
+    }
+
+    fun packageForName(name: String, installed: List<InstalledApp> = InstalledAppInventory.snapshot): String? {
+        val clean = name.trim()
+        if (clean.isBlank()) return null
+        namedApp(clean, installed)?.second?.let { return it }
+        return namedApp("open $clean", installed)?.second
     }
 
     fun sanitizeUri(raw: String): String? {

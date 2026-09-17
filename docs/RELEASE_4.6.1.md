@@ -15,6 +15,7 @@ There is no per-app pipeline. Named-app aliases, web fallbacks, and planner land
 - `phone.open_app` / `phone.launch_intent` do not require the pre-launch observation ID. Launcher churn is not STALE_OBSERVATION.
 - Website fallback runs only when the app is not installed (`APP_NOT_FOUND`). A successful (or in-progress) open stays in that app.
 - When several app names appear, destination cues (`open` / `on` / `in`) beat instrument cues (`using` / `with` / `via`).
+- Easy named-app opens use the launcher inventory. “open Spotify” / “open TikTok” work for any installed app, not a hardcoded alias list. Nicknames (`fb`, `insta`) still work.
 - Empty loading screens wait locally instead of spending a model turn.
 - OpenRouter `provider.deadline` is recoverable. `NO_PROVIDER_AVAILABLE` and auth/model misses pause for a human instead of HARD_BLOCKER.
 

@@ -59,9 +59,7 @@ object UserMdRuntime {
         val slice = document.slice(goal)
         if (slice.askWhich.isNotEmpty()) return null
         val app = slice.preferredApp ?: return null
-        val packageName = FastPathLanding.APP_PACKAGE_ALIASES.entries.firstOrNull { (alias, _) ->
-            alias.equals(app, ignoreCase = true)
-        }?.value ?: return null
+        val packageName = FastPathLanding.packageForName(app) ?: return null
         return FastPathLandingHint(
             tool = "phone.open_app",
             packageName = packageName,

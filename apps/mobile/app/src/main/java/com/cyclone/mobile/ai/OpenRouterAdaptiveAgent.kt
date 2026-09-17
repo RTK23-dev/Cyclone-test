@@ -302,9 +302,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         graphAttempts: MutableSet<String>,
         onProgress: (String) -> Unit,
     ): ActiveLocalSession {
-        InstalledAppInventory.replace(
-            runCatching { InstalledAppInventory.fromLauncher(context) }.getOrElse { emptyList() },
-        )
+        InstalledAppInventory.refresh(context)
         val session = LocalSessionContext(
             traceId = traceId,
             goal = goal,

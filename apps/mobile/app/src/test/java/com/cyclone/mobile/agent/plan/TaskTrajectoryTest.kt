@@ -21,6 +21,19 @@ class TaskTrajectoryTest {
     }
 
     @Test
+    fun installedAppOpenSeedsLocalLandingWithoutAnAlias() {
+        InstalledAppInventory.replace(listOf(InstalledApp("com.spotify.music", "Spotify")))
+        try {
+            val trajectory = TaskTrajectory.seed("open Spotify")
+            assertEquals(TaskDifficultyTier.EASY, trajectory.tier)
+            assertEquals(WaypointKind.OPEN_APP, trajectory.waypoints.first().kind)
+            assertEquals("com.spotify.music", trajectory.waypoints.first().packageName)
+        } finally {
+            InstalledAppInventory.replace(emptyList())
+        }
+    }
+
+    @Test
     fun unnamedHotelJobSeedsTheInstalledMapsLanding() {
         InstalledAppInventory.replace(
             listOf(InstalledApp("com.google.android.apps.maps", "Maps", 2)),

@@ -57,6 +57,7 @@ class ImplicitAppRouterTest {
         assertNull(ImplicitAppRouter.job("open Facebook"))
         assertNull(ImplicitAppRouter.job("DM Jacob on Instagram that I am late"))
         assertNull(ImplicitAppRouter.resolve("open Maps", pixel))
+        assertNull(ImplicitAppRouter.job("open Spotify", pixel + InstalledApp("com.spotify.music", "Spotify")))
     }
 
     @Test

@@ -77,7 +77,7 @@ object TaskDifficulty {
         if (EXTRA_WORK.containsMatchIn(goal)) return false
         val leftover = goal.lowercase()
             .replace(named.first, " ", ignoreCase = true)
-            .replace(Regex("(?i)\\b(open|launch|start|go to|please|the|app)\\b"), " ")
+            .replace(Regex("(?i)\\b(open|launch|start|go to|navigate to|please|the|app|my)\\b"), " ")
             .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
             .trim()
         return leftover.isEmpty()

@@ -35,7 +35,7 @@ class TaskDifficultyTest {
     fun hardIsTwoDestinationsAndUsesALocalPlan() {
         assertEquals(TaskDifficultyTier.HARD, TaskDifficulty.classify("open Gmail then send this to WhatsApp"))
         assertEquals(TaskDifficultyTier.HARD, TaskDifficulty.classify("open Facebook then share the post on Instagram"))
-        assertEquals(TaskDifficultyTier.HARD, TaskDifficulty.classify("go to shopify.com then email the receipt with Gmail"))
+        assertEquals(TaskDifficultyTier.HARD, TaskDifficulty.classify("go to shopify.com then email the receipt in Gmail"))
         val assessment = TaskDifficulty.assess("open Gmail then send this to WhatsApp")
         assertEquals(2, assessment.destinationCount)
         assertTrue(assessment.localHardPlan)
@@ -59,5 +59,26 @@ class TaskDifficultyTest {
         val assessment = TaskDifficulty.assess("open chrome and go to shopify.com")
         assertEquals(1, assessment.destinationCount)
         assertEquals(TaskDifficultyTier.EASY, assessment.tier)
+    }
+
+    @Test
+    fun easyOpenUsesInstalledLauncherInventory() {
+        com.cyclone.mobile.fastpath.InstalledAppInventory.replace(
+            listOf(
+                com.cyclone.mobile.fastpath.InstalledApp("com.spotify.music", "Spotify"),
+                com.cyclone.mobile.fastpath.InstalledApp("com.zhiliaoapp.musically", "TikTok"),
+            ),
+        )
+        try {
+            assertEquals(TaskDifficultyTier.EASY, TaskDifficulty.classify("open Spotify"))
+            assertEquals(TaskDifficultyTier.EASY, TaskDifficulty.classify("open my TikTok"))
+            assertTrue(TaskDifficulty.isNamedAppOpenOnly("open Spotify"))
+            assertEquals(TaskDifficultyTier.MEDIUM, TaskDifficulty.classify("open Spotify and play a song"))
+            assertEquals(TaskDifficultyTier.HARD, TaskDifficulty.classify("open Spotify then TikTok"))
+            assertEquals(1, TaskDifficulty.namedAppCount("open Spotify"))
+            assertEquals(2, TaskDifficulty.namedAppCount("open Spotify then TikTok"))
+        } finally {
+            com.cyclone.mobile.fastpath.InstalledAppInventory.replace(emptyList())
+        }
     }
 }

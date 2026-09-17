@@ -111,6 +111,8 @@ object RequestIntentRouter {
         val clean = text.trim()
         val normalized = clean.lowercase().replace(Regex("\\s+"), " ")
         val appHint = appPatterns.firstOrNull { it.regex.containsMatchIn(normalized) }?.canonical
+            ?: com.cyclone.mobile.fastpath.FastPathLanding.namedApp(clean)?.first
+                ?.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
         if (normalized.isBlank()) {
             return chat(

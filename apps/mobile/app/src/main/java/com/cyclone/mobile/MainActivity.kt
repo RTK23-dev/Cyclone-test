@@ -22,6 +22,7 @@ import com.cyclone.mobile.automation.AutomationRuntime
 import com.cyclone.mobile.brain.AdaptiveBrainRuntime
 import com.cyclone.mobile.brain.BrainChatRuntime
 import com.cyclone.mobile.brain.CycloneBrainRuntime
+import com.cyclone.mobile.fastpath.InstalledAppInventory
 import com.cyclone.mobile.guided.RoutineTeachingRuntime
 import com.cyclone.mobile.gateway.GatewayDesktopPairingManager
 import com.cyclone.mobile.skills.SkillRuntime
@@ -90,6 +91,7 @@ class MainActivity : ComponentActivity() {
         AdaptiveBrainRuntime.initialize(this)
         BrainChatRuntime.initialize(this)
         RoutineTeachingRuntime.initialize(this)
+        InstalledAppInventory.refresh(this)
 
         val v31 = CycloneV31Runtime.initialize(this)
         CycloneV31ProductIntegration.install(this, v31)

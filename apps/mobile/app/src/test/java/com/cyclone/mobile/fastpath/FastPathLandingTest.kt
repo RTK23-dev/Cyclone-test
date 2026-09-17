@@ -92,4 +92,29 @@ class FastPathLandingTest {
         assertEquals("phone.open_app", FastPathLanding.resolve("open fb")?.tool)
         assertEquals("com.instagram.android", FastPathLanding.namedApp("DM Jacob on insta")?.second)
     }
+
+    @Test
+    fun easyOpenUsesAnyInstalledLauncherLabel() {
+        val installed = listOf(
+            InstalledApp("com.spotify.music", "Spotify"),
+            InstalledApp("com.zhiliaoapp.musically", "TikTok"),
+            InstalledApp("com.booking", "Booking.com"),
+            InstalledApp("org.thoughtcrime.securesms", "Signal"),
+            InstalledApp("com.google.android.dialer", "Phone"),
+        )
+        assertEquals("com.spotify.music", FastPathLanding.namedApp("open Spotify", installed)?.second)
+        assertEquals("com.zhiliaoapp.musically", FastPathLanding.namedApp("open TikTok", installed)?.second)
+        assertEquals("com.booking", FastPathLanding.namedApp("open Booking", installed)?.second)
+        assertEquals("org.thoughtcrime.securesms", FastPathLanding.namedApp("open Signal", installed)?.second)
+        val hint = FastPathLanding.resolve("open Spotify", installed)
+        assertEquals("phone.open_app", hint?.tool)
+        assertEquals("com.spotify.music", hint?.packageName)
+        assertTrue(hint!!.workspaceNamedApp)
+        assertNull(FastPathLanding.namedApp("open Spotify"))
+        assertNull(FastPathLanding.namedApp("my phone is slow", installed))
+        assertEquals("com.google.android.dialer", FastPathLanding.namedApp("open Phone", installed)?.second)
+        assertEquals("com.facebook.katana", FastPathLanding.namedApp("open fb", installed)?.second)
+        assertEquals("com.spotify.music", FastPathLanding.packageForName("Spotify", installed))
+        assertEquals("org.thoughtcrime.securesms", FastPathLanding.packageForName("Signal", installed))
+    }
 }
