@@ -80,7 +80,7 @@ object FastPathLanding {
         val trimmed = goal.trim()
         if (trimmed.isBlank()) return null
 
-        NavigationIntent.parse(trimmed)?.let { intent ->
+        NavigationIntent.parse(trimmed, installed)?.let { intent ->
             val host = intent.target.removePrefix("https://").removePrefix("http://").removePrefix("www.")
             val uri = if ('.' in host) "https://$host" else "https://$host.com"
             return FastPathLandingHint(

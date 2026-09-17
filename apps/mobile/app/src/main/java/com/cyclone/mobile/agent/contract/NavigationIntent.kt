@@ -1,6 +1,9 @@
 package com.cyclone.mobile.agent.contract
 
 import java.net.URI
+import com.cyclone.mobile.fastpath.FastPathLanding
+import com.cyclone.mobile.fastpath.InstalledApp
+import com.cyclone.mobile.fastpath.InstalledAppInventory
 
 /** Narrow intent captured from the user's task, never from model-provided authorization flags. */
 data class NavigationIntent(val target: String, val chrome: Boolean) {
@@ -40,21 +43,25 @@ data class NavigationIntent(val target: String, val chrome: Boolean) {
             "(?i)^(?:please\\s+)?(?:open|launch)\\s+(?:google\\s+)?chrome\\s+(?:and\\s+)?(?:then\\s+)?(?:open|go to|navigate to)\\s+(?:the\\s+)?([a-z0-9.-]+)(?:\\s+(?:website|site))?[.!]?$",
         )
 
-        fun parse(goal: String): NavigationIntent? {
+        fun parse(
+            goal: String,
+            installed: List<InstalledApp> = InstalledAppInventory.snapshot,
+        ): NavigationIntent? {
             val clean = goal.trim()
             CHROME_THEN_SITE.matchEntire(clean)?.let { match ->
-                return candidate(match.groupValues[1], chrome = true)
+                return candidate(match.groupValues[1], chrome = true, installed = installed)
             }
             val match = SIMPLE.matchEntire(clean) ?: return null
-            return candidate(match.groupValues[1], match.groupValues[2].isNotBlank())
+            return candidate(match.groupValues[1], match.groupValues[2].isNotBlank(), installed)
         }
 
-        private fun candidate(raw: String, chrome: Boolean): NavigationIntent? {
+        private fun candidate(raw: String, chrome: Boolean, installed: List<InstalledApp>): NavigationIntent? {
             val target = raw.lowercase().trimEnd('.')
             val intent = NavigationIntent(target, chrome)
             if ('.' in target) return intent.takeIf { it.accepts(target) }
             if (!Regex("[a-z][a-z0-9-]*").matches(target)) return null
             if (target in NAMED_APPS) return null
+            if (FastPathLanding.packageForName(target, installed) != null) return null
             return intent
         }
 

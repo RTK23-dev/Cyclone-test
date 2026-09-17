@@ -95,7 +95,7 @@ object ImplicitAppRouter {
         val clean = goal.trim()
         if (clean.isBlank()) return null
         if (FastPathLanding.namedApp(clean, installed) != null) return null
-        if (com.cyclone.mobile.agent.contract.NavigationIntent.parse(clean) != null) return null
+        if (com.cyclone.mobile.agent.contract.NavigationIntent.parse(clean, installed) != null) return null
         return when {
             LODGING_FIND.containsMatchIn(clean) || LODGING_NEAR.containsMatchIn(clean) -> PhoneJob(
                 id = "lodging",

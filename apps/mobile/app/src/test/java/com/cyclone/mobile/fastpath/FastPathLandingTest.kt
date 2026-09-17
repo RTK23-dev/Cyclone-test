@@ -111,6 +111,8 @@ class FastPathLandingTest {
         assertEquals("com.spotify.music", hint?.packageName)
         assertTrue(hint!!.workspaceNamedApp)
         assertNull(FastPathLanding.namedApp("open Spotify"))
+        assertNull(com.cyclone.mobile.agent.contract.NavigationIntent.parse("open Spotify", installed))
+        assertEquals("https://ad.nl", FastPathLanding.resolve("Open ad.nl", installed)?.uri)
         assertNull(FastPathLanding.namedApp("my phone is slow", installed))
         assertEquals("com.google.android.dialer", FastPathLanding.namedApp("open Phone", installed)?.second)
         assertEquals("com.facebook.katana", FastPathLanding.namedApp("open fb", installed)?.second)
