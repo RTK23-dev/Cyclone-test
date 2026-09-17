@@ -275,7 +275,7 @@ private fun StandardIntelligencePanel(modelId: String, effort: String, onChange:
     val canonical = OpenRouterCatalogStore.canonicalId(modelId)
 
     Column(
-        Modifier.widthIn(min = 252.dp, max = 320.dp).padding(horizontal = 12.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(11.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

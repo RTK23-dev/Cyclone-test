@@ -185,6 +185,11 @@ class CycloneV39AiChatPageTest {
         assertTrue(page.contains("CycloneModelPickerList("))
         assertTrue(page.contains("AskCycloneOrb()"))
         assertFalse(page.contains("CycloneOrbitMark(Modifier.size(72"))
+        assertTrue(page.contains("askCycloneCanvasBrush()"))
+        assertTrue(page.contains("Color(0xFF000000)"))
+        val tools = page.indexOf("CycloneAttachmentTools(")
+        val intelligence = page.indexOf("CycloneModelIntelligencePanel(")
+        assertTrue(tools in 0 until intelligence)
     }
 
     @Test fun plusPanelAndVoiceStayBehindOneComposer() {

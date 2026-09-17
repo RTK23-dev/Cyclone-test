@@ -21,6 +21,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,11 +38,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Apps
@@ -55,7 +58,6 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Stop
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -181,7 +183,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
     var chatJob by remember { mutableStateOf<Job?>(null) }
     var composer by rememberSaveable { mutableStateOf("") }
     var toolsOpen by remember { mutableStateOf(false) }
-    var intelligenceOpen by remember { mutableStateOf(false) }
     var voiceOpen by remember { mutableStateOf(false) }
     var modelMenuOpen by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
@@ -283,7 +284,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
 
     fun startVoice() {
         toolsOpen = false
-        intelligenceOpen = false
         modelMenuOpen = false
         voiceOpen = true
         runCatching {
@@ -327,7 +327,11 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(askCycloneCanvasBrush()),
+    ) {
         Column(
             Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -335,56 +339,57 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             AskCycloneHeader(
                 onMenu = onSettings,
                 onProfile = onSettings,
-                keyboardOpen = keyboardOpen,
                 model = {
-                    if (!keyboardOpen) {
-                        CycloneModelPill(
-                            modelId = selectedModelId,
-                            effort = reasoningEffort,
-                            enabled = !session.busy,
-                            compactHeader = true,
-                            expandInLayout = false,
-                            expanded = modelMenuOpen,
-                            onExpandedChange = {
-                                modelMenuOpen = it
-                                if (it) toolsOpen = false
-                            },
-                            onChange = ::persistAiControls,
-                        )
-                    }
+                    CycloneModelPill(
+                        modelId = selectedModelId,
+                        effort = reasoningEffort,
+                        enabled = !session.busy,
+                        compactHeader = true,
+                        expandInLayout = false,
+                        expanded = modelMenuOpen,
+                        onExpandedChange = {
+                            modelMenuOpen = it
+                            if (it) toolsOpen = false
+                        },
+                        onChange = ::persistAiControls,
+                    )
                 },
             )
 
-            LazyColumn(
-                Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(if (emptyCanvas) 0.dp else 12.dp),
-                contentPadding = PaddingValues(top = if (keyboardOpen) 2.dp else 4.dp, bottom = 8.dp),
-            ) {
-                if (emptyCanvas && !keyboardOpen) {
-                    item { AskCycloneEmptyState() }
-                } else if (session.messages.isNotEmpty()) {
-                    items(session.messages, key = { it.id }) { V39ChatBubble(it) }
+            if (emptyCanvas && composer.isBlank()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    AskCycloneEmptyState()
                 }
+            } else {
+                LazyColumn(
+                    Modifier.weight(1f).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(top = if (keyboardOpen) 2.dp else 4.dp, bottom = 8.dp),
+                ) {
+                    if (session.messages.isNotEmpty()) {
+                        items(session.messages, key = { it.id }) { V39ChatBubble(it) }
+                    }
 
-                if (session.busy || session.status.isNotBlank()) {
-                    item {
-                        Box(
-                            Modifier
-                                .fillMaxWidth(.72f)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(MaterialTheme.colorScheme.surface.copy(alpha = .56f)),
-                        ) {
-                            Row(
-                                Modifier.padding(horizontal = 13.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    if (session.busy || session.status.isNotBlank()) {
+                        item {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth(.72f)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = .56f)),
                             ) {
-                                if (session.busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                                Text(
-                                    if (session.busy) "Thinking…" else session.status,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
+                                Row(
+                                    Modifier.padding(horizontal = 13.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                                ) {
+                                    if (session.busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Text(
+                                        if (session.busy) "Thinking…" else session.status,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                }
                             }
                         }
                     }
@@ -438,64 +443,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                 Text("Attachment ready", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
             }
 
-            if (intelligenceOpen) {
-                CycloneLiquidPanel(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 24.dp,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                ) {
-                    CycloneModelIntelligencePanel(
-                        modelId = selectedModelId,
-                        effort = reasoningEffort,
-                        showModelSelector = false,
-                        onChange = ::persistAiControls,
-                    )
-                }
-            }
-
-            AnimatedVisibility(
-                visible = toolsOpen,
-                enter = slideInVertically { it / 6 } + fadeIn(),
-                exit = slideOutVertically { it / 6 } + fadeOut(),
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = .96f),
-                    tonalElevation = 0.dp,
-                    shadowElevation = 0.dp,
-                ) {
-                    CycloneAttachmentTools(
-                        onCamera = { openCamera() },
-                        onFiles = { openFiles() },
-                        onShareScreen = { shareScreen() },
-                        tileExtras = listOf(
-                            Icons.Rounded.CropOriginal to "Take screenshot",
-                            Icons.Rounded.Apps to "Open app",
-                            Icons.Rounded.Edit to "Write text",
-                        ),
-                        extras = listOf(
-                            Icons.Rounded.Bolt to "Create a routine",
-                            Icons.Rounded.AutoAwesome to "Deep research",
-                            Icons.Rounded.Visibility to "Explain this screen",
-                            Icons.Rounded.Tune to "Model & intelligence",
-                        ),
-                        onExtra = { label ->
-                            toolsOpen = false
-                            when (label) {
-                                "Take screenshot" -> composer = "Take a screenshot"
-                                "Open app" -> composer = "Open "
-                                "Write text" -> composer = ""
-                                "Explain this screen" -> shareScreen()
-                                "Create a routine" -> composer = "Create a routine"
-                                "Deep research" -> composer = "Research "
-                                "Model & intelligence" -> intelligenceOpen = true
-                            }
-                        },
-                    )
-                }
-            }
-
             CycloneLiquidPanel(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                 cornerRadius = 30.dp,
@@ -524,7 +471,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         CycloneTrayIconAction(
                             onClick = {
                                 toolsOpen = !toolsOpen
-                                if (toolsOpen) intelligenceOpen = false
+                                if (toolsOpen) modelMenuOpen = false
                             },
                             enabled = !session.busy,
                             modifier = Modifier.size(44.dp),
@@ -612,7 +559,79 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             }
         }
 
-        if (modelMenuOpen && !keyboardOpen) {
+        AnimatedVisibility(
+            visible = toolsOpen,
+            modifier = Modifier.matchParentSize().zIndex(3f),
+            enter = fadeIn() + slideInVertically { it / 5 },
+            exit = fadeOut() + slideOutVertically { it / 5 },
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = .28f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { toolsOpen = false },
+                        ),
+                )
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .heightIn(max = 560.dp)
+                        .padding(horizontal = 10.dp, bottom = 8.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = .98f),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                ) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 8.dp),
+                    ) {
+                        CycloneAttachmentTools(
+                            onCamera = { openCamera() },
+                            onFiles = { openFiles() },
+                            onShareScreen = { shareScreen() },
+                            tileExtras = listOf(
+                                Icons.Rounded.CropOriginal to "Take screenshot",
+                                Icons.Rounded.Apps to "Open app",
+                                Icons.Rounded.Edit to "Write text",
+                            ),
+                            extras = listOf(
+                                Icons.Rounded.Bolt to "Create a routine",
+                                Icons.Rounded.AutoAwesome to "Deep research",
+                                Icons.Rounded.Visibility to "Explain this screen",
+                            ),
+                            onExtra = { label ->
+                                toolsOpen = false
+                                when (label) {
+                                    "Take screenshot" -> composer = "Take a screenshot"
+                                    "Open app" -> composer = "Open "
+                                    "Write text" -> composer = ""
+                                    "Explain this screen" -> shareScreen()
+                                    "Create a routine" -> composer = "Create a routine"
+                                    "Deep research" -> composer = "Research "
+                                }
+                            },
+                        )
+                        CycloneModelIntelligencePanel(
+                            modelId = selectedModelId,
+                            effort = reasoningEffort,
+                            showModelSelector = false,
+                            onChange = ::persistAiControls,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (modelMenuOpen) {
+            if (!keyboardOpen) {
             Box(Modifier.matchParentSize().zIndex(4f)) {
                 Box(
                     Modifier
@@ -639,6 +658,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                     )
                 }
             }
+            }
         }
 
         if (voiceOpen) {
@@ -651,7 +671,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
 private fun AskCycloneHeader(
     onMenu: () -> Unit,
     onProfile: () -> Unit,
-    keyboardOpen: Boolean,
     model: @Composable () -> Unit,
 ) {
     Row(
@@ -673,16 +692,7 @@ private fun AskCycloneHeader(
             Icon(Icons.Rounded.Menu, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurface)
         }
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (keyboardOpen) {
-                Text(
-                    "Ask Cyclone",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            } else {
-                model()
-            }
+            model()
         }
         Box(
             Modifier
@@ -700,9 +710,11 @@ private fun AskCycloneHeader(
 @Composable
 private fun AskCycloneEmptyState() {
     Column(
-        Modifier.fillMaxWidth().padding(top = 36.dp, bottom = 8.dp),
+        Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = "Tell Cyclone what to do on your phone." },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         AskCycloneOrb()
         Text(
@@ -711,10 +723,22 @@ private fun AskCycloneEmptyState() {
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Text(
-            "Tell Cyclone what to do on your phone.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+    }
+}
+
+@Composable
+private fun askCycloneCanvasBrush(): Brush {
+    return if (isSystemInDarkTheme()) {
+        Brush.verticalGradient(
+            0f to Color(0xFF1A4A86),
+            0.34f to Color(0xFF0B1A33),
+            1f to Color(0xFF000000),
+        )
+    } else {
+        Brush.verticalGradient(
+            0f to Color(0xFFFCFDFE),
+            0.42f to Color(0xFFF3F6FA),
+            1f to Color(0xFFD4E6F8),
         )
     }
 }
@@ -731,7 +755,7 @@ private fun AskCycloneOrb() {
         ),
         label = "glow",
     )
-    Canvas(Modifier.size(176.dp)) {
+    Canvas(Modifier.size(88.dp)) {
         val c = center
         val r = size.minDimension / 2f
         drawCircle(
@@ -743,7 +767,7 @@ private fun AskCycloneOrb() {
             radius = r,
             center = c,
         )
-        val orb = r * 0.40f
+        val orb = r * 0.52f
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(Color(0xFFB9D4FF), Color(0xFF4D7DFF), Color(0xFF1C3F9C), Color(0xFF14245A)),

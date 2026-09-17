@@ -1,22 +1,22 @@
-# Cyclone Mobile 4.6.2: Ask Cyclone workspace matching the design board
+# Cyclone Mobile 4.6.3: Ask Cyclone Gemini canvas
 schema = 1
-product_version = "4.6.2"
+product_version = "4.6.3"
 channel = "development"
-android_version_code = 122
+android_version_code = 123
 python_version = "4.1.0"
 
 [components]
-mobile = "4.6.2"
+mobile = "4.6.3"
 pc_companion = "1.5.5"
 device_gateway = "4.1.0"
 mcp = "4.1.0"
 
 [release]
-previous_mobile_version = "4.6.1"
+previous_mobile_version = "4.6.2"
 publication_authorized = true
 physical_pixel8 = "UNVERIFIED"
 physical_pixel8_ui_acceptance = "UNVERIFIED"
 android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-4.6.2-release-ci"
+candidate_generation = "cyclone-4.6.3-release-ci"
