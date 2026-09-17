@@ -170,12 +170,14 @@ class CycloneV39AiChatPageTest {
         assertFalse(design.substringAfter("fun CycloneGlassSurface").contains("shadowElevation = 4.dp"))
     }
 
-    @Test fun alpineEmptyStateUsesPreferredProgressComposition() {
+    @Test fun dotFieldEmptyStateUsesPreferredAskComposition() {
         val page = source("CycloneV39AiChatPage.kt")
         assertFalse(page.contains("CycloneAlpineBackdrop"))
         assertTrue(page.contains("\"Ask Cyclone\""))
-        assertTrue(page.contains("\"Ready when you are\""))
-        assertTrue(page.contains("\"Tell Cyclone what to do on your phone.\""))
+        assertTrue(page.contains("\"Good morning\""))
+        assertTrue(page.contains("\"Good afternoon\""))
+        assertTrue(page.contains("\"Good evening\""))
+        assertTrue(page.contains("\"What can I do for you?\""))
         assertFalse(page.contains("progress today"))
         assertFalse(page.contains("Ideas become real"))
         assertFalse(page.contains("Contributor · prompts and responses may be used for training."))
@@ -185,9 +187,10 @@ class CycloneV39AiChatPageTest {
         assertTrue(page.contains("expandInLayout = false"))
         assertTrue(page.contains("CycloneModelPickerList("))
         assertTrue(page.contains("AskCycloneOrb()"))
-        assertFalse(page.contains("CycloneOrbitMark(Modifier.size(72"))
+        assertTrue(page.contains("AskCycloneDotField(Modifier.matchParentSize())"))
         assertTrue(page.contains("askCycloneCanvasBrush()"))
-        assertTrue(page.contains("Color(0xFF000000)"))
+        assertTrue(page.contains("if (isSystemInDarkTheme()) Color.Black else Color.White"))
+        assertTrue(page.contains("padding(bottom = 48.dp)"))
         val tools = page.indexOf("CycloneAttachmentTools(")
         val intelligence = page.indexOf("CycloneModelIntelligencePanel(")
         assertTrue(tools in 0 until intelligence)
