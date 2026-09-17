@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -29,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,6 +64,11 @@ private fun modelSubtitle(model: OpenRouterModelPreset): String = when (model.id
     else -> "Cyclone model"
 }
 
+internal fun cycloneShortModelLabel(label: String): String {
+    val core = label.substringAfter(':').trim().ifBlank { label }
+    return core.split(Regex("\\s+")).filter { it.isNotBlank() }.take(2).joinToString(" ").ifBlank { "Cyclone" }
+}
+
 private enum class OverlaySettingsStep { MODEL, INTELLIGENCE, AUTONOMY }
 
 @Composable
@@ -73,6 +80,29 @@ fun CycloneModelIntelligencePanel(
 ) {
     if (showModelSelector) OverlaySettingsWizard(modelId, effort, onChange)
     else StandardIntelligencePanel(modelId, effort, onChange)
+}
+
+@Composable
+internal fun CycloneModelPickerList(
+    modelId: String,
+    onChange: (String, String) -> Unit,
+    onDismiss: () -> Unit = {},
+) {
+    val context = LocalContext.current
+    val catalogRevision by OpenRouterCatalogStore.revision.collectAsState()
+    val pickerModels = remember(catalogRevision) { OpenRouterCatalogStore.picker(context) }
+    val currentModel = V39AiChatContract.modelForStored(modelId).let { model ->
+        model.takeIf { candidate -> pickerModels.any { it.id == candidate.id } }
+            ?: OpenRouterCatalogStore.preset(context, OpenRouterCatalogStore.activeId(context))
+    }
+    ModelPickerRows(pickerModels, currentModel) { option ->
+        OpenRouterCatalogStore.setActive(context, option.id)
+        onChange(
+            V39AiChatContract.storageId(option),
+            OpenRouterCatalogStore.reasoningSelection(context, option.id).orEmpty(),
+        )
+        onDismiss()
+    }
 }
 
 @Composable
@@ -290,17 +320,26 @@ private fun StandardIntelligencePanel(modelId: String, effort: String, onChange:
     }
 }
 
-/** Stable in-layout model picker: never moves backdrop-dependent controls into a Popup window. */
+/** Compact header trigger. Expansion is an overlay owned by the page so the canvas does not reflow. */
 @Composable
 fun CycloneModelPill(
     modelId: String,
     effort: String,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
+    compactHeader: Boolean = false,
+    expandInLayout: Boolean = true,
+    expanded: Boolean? = null,
+    onExpandedChange: ((Boolean) -> Unit)? = null,
     onChange: (String, String) -> Unit,
 ) {
     val context = LocalContext.current
-    var open by remember { mutableStateOf(false) }
+    var internalOpen by remember { mutableStateOf(false) }
+    val open = expanded ?: internalOpen
+    fun setOpen(value: Boolean) {
+        if (expanded == null) internalOpen = value
+        onExpandedChange?.invoke(value)
+    }
     val catalogRevision by OpenRouterCatalogStore.revision.collectAsState()
     val pickerModels = remember(catalogRevision) { OpenRouterCatalogStore.picker(context) }
     val currentModel = V39AiChatContract.modelForStored(modelId).let { model ->
@@ -314,15 +353,41 @@ fun CycloneModelPill(
         ?: "Model controlled"
 
     Column(modifier, horizontalAlignment = Alignment.Start, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        CycloneLiquidMenuTrigger(
-            title = "Model",
-            value = "${currentModel.label} · $intelligenceLabel",
-            onClick = { if (enabled) open = !open },
-            modifier = Modifier.widthIn(max = 240.dp),
-            compact = true,
-            enabled = enabled,
-        )
-        if (open) {
+        if (compactHeader) {
+            Row(
+                modifier = Modifier
+                    .heightIn(min = 44.dp)
+                    .clickable(enabled = enabled, role = Role.Button) { setOpen(!open) }
+                    .padding(end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    cycloneShortModelLabel(currentModel.label.ifBlank { "Cyclone" }),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = "Choose model",
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            CycloneLiquidMenuTrigger(
+                title = "Model",
+                value = "${currentModel.label} · $intelligenceLabel",
+                onClick = { if (enabled) setOpen(!open) },
+                modifier = Modifier.widthIn(max = 240.dp),
+                compact = true,
+                enabled = enabled,
+            )
+        }
+        if (open && expandInLayout) {
             CycloneLiquidPanel(
                 modifier = Modifier.widthIn(min = 268.dp, max = 320.dp),
                 cornerRadius = 22.dp,
@@ -334,7 +399,7 @@ fun CycloneModelPill(
                         V39AiChatContract.storageId(option),
                         OpenRouterCatalogStore.reasoningSelection(context, option.id).orEmpty(),
                     )
-                    open = false
+                    setOpen(false)
                 }
             }
         }

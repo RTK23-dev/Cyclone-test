@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.ScreenShare
@@ -202,6 +204,7 @@ internal fun CycloneAttachmentTools(
     onFiles: () -> Unit,
     onShareScreen: () -> Unit,
     extras: List<Pair<ImageVector, String>> = emptyList(),
+    tileExtras: List<Pair<ImageVector, String>> = emptyList(),
     onExtra: (String) -> Unit = {},
 ) {
     Column(
@@ -217,18 +220,24 @@ internal fun CycloneAttachmentTools(
                     .background(MaterialTheme.colorScheme.outline.copy(alpha = .45f)),
             )
         }
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            CyclonePlusTile(Icons.Rounded.CameraAlt, "Camera", Modifier.weight(1f), onCamera)
-            CyclonePlusTile(Icons.Rounded.PhotoLibrary, "Photos", Modifier.weight(1f), onFiles)
+        val tiles = buildList {
+            add(Triple(Icons.Rounded.CameraAlt, "Camera", onCamera))
+            add(Triple(Icons.Rounded.PhotoLibrary, "Photos", onFiles))
+            add(Triple(Icons.Rounded.AttachFile, "Files & photos", onFiles))
+            tileExtras.forEach { (icon, label) -> add(Triple(icon, label, { onExtra(label) })) }
+        }
+        tiles.chunked(3).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { (icon, label, click) ->
+                    CyclonePlusTile(icon, label, Modifier.weight(1f), click)
+                }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
         }
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             extras.forEach { (icon, label) ->
                 CycloneAttachmentToolRow(icon, label) { onExtra(label) }
             }
-            CycloneAttachmentToolRow(Icons.Rounded.AttachFile, "Files & photos", onFiles)
             CycloneAttachmentToolRow(Icons.Rounded.ScreenShare, "Share screen", onShareScreen)
         }
     }
@@ -243,10 +252,10 @@ private fun CyclonePlusTile(
 ) {
     Surface(
         modifier = modifier
-            .heightIn(min = 88.dp)
+            .heightIn(min = 96.dp)
             .clickable(role = Role.Button, onClick = onClick),
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .88f),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .78f),
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
@@ -285,6 +294,12 @@ private fun CycloneAttachmentToolRow(
                 Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
             }
         }
-        Text(label, style = MaterialTheme.typography.titleSmall)
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+        Icon(
+            Icons.Rounded.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

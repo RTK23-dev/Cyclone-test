@@ -17,8 +17,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,9 +50,10 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CropOriginal
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Menu
-import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Visibility
@@ -73,9 +76,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -84,6 +89,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.cyclone.mobile.ai.CycloneAiAccessProfile
 import com.cyclone.mobile.ai.OpenRouterModelPreset
 import com.cyclone.mobile.ai.OpenRouterModelPresets
@@ -177,6 +183,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
     var toolsOpen by remember { mutableStateOf(false) }
     var intelligenceOpen by remember { mutableStateOf(false) }
     var voiceOpen by remember { mutableStateOf(false) }
+    var modelMenuOpen by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     val catalogRevision by com.cyclone.mobile.ai.OpenRouterCatalogStore.revision.collectAsState()
     var selectedModelId by rememberSaveable(catalogRevision, refreshTick) {
@@ -277,6 +284,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
     fun startVoice() {
         toolsOpen = false
         intelligenceOpen = false
+        modelMenuOpen = false
         voiceOpen = true
         runCatching {
             dictation.launch(
@@ -307,6 +315,10 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
         context.startActivity(Intent(context, com.cyclone.mobile.capture.LiveCaptureConsentActivity::class.java))
     }
 
+    LaunchedEffect(keyboardOpen) {
+        if (keyboardOpen) modelMenuOpen = false
+    }
+
     LaunchedEffect(Unit) {
         session.pendingRequest.takeIf(String::isNotBlank)?.let {
             session.pendingRequest = ""
@@ -323,12 +335,20 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             AskCycloneHeader(
                 onMenu = onSettings,
                 onProfile = onSettings,
+                keyboardOpen = keyboardOpen,
                 model = {
                     if (!keyboardOpen) {
                         CycloneModelPill(
                             modelId = selectedModelId,
                             effort = reasoningEffort,
                             enabled = !session.busy,
+                            compactHeader = true,
+                            expandInLayout = false,
+                            expanded = modelMenuOpen,
+                            onExpandedChange = {
+                                modelMenuOpen = it
+                                if (it) toolsOpen = false
+                            },
                             onChange = ::persistAiControls,
                         )
                     }
@@ -341,7 +361,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                 contentPadding = PaddingValues(top = if (keyboardOpen) 2.dp else 4.dp, bottom = 8.dp),
             ) {
                 if (emptyCanvas && !keyboardOpen) {
-                    item { AskCycloneEmptyState(onSuggestion = { composer = it }) }
+                    item { AskCycloneEmptyState() }
                 } else if (session.messages.isNotEmpty()) {
                     items(session.messages, key = { it.id }) { V39ChatBubble(it) }
                 }
@@ -449,12 +469,15 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         onCamera = { openCamera() },
                         onFiles = { openFiles() },
                         onShareScreen = { shareScreen() },
-                        extras = listOf(
+                        tileExtras = listOf(
                             Icons.Rounded.CropOriginal to "Take screenshot",
                             Icons.Rounded.Apps to "Open app",
-                            Icons.Rounded.Visibility to "Explain this screen",
+                            Icons.Rounded.Edit to "Write text",
+                        ),
+                        extras = listOf(
                             Icons.Rounded.Bolt to "Create a routine",
                             Icons.Rounded.AutoAwesome to "Deep research",
+                            Icons.Rounded.Visibility to "Explain this screen",
                             Icons.Rounded.Tune to "Model & intelligence",
                         ),
                         onExtra = { label ->
@@ -462,6 +485,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                             when (label) {
                                 "Take screenshot" -> composer = "Take a screenshot"
                                 "Open app" -> composer = "Open "
+                                "Write text" -> composer = ""
                                 "Explain this screen" -> shareScreen()
                                 "Create a routine" -> composer = "Create a routine"
                                 "Deep research" -> composer = "Research "
@@ -546,12 +570,18 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                             RequestIntent.CHAT -> hasKey && !session.busy
                         }
                         if (composer.isBlank() && !session.busy) {
-                            CycloneTrayIconAction(
-                                onClick = { startVoice() },
-                                enabled = true,
-                                modifier = Modifier.size(46.dp),
+                            Surface(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clickable(role = Role.Button, onClick = { startVoice() }),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                                shadowElevation = 0.dp,
                             ) {
-                                Icon(Icons.Rounded.Mic, "Dictate request", Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Rounded.GraphicEq, "Voice mode", Modifier.size(22.dp))
+                                }
                             }
                         } else if (backdrop != null) {
                             CycloneKyantLiquidIconButton(
@@ -582,6 +612,35 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             }
         }
 
+        if (modelMenuOpen && !keyboardOpen) {
+            Box(Modifier.matchParentSize().zIndex(4f)) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = .18f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { modelMenuOpen = false },
+                        ),
+                )
+                CycloneLiquidPanel(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 56.dp, start = 24.dp, end = 24.dp)
+                        .fillMaxWidth(),
+                    cornerRadius = 22.dp,
+                    contentPadding = PaddingValues(6.dp),
+                ) {
+                    CycloneModelPickerList(
+                        modelId = selectedModelId,
+                        onChange = ::persistAiControls,
+                        onDismiss = { modelMenuOpen = false },
+                    )
+                }
+            }
+        }
+
         if (voiceOpen) {
             AskCycloneVoiceMode(onClose = { voiceOpen = false })
         }
@@ -592,12 +651,16 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
 private fun AskCycloneHeader(
     onMenu: () -> Unit,
     onProfile: () -> Unit,
+    keyboardOpen: Boolean,
     model: @Composable () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .semantics { contentDescription = "Ask Cyclone" },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Box(
             Modifier
@@ -609,14 +672,17 @@ private fun AskCycloneHeader(
         ) {
             Icon(Icons.Rounded.Menu, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurface)
         }
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "Ask Cyclone",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            model()
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (keyboardOpen) {
+                Text(
+                    "Ask Cyclone",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            } else {
+                model()
+            }
         }
         Box(
             Modifier
@@ -626,17 +692,17 @@ private fun AskCycloneHeader(
                 .semantics { contentDescription = "Profile" },
             contentAlignment = Alignment.Center,
         ) {
-            CycloneOrbitMark(Modifier.size(28.dp))
+            CycloneOrbitMark(Modifier.size(22.dp))
         }
     }
 }
 
 @Composable
-private fun AskCycloneEmptyState(onSuggestion: (String) -> Unit) {
+private fun AskCycloneEmptyState() {
     Column(
-        Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().padding(top = 36.dp, bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         AskCycloneOrb()
         Text(
@@ -650,40 +716,6 @@ private fun AskCycloneEmptyState(onSuggestion: (String) -> Unit) {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Column(
-            Modifier.padding(top = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AskSuggestionChip("Take a screenshot", onSuggestion)
-                AskSuggestionChip("Open an app", onSuggestion)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AskSuggestionChip("Find something", onSuggestion)
-                AskSuggestionChip("Create a routine", onSuggestion)
-            }
-        }
-    }
-}
-
-@Composable
-private fun AskSuggestionChip(label: String, onSuggestion: (String) -> Unit) {
-    Surface(
-        modifier = Modifier
-            .heightIn(min = 36.dp)
-            .clickable(role = Role.Button, onClick = { onSuggestion(label) }),
-        shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-    ) {
-        Text(
-            label,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.labelLarge,
-        )
     }
 }
 
@@ -691,34 +723,51 @@ private fun AskSuggestionChip(label: String, onSuggestion: (String) -> Unit) {
 private fun AskCycloneOrb() {
     val pulse = rememberInfiniteTransition(label = "orb")
     val glow by pulse.animateFloat(
-        initialValue = 0.22f,
-        targetValue = 0.48f,
+        initialValue = 0.42f,
+        targetValue = 0.78f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = FastOutSlowInEasing),
+            animation = tween(2400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "glow",
     )
-    Box(Modifier.size(132.dp), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .size(132.dp)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = glow),
-                            Color.Transparent,
-                        ),
-                    ),
-                    CircleShape,
-                ),
+    Canvas(Modifier.size(176.dp)) {
+        val c = center
+        val r = size.minDimension / 2f
+        drawCircle(
+            brush = Brush.radialGradient(
+                0.28f to Color(0xFF5B8CFF).copy(alpha = glow * 0.55f),
+                0.62f to Color(0xFF7A5CFF).copy(alpha = glow * 0.22f),
+                1f to Color.Transparent,
+            ),
+            radius = r,
+            center = c,
         )
-        CycloneOrbitMark(Modifier.size(72.dp))
+        val orb = r * 0.40f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0xFFB9D4FF), Color(0xFF4D7DFF), Color(0xFF1C3F9C), Color(0xFF14245A)),
+                center = Offset(c.x - orb * 0.28f, c.y - orb * 0.34f),
+                radius = orb * 1.55f,
+            ),
+            radius = orb,
+            center = c,
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                0f to Color.White.copy(alpha = 0.90f),
+                1f to Color.Transparent,
+            ),
+            radius = orb * 0.34f,
+            center = Offset(c.x - orb * 0.24f, c.y - orb * 0.30f),
+        )
     }
 }
 
 @Composable
 private fun AskCycloneVoiceMode(onClose: () -> Unit) {
+    val pulse = rememberInfiniteTransition(label = "voice")
+    val scales = listOf(0.35f, 0.62f, 1f, 0.62f, 0.35f)
     Box(
         Modifier
             .fillMaxSize()
@@ -731,7 +780,29 @@ private fun AskCycloneVoiceMode(onClose: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            AskCycloneOrb()
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                scales.forEachIndexed { index, base ->
+                    val amount by pulse.animateFloat(
+                        initialValue = base * 0.45f,
+                        targetValue = base,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(700 + index * 90, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "bar$index",
+                    )
+                    Canvas(Modifier.size(width = 6.dp, height = 56.dp)) {
+                        val half = size.height / 2f * amount
+                        drawLine(
+                            color = Color(0xFF9EC5FF),
+                            start = Offset(size.width / 2f, size.height / 2f - half),
+                            end = Offset(size.width / 2f, size.height / 2f + half),
+                            strokeWidth = size.width,
+                            cap = StrokeCap.Round,
+                        )
+                    }
+                }
+            }
             Text("Listening…", style = MaterialTheme.typography.headlineSmall, color = Color.White)
             Text("Speak naturally", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .72f))
             Spacer(Modifier.height(24.dp))

@@ -178,6 +178,13 @@ class CycloneV39AiChatPageTest {
         assertFalse(page.contains("progress today"))
         assertFalse(page.contains("Ideas become real"))
         assertFalse(page.contains("Contributor · prompts and responses may be used for training."))
+        assertFalse(page.contains("AskSuggestionChip"))
+        assertFalse(page.contains("Take a screenshot\", onSuggestion"))
+        assertTrue(page.contains("compactHeader = true"))
+        assertTrue(page.contains("expandInLayout = false"))
+        assertTrue(page.contains("CycloneModelPickerList("))
+        assertTrue(page.contains("AskCycloneOrb()"))
+        assertFalse(page.contains("CycloneOrbitMark(Modifier.size(72"))
     }
 
     @Test fun plusPanelAndVoiceStayBehindOneComposer() {
@@ -187,6 +194,12 @@ class CycloneV39AiChatPageTest {
         assertTrue(page.contains("AskCycloneVoiceMode"))
         assertTrue(page.contains("Listening…"))
         assertEquals(1, Regex("Icons\\.Rounded\\.Add").findAll(page).count())
+    }
+
+    @Test fun headerModelNameStaysTwoWords() {
+        assertEquals("DeepSeek Flash", cycloneShortModelLabel("DeepSeek: DeepSeek Flash Latest"))
+        assertEquals("Muse Spark", cycloneShortModelLabel("Meta: Muse Spark 1.3 Contributor"))
+        assertEquals("Cyclone", cycloneShortModelLabel(""))
     }
 
     @Test fun routineBuilderHasNoCallSurfaceFromChatPage() {
