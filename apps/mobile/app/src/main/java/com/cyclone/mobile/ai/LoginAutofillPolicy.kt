@@ -24,11 +24,11 @@ class LoginAutofillPolicy {
         attempted.clear()
     }
 
-    fun evaluate(page: AgentPageCard?, authorized: Boolean): LoginAutofillDecision {
+    fun evaluate(page: AgentPageCard?, authorized: Boolean, goal: String? = null): LoginAutofillDecision {
         if (page == null || !page.actionable) {
             return LoginAutofillDecision(LoginAutofillOutcome.NOT_APPLICABLE, reason = "login.no_current_page")
         }
-        if (!isLoginWall(page)) {
+        if ((goal != null && !shouldHandle(goal, page)) || !isLoginWall(page)) {
             return LoginAutofillDecision(LoginAutofillOutcome.NOT_APPLICABLE, reason = "login.no_wall")
         }
         val form = form(page)
