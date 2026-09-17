@@ -432,89 +432,90 @@ private fun ComposerPanel(
         )
 
         if (!keyboardOpen) {
-            if (task != null || foregroundWorking || queued.isNotEmpty()) {
-                OverlayAppleGlass(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 24.dp,
-                    strong = true,
+        if (task != null || foregroundWorking || queued.isNotEmpty()) {
+            OverlayAppleGlass(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 24.dp,
+                strong = true,
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp)
+                        .heightIn(max = taskAreaMax.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(10.dp)
-                            .heightIn(max = taskAreaMax.dp)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        when {
-                            task != null -> CycloneAskTaskPanel(task)
-                            foregroundWorking -> CycloneForegroundWorkCard(snapshot)
-                        }
-                        CyclonePendingRequests { onAction(OverlayUserAction.MINIMIZE) }
+                    when {
+                        task != null -> CycloneAskTaskPanel(task)
+                        foregroundWorking -> CycloneForegroundWorkCard(snapshot)
+                    }
+                    CyclonePendingRequests { onAction(OverlayUserAction.MINIMIZE) }
+                }
+            }
+        }
+
+        if (sharing.phase != ScreenSharePhase.OFF) {
+            OverlayAppleStatusPill(
+                text = when (sharing.phase) {
+                    ScreenSharePhase.LIVE -> "Sharing screen"
+                    ScreenSharePhase.REQUESTING_PERMISSION -> "Waiting for permission"
+                    ScreenSharePhase.STARTING -> sharing.message ?: "Starting screen share"
+                    ScreenSharePhase.STOPPING -> "Stopping screen share"
+                    ScreenSharePhase.ERROR -> sharing.message ?: "Screen sharing failed"
+                    ScreenSharePhase.REVOKED -> "Screen sharing ended"
+                    ScreenSharePhase.OFF -> "Screen sharing off"
+                },
+                actionLabel = if (sharing.active) "Stop" else null,
+                onAction = if (sharing.active) ({ LiveCaptureService.stop(context) }) else null,
+            )
+        }
+
+        when (accessory) {
+            ComposerAccessory.ATTACHMENTS -> OverlayAppleToolsMenu(
+                sharingActive = sharing.active,
+                onCamera = {
+                    launchExternal(Intent(context, OverlayAttachmentActivity::class.java).putExtra("camera", true))
+                },
+                onFiles = {
+                    launchExternal(Intent(context, OverlayAttachmentActivity::class.java))
+                },
+                onShareScreen = {
+                    launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
+                },
+                onCrossAppShare = {
+                    launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
+                },
+                onModelAndIntelligence = { accessory = ComposerAccessory.MODEL },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            ComposerAccessory.MODEL -> OverlayAppleGlass(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 30.dp,
+                strong = true,
+            ) {
+                Box(Modifier.padding(12.dp)) {
+                    com.cyclone.mobile.ui.v32.CycloneModelIntelligencePanel(
+                        aiSettings.modelId,
+                        aiSettings.reasoningEffort,
+                    ) { model, effort ->
+                        onAiSettingsChanged(aiSettings.copy(modelId = model, reasoningEffort = effort))
                     }
                 }
             }
 
-            if (sharing.phase != ScreenSharePhase.OFF) {
-                OverlayAppleStatusPill(
-                    text = when (sharing.phase) {
-                        ScreenSharePhase.LIVE -> "Sharing screen"
-                        ScreenSharePhase.REQUESTING_PERMISSION -> "Waiting for permission"
-                        ScreenSharePhase.STARTING -> sharing.message ?: "Starting screen share"
-                        ScreenSharePhase.STOPPING -> "Stopping screen share"
-                        ScreenSharePhase.ERROR -> sharing.message ?: "Screen sharing failed"
-                        ScreenSharePhase.REVOKED -> "Screen sharing ended"
-                        ScreenSharePhase.OFF -> "Screen sharing off"
-                    },
-                    actionLabel = if (sharing.active) "Stop" else null,
-                    onAction = if (sharing.active) ({ LiveCaptureService.stop(context) }) else null,
-                )
-            }
+            ComposerAccessory.NONE -> Unit
+        }
 
-            when (accessory) {
-                ComposerAccessory.ATTACHMENTS -> OverlayAppleToolsMenu(
-                    sharingActive = sharing.active,
-                    onCamera = {
-                        launchExternal(Intent(context, OverlayAttachmentActivity::class.java).putExtra("camera", true))
-                    },
-                    onFiles = {
-                        launchExternal(Intent(context, OverlayAttachmentActivity::class.java))
-                    },
-                    onShareScreen = {
-                        launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
-                    },
-                    onCrossAppShare = {
-                        launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
-                    },
-                    onModelAndIntelligence = { accessory = ComposerAccessory.MODEL },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+        if (attached) {
+            OverlayAppleStatusPill(
+                text = "Reference attached",
+                actionLabel = "Remove",
+                onAction = { PendingTaskAttachment.take() },
+            )
+        }
 
-                ComposerAccessory.MODEL -> OverlayAppleGlass(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 30.dp,
-                    strong = true,
-                ) {
-                    Box(Modifier.padding(12.dp)) {
-                        com.cyclone.mobile.ui.v32.CycloneModelIntelligencePanel(
-                            aiSettings.modelId,
-                            aiSettings.reasoningEffort,
-                        ) { model, effort ->
-                            onAiSettingsChanged(aiSettings.copy(modelId = model, reasoningEffort = effort))
-                        }
-                    }
-                }
-
-                ComposerAccessory.NONE -> Unit
-            }
-
-            if (attached) {
-                OverlayAppleStatusPill(
-                    text = "Reference attached",
-                    actionLabel = "Remove",
-                    onAction = { PendingTaskAttachment.take() },
-                )
-            }
         }
 
         OverlayAppleComposerBar(
