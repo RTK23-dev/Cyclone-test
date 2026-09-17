@@ -581,7 +581,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .heightIn(max = 560.dp)
-                        .padding(horizontal = 10.dp, bottom = 8.dp),
+                        .padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
                     shape = RoundedCornerShape(28.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = .98f),
                     tonalElevation = 0.dp,
