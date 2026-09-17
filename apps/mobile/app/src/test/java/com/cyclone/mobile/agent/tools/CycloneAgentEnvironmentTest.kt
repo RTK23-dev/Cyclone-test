@@ -90,6 +90,99 @@ class CycloneAgentEnvironmentTest {
         assertEquals(elementId(after), runtime.lastParams!!.getString("elementId"))
     }
 
+    @Test fun rawMirrorAndNestedWebViewWrapperDoNotCreateFalseAmbiguity() {
+        val before = observation("old", "home", "fp", "Continue")
+        val after = observation("fresh", "home", "fp2", "Continue")
+        val rect = JSONObject().put("left", 0).put("top", 0).put("right", 120).put("bottom", 48)
+
+        val oldTarget = before.elements.values.single()
+        oldTarget.evidence
+            .put("bounds", JSONObject(rect.toString()))
+            .put("clickable", true)
+            .put("rawNodeId", "old-child")
+            .put("rawPath", "/0/2/1")
+
+        val target = after.elements.values.single()
+        target.evidence
+            .put("bounds", JSONObject(rect.toString()))
+            .put("clickable", true)
+            .put("rawNodeId", "fresh-child")
+            .put("rawPath", "/0/2/1")
+
+        val rawMirrorEvidence = JSONObject(target.evidence.toString())
+            .put("id", "fresh-child")
+            .put("path", "/0/2/1")
+            .put("source", "raw_accessibility")
+        val rawMirror = GatewayElement(
+            id = "raw:fresh:fresh-child",
+            source = "raw_accessibility",
+            label = target.label,
+            semanticName = target.semanticName,
+            role = target.role,
+            evidence = rawMirrorEvidence,
+        )
+
+        val wrapperEvidence = JSONObject(target.evidence.toString())
+            .put("elementId", "semantic:fresh:wrapper")
+            .put("source", "semantic_supplement")
+            .put("rawNodeId", "fresh-parent")
+            .put("rawPath", "/0/2")
+        val wrapper = GatewayElement(
+            id = "semantic:fresh:wrapper",
+            source = "semantic_supplement",
+            label = target.label,
+            semanticName = target.semanticName,
+            role = target.role,
+            evidence = wrapperEvidence,
+        )
+
+        val represented = after.copy(
+            elements = after.elements + mapOf(rawMirror.id to rawMirror, wrapper.id to wrapper),
+        )
+        val report = CurrentTargetRevalidation.resolve(before, represented, elementId(before))
+        assertEquals(TargetDrift.MATCHED, report.status)
+        assertEquals(elementId(after), report.elementId)
+    }
+
+    @Test fun overlappingSiblingWithSameLabelStillFailsClosedAsAmbiguous() {
+        val before = observation("old", "home", "fp", "Continue")
+        val after = observation("fresh", "home", "fp2", "Continue")
+        val rect = JSONObject().put("left", 0).put("top", 0).put("right", 120).put("bottom", 48)
+
+        before.elements.values.single().evidence
+            .put("bounds", JSONObject(rect.toString()))
+            .put("clickable", true)
+            .put("rawNodeId", "old-target")
+            .put("rawPath", "/0/2")
+
+        val target = after.elements.values.single()
+        target.evidence
+            .put("bounds", JSONObject(rect.toString()))
+            .put("clickable", true)
+            .put("rawNodeId", "fresh-target")
+            .put("rawPath", "/0/2")
+
+        val siblingEvidence = JSONObject(target.evidence.toString())
+            .put("elementId", "semantic:fresh:sibling")
+            .put("source", "semantic_supplement")
+            .put("rawNodeId", "fresh-sibling")
+            .put("rawPath", "/0/3")
+        val sibling = GatewayElement(
+            id = "semantic:fresh:sibling",
+            source = "semantic_supplement",
+            label = target.label,
+            semanticName = target.semanticName,
+            role = target.role,
+            evidence = siblingEvidence,
+        )
+
+        val ambiguous = after.copy(elements = after.elements + (sibling.id to sibling))
+        assertEquals(
+            TargetDrift.AMBIGUOUS,
+            CurrentTargetRevalidation.resolve(before, ambiguous, elementId(before)).status,
+        )
+    }
+
     @Test fun replacementAmbiguityOcclusionAndScopeDriftNeverDispatch() {
         val before = observation("old", "home", "fp", "Reject cookies")
         before.elements.values.single().evidence.put("bounds", JSONObject().put("left", 0).put("top", 0).put("right", 40).put("bottom", 20))
