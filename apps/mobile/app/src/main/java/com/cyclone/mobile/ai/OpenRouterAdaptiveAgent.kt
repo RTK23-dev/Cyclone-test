@@ -1247,20 +1247,23 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             }
 
             val verified = envelope.verification.passed
-
-            val madeProgress = verified && progress.classification == ProgressClassification.VERIFIED_PROGRESS
+            val accepted = AgentProgressAcceptance.acceptedForExecution(envelope)
+            val madeProgress = AgentProgressAcceptance.madeProgress(envelope, progress.classification)
             session.executedActions.record(action, actionScene, envelope.androidExecutionOk, madeProgress)
             val previousMode = session.adaptiveMode
             if (madeProgress) {
                 session.successfulActions += "${action.tool}:${action.controlId.orEmpty()}@${state.page.pageKey.takeLast(10)}"
                 session.consecutiveNoProgressFailures = 0
                 session.adaptiveMode = "STRUCTURED"
-                playbookStepFrom(action, state.page, envelope.after?.pageKey, envelope.after?.packageName)?.let { step ->
-                    if (session.playbookSteps.isEmpty()) session.playbookPackage = state.page.packageName
-                    session.playbookSteps += step
+                // Read-only observations may establish task progress, but they never become executable route evidence.
+                if (verified) {
+                    playbookStepFrom(action, state.page, envelope.after?.pageKey, envelope.after?.packageName)?.let { step ->
+                        if (session.playbookSteps.isEmpty()) session.playbookPackage = state.page.packageName
+                        session.playbookSteps += step
+                    }
                 }
             } else {
-                val failureCode = if (verified) "NO_VERIFIED_PROGRESS" else envelope.errorClass.name
+                val failureCode = if (accepted) "NO_VERIFIED_PROGRESS" else envelope.errorClass.name
                 session.failedActions += "${action.tool}:${action.controlId.orEmpty()}:$failureCode"
 
             }
@@ -1293,7 +1296,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             val hardBlocker = ActionOutcomePolicy.hardBlocker(envelope.errorClass, envelope.safeMessage)
             val stale = envelope.errorClass == AgentFailureClass.STALE_OBSERVATION
 
-            if (!verified) {
+            if (!accepted) {
                 session.pendingRecoveryCause = session.bridge.causeFor(envelope)
                 return LocalExecution(
                     state = state,
@@ -1311,7 +1314,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 )
             }
 
-            if (progress.classification == ProgressClassification.VERIFIED_PROGRESS) {
+            if (madeProgress) {
                 verifiedProgress = true
                 session.bridge.markVerifiedProgress()
             }
