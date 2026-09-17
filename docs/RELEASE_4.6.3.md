@@ -13,4 +13,5 @@ Ask Cyclone now follows the Gemini canvas discipline: a quiet gradient, one welc
 
 Launch recovery and Easy named-app opens from 4.6.1/4.6.2 are unchanged.
 
-Release requires Mobile CI tests, lint, assembly and existing signing/update-continuity gates. Physical Pixel 8 remains UNVERIFIED.
+Release requires Mobile CI tests, lint, assembly and existing signing/update-continuity gates. Physical Pixel 8 remains UNVERIFIED after this canvas pass.
+
