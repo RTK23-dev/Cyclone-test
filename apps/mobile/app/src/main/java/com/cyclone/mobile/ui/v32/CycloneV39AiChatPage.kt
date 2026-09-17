@@ -193,8 +193,9 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
     var message by remember { mutableStateOf("") }
     var composerRestingBottomPx by remember { mutableStateOf<Float?>(null) }
     val keyboardTopPx = localView.rootView.height.toFloat() - imeBottomPx
+    val composerKeyboardGapPx = with(density) { 12.dp.toPx() }
     val composerLiftTargetPx = composerRestingBottomPx
-        ?.let { (it - keyboardTopPx).coerceAtLeast(0f) }
+        ?.let { (it - keyboardTopPx + composerKeyboardGapPx).coerceAtLeast(0f) }
         ?: 0f
     val composerLiftPx by animateFloatAsState(
         targetValue = composerLiftTargetPx,
@@ -218,7 +219,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
         activity?.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         onDispose {
             if (previousSoftInputMode != null) {
-                activity.window.setSoftInputMode(previousSoftInputMode)
+                activity?.window?.setSoftInputMode(previousSoftInputMode)
             }
         }
     }
@@ -398,7 +399,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(top = if (keyboardOpen) 2.dp else 4.dp, bottom = 8.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 8.dp),
                 ) {
                     if (session.messages.isNotEmpty()) {
                         items(session.messages, key = { it.id }) { V39ChatBubble(it) }
@@ -432,7 +433,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
 
             if (task != null || queuedRequests.isNotEmpty() || foregroundWorking) {
                 LazyColumn(
-                    Modifier.fillMaxWidth().heightIn(max = if (keyboardOpen) 132.dp else 230.dp),
+                    Modifier.fillMaxWidth().heightIn(max = 230.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(vertical = 2.dp),
                 ) {
