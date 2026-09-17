@@ -179,6 +179,7 @@ internal object GatewayObservationAdapter {
                 .put("focused", matchingNode?.optBoolean("focused") ?: false)
                 .put("textStateDigest", editableTextState(matchingNode, rawTextById) ?: JSONObject.NULL)
                 .put("rawNodeId", matchingNode?.optString("id")?.takeIf(String::isNotBlank) ?: JSONObject.NULL)
+                .put("rawPath", matchingNode?.optString("path")?.takeIf(String::isNotBlank) ?: JSONObject.NULL)
             semanticControls.put(evidence)
             elements[elementId] = GatewayElement(elementId, "semantic", control.label, control.semanticName, control.role, evidence)
         }
@@ -237,6 +238,7 @@ internal object GatewayObservationAdapter {
                 .put("focused", node.optBoolean("focused"))
                 .put("textStateDigest", editableTextState(node, rawTextById) ?: JSONObject.NULL)
                 .put("rawNodeId", node.optString("id").takeIf(String::isNotBlank) ?: JSONObject.NULL)
+                .put("rawPath", node.optString("path").takeIf(String::isNotBlank) ?: JSONObject.NULL)
             semanticControls.put(evidence)
             elements[elementId] = GatewayElement(elementId, "semantic_supplement", label.take(140), semanticize(label), node.optString("role"), evidence)
         }
