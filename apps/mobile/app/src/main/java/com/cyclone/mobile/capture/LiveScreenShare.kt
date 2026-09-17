@@ -7,7 +7,7 @@ import com.cyclone.mobile.ui.overlay.OverlayChromeRuntime
 import com.cyclone.mobile.ui.overlay.OverlayExternalInteraction
 import com.cyclone.mobile.ui.overlay.OverlayUserAction
 
-/** Product Share screen: whole-display capture plus the overlay composer, never Android's split "Share one app" UI. */
+/** Product Share screen: whole-display capture plus the overlay composer. Never Android's split "Share one app" UI. */
 object LiveScreenShare {
     const val EXTRA_WHOLE_DISPLAY = "wholeDisplay"
     const val EXTRA_REVEAL_OVERLAY = "revealOverlay"
