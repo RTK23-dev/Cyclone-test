@@ -77,11 +77,20 @@ class LoginAutofillPolicy {
     )
 
     companion object {
+        fun shouldHandle(goal: String, page: AgentPageCard): Boolean {
+            if (isSignupGoal(goal)) return false
+            if (isPrimaryRegistrationSurface(page)) return false
+            return isLoginWall(page)
+        }
+
+        fun isSignupGoal(goal: String): Boolean =
+            SIGNUP_GOAL_REGEX.containsMatchIn(normalize(goal))
+
         fun isLoginWall(page: AgentPageCard): Boolean {
             val labels = page.controls.map { normalize(it.label) }
             val signedOut = labels.any { it in SIGN_IN_LABELS || it.startsWith("log in") || it.startsWith("sign in") }
             val signedIn = labels.any { it in SIGN_OUT_LABELS }
-            if (signedIn) return false
+            if (signedIn || isPrimaryRegistrationSurface(page)) return false
             val form = form(page)
             return signedOut || form.password != null || (form.username != null && form.submit != null)
         }
@@ -100,6 +109,27 @@ class LoginAutofillPolicy {
                 ?: editable.firstOrNull { !isPassword(it) }
             val submit = ranked(page.controls.filter { clickable(it, page.observationId) && isSubmit(it) })
             return Form(username = username, password = password, submit = submit)
+        }
+
+        private fun isPrimaryRegistrationSurface(page: AgentPageCard): Boolean {
+            val actionable = page.controls.filter {
+                it.observationId == page.observationId &&
+                    it.evidence.optBoolean("enabled", true) &&
+                    it.evidence.optBoolean("visibleToUser", true) &&
+                    (it.evidence.optBoolean("clickable") || it.role.lowercase() in setOf("button", "link"))
+            }
+            val hasRegistrationAction = actionable.any { isRegistrationLabel(it.label) }
+            val hasLoginAction = actionable.any { isLoginSubmitLabel(it.label) }
+            return hasRegistrationAction && !hasLoginAction
+        }
+
+        private fun isRegistrationLabel(label: String): Boolean {
+            val value = normalize(label)
+            return value in REGISTRATION_LABELS ||
+                value.startsWith("create new account") ||
+                value.startsWith("create account") ||
+                value.startsWith("sign up") ||
+                value.startsWith("register")
         }
 
         fun explanation(reason: String): String = when (reason) {
@@ -162,6 +192,14 @@ class LoginAutofillPolicy {
 
         private fun normalize(label: String) = label.trim().lowercase().replace(Regex("\\s+"), " ")
 
+        private val SIGNUP_GOAL_REGEX = Regex(
+            """\b(sign\s*up|signup|register|registration|create\s+(?:a\s+|an\s+|new\s+)?account|make\s+(?:a\s+|an\s+)?account)\b""",
+            RegexOption.IGNORE_CASE,
+        )
+        private val REGISTRATION_LABELS = setOf(
+            "sign up", "signup", "register", "create account", "create new account",
+            "aanmelden", "registreren", "konto erstellen",
+        )
         private val SIGN_IN_LABELS = setOf("log in", "login", "sign in", "signin", "inloggen", "anmelden")
         private val SIGN_OUT_LABELS = setOf("log out", "logout", "sign out", "signout")
         private val CONTINUE_LABELS = setOf("continue", "next", "doorgaan", "weiter")
