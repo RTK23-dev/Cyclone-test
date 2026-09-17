@@ -100,7 +100,7 @@ class FastPathLandingTest {
             InstalledApp("com.zhiliaoapp.musically", "TikTok"),
             InstalledApp("com.booking", "Booking.com"),
             InstalledApp("org.thoughtcrime.securesms", "Signal"),
-            InstalledApp("com.google.android.dialer", "Phone"),
+            InstalledApp("com.google.android.keep", "Keep"),
         )
         assertEquals("com.spotify.music", FastPathLanding.namedApp("open Spotify", installed)?.second)
         assertEquals("com.zhiliaoapp.musically", FastPathLanding.namedApp("open TikTok", installed)?.second)
@@ -113,8 +113,8 @@ class FastPathLandingTest {
         assertNull(FastPathLanding.namedApp("open Spotify"))
         assertNull(com.cyclone.mobile.agent.contract.NavigationIntent.parse("open Spotify", installed))
         assertEquals("https://ad.nl", FastPathLanding.resolve("Open ad.nl", installed)?.uri)
-        assertNull(FastPathLanding.namedApp("my phone is slow", installed))
-        assertEquals("com.google.android.dialer", FastPathLanding.namedApp("open Phone", installed)?.second)
+        assertNull(FastPathLanding.namedApp("my keep is full", installed))
+        assertEquals("com.google.android.keep", FastPathLanding.namedApp("open Keep", installed)?.second)
         assertEquals("com.facebook.katana", FastPathLanding.namedApp("open fb", installed)?.second)
         assertEquals("com.spotify.music", FastPathLanding.packageForName("Spotify", installed))
         assertEquals("org.thoughtcrime.securesms", FastPathLanding.packageForName("Signal", installed))
