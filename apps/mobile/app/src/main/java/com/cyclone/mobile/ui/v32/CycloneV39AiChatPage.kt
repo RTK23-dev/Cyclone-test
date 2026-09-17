@@ -485,7 +485,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                     .zIndex(2f)
                     .graphicsLayer { translationY = -composerLiftPx }
                     .onGloballyPositioned { coordinates ->
-                        if (!keyboardOpen) {
+                        if (!keyboardOpen && composerRestingBottomPx == null) {
                             composerRestingBottomPx = coordinates.boundsInWindow().bottom
                         }
                     },
