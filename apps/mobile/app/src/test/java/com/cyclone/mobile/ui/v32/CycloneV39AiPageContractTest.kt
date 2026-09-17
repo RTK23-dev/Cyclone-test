@@ -51,11 +51,14 @@ class CycloneV39AiPageContractTest {
         assertTrue(text.contains("heightIn(max = if (keyboardOpen) 132.dp else 230.dp)"))
     }
 
-    @Test fun emptyStateMatchesAlpineProgressConcept() {
+    @Test fun emptyStateMatchesDotFieldAskConcept() {
         val page = source("com/cyclone/mobile/ui/v32/CycloneV39AiChatPage.kt")
         assertTrue(page.contains("\"Ask Cyclone\""))
-        assertTrue(page.contains("\"Ready when you are\""))
-        assertTrue(page.contains("\"Tell Cyclone what to do on your phone.\""))
+        assertTrue(page.contains("\"Good morning\""))
+        assertTrue(page.contains("\"Good afternoon\""))
+        assertTrue(page.contains("\"Good evening\""))
+        assertTrue(page.contains("\"What can I do for you?\""))
+        assertTrue(page.contains("AskCycloneDotField(Modifier.matchParentSize())"))
         assertFalse(page.contains("CycloneAlpineBackdrop"))
         assertFalse(page.contains("cyclone_alpine"))
         assertFalse(page.contains("progress today"))
