@@ -1,20 +1,13 @@
 @echo off
-setlocal EnableExtensions
-title Cyclone PC Glass - Stopping
+REM Stop Glass without leaving a console open.
 cd /d "%~dp0"
+if exist "%~dp0windows-helper\Stop-Glass-Silent.cmd" (
+  call "%~dp0windows-helper\Stop-Glass-Silent.cmd"
+  exit /b %ERRORLEVEL%
+)
 where uv >nul 2>&1
 if errorlevel 1 (
-  echo The uv tool was not found. Install it from https://docs.astral.sh/uv/ then try again.
-  pause
+  echo The uv tool was not found.
   exit /b 1
 )
-echo Stopping Cyclone PC Glass...
-uv run artemis stop
-if errorlevel 1 (
-  echo.
-  echo Could not stop cleanly. Keep this window open and share the error if you need help.
-  pause
-  exit /b 1
-)
-echo Cyclone PC Glass has stopped.
-exit /b 0
+uv run python -m artemis stop --port 8000

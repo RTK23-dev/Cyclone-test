@@ -35,7 +35,8 @@ Attach gateway -> session_id -> phone_observe / phone_locate -> decide -> phone_
 
 | Script | Role |
 |---|---|
-| `Start Cyclone PC Glass.cmd` | **Preferred** — sets `CYCLONE_CONNECTED=1`, gateway URL `:8765`, starts UI on `:8000` from **this** tree |
+| **`windows-helper/Launch Cyclone PC Glass Helper.vbs`** | **Preferred daily use** — Start/Stop/Open UI **without command-prompt windows** |
+| `Start Cyclone PC Glass.cmd` | Opens the Windows helper when present; otherwise console bootstrap |
 | `Stop Cyclone PC Glass.cmd` | Stops the UI daemon |
 | `start.bat` / `scripts/start.ps1` | Same product path (defaults `CYCLONE_CONNECTED=1`) |
 | `Start Artemis.cmd` / `Stop Artemis.cmd` | **Deprecated wrappers** → Cyclone launchers (do not point at `C:\Users\Agent\artemis`) |
