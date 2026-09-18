@@ -73,6 +73,58 @@ class GoalContractTest {
         })
     }
 
+    @Test
+    fun accountCreationRequiresPostRegistrationEvidenceNotJustSignupLanding() {
+        val goal = "open chrome and go to Facebook and try to make an account using my email"
+        val contract = GoalContractCompiler.compile(goal)
+        assertTrue(contract.requirements.any { it.kind == GoalRequirementKind.REGISTERED_ACCOUNT })
+
+        val urlBar = control("https://www.facebook.com/", "edittext").copy(
+            evidence = JSONObject()
+                .put("resourceId", "com.android.chrome:id/url_bar")
+                .put("focused", false)
+                .put("visibleToUser", true)
+                .put("enabled", true),
+        )
+        val signup = page(
+            "com.android.chrome",
+            "Facebook Create a new account",
+            listOf(
+                urlBar,
+                control("Email", "edittext"),
+                control("Password", "edittext"),
+                control("Create new account", "button"),
+            ),
+        )
+        assertFalse(GoalContractCompiler.evaluate(contract, signup, emptyList()).satisfied)
+
+        val submittedButUnproven = page(
+            "com.android.chrome",
+            "Facebook",
+            listOf(urlBar, control("Continue", "button")),
+        )
+        assertFalse(GoalContractCompiler.evaluate(contract, submittedButUnproven, emptyList()).satisfied)
+
+        val confirmation = page(
+            "com.android.chrome",
+            "Facebook Check your email to confirm your email address",
+            listOf(urlBar, control("Resend email", "button")),
+        )
+        assertTrue(GoalContractCompiler.evaluate(contract, confirmation, emptyList()).satisfied)
+    }
+
+    @Test
+    fun accountCreationCanAlsoCompleteFromStrongSignedInEvidence() {
+        val goal = "go to facebook.com and create an account"
+        val contract = GoalContractCompiler.compile(goal)
+        val page = page(
+            "com.android.chrome",
+            "https://facebook.com/ Home",
+            listOf(control("Log out", "menuitem")),
+        )
+        assertTrue(GoalContractCompiler.evaluate(contract, page, emptyList()).satisfied)
+    }
+
     @Test fun namedAppOpenCompletesWhenTheAppIsForeground() {
         val contract = GoalContractCompiler.compile("open Facebook")
         assertTrue(contract.requirements.any { it.kind == GoalRequirementKind.NAMED_APP && it.value == "com.facebook.katana" })
