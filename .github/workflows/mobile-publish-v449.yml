@@ -21,7 +21,7 @@ permissions:
 
 concurrency:
   group: mobile-publish-v4.4.9
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
