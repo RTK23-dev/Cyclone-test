@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -28,13 +27,11 @@ import com.cyclone.mobile.DeviceState
 import com.cyclone.mobile.runtime.background.TaskPhase
 import com.cyclone.mobile.runtime.background.WorkspaceTaskUi
 import com.cyclone.mobile.runtime.background.WorkspaceTasks
-import com.cyclone.mobile.ui.v32.CycloneAppIcon
 import com.cyclone.mobile.ui.v32.CycloneCollapsedAskPill
 import com.cyclone.mobile.ui.v32.CycloneTaskStatusPill
 import com.cyclone.mobile.ui.v32.CycloneTaskVisualState
 import com.cyclone.mobile.ui.v32.TaskHumanizer
 import com.cyclone.mobile.ui.v32.canContinueAfterHumanFromUi
-import com.cyclone.mobile.ui.v32.taskVisualState
 
 /**
  * The host app stays visually primary while Cyclone works.
