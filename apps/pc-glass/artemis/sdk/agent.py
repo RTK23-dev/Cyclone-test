@@ -67,6 +67,7 @@ from artemis.context import (
     ExecutionSetup,
 )
 from artemis.controllers.controller_factory import get_controller
+from artemis.drivers.factory import cyclone_connected
 from artemis.controllers.platform_specific_commands_controller import (
     get_first_device,
 )
@@ -643,9 +644,22 @@ class Agent:
                 self._prepare_tracing(task=task, context=context)
                 self._prepare_output_files(task=task)
                 if os.environ.get("ARTEMIS_CLOUD_MODE") != "1":
-                    if self._ui_adb_client is not None:
-                        await self._connect_screen_client(context, str(sess_id))
-                    await self._ensure_device_unlocked()
+                    if cyclone_connected():
+                        # Mode A: hierarchy/observe via Cyclone gateway only — no Artemis
+                        # accessibility helper / ADB UI tree as product authority.
+                        publish_startup_progress(
+                            "cyclone_gateway",
+                            "Cyclone connected — screen observe via Device Gateway "
+                            f"(session {os.environ.get('CYCLONE_SESSION_ID', 'default-foreground')})",
+                            session_id=str(sess_id),
+                        )
+                        self._announce_hierarchy_backend(
+                            context, str(sess_id), None, "cyclone", None
+                        )
+                    else:
+                        if self._ui_adb_client is not None:
+                            await self._connect_screen_client(context, str(sess_id))
+                        await self._ensure_device_unlocked()
                 publish_startup_progress(
                     "environment", "Preparing the device environment", session_id=str(sess_id)
                 )
@@ -990,6 +1004,9 @@ class Agent:
 
     async def _ensure_device_unlocked(self) -> None:
         """Reject secure keyguard instead of allowing an agent to guess credentials."""
+        if cyclone_connected():
+            logger.info("Cyclone-connected: skipping ADB keyguard inspection")
+            return
         if self._adb_client is None:
             raise AgentError("ADB client is not initialized.")
 
@@ -1030,6 +1047,9 @@ class Agent:
 
     async def _prepare_device_environment(self, context: ArtemisContext):
         """Prepare device environment flags (like forcing Web Accessibility) before the task runs."""
+        if cyclone_connected():
+            logger.info("Cyclone-connected: skipping ADB device environment prep")
+            return
         if not self._config.force_web_accessibility:
             logger.info(
                 "Forcing web accessibility is disabled in AgentConfig. Skipping"
@@ -1289,6 +1309,14 @@ class Agent:
 
     async def _connect_screen_client(self, context: ArtemisContext, session_id: str) -> None:
         """Connect the screen client with visible progress for slow first-time steps."""
+        if cyclone_connected():
+            publish_startup_progress(
+                "cyclone_gateway",
+                "Cyclone connected — skipping Artemis accessibility helper / ADB hierarchy",
+                session_id=session_id,
+            )
+            self._announce_hierarchy_backend(context, session_id, None, "cyclone", None)
+            return
         client = self._ui_adb_client
         previous_listener = getattr(self, "_hierarchy_backend_listener", None)
         if previous_listener is not None:
@@ -1358,7 +1386,11 @@ class Agent:
         device_info, and status.json for ``mobile_manage_task``. Runs from
         worker threads too, so every sink is best effort.
         """
-        label = {"helper": "Artemis accessibility helper", "uiautomator": "UIAutomator2"}
+        label = {
+            "helper": "Artemis accessibility helper",
+            "uiautomator": "UIAutomator2",
+            "cyclone": "Cyclone Device Gateway (phone_observe)",
+        }
         version = helper_version(self._ui_adb_client)
         if previous is None:
             message = f"UI hierarchy source: {label.get(backend, backend)}"
