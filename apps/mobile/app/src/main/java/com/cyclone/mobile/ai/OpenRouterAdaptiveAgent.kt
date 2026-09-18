@@ -265,6 +265,15 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         }
         session.context.pendingGateClass = null
         session.context.bridge.invalidateAfterHandoff()
+        // The local agent already requires a fresh first observation. Reset transient planner state too:
+        // a human may have changed focus, filled fields, dismissed dialogs, or navigated elsewhere.
+        // Explicit Autofill authorization is preserved, but its burst position is restarted from the
+        // fresh page so Cyclone never carries a pre-handoff submit step onto a changed surface.
+        session.context.loginAutofill.reset()
+        session.context.executedActions.resetAfterHandoff()
+        session.context.pendingRecoveryCause = null
+        session.context.consecutiveNoProgressFailures = 0
+        session.context.adaptiveMode = "STRUCTURED"
         if (!session.agent.resume()) {
             return@withContext QuickAgentResult(
                 false,
