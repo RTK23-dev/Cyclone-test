@@ -26,7 +26,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,12 +61,14 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
     val resolvedApp = remember(task.packageName) { appLabel(context, task.packageName) }
     val presentation = TaskGlassPresentation.current(task, resolvedApp) ?: return
     val visualState = task.taskVisualState()
+    var progressExpanded by rememberSaveable(task.taskId) { mutableStateOf(false) }
 
     // A task/result card is the primary interaction surface. Do not leave a stale editor/IME
     // competing for half the display when execution starts, fails, pauses, or finishes.
     LaunchedEffect(task.taskId, task.phase) {
         focusManager.clearFocus(force = true)
         keyboard?.hide()
+        if (visualState != CycloneTaskVisualState.WORKING) progressExpanded = false
     }
 
     val container = when (visualState) {
@@ -119,9 +125,12 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
                     label = "Cyclone task state",
                 ) { state ->
                     when (state) {
-                        CycloneTaskVisualState.WORKING -> WorkingBody(task) {
-                            UiTask(task).open(context)
-                        }
+                        CycloneTaskVisualState.WORKING -> WorkingBody(
+                            task = task,
+                            expanded = progressExpanded,
+                            onToggleExpanded = { progressExpanded = !progressExpanded },
+                            onFullDetails = { UiTask(task).open(context) },
+                        )
                         CycloneTaskVisualState.ACTION_NEEDED -> ActionNeededBody(
                             task = task,
                             onTakeOver = {
@@ -143,10 +152,15 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
 }
 
 @Composable
-private fun WorkingBody(task: WorkspaceTaskUi, onProgress: () -> Unit) {
+private fun WorkingBody(
+    task: WorkspaceTaskUi,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onFullDetails: () -> Unit,
+) {
     val total = task.semanticSteps.size
     val completed = task.semanticSteps.count { it.state == SemanticStepState.DONE }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -165,11 +179,40 @@ private fun WorkingBody(task: WorkspaceTaskUi, onProgress: () -> Unit) {
                 )
             }
         }
-        CycloneTaskCheckpoints(task)
-        TextButton(
-            onClick = onProgress,
-            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
-        ) { Text("View progress") }
+
+        if (expanded) {
+            CycloneTaskCheckpoints(task)
+        } else {
+            val currentStep = task.subtitle.trim()
+            if (currentStep.isNotBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CycloneNineDotSpinner()
+                    Text(
+                        currentStep,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(
+                onClick = onToggleExpanded,
+                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
+            ) { Text(if (expanded) "Show less" else "View progress") }
+            if (expanded) {
+                TextButton(
+                    onClick = onFullDetails,
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                ) { Text("Details") }
+            }
+        }
     }
 }
 
