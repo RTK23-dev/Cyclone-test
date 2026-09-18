@@ -29,6 +29,7 @@ import com.cyclone.mobile.runtime.background.TaskPhase
 import com.cyclone.mobile.runtime.background.WorkspaceTaskUi
 import com.cyclone.mobile.runtime.background.WorkspaceTasks
 import com.cyclone.mobile.ui.v32.CycloneAppIcon
+import com.cyclone.mobile.ui.v32.CycloneCollapsedAskPill
 import com.cyclone.mobile.ui.v32.CycloneTaskStatusPill
 import com.cyclone.mobile.ui.v32.CycloneTaskVisualState
 import com.cyclone.mobile.ui.v32.TaskHumanizer
@@ -63,45 +64,13 @@ fun BackgroundTaskGlass(task: WorkspaceTaskUi, onAsk: () -> Unit) {
 
 @Composable
 private fun BackgroundTaskRibbon(task: WorkspaceTaskUi, onAsk: () -> Unit) {
-    val visualState = task.taskVisualState()
     val taskLabel = TaskHumanizer.humanize(task.goal, task.app)
-
-    Surface(
-        onClick = onAsk,
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize()
-            .semantics { contentDescription = "Open Cyclone details for $taskLabel" },
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = .95f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 0.dp,
-        shadowElevation = 3.dp,
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 64.dp)
-                .padding(horizontal = 13.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Surface(
-                shape = RoundedCornerShape(11.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                CycloneAppIcon(task.packageName, Modifier.padding(5.dp).size(28.dp))
-            }
-            Text(
-                taskLabel,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            CycloneTaskStatusPill(visualState)
-        }
-    }
+    CycloneCollapsedAskPill(
+        onExpand = onAsk,
+        active = true,
+        status = taskLabel,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
