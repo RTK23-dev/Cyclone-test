@@ -30,19 +30,29 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+_TRUTHY = frozenset({"1", "true", "yes", "on"})
+
+
+def cyclone_connected() -> bool:
+    """True when PC Glass must use Cyclone gateway/MCP (not raw ADB)."""
+    for key in ("CYCLONE_CONNECTED", "ARTEMIS_CYCLONE_GATEWAY"):
+        if (os.environ.get(key) or "").strip().lower() in _TRUTHY:
+            return True
+    if (os.environ.get("CYCLONE_DEVICE_GATEWAY_URL") or "").strip():
+        return True
+    if (os.environ.get("CYCLONE_SESSION_ID") or "").strip():
+        return True
+    return False
+
 
 def create_driver(ctx: "ArtemisContext") -> BaseDeviceDriver:
     """Instantiates the appropriate BaseDeviceDriver based on the runtime context."""
 
     # 0. Cyclone-connected mode: gateway/MCP phone_* only (no ADB authority)
-    if (
-        os.environ.get("CYCLONE_CONNECTED") == "1"
-        or os.environ.get("ARTEMIS_CYCLONE_GATEWAY") == "1"
-        or bool(os.environ.get("CYCLONE_DEVICE_GATEWAY_URL"))
-        or bool(os.environ.get("CYCLONE_SESSION_ID"))
-    ):
+    if cyclone_connected():
         from artemis.drivers.cyclone.gateway_driver import CycloneGatewayDriver
 
+        logger.info("create_driver: selecting CycloneGatewayDriver (CYCLONE connected)")
         return CycloneGatewayDriver(
             device_id=ctx.device.device_id if ctx.device else None,
             width=ctx.device.device_width if ctx.device else 1080,
@@ -93,4 +103,3 @@ def get_driver(ctx: "ArtemisContext") -> BaseDeviceDriver:
         driver = create_driver(ctx)
         setattr(ctx, "_active_driver", driver)
     return getattr(ctx, "_active_driver")
-

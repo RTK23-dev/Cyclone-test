@@ -1,5 +1,5 @@
 @echo off
-rem Copyright 2026 Google LLC
+rem Copyright 2026 Google LLC / Cyclone PC Glass adaptations
 rem
 rem Licensed under the Apache License, Version 2.0 (the "License");
 rem you may not use this file except in compliance with the License.
@@ -15,13 +15,20 @@ rem limitations under the License.
 
 chcp 65001 >nul 2>&1
 setlocal EnableDelayedExpansion
-title Artemis Mobile Agent UI
+title Cyclone PC Glass
 
 cd /d "%~dp0"
 
+rem Product default: Cyclone gateway driver (override with CYCLONE_CONNECTED=0 for raw Artemis/ADB).
+if not defined CYCLONE_CONNECTED set "CYCLONE_CONNECTED=1"
+if not defined CYCLONE_DEVICE_GATEWAY_URL set "CYCLONE_DEVICE_GATEWAY_URL=http://127.0.0.1:8765"
+
 echo ======================================================
-echo       Artemis Autonomous Mobile Agent UI
+echo       Cyclone PC Glass (Artemis-based UI)
 echo ======================================================
+echo.
+echo CYCLONE_CONNECTED=!CYCLONE_CONNECTED!
+echo CYCLONE_DEVICE_GATEWAY_URL=!CYCLONE_DEVICE_GATEWAY_URL!
 echo.
 
 rem Run the PowerShell bootstrap with execution policy bypass
@@ -29,7 +36,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start.ps1" %*
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo An error occurred while starting Artemis.
+    echo An error occurred while starting Cyclone PC Glass.
     pause
 )
-
