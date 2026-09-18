@@ -129,6 +129,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         val executedActions: ExecutedActionMemory = ExecutedActionMemory(),
         var playbookPackage: String? = null,
         val providerCancellation: ProviderCancellation = ProviderCancellation(),
+        val providerCircuitBreaker: ProviderTaskCircuitBreaker = ProviderTaskCircuitBreaker(),
         var decisionDeadlineMs: Long = Long.MAX_VALUE,
         var progress: (String) -> Unit = {},
         var difficulty: com.cyclone.mobile.agent.plan.TaskDifficultyTier =
@@ -1815,17 +1816,35 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
 
     private fun providerBoundary(response: JSONObject, traceId: String): PageAgentDecision? {
         if (!response.has("error")) return null
-        if (response.has("_lifecycle")) return PageAgentDecision("blocked", "", response.getString("_lifecycle"),
-            emptyList(), null, response.getString("_lifecycle"))
+        if (response.has("_lifecycle")) {
+            val lifecycle = response.getString("_lifecycle")
+            AgentTraceRuntime.event(
+                context, traceId, "PROVIDER_BOUNDARY", ProviderRequests.message(lifecycle),
+                code = lifecycle, ok = false,
+                detail = "model=${response.optString("_selectedModel")}; route=${response.optString("_providerRouteKey")}",
+            )
+            return PageAgentDecision("blocked", "", ProviderRequests.message(lifecycle),
+                emptyList(), null, lifecycle)
+        }
         val failure = ProviderFailure.classify(
             response.optInt("_httpStatus", response.optJSONObject("error")?.optInt("code", 500) ?: 500),
             response.optJSONObject("error")?.toString(),
             response.optString("_selectedModel"), requestId = response.optString("_requestId"),
         )
         val code = failure.code
+        val routeKey = response.optString("_providerRouteKey")
+        val circuitOpened = routeKey.isNotBlank() &&
+            activeLocalSession?.context?.providerCircuitBreaker?.record(routeKey, failure) == true
         AgentTraceRuntime.event(context, traceId, "BOUNDARY", failure.userMessage, code = code, ok = false,
             detail = "HTTP ${failure.httpStatus}; model=${failure.selectedModelId}; request=${failure.requestId}; " +
-                "providerCode=${failure.providerCode}; message=${failure.providerMessage}; retryable=${failure.retryable}")
+                "providerCode=${failure.providerCode}; message=${failure.providerMessage}; retryable=${failure.retryable}; circuitOpened=$circuitOpened")
+        if (circuitOpened) {
+            AgentTraceRuntime.event(
+                context, traceId, "PROVIDER_CIRCUIT_OPEN",
+                "Provider route paused for this task after bounded retries.",
+                code = code, ok = true, detail = "route=$routeKey",
+            )
+        }
         return PageAgentDecision("blocked", "", "${failure.selectedModelId}: ${failure.userMessage}", emptyList(), null, code)
     }
 
@@ -1842,6 +1861,15 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
             return JSONObject().put("error", JSONObject().put("code", 503).put("message", "No verified endpoint is currently available"))
                 .put("_httpStatus", 503).put("_selectedModel", model.id)
         }
+        val session = activeLocalSession?.context
+        val providerRouteKey = ProviderTaskCircuitBreaker.routeKey(model.id, providerSort)
+        if (session?.providerCircuitBreaker?.isOpen(providerRouteKey) == true) {
+            return JSONObject()
+                .put("_lifecycle", "provider.circuit_open")
+                .put("_selectedModel", model.id)
+                .put("_providerRouteKey", providerRouteKey)
+                .put("error", JSONObject().put("code", 0))
+        }
         val request = Request.Builder()
             .url("https://openrouter.ai/api/v1/chat/completions")
             .header("Authorization", "Bearer $apiKey")
@@ -1850,7 +1878,6 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
             .header("X-Title", "Cyclone Mobile V2.8 Page Agent")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
-        val session = activeLocalSession?.context
         val taskRemaining = session?.checkpoint?.let { 300_000 - (System.currentTimeMillis() - it.taskStartTimeMs) }
             ?: ProviderRequests.REQUEST_BUDGET_MS
         val remaining = minOf(taskRemaining, session?.let { it.decisionDeadlineMs - ProviderRequests.now() } ?: taskRemaining)
@@ -1880,10 +1907,12 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
                 if (!json.has("error")) json.put("error", JSONObject().put("code", response.status))
                 json.put("_httpStatus", response.status).put("_selectedModel", model.id)
                     .put("_requestId", response.requestId ?: requestContext.requestId)
+                    .put("_providerRouteKey", providerRouteKey)
             }
             json
         } catch (error: ProviderLifecycleException) {
             JSONObject().put("_lifecycle", error.reason).put("_selectedModel", model.id)
+                .put("_providerRouteKey", providerRouteKey)
                 .put("error", JSONObject().put("code", 0))
         }
     }
