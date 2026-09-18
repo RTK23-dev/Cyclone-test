@@ -298,14 +298,33 @@
       <div class="step-title-row">
         <h3 class="step-title">AI Model Setup</h3>
       </div>
-      <p class="step-desc">Google Gemini or custom LLM providers (OpenAI, Claude, Ollama)</p>
+      <p class="step-desc">OpenRouter (DeepSeek), Google Gemini, or custom LLM providers</p>
     </div>
   </div>
 
   <div class="guide-card-body">
     <!-- 2 Big Visual Choice Cards -->
     <div class="model-choice-cards-row">
-      <!-- Card 1: Gemini (Recommended) -->
+      <!-- Card 1: OpenRouter (Cyclone default) -->
+      <div class="choice-card" [class.selected]="modelSetupMode() === 'openrouter'" (click)="setModelSetupMode('openrouter')">
+        <div class="choice-card-top">
+          <div class="choice-radio">
+            <span class="radio-dot" [class.checked]="modelSetupMode() === 'openrouter'"></span>
+          </div>
+          <div class="choice-icon-wrap icon-gear">
+            <span class="material-symbols-outlined">hub</span>
+          </div>
+          <div class="choice-text">
+            <div class="choice-title-row">
+              <span class="choice-title">OpenRouter</span>
+              <span class="tag-badge tag-rec">Recommended</span>
+            </div>
+            <p class="choice-desc">Cyclone default — DeepSeek V4.1 Flash via OpenRouter. Paste your key here.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Gemini -->
       <div class="choice-card" [class.selected]="modelSetupMode() === 'gemini'" (click)="setModelSetupMode('gemini')">
         <div class="choice-card-top">
           <div class="choice-radio">
@@ -328,14 +347,13 @@
           <div class="choice-text">
             <div class="choice-title-row">
               <span class="choice-title">Google Gemini</span>
-              <span class="tag-badge tag-rec">Recommended</span>
             </div>
             <p class="choice-desc">Fast multimodal reasoning with free API key from Google AI Studio.</p>
           </div>
         </div>
       </div>
 
-      <!-- Card 2: Custom Configuration -->
+      <!-- Card 3: Custom Configuration -->
       <div class="choice-card" [class.selected]="modelSetupMode() === 'custom'" (click)="setModelSetupMode('custom')">
         <div class="choice-card-top">
           <div class="choice-radio">
@@ -356,6 +374,89 @@
     </div>
 
     <!-- Dynamic Panel Based on Choice -->
+
+    @if (modelSetupMode() === 'openrouter') {
+    <div class="credentials-input-box">
+      <div class="input-box-header">
+        <div class="header-label">
+          <span class="material-symbols-outlined label-icon">vpn_key</span>
+          <span>Enter OpenRouter API Key:</span>
+        </div>
+        <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer"
+          class="btn-header-link">
+          <span class="material-symbols-outlined">open_in_new</span>
+          <span>Get API Key (OpenRouter)</span>
+        </a>
+      </div>
+
+      <div class="unified-key-row">
+        <div class="unified-key-wrapper">
+          <span class="material-symbols-outlined key-prefix-icon">key</span>
+          <input [type]="showOpenRouterKey() ? 'text' : 'password'" class="unified-key-input"
+            [class.is-masked]="!showOpenRouterKey()" [ngModel]="openRouterKeyInput()"
+            (ngModelChange)="onOpenRouterKeyChange($event)" placeholder="Enter OpenRouter API Key (e.g. sk-or-...)"
+            spellcheck="false" autocomplete="off" />
+
+          <button type="button" class="btn-icon-action" [title]="showOpenRouterKey() ? 'Mask Key' : 'Show Plaintext'"
+            (click)="toggleOpenRouterKeyVisibility()">
+            <span class="material-symbols-outlined">
+              {{ showOpenRouterKey() ? 'visibility_off' : 'visibility' }}
+            </span>
+          </button>
+
+          @if (openRouterKeyInput()) {
+          <button type="button" class="btn-icon-action" title="Copy API Key"
+            (click)="copyToClipboard(openRouterKeyInput(), 'openrouter_key_field')">
+            <span class="material-symbols-outlined" [class.text-emerald]="copiedId() === 'openrouter_key_field'">
+              {{ copiedId() === 'openrouter_key_field' ? 'check' : 'content_copy' }}
+            </span>
+          </button>
+          }
+        </div>
+
+        <button type="button" class="btn-unified-save" [class.btn-dirty]="isOpenRouterModified()"
+          [disabled]="isSavingOpenRouterKey() || isTestingOpenRouterKey() || (!isOpenRouterModified() && !openRouterKeyInput().trim())" (click)="saveOpenRouterKey()">
+          @if (isSavingOpenRouterKey()) {
+          <span class="material-symbols-outlined spin">sync</span>
+          <span>{{ openRouterKeyInput().trim() ? 'Verifying & Saving...' : 'Clearing...' }}</span>
+          } @else {
+          <span class="material-symbols-outlined">{{ openRouterKeyInput().trim() ? 'save' : 'delete_outline' }}</span>
+          <span>{{ !openRouterKeyInput().trim() ? 'Clear Key' : (isOpenRouterModified() ? 'Save & Apply' : 'Save Key') }}</span>
+          }
+        </button>
+
+        <button type="button" class="btn-unified-test" title="Test if OpenRouter API key is valid"
+          [disabled]="isTestingOpenRouterKey() || isSavingOpenRouterKey() || !openRouterKeyInput().trim()" (click)="testOpenRouterKey()">
+          @if (isTestingOpenRouterKey()) {
+          <span class="material-symbols-outlined spin">sync</span>
+          <span>Testing...</span>
+          } @else {
+          <span class="material-symbols-outlined">network_check</span>
+          <span>Test Key</span>
+          }
+        </button>
+      </div>
+
+      <div class="ocr-help-desc" style="margin-top: 10px;">
+        Active model from <code>config/artemis.jsonc</code>:
+        <strong>{{ openRouterModelLabel() }}</strong>
+      </div>
+
+      @if (openRouterSaveMessage()) {
+      <div class="feedback-msg success">
+        <span class="material-symbols-outlined">check_circle</span>
+        <span>{{ openRouterSaveMessage() }}</span>
+      </div>
+      }
+      @if (openRouterSaveError()) {
+      <div class="feedback-msg error">
+        <span class="material-symbols-outlined">error</span>
+        <span>{{ openRouterSaveError() }}</span>
+      </div>
+      }
+    </div>
+    }
+
     @if (modelSetupMode() === 'gemini') {
     <!-- 1. Gemini API Key Box -->
     <div class="credentials-input-box">
