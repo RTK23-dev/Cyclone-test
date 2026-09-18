@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   Start / stop / update Cyclone Glass without flashing a console window.
@@ -94,7 +94,7 @@ function Start-GlassHidden {
     Start-Sleep -Seconds 2
     if (Test-GlassUp -Port $Port) {
       Write-GlassLog "up after $($i*2)s pid=$($proc.Id)"
-      return @{ Ok = $true; Message = "Started — http://127.0.0.1:$Port"; Pid = $proc.Id }
+      return @{ Ok = $true; Message = "Started - http://127.0.0.1:$Port"; Pid = $proc.Id }
     }
     if ($proc.HasExited) {
       return @{ Ok = $false; Message = "Process exited early (see $logErr)" }
@@ -239,7 +239,7 @@ function Update-CycloneGlass {
       try {
         & $npm.Source run build 2>&1 | ForEach-Object { Write-GlassLog $_ }
         if ($LASTEXITCODE -ne 0) {
-          return @{ Ok = $false; Message = "Update pulled $before → $after but UI build failed"; Before = $before; After = $after }
+          return @{ Ok = $false; Message = "Update pulled $before -> $after but UI build failed"; Before = $before; After = $after }
         }
         $rebuildNote = '; UI rebuilt'
       } finally {
@@ -255,7 +255,7 @@ function Update-CycloneGlass {
     $rebuildNote += "; start: $($start.Message)"
   }
 
-  $msg = "Cyclone Glass updated $before → $after (data kept: .env, traces, DBs)$rebuildNote"
+  $msg = "Cyclone Glass updated $before -> $after (data kept: .env, traces, DBs)$rebuildNote"
   Write-GlassLog $msg
   return @{ Ok = $true; Message = $msg; Before = $before; After = $after; Backup = $backupRoot }
 }

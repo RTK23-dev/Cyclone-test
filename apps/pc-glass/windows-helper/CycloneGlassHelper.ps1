@@ -1,7 +1,7 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-  Cyclone Glass — Start / Stop / Update / Open (no command-prompt windows).
+  Cyclone Glass - Start / Stop / Update / Open (no command-prompt windows).
 #>
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -100,7 +100,7 @@ $btnStop.add_Click({
 $btnUpdate.add_Click({
   $confirm = [System.Windows.Forms.MessageBox]::Show(
     "Update Cyclone Glass from GitHub?`n`n• Replaces app files with the latest channel tip`n• Keeps .env, traces, and local DBs`n• Stops Glass during the update",
-    'Cyclone Glass — Update',
+    'Cyclone Glass - Update',
     [System.Windows.Forms.MessageBoxButtons]::YesNo,
     [System.Windows.Forms.MessageBoxIcon]::Question)
   if ($confirm -ne [System.Windows.Forms.DialogResult]::Yes) { return }
