@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -77,7 +78,6 @@ import com.cyclone.mobile.ui.overlay.TaskAttachment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.time.LocalTime
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
@@ -256,14 +256,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
         }
     }
 
-    val greeting = remember {
-        when (LocalTime.now().hour) {
-            in 5..11 -> "Good morning"
-            in 12..17 -> "Good afternoon"
-            else -> "Good evening"
-        }
-    }
-
     CycloneAlpineBackdrop {
         Column(
             Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp),
@@ -290,7 +282,12 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                                     tonalElevation = 0.dp,
                                 ) {
                                     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                                        Text("C", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                        Icon(
+                                            painter = painterResource(com.cyclone.mobile.R.drawable.ic_cyclone_ai_42),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(25.dp),
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
                                     }
                                 }
                                 Text(
@@ -307,7 +304,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                                     Modifier.padding(top = 10.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    listOf("Open an app", "Check a login", "Take a screenshot").forEach { suggestion ->
+                                    listOf("Open app", "Check login", "Screenshot").forEach { suggestion ->
                                         Surface(
                                             onClick = { composer = suggestion },
                                             shape = RoundedCornerShape(999.dp),
@@ -480,6 +477,10 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         onExplainScreen = {
                             toolsOpen = false
                             composer = "Explain what is on my screen"
+                        },
+                        onCreateRoutine = {
+                            toolsOpen = false
+                            composer = "Create a routine that "
                         },
                     )
                 }
