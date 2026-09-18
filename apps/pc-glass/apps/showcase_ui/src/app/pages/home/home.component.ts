@@ -200,7 +200,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   });
 
   // Task execution parameters
-  public selectedProfile = signal<'flash' | 'pro'>('flash');
+  public selectedProfile = signal<'flash' | 'pro' | 'auto'>('auto');
   public taskGoal = signal<string>('');
   public isSubmitting = signal<boolean>(false);
   public errorMessage = signal<string | null>(null);
@@ -349,7 +349,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   });
 
   public showIntentSuggestion = computed<boolean>(() => {
-    return this.isIntentSuggestingPro() && this.selectedProfile() === 'flash';
+    return this.isIntentSuggestingPro() && this.selectedProfile() === 'flash'; // not when Auto
   });
 
   // Computed helper states delegating to SystemService
@@ -1155,7 +1155,21 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
   }
 
-  public setProfile(profile: 'flash' | 'pro'): void {
+  public autoChipLabel = computed<string>(() => {
+    if (this.selectedProfile() !== 'auto') return '';
+    // Client-side preview aligned with cyclone_auto_guidelines (server is source of truth).
+    const g = this.taskGoal().trim().toLowerCase();
+    if (/^\s*(open|launch|go to)\s+[\w .'-]+\s*$/i.test(this.taskGoal().trim())) {
+      return 'Auto → Flash · easy';
+    }
+    const hard = ['monitor', 'poll', 'diagnose', 'extract', 'report', 'compare', 'checkout', 'and then', 'after that'];
+    if (hard.some(k => g.includes(k))) {
+      return 'Auto → Pro · hard · checkpoints';
+    }
+    return 'Auto → Flash · medium';
+  });
+
+  public setProfile(profile: 'flash' | 'pro' | 'auto'): void {
     this.selectedProfile.set(profile);
   }
 
@@ -1177,7 +1191,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.errorMessage.set(null);
   }
 
-  public applyQuickPrompt(promptGoal: string, profile?: 'flash' | 'pro'): void {
+  public applyQuickPrompt(promptGoal: string, profile?: 'flash' | 'pro' | 'auto'): void {
     this.taskGoal.set(promptGoal);
     if (profile) {
       this.selectedProfile.set(profile);

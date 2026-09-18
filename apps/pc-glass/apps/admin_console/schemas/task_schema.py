@@ -18,7 +18,7 @@ from pydantic import BaseModel
 class RunRequest(BaseModel):
     goal: str | None = None
     goals: list[str] | None = None
-    profile: str | None = "flash"
+    profile: str | None = "flash"  # flash | pro | auto (auto resolved server-side)
     expected_output: str | None = None
     enable_outputter: bool | None = None
     # Pro-profile tuning (ignored by the Flash profile): a coarse Checker preset

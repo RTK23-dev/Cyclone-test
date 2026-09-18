@@ -80,6 +80,30 @@ async def run_task(request: RunRequest):
             detail="Either 'goal' or 'goals' list must be provided.",
         )
 
+    # Cyclone Auto: resolve flash/pro (+ Pro tuning) from guidelines before queue.
+    resolved_profile = (request.profile or "flash").strip().lower()
+    resolved_verification = request.verification_level
+    resolved_explorer = request.explorer_mode
+    auto_meta = None
+    if resolved_profile == "auto":
+        from artemis.cyclone.auto_profile import resolve_auto
+
+        auto_res = resolve_auto(
+            incoming_goals[0],
+            user_verification=request.verification_level,
+            user_explorer=request.explorer_mode,
+        )
+        resolved_profile = auto_res.profile
+        resolved_verification = auto_res.verification_level
+        resolved_explorer = auto_res.explorer_mode
+        auto_meta = {
+            "tier": auto_res.tier,
+            "reason": auto_res.reason,
+            "resolved_profile": auto_res.profile,
+            "verification_level": auto_res.verification_level,
+            "explorer_mode": auto_res.explorer_mode,
+        }
+
     # Idempotent SDK retries must never re-run device readiness checks. A task
     # can hold the device while its admission response is lost in transit; in
     # that state, probing the same device again may fail or block even though
@@ -165,13 +189,13 @@ async def run_task(request: RunRequest):
         if verified_serial and not request.device_serial:
             target_serial = verified_serial
 
-    return await task_queue_service.enqueue_tasks(
+    result = await task_queue_service.enqueue_tasks(
         incoming_goals,
-        profile=request.profile or "flash",
+        profile=resolved_profile or "flash",
         expected_output=request.expected_output,
         enable_outputter=request.enable_outputter,
-        verification_level=request.verification_level,
-        explorer_mode=request.explorer_mode,
+        verification_level=resolved_verification,
+        explorer_mode=resolved_explorer,
         locked_app_package=request.locked_app_package,
         app_path=request.app_path,
         device_serial=target_serial,
@@ -179,6 +203,9 @@ async def run_task(request: RunRequest):
         session_id=request.session_id,
         conversation_id=request.conversation_id,
     )
+    if auto_meta and isinstance(result, dict):
+        result = {**result, "auto": auto_meta}
+    return result
 
 
 @router.get("/api/run/defaults")

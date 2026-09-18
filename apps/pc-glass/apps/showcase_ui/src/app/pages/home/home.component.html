@@ -1856,7 +1856,7 @@
           <!-- Contextual Model Descriptor Strip (Clean & Unified for Flash & Pro) -->
           <div class="composer-model-descriptor" [class.is-pro]="selectedProfile() === 'pro'">
             <div class="descriptor-icon-wrap">
-              <span class="material-symbols-outlined">{{ selectedProfile() === 'flash' ? 'bolt' : 'psychology' }}</span>
+              <span class="material-symbols-outlined">{{ selectedProfile() === 'auto' ? 'auto_mode' : (selectedProfile() === 'flash' ? 'bolt' : 'psychology') }}</span>
             </div>
             <div class="descriptor-body">
               @if (selectedProfile() === 'flash') {
@@ -1889,6 +1889,16 @@
             <div class="bar-left">
               <!-- Frosted Glass Architecture Toggle Capsule -->
               <div class="model-toggle-capsule">
+                <button
+                  type="button"
+                  class="model-toggle-btn btn-flash"
+                  [class.active]="selectedProfile() === 'auto'"
+                  (click)="setProfile('auto')"
+                  title="Auto: Cyclone picks Flash or Pro (and Pro checks / screen reading) from the goal"
+                >
+                  <span class="material-symbols-outlined btn-icon">auto_mode</span>
+                  <span class="btn-text">Auto</span>
+                </button>
                 <button
                   type="button"
                   class="model-toggle-btn btn-flash"
@@ -2174,7 +2184,7 @@
 
                   <span class="mode-badge" [class.mode-pro]="item.profile === 'pro'" [class.mode-flash]="item.profile === 'flash'"
                     [title]="item.profile === 'pro' ? 'Uses Cyclone Pro (multi-agent graph)' : item.profile === 'auto' ? 'Uses Cyclone Auto (dynamic difficulty)' : 'Uses Cyclone Flash (reactive fast loop)'">
-                    {{ item.profile === 'pro' ? 'Pro' : 'Flash' }}
+                    {{ item.profile === 'pro' ? 'Pro' : (item.profile === 'auto' ? 'Auto' : 'Flash') }}
                   </span>
                 </div>
 
