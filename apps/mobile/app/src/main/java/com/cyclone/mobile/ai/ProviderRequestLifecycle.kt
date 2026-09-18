@@ -78,6 +78,7 @@ object ProviderRequests {
         "provider.cancelled" -> "The provider request was stopped; its response cannot perform an action."
         "provider.deadline" -> "The provider did not finish within this request's remaining time budget (at most 30 seconds). No returned plan was executed."
         "provider.cooldown" -> "This account and model are cooling down after a transient provider failure. Retry after the short cooldown."
+        "provider.circuit_open" -> "This model route already exhausted its bounded retry for the current task. Retry the task later or choose another model."
         "provider.request_in_progress" -> "Another request for this account, model and purpose is still running. Wait for it to finish or stop it."
         else -> if (reason.startsWith("phase.timeout.")) "Execution exceeded the ${reason.substringAfterLast('.').replace('_', ' ')} phase budget. No further action was dispatched." else reason
     }
