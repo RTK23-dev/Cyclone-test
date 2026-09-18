@@ -143,7 +143,7 @@ object FastPathLanding {
         return sanitizeUri("https://$raw.com")
     }
 
-$insert
+    fun namedAppHits(goal: String, installed: List<InstalledApp> = InstalledAppInventory.snapshot): List<NamedAppHit> {
         val lower = goal.lowercase()
         val hits = mutableListOf<NamedAppHit>()
         val packages = mutableSetOf<String>()
