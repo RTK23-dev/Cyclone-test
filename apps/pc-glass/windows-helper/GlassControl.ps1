@@ -172,32 +172,43 @@ function Update-CycloneGlass {
   $before = ''
   Push-Location $repo
   try {
-    $before = (git rev-parse --short HEAD 2>$null)
-    # Ensure we are on the update branch / worktree tracking the glass line
-    git fetch $remote $Branch 2>&1 | ForEach-Object { Write-GlassLog $_ }
-    if ($LASTEXITCODE -ne 0) {
-      return @{ Ok = $false; Message = "git fetch failed (see helper.log)" }
-    }
-
-    # Replace ALL tracked files with remote tip (removes deleted tracked files too)
-    git checkout -B $Branch "$remote/$Branch" 2>&1 | ForEach-Object { Write-GlassLog $_ }
-    git reset --hard "$remote/$Branch" 2>&1 | ForEach-Object { Write-GlassLog $_ }
-    if ($LASTEXITCODE -ne 0) {
-      return @{ Ok = $false; Message = "git reset --hard failed" }
-    }
-
-    # Remove leftover untracked junk under glass, but NEVER data / venv / node_modules
-    # (those are regenerated or user-owned)
-    Push-Location $glass
+    # git writes progress to stderr; do not treat that as a terminating error
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     try {
-      git clean -fd -e .env -e '.env.*' -e traces -e scratch -e .venv -e 'apps/showcase_ui/node_modules' `
-        -e data_engine.db -e 'data_engine.db-*' -e '*.log' -e .artemis_server.json `
-        -e windows-helper/dist 2>&1 | ForEach-Object { Write-GlassLog $_ }
-    } finally {
-      Pop-Location
-    }
+      $before = (& git rev-parse --short HEAD 2>$null | Out-String).Trim()
+      $fetchOut = & git fetch $remote $Branch 2>&1
+      $fetchCode = $LASTEXITCODE
+      $fetchOut | ForEach-Object { Write-GlassLog "$_" }
+      if ($fetchCode -ne 0) {
+        return @{ Ok = $false; Message = "git fetch failed (see helper.log)" }
+      }
 
-    $after = (git rev-parse --short HEAD)
+      # Replace ALL tracked files with remote tip (removes deleted tracked files too)
+      $coOut = & git checkout -B $Branch "$remote/$Branch" 2>&1
+      $coOut | ForEach-Object { Write-GlassLog "$_" }
+      $resetOut = & git reset --hard "$remote/$Branch" 2>&1
+      $resetCode = $LASTEXITCODE
+      $resetOut | ForEach-Object { Write-GlassLog "$_" }
+      if ($resetCode -ne 0) {
+        return @{ Ok = $false; Message = "git reset --hard failed" }
+      }
+
+      # Remove leftover untracked junk under glass, but NEVER data / venv / node_modules
+      Push-Location $glass
+      try {
+        $cleanOut = & git clean -fd -e .env -e '.env.*' -e traces -e scratch -e .venv -e 'apps/showcase_ui/node_modules' `
+          -e data_engine.db -e 'data_engine.db-*' -e '*.log' -e .artemis_server.json `
+          -e windows-helper/dist 2>&1
+        $cleanOut | ForEach-Object { Write-GlassLog "$_" }
+      } finally {
+        Pop-Location
+      }
+
+      $after = (& git rev-parse --short HEAD 2>$null | Out-String).Trim()
+    } finally {
+      $ErrorActionPreference = $prevEap
+    }
   } finally {
     Pop-Location
   }
