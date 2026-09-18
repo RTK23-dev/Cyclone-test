@@ -127,6 +127,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         val cookieInterruptions: CookieInterruptionPolicy = CookieInterruptionPolicy(),
         val loginAutofill: LoginAutofillPolicy = LoginAutofillPolicy(),
         val executedActions: ExecutedActionMemory = ExecutedActionMemory(),
+        val staleTargets: StaleTargetMemory = StaleTargetMemory(),
         var playbookPackage: String? = null,
         val providerCancellation: ProviderCancellation = ProviderCancellation(),
         val providerCircuitBreaker: ProviderTaskCircuitBreaker = ProviderTaskCircuitBreaker(),
@@ -271,6 +272,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         // fresh page so Cyclone never carries a pre-handoff submit step onto a changed surface.
         session.context.loginAutofill.reset()
         session.context.executedActions.resetAfterHandoff()
+        session.context.staleTargets.resetAfterHandoff()
         session.context.pendingRecoveryCause = null
         session.context.consecutiveNoProgressFailures = 0
         session.context.adaptiveMode = "STRUCTURED"
@@ -1210,6 +1212,18 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 return LocalExecution(state, false, verifiedProgress, actionScene,
                     message = "ACTION_ALREADY_PERFORMED: this click was executed without verified progress; choose a different target or strategy.")
             }
+            val staleTargetKey = session.staleTargets.key(action, session.bridge.currentPage())
+            if (!session.staleTargets.mayDispatch(staleTargetKey)) {
+                session.pendingRecoveryCause = RecoverableCause.STALE_SELECTOR
+                return LocalExecution(
+                    state = state,
+                    ok = false,
+                    progress = verifiedProgress,
+                    evidenceIdentity = actionScene,
+                    staleTarget = true,
+                    message = "TARGET_STALE_QUARANTINED: this logical target was rejected as stale on two fresh captures; choose a different grounding strategy.",
+                )
+            }
             onProgress(summary)
             AgentTraceRuntime.event(
                 context, session.traceId, "ACTION_REQUESTED", summary, code = action.tool,
@@ -1309,6 +1323,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             val policyDenied = envelope.errorClass == AgentFailureClass.POLICY_DENIED
             val hardBlocker = ActionOutcomePolicy.hardBlocker(envelope.errorClass, envelope.safeMessage)
             val stale = envelope.errorClass == AgentFailureClass.STALE_OBSERVATION
+            if (stale) session.staleTargets.recordRejected(staleTargetKey)
+            if (madeProgress) session.staleTargets.markVerifiedProgress()
 
             if (!accepted) {
                 session.pendingRecoveryCause = session.bridge.causeFor(envelope)
