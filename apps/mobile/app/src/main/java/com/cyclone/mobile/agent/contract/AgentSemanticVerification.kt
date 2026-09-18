@@ -80,6 +80,7 @@ object AgentSemanticVerifier {
         goalLabel: String,
         before: SemanticObservationState?,
         after: SemanticObservationState?,
+        expectedUri: String = "",
     ): AgentSemanticVerification {
         if (executorAssertionFailed) {
             return AgentSemanticVerification(
@@ -120,6 +121,21 @@ object AgentSemanticVerifier {
                     semanticSuccessClaimed = false,
                     basis = "EXPECTED_PACKAGE_MISMATCH",
                     detail = "The requested app package was not the authoritative after-state package.",
+                )
+            }
+        }
+
+        val expectedHttpHost = expectedHttpHost(expectedUri)
+        if (tool == "phone.launch_intent" && expectedHttpHost != null) {
+            return if (httpHostVisible(after.haystack, expectedHttpHost)) {
+                passed("EXPECTED_URI_HOST")
+            } else {
+                AgentSemanticVerification(
+                    status = AgentVerificationStatus.OBSERVED,
+                    passed = false,
+                    semanticSuccessClaimed = false,
+                    basis = "EXPECTED_URI_HOST_NOT_OBSERVED",
+                    detail = "Android accepted the web intent, but the authoritative after-state does not yet show the requested host.",
                 )
             }
         }
@@ -208,6 +224,23 @@ object AgentSemanticVerifier {
         val needle = goalLabel.trim()
         if (needle.isBlank()) return false
         return !beforeHaystack.contains(needle, ignoreCase = true) && afterHaystack.contains(needle, ignoreCase = true)
+    }
+
+    private fun expectedHttpHost(raw: String): String? {
+        val value = raw.trim()
+        if (value.isBlank()) return null
+        val uri = runCatching { java.net.URI(value) }.getOrNull() ?: return null
+        if (uri.scheme?.lowercase() !in setOf("http", "https")) return null
+        return uri.host?.lowercase()?.removePrefix("www.")?.takeIf { it.isNotBlank() }
+    }
+
+    private fun httpHostVisible(haystack: String, expectedHost: String): Boolean {
+        if (haystack.isBlank()) return false
+        val exactHost = Regex(
+            "(?i)(?<![a-z0-9_.@-])(?:https?://)?(?:[a-z0-9-]+\\.)*" +
+                Regex.escape(expectedHost) + "(?=[:/?#\\s\"']|$)",
+        )
+        return exactHost.containsMatchIn(haystack)
     }
 
     private fun passed(basis: String) = AgentSemanticVerification(
