@@ -82,7 +82,7 @@ private fun HumanTakeoverRibbon(task: WorkspaceTaskUi) {
         color = MaterialTheme.colorScheme.surface.copy(alpha = .96f),
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
-        shadowElevation = 4.dp,
+        shadowElevation = 0.dp,
     ) {
         Row(
             Modifier.fillMaxWidth().padding(start = 14.dp, top = 10.dp, end = 8.dp, bottom = 10.dp),
