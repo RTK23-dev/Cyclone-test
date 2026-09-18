@@ -139,7 +139,7 @@ object FastPathLanding {
             ?.trim()?.trimEnd('.', ',', ';', ':') ?: return null
         if ('.' in raw) return sanitizeUri("https://${raw.removePrefix("www.")}")
         val packageName = namedApp("open $raw", installed)?.second
-        if (packageName != null) return webFallback(packageName)?.let(::sanitizeUri)
+        packageName?.let(::webFallback)?.let(::sanitizeUri)?.let { return it }
         return sanitizeUri("https://$raw.com")
     }
 
