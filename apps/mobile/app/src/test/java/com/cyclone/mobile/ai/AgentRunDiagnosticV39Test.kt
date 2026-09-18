@@ -61,7 +61,7 @@ class AgentRunDiagnosticV39Test {
             AiTraceEvent("7", "ai-test-session", 1_700, "FREE_MODE_ENTER", "Structured recovery stalled; Cyclone is trying a different strategy", "adaptive.free.enter", true, "noProgressFailures=2"),
         )
         val text = AgentRunDiagnosticV39.format(session(), events)
-        assertTrue(text.contains("Schema: cyclone-run-diagnostic-v39/4"))
+        assertTrue(text.contains("Schema: cyclone-run-diagnostic-v39/5"))
         assertTrue(text.contains("MODEL SAW / CONTEXT"))
         assertTrue(text.contains("MODEL DECISION"))
         assertTrue(text.contains("TOOL REQUEST"))
@@ -73,6 +73,30 @@ class AgentRunDiagnosticV39Test {
         assertTrue(text.contains("RECOVERY"))
         assertTrue(text.contains("ADAPTIVE FREE MODE"))
         assertTrue(text.contains("FINAL / CURRENT RESULT"))
+    }
+
+    @Test
+    fun readOnlyProgressIsVisibleWithoutClaimingVerifiedMutation() {
+        val events = listOf(
+            AiTraceEvent("1", "s", 1, "ACTION_REQUESTED", "Wait for Facebook", "phone.wait_for", null, null),
+            AiTraceEvent("2", "s", 2, "ANDROID_EXECUTION", "Android accepted the action", "NONE", true, "executorInvoked=true"),
+            AiTraceEvent("3", "s", 3, "AFTER_OBSERVATION", "Fresh after-state: facebook", "READ_ONLY_TOOL", true, null),
+            AiTraceEvent("4", "s", 4, "VERIFICATION", "Execution did not prove semantic success", "READ_ONLY_TOOL", false, null),
+            AiTraceEvent("5", "s", 5, "PROGRESS_CLASSIFIED", "verified progress", "package_or_activity_changed", true, null),
+        )
+        val metrics = AgentRunDiagnosticV39.metrics(events)
+        assertTrue(metrics.executorInvocations == 1)
+        assertTrue(metrics.androidAcceptedExecutions == 1)
+        assertTrue(metrics.freshAfterStates == 1)
+        assertTrue(metrics.taskProgressObservations == 1)
+        assertTrue(metrics.semanticallyVerifiedMutations == 0)
+
+        val text = AgentRunDiagnosticV39.format(session(), events)
+        assertTrue(text.contains("Android accepted executions: 1"))
+        assertTrue(text.contains("Fresh after-state observations: 1"))
+        assertTrue(text.contains("Task-progress observations: 1"))
+        assertTrue(text.contains("Semantically verified mutations: 0"))
+        assertFalse(text.contains("Verified actions:"))
     }
 
     @Test
@@ -151,6 +175,7 @@ class AgentRunDiagnosticV39Test {
         assertTrue(metrics.toolCalls == 1)
         assertTrue(metrics.failures == 1)
         assertTrue(metrics.verifiedActions == 1)
+        assertTrue(metrics.semanticallyVerifiedMutations == 1)
         assertTrue(metrics.recoveries == 1)
         assertTrue(metrics.freeModeEntries == 1)
         assertTrue(metrics.toolFailures == 1)
