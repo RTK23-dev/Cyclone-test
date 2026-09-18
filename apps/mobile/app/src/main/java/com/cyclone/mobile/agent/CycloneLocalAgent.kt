@@ -5,10 +5,10 @@ import com.cyclone.mobile.agent.recovery.RecoveryIncident
 import com.cyclone.mobile.agent.recovery.IncidentEffect
 
 enum class CycloneAgentStage { START, OBSERVE, PLAN_OR_RECALL, ACT, VERIFY, CLASSIFY_RESULT, SUSPENDED, TERMINAL }
-enum class CycloneTaskClassification { COMPLETE, RECOVERABLE, HUMAN_OR_GATE, HARD_BLOCKER, CANCELLED, NON_CONVERGENCE }
+enum class CycloneTaskClassification { COMPLETE, RECOVERABLE, PROVIDER_RETRY_LATER, HUMAN_OR_GATE, HARD_BLOCKER, CANCELLED, NON_CONVERGENCE }
 enum class CycloneModelDirective { ACT, DONE, NEED_HUMAN, BLOCKED, NEED_VISION }
 enum class CycloneRecoveryKind { OBSERVATION_FAILURE, MALFORMED_MODEL, MODEL_BLOCKED_UNCONFIRMED, EMPTY_OR_INVALID_PLAN, TOOL_FAILURE, VERIFICATION_FAILURE, VISION_UNCHANGED, STALE_TARGET, BACKTRACK, POLICY_DENIED }
-enum class CycloneTraceEventType { TASK_STARTED, OBSERVE, PLAN, TOOL_REQUESTED, TOOL_RESULT, VERIFY, RECOVERY_CLASSIFIED, REPLAN, VISION_ESCALATION, GATE_SUSPEND, GATE_RESUME, COMPLETE, HARD_BLOCKER, NON_CONVERGENCE, CANCELLED, PHASE }
+enum class CycloneTraceEventType { TASK_STARTED, OBSERVE, PLAN, TOOL_REQUESTED, TOOL_RESULT, VERIFY, RECOVERY_CLASSIFIED, REPLAN, VISION_ESCALATION, GATE_SUSPEND, GATE_RESUME, PROVIDER_WAIT, COMPLETE, HARD_BLOCKER, NON_CONVERGENCE, CANCELLED, PHASE }
 
 data class CycloneConvergencePolicy(
     val taskTimeoutMs: Long = 180_000,
@@ -283,6 +283,7 @@ class CycloneLocalAgent(
                     when (tools.classifyModelBoundary(state, observation, turn)) {
                         CycloneTaskClassification.HUMAN_OR_GATE -> return suspendForGate(turn.reason)
                         CycloneTaskClassification.HARD_BLOCKER -> return hardBlocker(turn.reason)
+                        CycloneTaskClassification.PROVIDER_RETRY_LATER -> return providerRetryLater(turn.reason)
                         CycloneTaskClassification.CANCELLED -> return cancelResult(turn.reason)
                         CycloneTaskClassification.NON_CONVERGENCE -> return nonConvergence("classifier.non_convergence")
                         CycloneTaskClassification.COMPLETE -> {
@@ -409,6 +410,7 @@ class CycloneLocalAgent(
         emit(CycloneTraceEventType.GATE_SUSPEND, message); checkpoint(); return CycloneAgentRunResult.Suspended(state, message)
     }
     private fun hardBlocker(message: String?) = finish(CycloneTaskClassification.HARD_BLOCKER, CycloneTraceEventType.HARD_BLOCKER, message) { CycloneAgentRunResult.Stopped(it, message) }
+    private fun providerRetryLater(message: String?) = finish(CycloneTaskClassification.PROVIDER_RETRY_LATER, CycloneTraceEventType.PROVIDER_WAIT, message) { CycloneAgentRunResult.Stopped(it, message) }
     private fun nonConvergence(code: String) = finish(CycloneTaskClassification.NON_CONVERGENCE, CycloneTraceEventType.NON_CONVERGENCE, code) { CycloneAgentRunResult.Stopped(it, code) }
     private fun <T : CycloneAgentRunResult> finish(classification: CycloneTaskClassification, event: CycloneTraceEventType, code: String?, build: (CycloneTaskState) -> T): T {
         state = state.copy(incident = state.incident?.let {
@@ -423,6 +425,7 @@ class CycloneLocalAgent(
         CycloneTaskClassification.COMPLETE -> CycloneAgentRunResult.Completed(state)
         CycloneTaskClassification.CANCELLED -> CycloneAgentRunResult.Cancelled(state)
         CycloneTaskClassification.HUMAN_OR_GATE -> CycloneAgentRunResult.Suspended(state)
+        CycloneTaskClassification.PROVIDER_RETRY_LATER -> CycloneAgentRunResult.Stopped(state)
         else -> CycloneAgentRunResult.Stopped(state)
     }
     private fun emit(type: CycloneTraceEventType, code: String? = null, observation: CycloneObservation? = null, actionSignature: String? = null, safeMessage: String? = null) {
