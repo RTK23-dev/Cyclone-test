@@ -414,7 +414,8 @@ private fun ComposerPanel(
 
     CycloneChatDrawerSurface(
         onCollapse = {
-            focusManager.clearFocus()
+            focusManager.clearFocus(force = true)
+            keyboard?.hide()
             onAction(OverlayUserAction.MINIMIZE)
         },
         modifier = Modifier
