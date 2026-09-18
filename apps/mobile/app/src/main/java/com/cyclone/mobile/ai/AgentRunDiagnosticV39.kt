@@ -10,7 +10,7 @@ import java.util.Locale
 
 /** High-signal, user-shareable projection of Cyclone's durable trace database. */
 object AgentRunDiagnosticV39 {
-    const val SCHEMA = "cyclone-run-diagnostic-v39/4"
+    const val SCHEMA = "cyclone-run-diagnostic-v39/5"
     const val MAX_BYTES = 1024 * 1024
 
     data class Metrics(
@@ -25,7 +25,11 @@ object AgentRunDiagnosticV39 {
         val modelContextSnapshots: Int,
         val freeModeEntries: Int,
         val executorInvocations: Int,
+        val androidAcceptedExecutions: Int,
+        val freshAfterStates: Int,
+        val taskProgressObservations: Int,
     ) {
+        val semanticallyVerifiedMutations: Int get() = verifiedActions
         /** Compatibility aggregate for existing Brain/result UI while diagnostics keep failure classes separate. */
         val failures: Int get() = toolFailures + verificationFailures
     }
@@ -54,6 +58,9 @@ object AgentRunDiagnosticV39 {
                     group.count { it.kind == "TOOL_REQUESTED" })
             },
             executorInvocations = events.count { it.kind == "ANDROID_EXECUTION" && it.detail.orEmpty().contains("executorInvoked=true") },
+            androidAcceptedExecutions = events.count { it.kind == "ANDROID_EXECUTION" && it.ok == true },
+            freshAfterStates = events.count { it.kind == "AFTER_OBSERVATION" && it.ok == true },
+            taskProgressObservations = events.count { it.kind == "PROGRESS_CLASSIFIED" && it.ok == true },
             toolFailures = groups.sumOf { group ->
                 val detailed = group.filter { it.kind in setOf("ANDROID_EXECUTION", "ACTION_REJECTED") }
                 (detailed.takeIf { it.isNotEmpty() } ?: group.filter { it.kind == "TOOL_RESULT" }).count { it.ok == false }
@@ -161,7 +168,10 @@ object AgentRunDiagnosticV39 {
             appendLine("Model/decision turns: $effectiveTurns")
             appendLine("Tool calls: ${metrics.toolCalls}")
             appendLine("Canonical executor invocations (explicit evidence): ${metrics.executorInvocations}")
-            appendLine("Verified actions: ${metrics.verifiedActions}")
+            appendLine("Android accepted executions: ${metrics.androidAcceptedExecutions}")
+            appendLine("Fresh after-state observations: ${metrics.freshAfterStates}")
+            appendLine("Task-progress observations: ${metrics.taskProgressObservations}")
+            appendLine("Semantically verified mutations: ${metrics.semanticallyVerifiedMutations}")
             appendLine("Tool failures: ${metrics.toolFailures}")
             appendLine("Verification failures: ${metrics.verificationFailures}")
             appendLine("Actual recovery cycles: ${metrics.recoveries}")
@@ -212,6 +222,7 @@ object AgentRunDiagnosticV39 {
         kind.startsWith("RECOVERY") || kind == "REPLAN" -> "RECOVERY"
         kind == "FREE_MODE_ENTER" || kind == "FREE_MODE_EXIT" -> "ADAPTIVE FREE MODE"
         kind.contains("VISION") -> "VISION"
+        kind.startsWith("PROVIDER") -> "PROVIDER BOUNDARY"
         kind.contains("GATE") || kind == "BOUNDARY" -> "GATE / HUMAN BOUNDARY"
         kind.startsWith("LEARNING") || kind == "LEARNING" -> "BRAIN LEARNING"
         kind in setOf("DONE", "STOPPED", "CANCELLED") -> "FINAL RESULT"
