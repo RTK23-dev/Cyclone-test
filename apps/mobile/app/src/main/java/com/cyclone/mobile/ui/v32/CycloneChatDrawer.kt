@@ -51,6 +51,17 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+internal object CycloneChatDrawerGesturePolicy {
+    const val COLLAPSE_THRESHOLD_DP = 72f
+    const val EXPAND_THRESHOLD_DP = 34f
+
+    fun shouldCollapse(downwardDragDp: Float): Boolean =
+        downwardDragDp >= COLLAPSE_THRESHOLD_DP
+
+    fun shouldExpand(verticalDragDp: Float): Boolean =
+        verticalDragDp <= -EXPAND_THRESHOLD_DP
+}
+
 /**
  * Shared visual shell for the in-app chat and accessibility overlay.
  *
@@ -68,7 +79,7 @@ internal fun CycloneChatDrawerSurface(
     val scope = rememberCoroutineScope()
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var settleJob by remember { androidx.compose.runtime.mutableStateOf<Job?>(null) }
-    val thresholdPx = with(LocalDensity.current) { 72.dp.toPx() }
+    val thresholdPx = with(LocalDensity.current) { CycloneChatDrawerGesturePolicy.COLLAPSE_THRESHOLD_DP.dp.toPx() }
 
     fun settle(collapse: Boolean) {
         settleJob?.cancel()
@@ -137,7 +148,7 @@ internal fun CycloneCollapsedAskPill(
     status: String? = null,
 ) {
     var upwardDrag by remember { mutableFloatStateOf(0f) }
-    val thresholdPx = with(LocalDensity.current) { 34.dp.toPx() }
+    val thresholdPx = with(LocalDensity.current) { CycloneChatDrawerGesturePolicy.EXPAND_THRESHOLD_DP.dp.toPx() }
     Surface(
         onClick = onExpand,
         modifier = modifier
