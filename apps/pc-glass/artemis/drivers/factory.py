@@ -53,8 +53,12 @@ def create_driver(ctx: "ArtemisContext") -> BaseDeviceDriver:
         from artemis.drivers.cyclone.gateway_driver import CycloneGatewayDriver
 
         logger.info("create_driver: selecting CycloneGatewayDriver (CYCLONE connected)")
+        env_device = (os.environ.get("CYCLONE_DEVICE_ID") or "").strip() or None
+        ctx_device = ctx.device.device_id if ctx.device else None
+        # Prefer explicit Cyclone id; ADB serials are resolved inside the driver.
+        device_id = env_device if (env_device and env_device.startswith("dev_")) else ctx_device
         return CycloneGatewayDriver(
-            device_id=ctx.device.device_id if ctx.device else None,
+            device_id=device_id,
             width=ctx.device.device_width if ctx.device else 1080,
             height=ctx.device.device_height if ctx.device else 2400,
         )

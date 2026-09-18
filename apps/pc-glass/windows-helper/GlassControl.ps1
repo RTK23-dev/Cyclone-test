@@ -38,6 +38,39 @@ function Get-UpdateChannel {
   return (Get-Content $path -Raw | ConvertFrom-Json)
 }
 
+
+function Import-GlassModeAEnv {
+  # Load CYCLONE_* from glass .env and device-gateway serve.env (token never printed).
+  $glass = Get-GlassRoot
+  $repo = Get-RepoRoot
+  $files = @(
+    (Join-Path $glass '.env'),
+    (Join-Path $repo 'apps\device-gateway\.runtime\serve.env')
+  )
+  foreach ($f in $files) {
+    if (-not (Test-Path $f)) { continue }
+    Get-Content $f | ForEach-Object {
+      $line = $_.Trim()
+      if (-not $line -or $line.StartsWith('#')) { return }
+      if ($line -notmatch '^(?<k>[^=]+)=(?<v>.*)$') { return }
+      $k = $Matches['k'].Trim().TrimStart([char]0xFEFF)
+      $v = $Matches['v'].Trim().Trim('"').Trim("'")
+      if ($k -notlike 'CYCLONE_*' -and $k -notlike 'OPEN*ROUTER*') { return }
+      if (-not $v) { return }
+      # Prefer first non-empty; serve.env may fill TOKEN after .env
+      $cur = [Environment]::GetEnvironmentVariable($k, 'Process')
+      if ([string]::IsNullOrWhiteSpace($cur)) {
+        [Environment]::SetEnvironmentVariable($k, $v, 'Process')
+      } elseif ($k -eq 'CYCLONE_DEVICE_GATEWAY_TOKEN' -and $cur.Length -lt 8) {
+        [Environment]::SetEnvironmentVariable($k, $v, 'Process')
+      }
+    }
+  }
+  if (-not $env:CYCLONE_DEVICE_GATEWAY_URL) { $env:CYCLONE_DEVICE_GATEWAY_URL = 'http://127.0.0.1:8765' }
+  if (-not $env:CYCLONE_SESSION_ID) { $env:CYCLONE_SESSION_ID = 'default-foreground' }
+  $env:CYCLONE_CONNECTED = '1'
+}
+
 function Test-GlassUp([int]$Port = 8000) {
   try {
     $req = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$Port/api/status")
@@ -61,10 +94,8 @@ function Start-GlassHidden {
   if (-not $uvCmd) {
     return @{ Ok = $false; Message = 'uv not found on PATH. Install https://docs.astral.sh/uv/' }
   }
-  if (-not $env:CYCLONE_DEVICE_GATEWAY_URL) { $env:CYCLONE_DEVICE_GATEWAY_URL = 'http://127.0.0.1:8765' }
-  if (-not $env:CYCLONE_SESSION_ID) { $env:CYCLONE_SESSION_ID = 'default-foreground' }
-  $env:CYCLONE_CONNECTED = '1'
-  Write-GlassLog "Starting Cyclone Glass in $root (port $Port)"
+  Import-GlassModeAEnv
+  Write-GlassLog "Starting Cyclone Glass in $root (port $Port) session=$($env:CYCLONE_SESSION_ID) tokenLen=$($env:CYCLONE_DEVICE_GATEWAY_TOKEN.Length) device=$($env:CYCLONE_DEVICE_ID)"
 
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = $uvCmd.Source
@@ -77,6 +108,8 @@ function Start-GlassHidden {
   $psi.EnvironmentVariables['CYCLONE_CONNECTED'] = '1'
   $psi.EnvironmentVariables['CYCLONE_DEVICE_GATEWAY_URL'] = $env:CYCLONE_DEVICE_GATEWAY_URL
   $psi.EnvironmentVariables['CYCLONE_SESSION_ID'] = $env:CYCLONE_SESSION_ID
+  if ($env:CYCLONE_DEVICE_GATEWAY_TOKEN) { $psi.EnvironmentVariables['CYCLONE_DEVICE_GATEWAY_TOKEN'] = $env:CYCLONE_DEVICE_GATEWAY_TOKEN }
+  if ($env:CYCLONE_DEVICE_ID) { $psi.EnvironmentVariables['CYCLONE_DEVICE_ID'] = $env:CYCLONE_DEVICE_ID }
 
   $proc = New-Object System.Diagnostics.Process
   $proc.StartInfo = $psi

@@ -78,7 +78,6 @@ class CycloneGatewayDriver(BaseDeviceDriver):
                 "read it from phone_status / gateway attach — never invent one"
             )
         self._session_id = resolved_session
-        self._device_id = (device_id or os.getenv("CYCLONE_DEVICE_ID") or "").strip() or None
         self._display_id = (
             display_id
             if display_id is not None
@@ -99,6 +98,13 @@ class CycloneGatewayDriver(BaseDeviceDriver):
         self._last_observation_id: str | None = None
         self._current_package: str | None = None
         self.action_history: list[dict[str, Any]] = []
+        # Prefer Cyclone device id (dev_...), never invent session_id.
+        # ADB serials are not valid on /v1/devices/{id}/agent/* routes.
+        candid = (device_id or os.getenv("CYCLONE_DEVICE_ID") or "").strip() or None
+        if candid and candid.startswith("dev_"):
+            self._device_id = candid
+        else:
+            self._device_id = self._resolve_device_id(prefer=candid)
 
     @property
     def device_id(self) -> str:
@@ -119,6 +125,53 @@ class CycloneGatewayDriver(BaseDeviceDriver):
             "display_id": self._display_id,
             "displayId": self._display_id,
         }
+
+    def _resolve_device_id(self, *, prefer: str | None = None) -> str | None:
+        """Pick a Cyclone deviceId from the live gateway fleet list."""
+        try:
+            data = self._request("GET", "/v1/devices")
+        except Exception:
+            return prefer if prefer and str(prefer).startswith("dev_") else None
+        devices = []
+        if isinstance(data, dict):
+            devices = data.get("devices") or []
+        if not isinstance(devices, list):
+            return prefer if prefer and str(prefer).startswith("dev_") else None
+        ready = []
+        for d in devices:
+            if not isinstance(d, dict):
+                continue
+            did = d.get("deviceId") or d.get("device_id") or d.get("id")
+            if not isinstance(did, str) or not did.startswith("dev_"):
+                continue
+            if prefer and prefer in (did, d.get("serialSuffix"), d.get("serial"), d.get("name")):
+                return did
+            if d.get("paired") is True or str(d.get("state") or "").upper() == "READY":
+                ready.append(did)
+            else:
+                ready.append(did)
+        return ready[0] if ready else None
+
+    @staticmethod
+    def _extract_observation_id(response: dict[str, Any]) -> str | None:
+        witness = response.get("witness")
+        if isinstance(witness, dict):
+            for k in ("observation_id", "observationId"):
+                v = witness.get(k)
+                if isinstance(v, str) and v:
+                    return v
+        observation = response.get("observation")
+        if isinstance(observation, dict):
+            for k in ("observation_id", "observationId"):
+                v = observation.get(k)
+                if isinstance(v, str) and v:
+                    return v
+        after = response.get("afterState")
+        if isinstance(after, dict):
+            v = after.get("observationId") or after.get("observation_id")
+            if isinstance(v, str) and v:
+                return v
+        return None
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> Any:
         url = f"{self._base_url}{path}"
@@ -145,33 +198,48 @@ class CycloneGatewayDriver(BaseDeviceDriver):
             raise CycloneGatewayError(f"Gateway unreachable: {exc}") from exc
 
     def _observe(self, *, include_screenshot: bool = True, mode: str = "full") -> dict[str, Any]:
-        payload = {
-            "protocol_version": CAPABILITY_PROTOCOL_VERSION,
-            "correlation_id": uuid4().hex,
+        if not self._device_id:
+            self._device_id = self._resolve_device_id()
+        agent_body = {
             "include_screenshot": include_screenshot,
             "mode": mode,
             **self._identity(),
         }
+        # Agent route is the authoritative Mode A surface. Capability route often
+        # returns AUTH_REJECTED for desktop Bearer tokens without bridge context.
         if self._device_id:
-            # Prefer per-device agent surface when device_id known
-            path = f"/v1/devices/{self._device_id}/agent/observe"
-            try:
-                response = self._request("POST", path, {
+            response = self._request(
+                "POST",
+                f"/v1/devices/{self._device_id}/agent/observe",
+                agent_body,
+            )
+        else:
+            response = self._request(
+                "POST",
+                "/v1/capabilities/observe",
+                {
+                    "protocol_version": CAPABILITY_PROTOCOL_VERSION,
+                    "correlation_id": uuid4().hex,
                     "include_screenshot": include_screenshot,
                     "mode": mode,
                     **self._identity(),
-                })
-            except CycloneGatewayError:
-                response = self._request("POST", "/v1/capabilities/observe", payload)
-        else:
-            response = self._request("POST", "/v1/capabilities/observe", payload)
+                },
+            )
         if not isinstance(response, dict):
             raise CycloneGatewayError("Observe response malformed")
-        witness = response.get("witness")
-        if isinstance(witness, dict) and isinstance(witness.get("observation_id"), str):
-            self._last_observation_id = witness["observation_id"]
+        oid = self._extract_observation_id(response)
+        if oid:
+            self._last_observation_id = oid
         page = response.get("page") if isinstance(response.get("page"), dict) else {}
-        pkg = page.get("package") or page.get("app") or response.get("package")
+        observation = response.get("observation") if isinstance(response.get("observation"), dict) else {}
+        after = response.get("afterState") if isinstance(response.get("afterState"), dict) else {}
+        pkg = (
+            page.get("package")
+            or page.get("app")
+            or observation.get("package")
+            or after.get("package")
+            or response.get("package")
+        )
         if isinstance(pkg, str) and pkg:
             self._current_package = pkg
         return response
@@ -185,42 +253,40 @@ class CycloneGatewayDriver(BaseDeviceDriver):
             raise CycloneGatewayError(
                 f"{capability_id} is not on the Mode A phone_act allowlist"
             )
-        if self._last_observation_id is None and capability_id != "phone.wait_for":
-            # Ensure fresh observation before mutation
-            self._observe(include_screenshot=False, mode="compact")
-        forwarded = dict(params)
-        forwarded.update(self._identity())
-        payload: dict[str, Any] = {
-            "protocol_version": CAPABILITY_PROTOCOL_VERSION,
-            "correlation_id": uuid4().hex,
+        if not self._device_id:
+            self._device_id = self._resolve_device_id()
+        # Mutations require a fresh observation id + AI control when companion owns input.
+        self._observe(include_screenshot=False, mode="compact")
+        if not self._last_observation_id and capability_id != "phone.wait_for":
+            raise CycloneGatewayError("No observation_id from gateway; cannot mutate safely")
+        act_params = dict(params)
+        agent_body: dict[str, Any] = {
             "capability_id": capability_id,
-            "params": forwarded,
+            "params": act_params,
             "goal": goal,
-            "source": "PC_GLASS_ARTEMIS",
+            "request_ai_control": True,
             **self._identity(),
         }
         if self._last_observation_id:
-            payload["expected_observation_id"] = self._last_observation_id
+            agent_body["expected_observation_id"] = self._last_observation_id
         if self._device_id:
-            try:
-                response = self._request(
-                    "POST",
-                    f"/v1/devices/{self._device_id}/agent/action",
-                    {
-                        "capability_id": capability_id,
-                        "params": forwarded,
-                        "goal": goal,
-                        **self._identity(),
-                        **(
-                            {"expected_observation_id": self._last_observation_id}
-                            if self._last_observation_id
-                            else {}
-                        ),
-                    },
-                )
-            except CycloneGatewayError:
-                response = self._request("POST", "/v1/capabilities/action", payload)
+            response = self._request(
+                "POST",
+                f"/v1/devices/{self._device_id}/agent/action",
+                agent_body,
+            )
         else:
+            payload: dict[str, Any] = {
+                "protocol_version": CAPABILITY_PROTOCOL_VERSION,
+                "correlation_id": uuid4().hex,
+                "capability_id": capability_id,
+                "params": act_params,
+                "goal": goal,
+                "source": "PC_CODEX",
+                **self._identity(),
+            }
+            if self._last_observation_id:
+                payload["expected_observation_id"] = self._last_observation_id
             response = self._request("POST", "/v1/capabilities/action", payload)
         # Observation IDs invalidate after mutation
         if capability_id != "phone.wait_for":
@@ -231,7 +297,19 @@ class CycloneGatewayDriver(BaseDeviceDriver):
         if isinstance(response, dict):
             err = response.get("error")
             if isinstance(err, dict) and err.get("code") == "GATE":
-                raise CycloneGatewayError("GATE on phone — human review required", body=response)
+                raise CycloneGatewayError("GATE on phone - human review required", body=response)
+            detail = response.get("detail")
+            if isinstance(detail, dict) and detail.get("code") in {
+                "HUMAN_HAS_CONTROL",
+                "AUTH_REJECTED",
+                "INVALID_REQUEST",
+            }:
+                raise CycloneGatewayError(
+                    f"Gateway rejected act: {detail.get('code')} - {detail.get('message')}",
+                    body=response,
+                )
+            if response.get("ok") is False:
+                raise CycloneGatewayError("Gateway act returned ok=false", body=response)
         return response if isinstance(response, dict) else {"raw": response}
 
     async def connect(self) -> None:

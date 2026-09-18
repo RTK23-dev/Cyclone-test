@@ -37,3 +37,20 @@ Change channel branch in `windows-helper/update-channel.json` when the default b
 - `CYCLONE_SESSION_ID=default-foreground`  
 
 Device Gateway + Cyclone Mobile (~4.6.9) must be paired for phone control. Glass branding / Auto / helpers do not require a new mobile release by themselves.
+
+
+## Mode A env (required for phone control)
+
+In `apps/pc-glass/.env` (never commit secrets):
+
+- `CYCLONE_CONNECTED=1`
+- `CYCLONE_DEVICE_GATEWAY_URL=http://127.0.0.1:8765`
+- `CYCLONE_SESSION_ID=default-foreground` (from phone execution session; do not invent other values)
+- `CYCLONE_DEVICE_GATEWAY_TOKEN=` copy from `apps/device-gateway/.runtime/serve.env` (same PC)
+- `CYCLONE_DEVICE_ID=` optional `dev_...` from gateway `/v1/devices` (auto-resolved if omitted)
+
+The Windows helper Start path also imports these from `.env` + `serve.env`.
+
+If acts fail with `HUMAN_HAS_CONTROL`, Glass retries with `request_ai_control=true` (or tap **Give control to AI** on the companion).
+
+If observe fails with `AUTH_REJECTED` on `/v1/capabilities/observe`, upgrade path uses `/v1/devices/{id}/agent/observe` instead (fixed in the Cyclone Glass driver). Prefer Cyclone Mobile **4.6.9+** on the phone.
