@@ -8,6 +8,11 @@ class ExecutedActionMemory {
         if (verifiedProgress) unchanged.clear()
         else if (androidAccepted && action.tool in setOf("phone.click", "phone.long_press")) unchanged += key(action, scene)
     }
+
+    /** Human takeover can materially change the scene; stale anti-repeat entries must not leak across it. */
+    fun resetAfterHandoff() {
+        unchanged.clear()
+    }
     private fun key(action: PageAgentAction, scene: String): String =
         PageAgentProtocol.actionSignature(PageAgentDecision("act", "", "",
             listOf(action.copy(visualGrounded = false)), null, null), "").orEmpty() + "|" + scene
