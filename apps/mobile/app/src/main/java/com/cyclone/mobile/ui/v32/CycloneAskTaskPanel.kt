@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,7 +16,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -61,14 +64,26 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
         keyboard?.hide()
     }
 
+    val container = when (visualState) {
+        CycloneTaskVisualState.WORKING -> MaterialTheme.colorScheme.surface.copy(alpha = .98f)
+        CycloneTaskVisualState.ACTION_NEEDED -> MaterialTheme.colorScheme.errorContainer.copy(alpha = .32f)
+        CycloneTaskVisualState.DONE -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .30f)
+    }
+    val outline = when (visualState) {
+        CycloneTaskVisualState.WORKING -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = .62f)
+        CycloneTaskVisualState.ACTION_NEEDED -> MaterialTheme.colorScheme.error.copy(alpha = .24f)
+        CycloneTaskVisualState.DONE -> MaterialTheme.colorScheme.secondary.copy(alpha = .24f)
+    }
+
     CycloneSwipeTaskCard("task:${task.taskId}", canClear = !UiTask(task).active, onOpen = { UiTask(task).open(context) }) {
         Surface(
             modifier = Modifier.fillMaxWidth().animateContentSize(),
             shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
+            color = container,
             contentColor = MaterialTheme.colorScheme.onSurface,
             tonalElevation = 0.dp,
-            shadowElevation = 2.dp,
+            shadowElevation = 0.dp,
+            border = BorderStroke(.8.dp, outline),
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
@@ -129,6 +144,11 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
 @Composable
 private fun WorkingBody(task: WorkspaceTaskUi, onProgress: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LinearProgressIndicator(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 3.dp).clip(RoundedCornerShape(999.dp)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
         CycloneTaskCheckpoints(task)
         TextButton(
             onClick = onProgress,
