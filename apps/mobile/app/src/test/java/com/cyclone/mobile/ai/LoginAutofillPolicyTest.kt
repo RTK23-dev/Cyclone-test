@@ -37,6 +37,17 @@ class LoginAutofillPolicyTest {
     }
 
     @Test
+    fun resetAfterHumanHandoffRestartsAutofillFromFreshUsernameField() {
+        val policy = LoginAutofillPolicy()
+        assertEquals("Email or phone", policy.evaluate(loginPage("obs-1"), true).target?.label)
+        assertEquals("Password", policy.evaluate(loginPage("obs-2"), true).target?.label)
+
+        policy.reset()
+
+        assertEquals("Email or phone", policy.evaluate(loginPage("obs-3"), true).target?.label)
+    }
+
+    @Test
     fun signupGoalSuppressesAutofillEvenWhenLoginControlsAreAlsoVisible() {
         val base = loginPage()
         val card = base.copy(
