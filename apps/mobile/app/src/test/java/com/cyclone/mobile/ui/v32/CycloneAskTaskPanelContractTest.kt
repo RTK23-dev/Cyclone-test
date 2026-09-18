@@ -20,7 +20,7 @@ class CycloneAskTaskPanelContractTest {
         assertTrue(text.contains("\"Show less\""))
         assertTrue(text.contains("CycloneTaskCheckpoints(task)"))
         assertTrue(text.contains("CycloneNineDotSpinner()"))
-        assertTrue(text.contains("\"$completed of $total complete\""))
+        assertTrue(text.contains("\"\$completed of \$total complete\""))
     }
 
     @Test
