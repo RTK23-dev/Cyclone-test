@@ -1859,7 +1859,14 @@
               <span class="material-symbols-outlined">{{ selectedProfile() === 'auto' ? 'auto_mode' : (selectedProfile() === 'flash' ? 'bolt' : 'psychology') }}</span>
             </div>
             <div class="descriptor-body">
-              @if (selectedProfile() === 'flash') {
+              @if (selectedProfile() === 'auto') {
+                <p class="desc-line">
+                  <span class="mode-name">Auto</span>
+                  <span class="bullet">·</span>
+                  <span>Cyclone picks Flash or Pro from the goal (dynamic difficulty). {{ autoChipLabel() }}</span>
+                  <span class="limitation-tag">(Advanced knobs hidden — use Pro to pin checks / screen reading)</span>
+                </p>
+              } @else if (selectedProfile() === 'flash') {
                 <p class="desc-line">
                   <span class="mode-name">Flash</span>
                   <span class="bullet">·</span>
