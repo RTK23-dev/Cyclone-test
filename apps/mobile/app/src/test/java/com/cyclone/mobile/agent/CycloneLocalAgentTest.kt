@@ -101,6 +101,22 @@ class CycloneLocalAgentTest {
         assertEquals(1, tools.executeCalls)
     }
 
+    @Test fun providerRetryLaterStopsWithoutGroundingRecovery() {
+        val model = ScriptModel(mutableListOf(
+            CyclonePlanResult.Valid(CycloneModelTurn(CycloneModelDirective.BLOCKED, reason = "RATE_LIMITED")),
+            act("must-not-run"),
+        ))
+        val tools = FakeTools().apply { boundary = CycloneTaskClassification.PROVIDER_RETRY_LATER }
+
+        val result = CycloneLocalAgent("goal", model, tools).runUntilBoundary()
+
+        assertTrue(result is CycloneAgentRunResult.Stopped)
+        assertEquals(CycloneTaskClassification.PROVIDER_RETRY_LATER, result.state.finalClassification)
+        assertTrue(result.state.recoveryAttempts.isEmpty())
+        assertEquals(1, model.calls)
+        assertEquals(0, tools.executeCalls)
+    }
+
     @Test fun malformedModelResponseGetsBoundedRecovery() {
         val model = ScriptModel(mutableListOf(
             CyclonePlanResult.Malformed("bad1"),
