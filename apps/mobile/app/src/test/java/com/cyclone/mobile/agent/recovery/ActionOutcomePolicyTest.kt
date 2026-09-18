@@ -48,12 +48,24 @@ class ActionOutcomePolicyTest {
             ActionOutcomePolicy.providerBoundary("NO_PROVIDER_AVAILABLE"),
         )
         assertEquals(
-            CycloneTaskClassification.RECOVERABLE,
+            CycloneTaskClassification.PROVIDER_RETRY_LATER,
             ActionOutcomePolicy.providerBoundary("provider.deadline"),
         )
         assertEquals(
-            CycloneTaskClassification.RECOVERABLE,
+            CycloneTaskClassification.PROVIDER_RETRY_LATER,
             ActionOutcomePolicy.providerBoundary("NETWORK_FAILURE"),
+        )
+        assertEquals(
+            CycloneTaskClassification.PROVIDER_RETRY_LATER,
+            ActionOutcomePolicy.providerBoundary("RATE_LIMITED"),
+        )
+        assertEquals(
+            CycloneTaskClassification.PROVIDER_RETRY_LATER,
+            ActionOutcomePolicy.providerBoundary("provider.circuit_open"),
+        )
+        assertEquals(
+            CycloneTaskClassification.CANCELLED,
+            ActionOutcomePolicy.providerBoundary("provider.cancelled"),
         )
         assertEquals(
             CycloneTaskClassification.HUMAN_OR_GATE,
