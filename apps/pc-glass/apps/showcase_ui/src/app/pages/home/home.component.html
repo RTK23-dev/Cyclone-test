@@ -93,6 +93,7 @@
         <h3 class="step-title">System & Environment</h3>
       </div>
       <p class="step-desc">Core tools, Android debug bridge, and video recording runtime</p>
+      <p class="step-desc" style="opacity:0.7;font-size:12px;">Cyclone Mode A · Built on Artemis (Apache-2.0)</p>
     </div>
 
     <button
@@ -1157,7 +1158,7 @@
                     <div class="active-remote-copy">
                       <span class="material-symbols-outlined">hub</span>
                       <span>
-                        Artemis is currently using
+                        Cyclone PC Glass is currently using
                         <strong>{{ adbServerStatus()?.endpoint?.host }}:{{ adbServerStatus()?.endpoint?.port }}</strong>.
                         Switch to local ADB before using a local emulator, USB cable, or Wireless ADB.
                       </span>
@@ -1313,7 +1314,7 @@
                               </div>
                               <div class="step-card-title">Launch Emulator</div>
                               <div class="step-card-desc">
-                                Click ▶ <strong>Play</strong> in Device Manager. Artemis will detect and connect to it automatically!
+                                Click ▶ <strong>Play</strong> in Device Manager. Cyclone PC Glass will detect and connect to it automatically!
                               </div>
                             </div>
                           </div>
@@ -1518,7 +1519,7 @@
                   <div class="method-details-panel remote-adb-panel">
                     <div class="remote-guide-intro">
                       <span class="material-symbols-outlined intro-icon">hub</span>
-                      <span>Enter the host and port of an ADB server endpoint that this computer can access, so Artemis can discover and control a phone physically connected to another computer.</span>
+                      <span>Enter the host and port of an ADB server endpoint that this computer can access, so Cyclone PC Glass can discover and control a phone physically connected to another computer.</span>
                     </div>
 
                     <div class="remote-adb-interactive-box">
@@ -1582,7 +1583,7 @@
                           [ngModel]="rememberRemoteAdb()"
                           (ngModelChange)="rememberRemoteAdb.set($event)"
                         />
-                        <span>Remember this endpoint for future Artemis launches</span>
+                        <span>Remember this endpoint for future Cyclone PC Glass launches</span>
                       </label>
 
                       @if (remoteAdbMessage()) {
@@ -1634,7 +1635,7 @@
                     </div>
 
                     <p class="remote-adb-explanation">
-                      Artemis sends all ADB commands to this server instead of the default local server. Any phone visible to that server becomes available to Artemis.
+                      Cyclone PC Glass sends all ADB commands to this server instead of the default local server. Any phone visible to that server becomes available when Cyclone-connected is off.
                     </p>
                   </div>
                 }
@@ -2172,7 +2173,7 @@
                   </div>
 
                   <span class="mode-badge" [class.mode-pro]="item.profile === 'pro'" [class.mode-flash]="item.profile === 'flash'"
-                    [title]="item.profile === 'pro' ? 'Uses ARTEMIS Pro (Multi-Agent Cognitive State Graph)' : 'Uses ARTEMIS Flash (Reactive Fast Loop)'">
+                    [title]="item.profile === 'pro' ? 'Uses Cyclone Pro (multi-agent graph)' : item.profile === 'auto' ? 'Uses Cyclone Auto (dynamic difficulty)' : 'Uses Cyclone Flash (reactive fast loop)'">
                     {{ item.profile === 'pro' ? 'Pro' : 'Flash' }}
                   </span>
                 </div>

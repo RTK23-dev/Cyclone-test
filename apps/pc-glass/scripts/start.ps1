@@ -31,7 +31,7 @@ $RootDir = Split-Path -Parent $ScriptDir
 Set-Location $RootDir
 
 Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "       Artemis Autonomous Mobile Agent UI           " -ForegroundColor Cyan
+Write-Host "       Cyclone PC Glass (phone via Cyclone gateway) " -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -456,7 +456,7 @@ if ((-not (Test-Path $ShowcaseIndex)) -and (-not (Test-Path $ShowcaseIndexAlt1))
 
 # 7. Optionally configure MCP for detected AI IDEs
 Write-Host ""
-Write-Host "   [INFO] Would you like to configure ARTEMIS MCP & testing rules for your AI IDEs?" -ForegroundColor Cyan
+Write-Host "   [INFO] Would you like to configure Cyclone PC Glass MCP & testing rules for your AI IDEs?" -ForegroundColor Cyan
 Write-Host "      (Supported: Antigravity, Cursor, Claude Code/Desktop, Codex, OpenClaw, Windsurf)"
 $installMcp = "Y"
 if ([Console]::IsInputRedirected -eq $false) {
@@ -488,7 +488,7 @@ Start-LocalAdbServer
 
 # Launch via `python -m artemis` (not the `artemis.exe` console-script shim) so the
 # long-running server never locks .venv\Scripts\artemis.exe against `uv sync` reinstalls.
-Write-Host "   [INFO] Launching Artemis Showcase UI & Admin Console..." -ForegroundColor Green
+Write-Host "   [INFO] Launching Cyclone PC Glass UI & Admin Console..." -ForegroundColor Green
 if ($NoOpen) {
     uv run python -m artemis ui --port $Port --no-open
 } else {
