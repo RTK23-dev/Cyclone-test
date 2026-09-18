@@ -31,13 +31,14 @@ object ActionOutcomePolicy {
      */
     fun providerBoundary(reason: String?): CycloneTaskClassification? {
         val code = reason.orEmpty()
-        if (code.startsWith("provider.")) return CycloneTaskClassification.RECOVERABLE
+        if (code == "provider.cancelled") return CycloneTaskClassification.CANCELLED
+        if (code.startsWith("provider.")) return CycloneTaskClassification.PROVIDER_RETRY_LATER
         if (ProviderFailure.message(code) == null) return null
         val failureClass = runCatching { ProviderFailureClass.valueOf(code) }.getOrNull()
         return when (failureClass) {
             ProviderFailureClass.RATE_LIMITED,
             ProviderFailureClass.NETWORK_FAILURE,
-            -> CycloneTaskClassification.RECOVERABLE
+            -> CycloneTaskClassification.PROVIDER_RETRY_LATER
             else -> CycloneTaskClassification.HUMAN_OR_GATE
         }
     }
