@@ -1,23 +1,23 @@
-# Cyclone Mobile 4.6.7: agent reliability fixes
-# Release notes: docs/RELEASE_4.6.7.md
+# Cyclone Mobile 4.6.8: provider and intent reliability
+# Release notes: docs/RELEASE_4.6.8.md
 schema = 1
-product_version = "4.6.7"
+product_version = "4.6.8"
 channel = "development"
-android_version_code = 127
+android_version_code = 128
 python_version = "4.1.0"
 
 [components]
-mobile = "4.6.7"
+mobile = "4.6.8"
 pc_companion = "1.5.5"
 device_gateway = "4.1.0"
 mcp = "4.1.0"
 
 [release]
-previous_mobile_version = "4.6.6"
+previous_mobile_version = "4.6.7"
 publication_authorized = true
 physical_pixel8 = "UNVERIFIED"
 physical_pixel8_ui_acceptance = "UNVERIFIED"
 android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-4.6.7-release-ci"
+candidate_generation = "cyclone-4.6.8-release-ci"
