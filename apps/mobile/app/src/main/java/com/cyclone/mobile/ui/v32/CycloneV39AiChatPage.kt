@@ -31,7 +31,6 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -433,7 +432,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (!keyboardOpen) {
+                if (intelligenceOpen && !keyboardOpen) {
                     CycloneModelPill(
                         modelId = selectedModelId,
                         effort = reasoningEffort,
@@ -512,22 +511,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            CycloneTrayIconAction(
-                                onClick = {
-                                    intelligenceOpen = !intelligenceOpen
-                                    if (intelligenceOpen) toolsOpen = false
-                                },
-                                enabled = !session.busy,
-                                modifier = Modifier.size(44.dp),
-                            ) {
-                                Icon(
-                                    Icons.Rounded.Tune,
-                                    "Intelligence and phone autonomy",
-                                    Modifier.size(20.dp),
-                                    tint = if (intelligenceOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-
                             CycloneTrayIconAction(
                                 onClick = {
                                     toolsOpen = !toolsOpen
