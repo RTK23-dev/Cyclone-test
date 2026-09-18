@@ -378,7 +378,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         drawerCollapsed = true
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 8.dp, bottom = 8.dp),
+                    contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 8.dp),
                 ) {
             if (task != null || queuedRequests.isNotEmpty() || foregroundWorking) {
                 LazyColumn(
