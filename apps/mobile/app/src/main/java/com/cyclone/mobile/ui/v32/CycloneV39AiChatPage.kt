@@ -152,6 +152,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
     var composer by rememberSaveable { mutableStateOf("") }
     var toolsOpen by remember { mutableStateOf(false) }
     var intelligenceOpen by remember { mutableStateOf(false) }
+    var drawerCollapsed by rememberSaveable { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     val catalogRevision by com.cyclone.mobile.ai.OpenRouterCatalogStore.revision.collectAsState()
     var selectedModelId by rememberSaveable(catalogRevision, refreshTick) {
@@ -276,31 +277,49 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                 if (session.messages.isEmpty()) {
                     item {
                         Column(
-                            Modifier.fillMaxWidth().padding(top = if (keyboardOpen) 0.dp else 10.dp, bottom = 12.dp),
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = if (keyboardOpen) 6.dp else 56.dp, bottom = 22.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             if (!keyboardOpen) {
-                                Text(greeting, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                                Surface(
+                                    shape = RoundedCornerShape(999.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .64f),
+                                    tonalElevation = 0.dp,
+                                ) {
+                                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                        Text("C", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                                 Text(
-                                    "Let’s make\nprogress today.",
-                                    style = MaterialTheme.typography.headlineLarge,
+                                    "Ready when you are",
+                                    style = MaterialTheme.typography.headlineMedium,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(.78f)
-                                        .padding(top = 6.dp)
-                                        .clip(RoundedCornerShape(22.dp))
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = .52f)),
+                                Text(
+                                    "Tell Cyclone what to do on your phone.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Row(
+                                    Modifier.padding(top = 10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                                        Text("Ideas become real when you take the next step.", style = MaterialTheme.typography.bodyLarge)
-                                        Text(
-                                            "— Cyclone",
-                                            modifier = Modifier.padding(top = 5.dp),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                    listOf("Open an app", "Check a login", "Take a screenshot").forEach { suggestion ->
+                                        Surface(
+                                            onClick = { composer = suggestion },
+                                            shape = RoundedCornerShape(999.dp),
+                                            color = MaterialTheme.colorScheme.surface.copy(alpha = .74f),
+                                            tonalElevation = 0.dp,
+                                        ) {
+                                            Text(
+                                                suggestion,
+                                                Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -335,6 +354,31 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                 }
             }
 
+            LaunchedEffect(keyboardOpen, toolsOpen, intelligenceOpen) {
+                if (keyboardOpen || toolsOpen || intelligenceOpen) drawerCollapsed = false
+            }
+
+            if (drawerCollapsed) {
+                CycloneCollapsedAskPill(
+                    onExpand = { drawerCollapsed = false },
+                    active = task?.working == true || foregroundWorking,
+                    status = when {
+                        task?.working == true || foregroundWorking -> "Current run · tap to reopen"
+                        queuedRequests.isNotEmpty() -> "Tasks waiting"
+                        else -> null
+                    },
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            } else {
+                CycloneChatDrawerSurface(
+                    onCollapse = {
+                        toolsOpen = false
+                        intelligenceOpen = false
+                        drawerCollapsed = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 8.dp, bottom = 8.dp),
+                ) {
             if (task != null || queuedRequests.isNotEmpty() || foregroundWorking) {
                 LazyColumn(
                     Modifier.fillMaxWidth().heightIn(max = if (keyboardOpen) 132.dp else 230.dp),
@@ -413,33 +457,31 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         )
                     }
                 } else if (toolsOpen) {
-                    CycloneLiquidPanel(
-                        modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 24.dp,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TextButton(onClick = {
-                                toolsOpen = false
-                                context.startActivity(Intent(context, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java))
-                            }) { Text("File") }
-                            TextButton(onClick = {
-                                toolsOpen = false
-                                context.startActivity(
-                                    Intent(context, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java)
-                                        .putExtra("camera", true),
-                                )
-                            }) { Text("Photo") }
-                            TextButton(onClick = {
-                                toolsOpen = false
-                                context.startActivity(Intent(context, com.cyclone.mobile.capture.LiveCaptureConsentActivity::class.java))
-                            }) { Text("Share screen") }
-                        }
-                    }
+                    CycloneChatToolsPanel(
+                        onCamera = {
+                            toolsOpen = false
+                            context.startActivity(
+                                Intent(context, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java)
+                                    .putExtra("camera", true),
+                            )
+                        },
+                        onFiles = {
+                            toolsOpen = false
+                            context.startActivity(Intent(context, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java))
+                        },
+                        onShareScreen = {
+                            toolsOpen = false
+                            context.startActivity(Intent(context, com.cyclone.mobile.capture.LiveCaptureConsentActivity::class.java))
+                        },
+                        onModel = {
+                            toolsOpen = false
+                            intelligenceOpen = true
+                        },
+                        onExplainScreen = {
+                            toolsOpen = false
+                            composer = "Explain what is on my screen"
+                        },
+                    )
                 }
 
                 CycloneLiquidPanel(
@@ -571,6 +613,8 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                     }
                 }
             }
+                }
+            }
         }
     }
 }
@@ -578,26 +622,36 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
 @Composable
 private fun V39ChatBubble(message: V39ChatMessage) {
     val isUser = message.role == V39ChatRole.USER
-    val shape = RoundedCornerShape(if (isUser) 20.dp else 18.dp)
-    val color = if (isUser) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .72f)
-        else MaterialTheme.colorScheme.surface.copy(alpha = .46f)
-    val contentColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(if (isUser) .82f else .88f)
-                .clip(shape)
-                .background(color),
-        ) {
-            Column(
-                Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+    ) {
+        if (isUser) {
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .68f),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
+                modifier = Modifier.fillMaxWidth(.80f),
             ) {
-                if (isUser) {
-                    Text("You", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = contentColor)
-                }
-                Text(message.text.replace("**", ""), style = MaterialTheme.typography.bodyMedium, color = contentColor)
-                if (!isUser && message.ok != null) {
+                Text(
+                    message.text.replace("**", ""),
+                    Modifier.padding(horizontal = 15.dp, vertical = 11.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        } else {
+            Column(
+                Modifier.fillMaxWidth(.94f).padding(horizontal = 4.dp, vertical = 5.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                Text(
+                    message.text.replace("**", ""),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (message.ok != null) {
                     Text(
                         if (message.ok) "Checked" else "Stopped",
                         style = MaterialTheme.typography.labelSmall,
