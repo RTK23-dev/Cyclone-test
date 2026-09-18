@@ -7,6 +7,7 @@ enum class GoalRequirementKind {
     WEB_HOST,
     BROWSER_PACKAGE,
     AUTHENTICATED_SESSION,
+    REGISTERED_ACCOUNT,
     NAMED_WEB_SITE,
     VERIFIED_SCROLL,
     DISMISS_COOKIE_CONSENT,
@@ -81,6 +82,13 @@ object GoalContractCompiler {
         "(?i)(?:https?://)?((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63})(?=[:/?#\\s]|$)",
     )
     private val wordPattern = Regex("[\\p{L}\\p{N}]+")
+    private val SIGNUP_INTENT = Regex(
+        """(?i)\b(sign\s*up|signup|register|registration|create\s+(?:a\s+|an\s+|new\s+)?account|make\s+(?:a\s+|an\s+)?account)\b""",
+    )
+    private val REGISTRATION_SUCCESS = Regex(
+        """(?i)\b(account\s+(?:has\s+been\s+)?created|registration\s+complete|verify\s+your\s+email|confirm\s+your\s+email|check\s+your\s+email|complete\s+your\s+profile)\b""",
+    )
+
     private val stopWords = setOf(
         "open", "go", "navigate", "take", "to", "the", "a", "an", "and", "then", "finally",
         "find", "show", "me", "on", "in", "for", "please", "page", "screen", "website", "site",
@@ -111,6 +119,10 @@ object GoalContractCompiler {
             .containsMatchIn(clean)
         if (loginIntent && !loginNavigationOnly) {
             requirements += GoalRequirement(GoalRequirementKind.AUTHENTICATED_SESSION, host)
+        }
+
+        if (SIGNUP_INTENT.containsMatchIn(clean)) {
+            requirements += GoalRequirement(GoalRequirementKind.REGISTERED_ACCOUNT, host)
         }
 
         if (com.cyclone.mobile.agent.plan.TaskDifficulty.isNamedAppOpenOnly(clean)) {
@@ -206,6 +218,29 @@ object GoalContractCompiler {
                 GoalRequirementResult(requirement, matched,
                     if (matched) "current task surface exposes an authenticated-session sign-out control"
                     else "login is not verified; reaching the host or login form is insufficient, and authentication boundaries still apply")
+            }
+            GoalRequirementKind.REGISTERED_ACCOUNT -> {
+                val controls = currentPage?.controls.orEmpty().filter {
+                    it.evidence.optBoolean("enabled", true) && it.evidence.optBoolean("visibleToUser", true)
+                }
+                val actionLabels = controls
+                    .filter { it.role.lowercase() in setOf("button", "link", "menuitem") || it.evidence.optBoolean("clickable") }
+                    .map { it.label.trim().lowercase() }
+                val registrationActionVisible = actionLabels.any { label ->
+                    label == "sign up" || label == "signup" || label == "register" ||
+                        label.startsWith("create account") || label.startsWith("create new account")
+                }
+                val signedIn = actionLabels.any { it in setOf("log out", "logout", "sign out", "signout") }
+                val surface = currentPage?.let(::pageHaystack).orEmpty()
+                val confirmation = REGISTRATION_SUCCESS.containsMatchIn(surface)
+                val hostMatches = requirement.value?.let { host -> currentPage?.let { pageShowsHost(it, host) } } ?: true
+                val matched = currentPage?.actionable == true && hostMatches && !registrationActionVisible && (signedIn || confirmation)
+                GoalRequirementResult(
+                    requirement,
+                    matched,
+                    if (matched) "current task surface contains post-registration evidence"
+                    else "account creation is not verified; the signup form or landing page alone is insufficient",
+                )
             }
             GoalRequirementKind.NAMED_WEB_SITE -> {
                 val intent = NavigationIntent.parse(contract.sourceGoal)
