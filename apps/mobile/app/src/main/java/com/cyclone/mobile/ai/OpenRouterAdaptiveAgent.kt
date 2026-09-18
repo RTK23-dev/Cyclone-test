@@ -1131,6 +1131,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     } else {
                         ProviderFailure.message(run.message.orEmpty()) ?: run.message?.let(ProviderRequests::message) ?: "Cyclone reached a deterministic hard blocker."
                     }
+                    CycloneTaskClassification.PROVIDER_RETRY_LATER ->
+                        ProviderFailure.message(run.message.orEmpty())
+                            ?: run.message?.let(ProviderRequests::message)
+                            ?: "The selected model route is temporarily unavailable. Retry the task later."
                     CycloneTaskClassification.NON_CONVERGENCE -> when (run.message) {
                         "completion.ambiguous_after_recheck" -> "Cyclone could not verify completion after two checks. Open the run details to see the missing evidence."
                         "convergence.task_timeout" -> "Cyclone reached the task time limit before it could verify completion."
