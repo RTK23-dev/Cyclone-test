@@ -60,7 +60,9 @@ class CycloneV39AiPageContractTest {
         assertTrue(page.contains("CycloneChatDrawerSurface("))
         assertTrue(page.contains("CycloneCollapsedAskPill("))
         assertTrue(page.contains("CycloneChatToolsPanel("))
-        assertTrue(drawer.contains("Drag down to minimize Cyclone chat"))
+        assertTrue(drawer.contains("Drag down or tap to minimize Cyclone chat"))
+        assertTrue(page.contains("if (intelligenceOpen && !keyboardOpen)"))
+        assertFalse(page.contains("Icons.Rounded.Tune"))
         assertFalse(page.contains("\"Ideas become real when you take the next step.\""))
     }
 
