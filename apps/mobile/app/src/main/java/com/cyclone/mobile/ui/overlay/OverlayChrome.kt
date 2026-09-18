@@ -422,7 +422,7 @@ private fun ComposerPanel(
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(start = 10.dp, end = 10.dp, bottom = OverlayChromeContract.COMPOSER_BOTTOM_GAP_DP.dp),
-        contentPadding = PaddingValues(horizontal = 8.dp, bottom = 8.dp),
+        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 8.dp),
     ) {
         if (task != null || foregroundWorking || queued.isNotEmpty()) {
             CycloneLiquidPanel(
