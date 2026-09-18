@@ -1,4 +1,4 @@
-# Cyclone PC Glass — MCP map (Mode A)
+# Cyclone PC Glass â€” MCP map (Mode A)
 
 PC agents drive the phone through **Cyclone Agent MCP** (`cyclone-phone`) and Device Gateway **4.1.0**, not raw ADB.
 
@@ -10,7 +10,7 @@ PC agents drive the phone through **Cyclone Agent MCP** (`cyclone-phone`) and De
 | `device_id` | Required when multiple phones; from `phone_devices`. |
 | `display_id` | `0` for foreground; Layer 2 workspaces use `display_id > 0`. |
 
-## Tool map (PC Glass / Artemis → Cyclone)
+## Tool map (PC Glass / Artemis â†’ Cyclone)
 
 | PC Glass / agent intent | MCP tool | Notes |
 |---|---|---|
@@ -21,7 +21,7 @@ PC agents drive the phone through **Cyclone Agent MCP** (`cyclone-phone`) and De
 | Inspect candidate | `phone_inspect_element` | Observation-scoped IDs only |
 | Act | `phone_act` | Allowlist below; PhoneToolExecutor sole mutator |
 | Wait | `phone_act` tool=`phone.wait_for` | |
-| GATE | error `GATE` | Human overlay — never auto-approve |
+| GATE | error `GATE` | Human overlay â€” never auto-approve |
 | Screenshot | `phone_screenshot` | Only if structured evidence insufficient |
 
 ## `phone_act` allowlist
@@ -40,7 +40,7 @@ PC agents drive the phone through **Cyclone Agent MCP** (`cyclone-phone`) and De
 ## Loop
 
 ```text
-Attach gateway → session_id → phone_observe/locate → decide → phone_act only → verify → GATE on phone
+Attach gateway â†’ session_id â†’ phone_observe/locate â†’ decide â†’ phone_act only â†’ verify â†’ GATE on phone
 ```
 
 ## Artemis driver env (Cyclone-connected)
