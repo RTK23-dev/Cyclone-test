@@ -136,7 +136,7 @@ object FastPathLanding {
 
     private fun explicitChromeDestination(goal: String, installed: List<InstalledApp>): String? {
         val raw = EXPLICIT_CHROME_DESTINATION.find(goal)?.groupValues?.getOrNull(1)
-            ?.trim()?.trimEnd('.', ',', ';', ':') ?: return null
+            ?.trim()?.trimEnd('.', ',', ';', ':')?.lowercase() ?: return null
         if ('.' in raw) return sanitizeUri("https://${raw.removePrefix("www.")}")
         val packageName = namedApp("open $raw", installed)?.second
         packageName?.let(::webFallback)?.let(::sanitizeUri)?.let { return it }
