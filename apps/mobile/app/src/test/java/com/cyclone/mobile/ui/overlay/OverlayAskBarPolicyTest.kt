@@ -55,7 +55,7 @@ class OverlayAskBarPolicyTest {
         assertTrue(overlay.contains("CycloneChatDrawerSurface("))
         assertTrue(overlay.contains("onAction(OverlayUserAction.MINIMIZE)"))
         assertTrue(overlay.contains("CycloneCollapsedAskPill("))
-        assertTrue(drawer.contains("Drag down to minimize Cyclone chat"))
+        assertTrue(drawer.contains("Drag down or tap to minimize Cyclone chat"))
         assertTrue(drawer.contains("onExpand()"))
     }
 
