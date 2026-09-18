@@ -73,7 +73,7 @@ internal object CycloneChatDrawerGesturePolicy {
 internal fun CycloneChatDrawerSurface(
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 10.dp, bottom = 10.dp),
+    contentPadding: PaddingValues = PaddingValues(start = 10.dp, end = 10.dp, bottom = 10.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val scope = rememberCoroutineScope()
