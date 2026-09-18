@@ -110,7 +110,8 @@ internal fun CycloneChatDrawerSurface(
                 Modifier
                     .fillMaxWidth()
                     .height(28.dp)
-                    .semantics { contentDescription = "Drag down to minimize Cyclone chat" }
+                    .semantics { contentDescription = "Drag down or tap to minimize Cyclone chat" }
+                    .clickable(role = Role.Button, onClick = { settle(true) })
                     .pointerInput(thresholdPx) {
                         detectVerticalDragGestures(
                             onDragStart = { settleJob?.cancel() },
