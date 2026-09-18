@@ -13,6 +13,24 @@ class FastPathLandingTest {
     }
 
     @Test
+    fun explicitChromeFacebookGoalKeepsBrowserRouteEvenWithTrailingSignupWork() {
+        val hint = FastPathLanding.resolve(
+            "open chrome and go to Facebook and try to make an account using my email",
+        )
+        assertEquals("phone.launch_intent", hint?.tool)
+        assertEquals("https://facebook.com", hint?.uri)
+        assertNull(hint?.packageName)
+        assertTrue(hint!!.reason.contains("Chrome", ignoreCase = true))
+    }
+
+    @Test
+    fun explicitChromePrefixDoesNotChangeOrdinaryNativeFacebookGoal() {
+        val hint = FastPathLanding.resolve("open Facebook and login")
+        assertEquals("phone.open_app", hint?.tool)
+        assertEquals("com.facebook.katana", hint?.packageName)
+    }
+
+    @Test
     fun websiteGoalPrefersLaunchIntentOverIconHunting() {
         val hint = FastPathLanding.resolve("Open ad.nl")
         assertEquals("phone.launch_intent", hint?.tool)
