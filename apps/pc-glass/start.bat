@@ -22,6 +22,9 @@ cd /d "%~dp0"
 rem Product default: Cyclone gateway driver (override with CYCLONE_CONNECTED=0 for raw Artemis/ADB).
 if not defined CYCLONE_CONNECTED set "CYCLONE_CONNECTED=1"
 if not defined CYCLONE_DEVICE_GATEWAY_URL set "CYCLONE_DEVICE_GATEWAY_URL=http://127.0.0.1:8765"
+rem Mode A companion session advertised by Device Gateway (R2 smoke). Not a random invent —
+rem override from phone_status / GET /v1/devices if your fleet uses a different id.
+if /I "!CYCLONE_CONNECTED!"=="1" if not defined CYCLONE_SESSION_ID set "CYCLONE_SESSION_ID=default-foreground"
 
 echo ======================================================
 echo       Cyclone PC Glass (Artemis-based UI)
@@ -29,6 +32,7 @@ echo ======================================================
 echo.
 echo CYCLONE_CONNECTED=!CYCLONE_CONNECTED!
 echo CYCLONE_DEVICE_GATEWAY_URL=!CYCLONE_DEVICE_GATEWAY_URL!
+echo CYCLONE_SESSION_ID=!CYCLONE_SESSION_ID!
 echo.
 
 rem Run the PowerShell bootstrap with execution policy bypass
