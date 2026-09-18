@@ -17,12 +17,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CameraAlt
@@ -219,6 +218,7 @@ internal fun CycloneChatToolsPanel(
     onShareScreen: () -> Unit,
     onModel: () -> Unit,
     onExplainScreen: () -> Unit,
+    onCreateRoutine: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -238,7 +238,7 @@ internal fun CycloneChatToolsPanel(
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 CycloneToolRow(Icons.Rounded.AutoAwesome, "Explain this screen", onExplainScreen)
                 CycloneToolRow(Icons.Rounded.Tune, "Model & intelligence", onModel)
-                CycloneToolRow(Icons.Rounded.Apps, "More tools", onFiles)
+                CycloneToolRow(Icons.Rounded.Bolt, "Create a routine", onCreateRoutine)
             }
         }
     }
