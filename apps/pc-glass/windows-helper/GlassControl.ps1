@@ -1,17 +1,21 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Start/stop Cyclone PC Glass without flashing a console window.
+  Start / stop / update Cyclone Glass without flashing a console window.
+  Updates replace tracked app files from GitHub and keep local data (.env, traces, DBs).
 #>
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-GlassRoot {
-  return (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+function Get-HelperRoot { return $PSScriptRoot }
+function Get-GlassRoot { return (Resolve-Path (Join-Path $PSScriptRoot '..')).Path }
+function Get-RepoRoot {
+  # apps/pc-glass -> repo root
+  return (Resolve-Path (Join-Path (Get-GlassRoot) '..\..')).Path
 }
 
 function Get-GlassLogDir {
-  $dir = Join-Path $env:LOCALAPPDATA 'CyclonePcGlass\logs'
+  $dir = Join-Path $env:LOCALAPPDATA 'CycloneGlass\logs'
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
   return $dir
 }
@@ -19,6 +23,19 @@ function Get-GlassLogDir {
 function Write-GlassLog([string]$Message) {
   $line = '{0:u} {1}' -f (Get-Date), $Message
   Add-Content -Path (Join-Path (Get-GlassLogDir) 'helper.log') -Value $line -Encoding UTF8
+}
+
+function Get-UpdateChannel {
+  $path = Join-Path (Get-HelperRoot) 'update-channel.json'
+  if (-not (Test-Path $path)) {
+    return [pscustomobject]@{
+      product = 'Cyclone Glass'
+      branch = 'feature/pc-glass-artemis'
+      remote = 'origin'
+      glass_subdir = 'apps/pc-glass'
+    }
+  }
+  return (Get-Content $path -Raw | ConvertFrom-Json)
 }
 
 function Test-GlassUp([int]$Port = 8000) {
@@ -40,21 +57,14 @@ function Start-GlassHidden {
     Write-GlassLog "Glass already up on :$Port"
     return @{ Ok = $true; Message = "Already running on http://127.0.0.1:$Port" }
   }
-
   $uvCmd = Get-Command uv -ErrorAction SilentlyContinue
   if (-not $uvCmd) {
     return @{ Ok = $false; Message = 'uv not found on PATH. Install https://docs.astral.sh/uv/' }
   }
-
-  if (-not $env:CYCLONE_DEVICE_GATEWAY_URL) {
-    $env:CYCLONE_DEVICE_GATEWAY_URL = 'http://127.0.0.1:8765'
-  }
-  if (-not $env:CYCLONE_SESSION_ID) {
-    $env:CYCLONE_SESSION_ID = 'default-foreground'
-  }
+  if (-not $env:CYCLONE_DEVICE_GATEWAY_URL) { $env:CYCLONE_DEVICE_GATEWAY_URL = 'http://127.0.0.1:8765' }
+  if (-not $env:CYCLONE_SESSION_ID) { $env:CYCLONE_SESSION_ID = 'default-foreground' }
   $env:CYCLONE_CONNECTED = '1'
-
-  Write-GlassLog "Starting Glass in $root (port $Port)"
+  Write-GlassLog "Starting Cyclone Glass in $root (port $Port)"
 
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = $uvCmd.Source
@@ -76,41 +86,29 @@ function Start-GlassHidden {
   $logErr = Join-Path (Get-GlassLogDir) 'glass-stderr.log'
   Start-Job -ScriptBlock {
     param($stdout, $stderr, $outPath, $errPath)
-    try {
-      while ($true) {
-        $line = $stdout.ReadLine()
-        if ($null -eq $line) { break }
-        Add-Content -Path $outPath -Value $line
-      }
-    } catch {}
-    try {
-      $err = $stderr.ReadToEnd()
-      if ($err) { Add-Content -Path $errPath -Value $err }
-    } catch {}
+    try { while ($true) { $line = $stdout.ReadLine(); if ($null -eq $line) { break }; Add-Content $outPath $line } } catch {}
+    try { $err = $stderr.ReadToEnd(); if ($err) { Add-Content $errPath $err } } catch {}
   } -ArgumentList $proc.StandardOutput, $proc.StandardError, $logOut, $logErr | Out-Null
 
   for ($i = 0; $i -lt 45; $i++) {
     Start-Sleep -Seconds 2
     if (Test-GlassUp -Port $Port) {
-      Write-GlassLog "Glass up after $($i*2)s pid=$($proc.Id)"
+      Write-GlassLog "up after $($i*2)s pid=$($proc.Id)"
       return @{ Ok = $true; Message = "Started — http://127.0.0.1:$Port"; Pid = $proc.Id }
     }
     if ($proc.HasExited) {
-      Write-GlassLog "Glass process exited early code=$($proc.ExitCode)"
       return @{ Ok = $false; Message = "Process exited early (see $logErr)" }
     }
   }
-  return @{ Ok = $false; Message = "Timed out waiting for :$Port (check logs under %LOCALAPPDATA%\CyclonePcGlass\logs)" }
+  return @{ Ok = $false; Message = "Timed out waiting for :$Port (logs: %LOCALAPPDATA%\CycloneGlass\logs)" }
 }
 
 function Stop-GlassHidden {
   param([int]$Port = 8000)
   $root = Get-GlassRoot
   $uvCmd = Get-Command uv -ErrorAction SilentlyContinue
-  if (-not $uvCmd) {
-    return @{ Ok = $false; Message = 'uv not found on PATH' }
-  }
-  Write-GlassLog "Stopping Glass on :$Port"
+  if (-not $uvCmd) { return @{ Ok = $false; Message = 'uv not found on PATH' } }
+  Write-GlassLog "Stopping Cyclone Glass on :$Port"
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = $uvCmd.Source
   $psi.Arguments = "run python -m artemis stop --port $Port"
@@ -121,13 +119,143 @@ function Stop-GlassHidden {
   $psi.RedirectStandardError = $true
   $proc = [System.Diagnostics.Process]::Start($psi)
   $null = $proc.WaitForExit(60000)
-  $out = $proc.StandardOutput.ReadToEnd()
-  $err = $proc.StandardError.ReadToEnd()
-  if ($out) { Write-GlassLog $out.Trim() }
-  if ($err) { Write-GlassLog ("stderr: " + $err.Trim()) }
   Start-Sleep -Seconds 1
   if (Test-GlassUp -Port $Port) {
-    return @{ Ok = $false; Message = 'Stop reported done but :8000 still responds' }
+    return @{ Ok = $false; Message = 'Stop finished but :8000 still responds' }
   }
   return @{ Ok = $true; Message = 'Stopped' }
+}
+
+function Update-CycloneGlass {
+  <#
+    .SYNOPSIS
+      Rapid-fire update: fetch GitHub tip, hard-replace tracked files, keep data.
+  #>
+  param(
+    [string]$Branch = '',
+    [switch]$RebuildUi,
+    [switch]$Restart
+  )
+  $channel = Get-UpdateChannel
+  if (-not $Branch) { $Branch = [string]$channel.branch }
+  $remote = [string]$channel.remote
+  if (-not $remote) { $remote = 'origin' }
+
+  $repo = Get-RepoRoot
+  $glass = Get-GlassRoot
+  Write-GlassLog "Update start repo=$repo branch=$Branch"
+
+  if (-not (Test-Path (Join-Path $repo '.git'))) {
+    return @{ Ok = $false; Message = "Not a git checkout: $repo" }
+  }
+
+  # 1) Stop server so files are not locked
+  if (Test-GlassUp) {
+    $stop = Stop-GlassHidden
+    if (-not $stop.Ok) {
+      Write-GlassLog "stop warning: $($stop.Message)"
+    }
+  }
+
+  # 2) Snapshot data that must survive (already gitignored; still back up)
+  $backupRoot = Join-Path $env:LOCALAPPDATA ("CycloneGlass\update-backup\{0:yyyyMMdd-HHmmss}" -f (Get-Date))
+  New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
+  $preserve = @('.env', 'traces', 'data_engine.db', 'data_engine.db-journal', 'scratch')
+  foreach ($name in $preserve) {
+    $src = Join-Path $glass $name
+    if (Test-Path $src) {
+      Copy-Item -Recurse -Force $src (Join-Path $backupRoot $name)
+      Write-GlassLog "backed up $name"
+    }
+  }
+
+  $before = ''
+  Push-Location $repo
+  try {
+    $before = (git rev-parse --short HEAD 2>$null)
+    # Ensure we are on the update branch / worktree tracking the glass line
+    git fetch $remote $Branch 2>&1 | ForEach-Object { Write-GlassLog $_ }
+    if ($LASTEXITCODE -ne 0) {
+      return @{ Ok = $false; Message = "git fetch failed (see helper.log)" }
+    }
+
+    # Replace ALL tracked files with remote tip (removes deleted tracked files too)
+    git checkout -B $Branch "$remote/$Branch" 2>&1 | ForEach-Object { Write-GlassLog $_ }
+    git reset --hard "$remote/$Branch" 2>&1 | ForEach-Object { Write-GlassLog $_ }
+    if ($LASTEXITCODE -ne 0) {
+      return @{ Ok = $false; Message = "git reset --hard failed" }
+    }
+
+    # Remove leftover untracked junk under glass, but NEVER data / venv / node_modules
+    # (those are regenerated or user-owned)
+    Push-Location $glass
+    try {
+      git clean -fd -e .env -e '.env.*' -e traces -e scratch -e .venv -e 'apps/showcase_ui/node_modules' `
+        -e data_engine.db -e 'data_engine.db-*' -e '*.log' -e .artemis_server.json `
+        -e windows-helper/dist 2>&1 | ForEach-Object { Write-GlassLog $_ }
+    } finally {
+      Pop-Location
+    }
+
+    $after = (git rev-parse --short HEAD)
+  } finally {
+    Pop-Location
+  }
+
+  # 3) Restore data if somehow wiped (should not happen for untracked)
+  foreach ($name in $preserve) {
+    $dst = Join-Path $glass $name
+    $bak = Join-Path $backupRoot $name
+    if ((Test-Path $bak) -and -not (Test-Path $dst)) {
+      Copy-Item -Recurse -Force $bak $dst
+      Write-GlassLog "restored $name from backup"
+    }
+  }
+
+  # 4) Ensure Mode A defaults in .env without clobbering secrets
+  $envFile = Join-Path $glass '.env'
+  if (Test-Path $envFile) {
+    $raw = Get-Content $envFile -Raw
+    if ($raw -notmatch '(?m)^CYCLONE_CONNECTED=') {
+      Add-Content $envFile "`nCYCLONE_CONNECTED=1"
+    }
+    if ($raw -notmatch '(?m)^CYCLONE_SESSION_ID=') {
+      Add-Content $envFile "`nCYCLONE_SESSION_ID=default-foreground"
+    }
+    if ($raw -notmatch '(?m)^CYCLONE_DEVICE_GATEWAY_URL=') {
+      Add-Content $envFile "`nCYCLONE_DEVICE_GATEWAY_URL=http://127.0.0.1:8765"
+    }
+  }
+
+  # 5) Optional UI rebuild (needed when Angular sources change)
+  $rebuildNote = ''
+  if ($RebuildUi) {
+    $ui = Join-Path $glass 'apps\showcase_ui'
+    $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if (-not $npm) { $npm = Get-Command npm -ErrorAction SilentlyContinue }
+    if ($npm -and (Test-Path $ui)) {
+      Write-GlassLog 'npm run build showcase_ui'
+      Push-Location $ui
+      try {
+        & $npm.Source run build 2>&1 | ForEach-Object { Write-GlassLog $_ }
+        if ($LASTEXITCODE -ne 0) {
+          return @{ Ok = $false; Message = "Update pulled $before → $after but UI build failed"; Before = $before; After = $after }
+        }
+        $rebuildNote = '; UI rebuilt'
+      } finally {
+        Pop-Location
+      }
+    } else {
+      $rebuildNote = '; skipped UI rebuild (npm missing)'
+    }
+  }
+
+  if ($Restart) {
+    $start = Start-GlassHidden
+    $rebuildNote += "; start: $($start.Message)"
+  }
+
+  $msg = "Cyclone Glass updated $before → $after (data kept: .env, traces, DBs)$rebuildNote"
+  Write-GlassLog $msg
+  return @{ Ok = $true; Message = $msg; Before = $before; After = $after; Backup = $backupRoot }
 }

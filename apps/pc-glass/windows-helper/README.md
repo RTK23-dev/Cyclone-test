@@ -1,31 +1,37 @@
-# Cyclone PC Glass — Windows helper
+# Cyclone Glass — Windows helper
 
-Small Start / Stop / Open UI app for the PC Glass web platform. **Does not flash command-prompt windows.**
+**Product name:** Cyclone Glass
 
-## Use
+Easy Start / Stop / **Update** / Open for the web platform. **No command-prompt windows.**
 
-1. Keep this folder next to the rest of `apps/pc-glass` (it expects `../` to be the Glass root with `uv` + `.venv`).
-2. Double-click **`Launch Cyclone PC Glass Helper.vbs`** (no console).
-3. Or run `Install-DesktopShortcut.ps1` once to put a Desktop shortcut.
+## Daily use
 
-Buttons:
+1. Double-click **`Launch Cyclone Glass Helper.vbs`**
+2. Or run `Install-DesktopShortcut.ps1` once → Desktop **Cyclone Glass**
 
-- **Start Glass** — sets Mode A env (`CYCLONE_CONNECTED=1`, gateway `:8765`, `CYCLONE_SESSION_ID=default-foreground`) and runs `uv run python -m artemis ui --port 8000 --no-open` with `CreateNoWindow`.
-- **Stop Glass** — `uv run python -m artemis stop --port 8000` (hidden).
-- **Open UI** — opens http://127.0.0.1:8000
+| Button | Action |
+|--------|--------|
+| **Start** | Hidden `uv run python -m artemis ui --port 8000 --no-open` with Mode A env |
+| **Stop** | Hidden `artemis stop` |
+| **Update** | Fetch GitHub channel tip → `git reset --hard` (replace tracked files) → keep `.env` / `traces` / DBs → optional UI rebuild → restart |
+| **Open UI** | http://127.0.0.1:8000 |
 
-Logs: `%LOCALAPPDATA%\CyclonePcGlass\logs\`
+Update channel: `update-channel.json` (default branch `feature/pc-glass-artemis`).
 
-## vs `.cmd` launchers
+Logs / update backups: `%LOCALAPPDATA%\CycloneGlass\`
 
-`Start Cyclone PC Glass.cmd` / `start.bat` still exist for debugging, but they open consoles and may prompt for MCP install. Prefer this helper for daily use.
+## Rapid-fire updates
 
-## Optional `.exe`
+Every Update:
 
-On a Windows machine with .NET SDK:
+1. Stops Glass  
+2. Backs up data under `%LOCALAPPDATA%\CycloneGlass\update-backup\…`  
+3. `git fetch` + `git reset --hard origin/<branch>` — **old tracked files gone, new files in**  
+4. `git clean` under `apps/pc-glass` with excludes so **data and `.venv` stay**  
+5. Re-applies Mode A defaults into `.env` **without wiping API keys**  
+6. Rebuilds showcase UI when checked  
+7. Starts Glass again  
 
-```powershell
-.\build-exe.ps1
-```
+## Console `.cmd` files
 
-Produces `dist/CyclonePcGlassHelper.exe` (self-contained WinForms wrapper).
+`Start Cyclone PC Glass.cmd` opens this helper when present. Prefer the VBS / Desktop shortcut.

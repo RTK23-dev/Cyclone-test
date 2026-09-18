@@ -1,4 +1,4 @@
-' Compat shim → Cyclone Glass helper
+' Cyclone Glass helper — no console window.
 Set sh = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 dir = fso.GetParentFolderName(WScript.ScriptFullName)

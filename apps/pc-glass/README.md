@@ -1,3 +1,10 @@
+# Cyclone Glass (`apps/pc-glass`)
+
+**Cyclone Glass** is the easy-setup PC web companion for Cyclone.
+
+→ **Start here:** [`CYCLONE_GLASS_SETUP.md`](CYCLONE_GLASS_SETUP.md)  
+→ **Windows helper (Start / Stop / Update, no cmd flash):** [`windows-helper/README.md`](windows-helper/README.md)
+
 # Cyclone PC Glass (`apps/pc-glass`)
 
 Artemis-based **web PC companion** for Cyclone. PC AI agents control the phone **through Cyclone** (Device Gateway + MCP `phone_*` + `session_id`), not through raw ADB as product authority.
