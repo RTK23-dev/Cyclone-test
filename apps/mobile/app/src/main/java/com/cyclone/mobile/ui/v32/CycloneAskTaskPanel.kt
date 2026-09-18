@@ -37,6 +37,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.cyclone.mobile.runtime.background.SemanticStepState
 import com.cyclone.mobile.runtime.background.TaskPhase
 import com.cyclone.mobile.runtime.background.WorkspaceTaskUi
 import com.cyclone.mobile.runtime.background.WorkspaceTasks
@@ -143,12 +144,27 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
 
 @Composable
 private fun WorkingBody(task: WorkspaceTaskUi, onProgress: () -> Unit) {
+    val total = task.semanticSteps.size
+    val completed = task.semanticSteps.count { it.state == SemanticStepState.DONE }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        LinearProgressIndicator(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 3.dp).clip(RoundedCornerShape(999.dp)),
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-        )
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            LinearProgressIndicator(
+                modifier = Modifier.weight(1f).heightIn(min = 3.dp).clip(RoundedCornerShape(999.dp)),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            )
+            if (total > 0) {
+                Text(
+                    "$completed of $total complete",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         CycloneTaskCheckpoints(task)
         TextButton(
             onClick = onProgress,
