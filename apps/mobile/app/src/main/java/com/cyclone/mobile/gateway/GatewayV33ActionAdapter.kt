@@ -192,6 +192,7 @@ internal object GatewayV33ActionAdapter {
             androidExecutionOk = androidExecutionOk,
             executorAssertionFailed = verificationFailedInExecutor,
             explicitExpectation = expect != null && execution.optJSONObject("payload")?.optBoolean("expectationVerified") == true,
+            expectedUri = normalizedParams.optString("uri"),
         )
         val afterStateVerified = sharedVerification.passed
         val verification = when {
@@ -279,6 +280,8 @@ internal object GatewayV33ActionAdapter {
                 after.page.packageName,
                 after.page.pageKey,
                 after.payload.optString("accessibilityFingerprint"),
+                expectedUri = params.optString("uri"),
+                afterHaystack = observationHaystack(after),
             ) &&
             System.currentTimeMillis() < deadline
         ) {
@@ -297,6 +300,7 @@ internal object GatewayV33ActionAdapter {
         androidExecutionOk: Boolean,
         executorAssertionFailed: Boolean = false,
         explicitExpectation: Boolean = false,
+        expectedUri: String = "",
     ): AgentSemanticVerification {
         if (beforeObservation != null && afterObservation != null &&
             (beforeObservation.execution != afterObservation.execution || beforeObservation.id == afterObservation.id ||
@@ -313,6 +317,7 @@ internal object GatewayV33ActionAdapter {
         goalLabel = goalLabel,
         before = beforeObservation?.let(::semanticState),
         after = afterObservation?.let(::semanticState),
+        expectedUri = expectedUri,
     )
     }
 
@@ -329,6 +334,7 @@ internal object GatewayV33ActionAdapter {
         afterHaystack: String = "",
         beforeObservation: GatewayObservation? = null,
         afterObservation: GatewayObservation? = null,
+        expectedUri: String = "",
     ): Boolean {
         val beforeState = beforeObservation?.let(::semanticState) ?: SemanticObservationState(
             packageName = "",
@@ -353,6 +359,7 @@ internal object GatewayV33ActionAdapter {
             goalLabel = goalLabel,
             before = beforeState,
             after = afterState,
+            expectedUri = expectedUri,
         ).passed
     }
 
