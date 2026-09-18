@@ -73,12 +73,23 @@ object FastPathLanding {
 
     private val URL = Regex("(?i)https?://[^\\s]+")
     private val HOST = Regex("(?i)\\b(?:[a-z0-9-]+\\.)+[a-z]{2,}\\b")
+    private val EXPLICIT_CHROME_DESTINATION = Regex(
+        """(?i)\b(?:open|launch)\s+(?:google\s+)?chrome\b.*?\b(?:open|go\s+to|navigate\s+to)\s+(?:the\s+)?([a-z0-9][a-z0-9.-]*)\b""",
+    )
     private val DESTINATION_CUE = Regex("(?i)(?:open|launch|start|go to|navigate to|on|in|then)\\s+(?:the\\s+|my\\s+)?$")
     private val INSTRUMENT_CUE = Regex("(?i)(?:using|with|via)\\s+(?:the\\s+|my\\s+)?$")
 
     fun resolve(goal: String, installed: List<InstalledApp> = InstalledAppInventory.snapshot): FastPathLandingHint? {
         val trimmed = goal.trim()
         if (trimmed.isBlank()) return null
+
+        explicitChromeDestination(trimmed, installed)?.let { uri ->
+            return FastPathLandingHint(
+                tool = "phone.launch_intent",
+                uri = uri,
+                reason = "Goal explicitly says to use Chrome for this destination. Preserve the browser route instead of switching to the native app.",
+            )
+        }
 
         NavigationIntent.parse(trimmed, installed)?.let { intent ->
             val host = intent.target.removePrefix("https://").removePrefix("http://").removePrefix("www.")
@@ -123,7 +134,16 @@ object FastPathLanding {
         return null
     }
 
-    fun namedAppHits(goal: String, installed: List<InstalledApp> = InstalledAppInventory.snapshot): List<NamedAppHit> {
+    private fun explicitChromeDestination(goal: String, installed: List<InstalledApp>): String? {
+        val raw = EXPLICIT_CHROME_DESTINATION.find(goal)?.groupValues?.getOrNull(1)
+            ?.trim()?.trimEnd('.', ',', ';', ':') ?: return null
+        if ('.' in raw) return sanitizeUri("https://${raw.removePrefix("www.")}")
+        val packageName = namedApp("open $raw", installed)?.second
+        if (packageName != null) return webFallback(packageName)?.let(::sanitizeUri)
+        return sanitizeUri("https://$raw.com")
+    }
+
+$insert
         val lower = goal.lowercase()
         val hits = mutableListOf<NamedAppHit>()
         val packages = mutableSetOf<String>()
