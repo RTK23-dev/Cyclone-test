@@ -229,8 +229,9 @@ class OverlayChromeController(
             }
         }
     }
-    private fun glass() = isCollapsedDrawer(latest) &&
-        com.cyclone.mobile.ui.overlay.BackgroundGlassPolicy.visible(backgroundTask)
+    private fun glass() =
+        (isCompact(latest) || isCollapsedDrawer(latest)) &&
+            com.cyclone.mobile.ui.overlay.BackgroundGlassPolicy.visible(backgroundTask)
     private val idleActivation = OverlayIdleActivationTracker()
     private var root: ComposeView? = null
     private var params: WindowManager.LayoutParams? = null
