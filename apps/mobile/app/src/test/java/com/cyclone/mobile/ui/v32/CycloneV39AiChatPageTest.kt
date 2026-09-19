@@ -210,6 +210,8 @@ class CycloneV39AiChatPageTest {
         assertTrue(page.contains("var drawerCollapsed by rememberSaveable"))
         assertTrue(page.contains("CycloneChatDrawerSurface("))
         assertTrue(page.contains("CycloneMinimizedComposerBar("))
+        assertTrue(page.contains("label = \"Ask Cyclone retraction\""))
+        assertTrue(page.contains("CycloneConversationTokens.stateTransitionMs"))
         assertFalse(page.contains("CycloneCollapsedAskPill("))
         assertTrue(page.contains("CycloneSheetDismissHandle("))
         assertTrue(page.contains("keyboardController?.hide()"))
