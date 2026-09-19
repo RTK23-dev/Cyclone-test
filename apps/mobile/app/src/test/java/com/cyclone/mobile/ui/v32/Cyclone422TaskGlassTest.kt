@@ -63,19 +63,19 @@ class Cyclone422TaskGlassTest {
 
     @Test fun taskControlsUseBackendCapabilitiesAndNeverAdvertiseUnavailableFutureActions() {
         val panel = source("ui/v32/CycloneAskTaskPanel.kt")
-        assertTrue(panel.contains("task.canContinueAfterHumanFromUi()"))
-        assertTrue(panel.contains("task.canTakeOverFromUi()"))
-        val capabilities = source("ui/v32/TaskStatusVisuals.kt")
-        assertTrue(capabilities.contains("interruption?.canResumeAfterHuman == true"))
-        assertTrue(capabilities.contains("interruption?.canTakeOver == true"))
-        assertTrue(panel.contains("task.canAutofillFromUi()"))
+        assertTrue(panel.contains("TaskFollowUpAction.CONTINUE"))
+        assertTrue(panel.contains("TaskFollowUpAction.TAKE_OVER"))
+        val capabilities = source("runtime/background/TaskPresentationSnapshot.kt")
+        assertTrue(capabilities.contains("task.interruption?.canResumeAfterHuman == true"))
+        assertTrue(capabilities.contains("task.interruption?.canTakeOver == true"))
+        assertTrue(capabilities.contains("task.interruption?.canAutofill == true"))
         assertTrue(panel.contains("Text(\"Autofill\")"))
         assertFalse(panel.contains("Text(\"Soon\")"))
         assertFalse(panel.contains("task.resumable &&"))
     }
 
     @Test fun failedTaskCannotMasqueradeAsResumableReview() {
-        assertEquals("Action Needed", TaskGlassPresentation.current(task(TaskPhase.FAILED))!!.status)
+        assertEquals("Couldn't finish", TaskGlassPresentation.current(task(TaskPhase.FAILED))!!.status)
         assertNull(TaskHarnessState.interruption(task(TaskPhase.FAILED)))
     }
 
