@@ -82,27 +82,31 @@ object TaskPresentationProjector {
 
         val semantic = task.semanticSteps
         val milestones = TaskMilestoneProjector.project(semantic)
-        val completed = milestones.filter { it.state == SemanticStepState.DONE }
-        val pending = milestones.count { it.state == SemanticStepState.PENDING }
-        val active = milestones.lastOrNull {
+        val verifiedOperations = milestones.filter { it.state == SemanticStepState.DONE }
+        val activeOperation = milestones.lastOrNull {
             it.state == SemanticStepState.ACTIVE || it.state == SemanticStepState.ACTION_NEEDED
         }
 
-        // A denominator is stable only when a plan has explicitly published pending milestones, or
-        // the task is terminal. The current operation stream grows as work proceeds, so using its
-        // current size as a working denominator would create fake backwards progress.
-        val totalKnown = pending > 0 || state == TaskConsumerState.DONE
-        val total = milestones.size.takeIf { totalKnown && it > 0 }
+        val planned = task.plannedMilestones.filter(String::isNotBlank).take(8)
+        val planIndex = when (state) {
+            TaskConsumerState.DONE -> planned.size
+            else -> task.plannedMilestoneIndex.coerceIn(0, planned.size)
+        }
+        val total = planned.size.takeIf { it > 0 }
+        val completedCount = if (total != null) planIndex else verifiedOperations.size
         val fraction = total?.let { denominator ->
-            (completed.size.toFloat() / denominator.toFloat()).coerceIn(0f, 1f)
+            (completedCount.toFloat() / denominator.toFloat()).coerceIn(0f, 1f)
         } ?: if (state == TaskConsumerState.DONE) 1f else null
 
-        val currentMilestone = active?.label?.takeIf(String::isNotBlank)
+        val currentMilestone = activeOperation?.label?.takeIf(String::isNotBlank)
+            ?: planned.getOrNull(planIndex)
             ?: task.subtitle.takeIf(String::isNotBlank)
 
         val supportingCopy = when (state) {
             TaskConsumerState.WORKING -> when {
-                completed.isNotEmpty() -> "${completed.size} verified step${if (completed.size == 1) "" else "s"} complete"
+                total != null -> "$completedCount of $total complete"
+                verifiedOperations.isNotEmpty() ->
+                    "${verifiedOperations.size} verified step${if (verifiedOperations.size == 1) "" else "s"} complete"
                 else -> currentMilestone
             }
             TaskConsumerState.ACTION_NEEDED -> task.interruption?.prompt?.takeIf(String::isNotBlank)
@@ -120,8 +124,9 @@ object TaskPresentationProjector {
             title = consumerTaskTitle(task),
             state = state,
             currentMilestone = currentMilestone,
-            completedMilestones = completed.map { it.label }.filter(String::isNotBlank).takeLast(4),
-            completedCount = completed.size,
+            completedMilestones = if (planned.isNotEmpty()) planned.take(planIndex).takeLast(4)
+                else verifiedOperations.map { it.label }.filter(String::isNotBlank).takeLast(4),
+            completedCount = completedCount,
             totalCount = total,
             progressFraction = fraction,
             supportingCopy = supportingCopy,
