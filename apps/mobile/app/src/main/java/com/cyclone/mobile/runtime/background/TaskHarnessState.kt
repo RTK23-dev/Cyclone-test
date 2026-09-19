@@ -19,14 +19,24 @@ object TaskHarnessState {
     ): WorkspaceTaskUi {
         if (!trajectory.horizonPlanned || trajectory.waypoints.isEmpty()) return task
         val app = task.app.takeIf { it.isNotBlank() && it.length <= 45 } ?: "your app"
+        val goal = task.goal.lowercase()
+        val loginStatus = Regex("\\b(login|log in|logged in|signed in|sign in)\\b").containsMatchIn(goal)
+        val searching = Regex("\\b(find|search|look for|locate)\\b").containsMatchIn(goal)
         val labels = trajectory.waypoints.take(8).map { waypoint ->
             when (waypoint.kind) {
                 com.cyclone.mobile.agent.plan.WaypointKind.OPEN_APP -> "Opening $app"
                 com.cyclone.mobile.agent.plan.WaypointKind.LAUNCH_INTENT -> "Opening the requested page"
                 com.cyclone.mobile.agent.plan.WaypointKind.LOCAL_INTERRUPTIONS -> "Clearing interruptions"
-                com.cyclone.mobile.agent.plan.WaypointKind.SCENE -> "Working in $app"
+                com.cyclone.mobile.agent.plan.WaypointKind.SCENE -> when {
+                    loginStatus -> "Checking $app login status"
+                    searching -> "Searching $app"
+                    else -> "Working in $app"
+                }
                 com.cyclone.mobile.agent.plan.WaypointKind.STOP_HUMAN -> "Preparing a step for you"
-                com.cyclone.mobile.agent.plan.WaypointKind.DONE -> "Verifying the result"
+                com.cyclone.mobile.agent.plan.WaypointKind.DONE -> when {
+                    loginStatus -> "Verifying login status"
+                    else -> "Verifying the result"
+                }
             }
         }
         return task.copy(
