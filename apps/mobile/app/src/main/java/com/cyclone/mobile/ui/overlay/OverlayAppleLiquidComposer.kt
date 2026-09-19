@@ -290,21 +290,65 @@ internal fun OverlayAppleToolsMenu(
     modifier: Modifier = Modifier,
 ) {
     OverlayAppleGlass(
-        modifier = modifier.widthIn(max = 310.dp),
+        modifier = modifier.fillMaxWidth(),
         cornerRadius = 30.dp,
         strong = true,
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            OverlayAppleMenuRow(Icons.Rounded.CameraAlt, "Camera", onCamera)
-            OverlayAppleMenuRow(Icons.Rounded.PhotoLibrary, "Photos", onPhotos)
-            OverlayAppleMenuRow(Icons.Rounded.AttachFile, "Files", onFiles)
-            OverlayAppleMenuRow(Icons.Rounded.ScreenShare, "Share screen", onShareScreen, enabled = !sharingActive)
-            OverlayAppleMenuRow(Icons.Rounded.Apps, "Cross-app share", onCrossAppShare, enabled = !sharingActive)
-            OverlayAppleMenuRow(Icons.Rounded.Tune, "Model & intelligence", onModelAndIntelligence)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OverlayAppleToolTile(Icons.Rounded.CameraAlt, "Camera", onCamera, Modifier.weight(1f))
+                OverlayAppleToolTile(Icons.Rounded.PhotoLibrary, "Photos", onPhotos, Modifier.weight(1f))
+                OverlayAppleToolTile(Icons.Rounded.AttachFile, "Files", onFiles, Modifier.weight(1f))
+            }
+            Column(
+                Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                OverlayAppleMenuRow(Icons.Rounded.ScreenShare, "Share screen", onShareScreen, enabled = !sharingActive)
+                OverlayAppleMenuRow(Icons.Rounded.Apps, "Cross-app share", onCrossAppShare, enabled = !sharingActive)
+                OverlayAppleMenuRow(Icons.Rounded.Tune, "Model & intelligence", onModelAndIntelligence)
+            }
         }
+    }
+}
+
+@Composable
+private fun OverlayAppleToolTile(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier
+            .heightIn(min = 92.dp)
+            .background(OverlayGlassInner.copy(alpha = .72f), RoundedCornerShape(24.dp))
+            .border(.7.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(24.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 13.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            Modifier
+                .size(38.dp)
+                .background(Color.White.copy(alpha = .08f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, Modifier.size(21.dp), tint = OverlayText)
+        }
+        Text(
+            label,
+            color = OverlayText,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+        )
     }
 }
 
