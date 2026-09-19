@@ -238,11 +238,15 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                 check(OverlayChromeRuntime.isAttached()) { "Phone control needs repair. Open Phone control in Settings." }
                 OverlayChromeRuntime.submitRequest(normalized)
             }.onSuccess {
+                session.append(V39ChatRole.USER, normalized)
+                session.append(V39ChatRole.CYCLONE, "Got it. I'll work on that on your phone.")
                 composer = ""
             }.onFailure { message = it.message ?: "Couldn't open the phone-task setup." }
 
             RequestDispatch.QUEUE_PHONE_TASK -> runCatching { WorkspaceTasks.queueRequest(normalized) }
                 .onSuccess {
+                    session.append(V39ChatRole.USER, normalized)
+                    session.append(V39ChatRole.CYCLONE, "I've saved that to Up next. Your current task can keep going.")
                     composer = ""
                     message = "Saved to Up next. Your current task continues."
                 }
@@ -390,6 +394,20 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         items(session.messages, key = { it.id }) { V39ChatBubble(it) }
                     }
 
+                    task?.let { current ->
+                        item(key = "current-${current.taskId}") {
+                            CycloneAskTaskPanel(current)
+                        }
+                    }
+                    if (foregroundWorking) {
+                        item(key = "foreground-${foregroundSnapshot.sessionId}") {
+                            CycloneForegroundWorkCard(foregroundSnapshot)
+                        }
+                    }
+                    if (queuedRequests.isNotEmpty()) {
+                        item(key = "queued") { CyclonePendingRequests() }
+                    }
+
                     if (session.busy || session.status.isNotBlank()) {
                         item {
                             Box(
@@ -441,26 +459,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 8.dp),
                 ) {
-            if (task != null || queuedRequests.isNotEmpty() || foregroundWorking) {
-                LazyColumn(
-                    Modifier.fillMaxWidth().heightIn(max = if (keyboardOpen) 132.dp else 230.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 2.dp),
-                ) {
-                    task?.let { current ->
-                        item(key = "current-${current.taskId}") { CycloneAskTaskPanel(current) }
-                    }
-                    if (foregroundWorking) {
-                        item(key = "foreground-${foregroundSnapshot.sessionId}") {
-                            CycloneForegroundWorkCard(foregroundSnapshot)
-                        }
-                    }
-                    if (queuedRequests.isNotEmpty()) {
-                        item(key = "queued") { CyclonePendingRequests() }
-                    }
-                }
-            }
-
             if (!hasKey) {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
@@ -1050,19 +1048,27 @@ private fun V39ChatBubble(message: V39ChatMessage) {
         }
         return
     }
-    val shape = RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
-    val color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .72f)
+    val shape = RoundedCornerShape(
+        CycloneConversationTokens.bubbleRadius,
+        CycloneConversationTokens.bubbleRadius,
+        6.dp,
+        CycloneConversationTokens.bubbleRadius,
+    )
+    val color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .68f)
     val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Box(
             modifier = Modifier
-                .fillMaxWidth(.82f)
+                .fillMaxWidth(.80f)
                 .clip(shape)
                 .background(color),
         ) {
             Text(
                 message.text.replace("**", ""),
-                modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
+                modifier = Modifier.padding(
+                    horizontal = CycloneConversationTokens.space16,
+                    vertical = CycloneConversationTokens.space12,
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = contentColor,
             )
