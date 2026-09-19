@@ -127,6 +127,8 @@ object CycloneConversationTokens {
 
     const val stateTransitionMs = 200
     const val fastTransitionMs = 140
+    const val drawerDampingRatio = .90f
+    const val drawerStiffness = 560f
 }
 
 @Immutable
