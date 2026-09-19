@@ -79,10 +79,13 @@ REQUIRED_OVERLAY_COMPOSER = (
     'OverlayAppleToolTile(Icons.Rounded.PhotoLibrary, "Photos"',
     'OverlayAppleToolTile(Icons.Rounded.CameraAlt, "Camera"',
     'OverlayAppleMenuRow(Icons.Rounded.AttachFile, "Files"',
-    'contentDescription = "Model and intelligence"',
+    'OverlayAppleMenuRow(Icons.Rounded.Tune, "Model & intelligence"',
+    "CycloneSignatureGlass(",
 )
 FORBIDDEN_OVERLAY_COMPOSER = (
     '"Files & photos"',
+    'modelLabel',
+    'intelligenceLabel',
 )
 REQUIRED_TASK_PRESENTATION = (
     "data class TaskPresentationSnapshot(",

@@ -76,9 +76,9 @@ class MobileLiquidGlassGuards(unittest.TestCase):
         self.assertNotIn("Color.White.copy(alpha = 0.22f)", chrome)
         self.assertNotIn("Color.Black.copy(alpha = 0.035f)", chrome)
         self.assertIn("LocalCycloneInsideLiquidHost.current", selectors)
-        self.assertIn("chromaticAberration = true", overlay)
-        self.assertIn("OverlayDarkScheme", overlay)
-        self.assertIn("0.90f", overlay)
+        self.assertIn("CycloneSignatureGlass(", overlay)
+        self.assertIn("SignatureInk", overlay)
+        self.assertIn("textured = false", overlay)
         self.assertNotIn("chromaticAberration = false", overlay)
         self.assertNotIn("OverlayGlassRim", overlay)
 

@@ -68,7 +68,6 @@ import com.cyclone.mobile.capture.LiveCaptureSessionManager
 import com.cyclone.mobile.capture.ScreenSharePhase
 import com.cyclone.mobile.runtime.background.WorkspaceTasks
 import com.cyclone.mobile.ui.v32.CycloneAskTaskPanel
-import com.cyclone.mobile.ui.v32.CycloneChatDrawerSurface
 import com.cyclone.mobile.ui.v32.CycloneForegroundWorkCard
 import com.cyclone.mobile.ui.v32.CyclonePendingRequests
 import com.cyclone.mobile.ui.v32.CycloneTrayIconAction
@@ -433,7 +432,7 @@ private fun ComposerPanel(
         )
         },
     ) {
-        if (!minimized && (task != null || foregroundWorking || queued.isNotEmpty())) {
+        if (task != null || foregroundWorking || queued.isNotEmpty()) {
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -530,9 +529,6 @@ private fun ComposerPanel(
                 onAction = { PendingTaskAttachment.take() },
             )
         }
-
-
-
     }
 }
 
