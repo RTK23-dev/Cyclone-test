@@ -71,8 +71,8 @@ class OverlayAskBarPolicyTest {
     fun overlayExtrasRestorePhotosAndQuickSelectorHasNoAutonomy() {
         val composer = source("ui/overlay/OverlayAppleLiquidComposer.kt")
         val controls = source("ui/v32/CycloneIntelligenceControls.kt")
-        assertTrue(composer.contains("OverlayAppleMenuRow(Icons.Rounded.PhotoLibrary, \"Photos\""))
-        assertTrue(composer.contains("OverlayAppleMenuRow(Icons.Rounded.AttachFile, \"Files\""))
+        assertTrue(composer.contains("OverlayAppleToolTile(Icons.Rounded.PhotoLibrary, \"Photos\""))
+        assertTrue(composer.contains("OverlayAppleToolTile(Icons.Rounded.AttachFile, \"Files\""))
         assertFalse(composer.contains("\"Files & photos\""))
         assertTrue(composer.contains("contentDescription = \"Model and intelligence\""))
         assertTrue(controls.contains("private enum class OverlaySettingsStep { MODEL, INTELLIGENCE }"))
