@@ -480,7 +480,7 @@ private fun ComposerPanel(
                     launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
                 },
                 onModelAndIntelligence = { accessory = ComposerAccessory.MODEL },
-                modifier = Modifier.fillMaxWidth(.82f),
+                modifier = Modifier.fillMaxWidth(),
             )
 
             ComposerAccessory.MODEL -> OverlayAppleGlass(
