@@ -118,6 +118,7 @@ class WorkspaceTaskService : Service() {
                     displayId = session.displayId,
                     phase = TaskPhase.WORKING,
                     message = "Opening ${it.app}",
+                    outcome = null,
                     glassStepKind = GlassStepKind.FAST_PATH,
                     steps = emptyList(),
                 ) }
@@ -167,15 +168,30 @@ class WorkspaceTaskService : Service() {
         withContext(Dispatchers.IO) { WorkspaceRuntime.pause(id, WorkspaceState.BACKGROUND_NEEDS_HANDOFF) }
         update {
             when {
-                result.ok -> it.copy(phase = TaskPhase.DONE, resumable = false,
-                    message = WorkspaceCopy.result(result.message), steps = it.steps + "Checked the result")
+                result.ok -> {
+                    val safeOutcome = WorkspaceCopy.result(result.message)
+                    it.copy(
+                        phase = TaskPhase.DONE,
+                        resumable = false,
+                        message = safeOutcome,
+                        outcome = safeOutcome,
+                        steps = it.steps + "Checked the result",
+                    )
+                }
                 result.classification == "HUMAN_OR_GATE" -> it.copy(phase = TaskPhase.REVIEW,
                     message = if (result.gateClass == "login")
                         "This screen needs your sign-in. Take Over, Autofill, or tap I'm Done when finished."
                     else "Review the prepared page in ${it.app} before continuing.",
                     loginAutofill = result.gateClass == "login")
-                else -> it.copy(phase = TaskPhase.FAILED, resumable = false,
-                    message = "I couldn't finish. Your place in ${it.app} is saved for you.")
+                else -> {
+                    val safeFailure = "I couldn't finish. Your place in ${it.app} is saved for you."
+                    it.copy(
+                        phase = TaskPhase.FAILED,
+                        resumable = false,
+                        message = safeFailure,
+                        outcome = safeFailure,
+                    )
+                }
             }
         }
     }
@@ -237,6 +253,7 @@ class WorkspaceTaskService : Service() {
                     it.copy(
                         phase = TaskPhase.WORKING,
                         message = "Continuing from the current page",
+                        outcome = null,
                         glassStepKind = GlassStepKind.FAST_PATH,
                     )
                 }
