@@ -14,7 +14,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -110,11 +109,7 @@ fun CycloneForegroundWorkCard(
                     )
                     CycloneTaskStatusPill(CycloneTaskVisualState.WORKING)
                 }
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = palette.active,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                )
+                CycloneTaskProgressIndicator(progress = null)
                 Text(
                     status,
                     maxLines = 2,
