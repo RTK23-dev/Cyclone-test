@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.ScreenShare
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
@@ -148,6 +149,9 @@ internal fun OverlayAppleComposerBar(
     onMenu: () -> Unit,
     onDictate: () -> Unit,
     onPrimary: () -> Unit,
+    modelLabel: String,
+    intelligenceLabel: String,
+    onModelQuick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     OverlayAppleGlass(
@@ -172,34 +176,65 @@ internal fun OverlayAppleComposerBar(
                 )
             }
 
-            BasicTextField(
-                value = text,
-                onValueChange = onTextChanged,
-                singleLine = true,
-                textStyle = TextStyle(color = OverlayText, fontSize = 17.sp, lineHeight = 22.sp),
-                cursorBrush = SolidColor(OverlayBlue),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { if (!working && text.isNotBlank()) onPrimary() }),
-                modifier = Modifier
-                    .weight(1f)
-                    .focusRequester(focusRequester)
-                    .onFocusChanged { onFocusChanged(it.isFocused) }
-                    .heightIn(min = 52.dp)
-                    .padding(horizontal = 10.dp, vertical = 15.dp)
-                    .semantics { contentDescription = "Ask Cyclone" },
-                decorationBox = { field ->
-                    Box(contentAlignment = Alignment.CenterStart) {
-                        if (text.isEmpty()) {
-                            Text(
-                                placeholder,
-                                color = OverlaySecondaryText.copy(alpha = if (working) .56f else .78f),
-                                fontSize = 17.sp,
-                            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .heightIn(min = 20.dp)
+                        .clickable(enabled = !working, role = Role.Button, onClick = onModelQuick)
+                        .padding(horizontal = 10.dp, vertical = 1.dp)
+                        .semantics { contentDescription = "Model and intelligence" },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Text(
+                        modelLabel,
+                        color = if (working) OverlaySecondaryText.copy(alpha = .55f) else OverlayBlue,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                    )
+                    Text("·", color = OverlaySecondaryText.copy(alpha = .65f), fontSize = 11.sp)
+                    Text(
+                        intelligenceLabel,
+                        color = OverlaySecondaryText.copy(alpha = if (working) .50f else .78f),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                    )
+                }
+
+                BasicTextField(
+                    value = text,
+                    onValueChange = onTextChanged,
+                    singleLine = true,
+                    textStyle = TextStyle(color = OverlayText, fontSize = 16.sp, lineHeight = 20.sp),
+                    cursorBrush = SolidColor(OverlayBlue),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { if (!working && text.isNotBlank()) onPrimary() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { onFocusChanged(it.isFocused) }
+                        .heightIn(min = 30.dp)
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
+                        .semantics { contentDescription = "Ask Cyclone" },
+                    decorationBox = { field ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (text.isEmpty()) {
+                                Text(
+                                    placeholder,
+                                    color = OverlaySecondaryText.copy(alpha = if (working) .56f else .78f),
+                                    fontSize = 16.sp,
+                                    maxLines = 1,
+                                )
+                            }
+                            field()
                         }
-                        field()
-                    }
-                },
-            )
+                    },
+                )
+            }
 
             run {
                 Box(
@@ -247,6 +282,7 @@ private fun OverlayAppleCircleAction(
 internal fun OverlayAppleToolsMenu(
     sharingActive: Boolean,
     onCamera: () -> Unit,
+    onPhotos: () -> Unit,
     onFiles: () -> Unit,
     onShareScreen: () -> Unit,
     onCrossAppShare: () -> Unit,
@@ -263,7 +299,8 @@ internal fun OverlayAppleToolsMenu(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             OverlayAppleMenuRow(Icons.Rounded.CameraAlt, "Camera", onCamera)
-            OverlayAppleMenuRow(Icons.Rounded.AttachFile, "Files & photos", onFiles)
+            OverlayAppleMenuRow(Icons.Rounded.PhotoLibrary, "Photos", onPhotos)
+            OverlayAppleMenuRow(Icons.Rounded.AttachFile, "Files", onFiles)
             OverlayAppleMenuRow(Icons.Rounded.ScreenShare, "Share screen", onShareScreen, enabled = !sharingActive)
             OverlayAppleMenuRow(Icons.Rounded.Apps, "Cross-app share", onCrossAppShare, enabled = !sharingActive)
             OverlayAppleMenuRow(Icons.Rounded.Tune, "Model & intelligence", onModelAndIntelligence)
