@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+private enum class DrawerSettle { OPEN, COLLAPSE, EXPAND }
+
 internal object CycloneChatDrawerGesturePolicy {
     const val COLLAPSE_THRESHOLD_DP = 72f
     const val EXPAND_THRESHOLD_DP = 34f
@@ -75,7 +77,6 @@ internal fun CycloneChatDrawerSurface(
     val collapseThresholdPx = with(density) { CycloneChatDrawerGesturePolicy.COLLAPSE_THRESHOLD_DP.dp.toPx() }
     val expandThresholdPx = with(density) { CycloneChatDrawerGesturePolicy.EXPAND_THRESHOLD_DP.dp.toPx() }
 
-    enum class DrawerSettle { OPEN, COLLAPSE, EXPAND }
 
     fun settle(target: DrawerSettle) {
         settleJob?.cancel()
