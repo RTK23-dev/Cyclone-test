@@ -26,6 +26,19 @@ class CycloneConversationSystem472Test {
     }
 
     @Test
+    fun inAppFirstRetractionRemainsARealComposer() {
+        val page = source("ui/v32/CycloneV39AiChatPage.kt")
+        val minimized = source("ui/v32/CycloneMinimizedComposerBar.kt")
+        assertTrue(page.contains("CycloneMinimizedComposerBar("))
+        assertFalse(page.contains("CycloneCollapsedAskPill("))
+        assertTrue(minimized.contains("BasicTextField("))
+        assertTrue(minimized.contains("Icons.Rounded.Add"))
+        assertTrue(minimized.contains("Icons.Rounded.GraphicEq"))
+        assertTrue(minimized.contains("Icons.Rounded.ArrowUpward"))
+        assertTrue(minimized.contains("Model and intelligence"))
+    }
+
+    @Test
     fun taskCardAndDetailsReadFromOnePresentationSnapshot() {
         val panel = source("ui/v32/CycloneAskTaskPanel.kt")
         val details = source("runtime/background/WorkspaceProgressActivity.kt")
