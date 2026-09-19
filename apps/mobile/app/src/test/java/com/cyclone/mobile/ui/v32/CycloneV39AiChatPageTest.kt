@@ -163,12 +163,16 @@ class CycloneV39AiChatPageTest {
         assertTrue(page.contains("session.append(V39ChatRole.CYCLONE, \"Got it. I'll work on that on your phone.\")"))
     }
 
-    @Test fun translucentChatUsesClippedBackgroundsWithoutElevatedGhostBands() {
+    @Test fun translucentChatUsesSharedBubblePrimitiveWithoutElevatedGhostBands() {
         val page = source("CycloneV39AiChatPage.kt")
+        val bubble = source("CycloneConversationBubble.kt")
         val design = source("CycloneV32DesignSystem.kt")
         assertTrue(page.contains(".background(MaterialTheme.colorScheme.surface.copy(alpha = .56f))"))
-        assertTrue(page.contains(".background(color)"))
+        assertTrue(page.contains("CycloneConversationBubble("))
+        assertTrue(bubble.contains(".background(userContainer)"))
+        assertTrue(bubble.contains("CycloneConversationTokens.bubbleRadius"))
         assertFalse(page.contains("shadowElevation = 5.dp"))
+        assertFalse(bubble.contains("shadowElevation"))
         assertFalse(design.substringAfter("fun CycloneGlassSurface").contains("shadowElevation = 4.dp"))
     }
 
