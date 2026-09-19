@@ -2,6 +2,7 @@
 # Includes the green 4.7.1 three-stage overlay correction on top of published 4.7.0 / 4.6.9.
 # Release notes: docs/RELEASE_4.7.2.md
 # Publication source: canonical full-release workflow; Mobile CI must pass this exact SHA.
+# Publication branch: release/cyclone-mobile-v4.7.2
 schema = 1
 product_version = "4.7.2"
 channel = "development"
