@@ -48,21 +48,28 @@ class TaskPresentationSnapshotTest {
     }
 
     @Test
-    fun explicitPendingMilestonesPermitDeterminateProgress() {
+    fun typedTrajectoryPermitsDeterminateProgressWithoutCountingRawOperations() {
         val snapshot = TaskPresentationProjector.project(
             task(
                 semantic = listOf(
                     SemanticTaskStep(1, "Opening Instagram", SemanticStepState.DONE),
                     SemanticTaskStep(2, "Checking login status", SemanticStepState.ACTIVE),
-                    SemanticTaskStep(3, "Verifying result", SemanticStepState.PENDING),
-                    SemanticTaskStep(4, "Complete", SemanticStepState.PENDING),
                 ),
+            ).copy(
+                plannedMilestones = listOf(
+                    "Opening Instagram",
+                    "Clearing interruptions",
+                    "Working in Instagram",
+                    "Verifying the result",
+                ),
+                plannedMilestoneIndex = 1,
             ),
         )
 
         assertEquals(4, snapshot.totalCount)
         assertEquals(1, snapshot.completedCount)
         assertEquals(.25f, snapshot.progressFraction!!, .0001f)
+        assertEquals("Checking login status", snapshot.currentMilestone)
     }
 
     @Test
@@ -107,6 +114,33 @@ class TaskPresentationSnapshotTest {
         assertTrue(TaskFollowUpAction.CONTINUE in snapshot.followUps)
         assertFalse(TaskFollowUpAction.TAKE_OVER in snapshot.followUps)
         assertTrue(TaskFollowUpAction.VIEW_DETAILS in snapshot.followUps)
+    }
+
+    @Test
+    fun typedTrajectoryIsSanitizedBeforeEnteringConsumerState() {
+        val trajectory = com.cyclone.mobile.agent.plan.TaskTrajectory(
+            tier = com.cyclone.mobile.agent.plan.TaskDifficultyTier.MEDIUM,
+            from = "current",
+            to = "done",
+            waypoints = listOf(
+                com.cyclone.mobile.agent.plan.TaskWaypoint(
+                    com.cyclone.mobile.agent.plan.WaypointKind.OPEN_APP,
+                    packageName = "com.instagram.android",
+                    summary = "RAW MODEL TEXT MUST NOT SHIP",
+                ),
+                com.cyclone.mobile.agent.plan.TaskWaypoint(
+                    com.cyclone.mobile.agent.plan.WaypointKind.DONE,
+                    summary = "also raw",
+                ),
+            ),
+            index = 1,
+            horizonPlanned = true,
+        )
+
+        val updated = TaskHarnessState.applyTrajectory(task(), trajectory)
+        assertEquals(listOf("Opening Instagram", "Verifying the result"), updated.plannedMilestones)
+        assertEquals(1, updated.plannedMilestoneIndex)
+        assertFalse(updated.plannedMilestones.any { it.contains("RAW MODEL") })
     }
 
     @Test
