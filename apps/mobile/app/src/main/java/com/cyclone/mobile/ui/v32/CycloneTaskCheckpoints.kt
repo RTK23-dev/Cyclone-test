@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.cyclone.mobile.runtime.background.SemanticStepState
+import com.cyclone.mobile.runtime.background.TaskMilestoneProjector
 import com.cyclone.mobile.runtime.background.WorkspaceTaskUi
 import kotlin.math.cos
 import kotlin.math.sin
@@ -21,7 +22,9 @@ import kotlin.math.sin
 internal data class CheckpointRow(val label: String, val state: SemanticStepState)
 
 internal fun checkpointRows(task: WorkspaceTaskUi): List<CheckpointRow> {
-    val rows = task.semanticSteps.takeLast(3).map { CheckpointRow(it.label, it.state) }
+    val rows = TaskMilestoneProjector.project(task.semanticSteps)
+        .takeLast(4)
+        .map { CheckpointRow(it.label, it.state) }
     val activeLabel = task.subtitle.trim()
     val alreadyRepresented = rows.any { row ->
         row.label.trim().equals(activeLabel, ignoreCase = true)
@@ -54,9 +57,12 @@ fun CycloneNineDotSpinner(modifier: Modifier = Modifier) {
 
 @Composable
 fun CycloneTaskCheckpoints(task: WorkspaceTaskUi) {
-    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8)) {
         checkpointRows(task).forEach { row ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8),
+            ) {
                 if (row.state == SemanticStepState.ACTIVE && task.working && task.confirmation == null) {
                     CycloneNineDotSpinner()
                 } else Text(when(row.state) {
