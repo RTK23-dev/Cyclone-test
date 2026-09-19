@@ -236,6 +236,27 @@ class TaskPresentationSnapshotTest {
     }
 
     @Test
+    fun actionFlagsCannotCreateMutationCtasWithoutInteractiveSessionGrounding() {
+        val ungrounded = task(
+            phase = TaskPhase.REVIEW,
+            interruption = TaskInterruption(
+                reason = "LOGIN_WALL",
+                prompt = "Sign in",
+                canTakeOver = true,
+                canResumeAfterHuman = true,
+                canAutofill = true,
+            ),
+        ).copy(sessionId = null, displayId = null)
+
+        val snapshot = TaskPresentationProjector.project(ungrounded)
+
+        assertFalse(TaskFollowUpAction.AUTOFILL in snapshot.followUps)
+        assertFalse(TaskFollowUpAction.TAKE_OVER in snapshot.followUps)
+        assertFalse(TaskFollowUpAction.CONTINUE in snapshot.followUps)
+        assertEquals(listOf(TaskFollowUpAction.VIEW_DETAILS), snapshot.followUps)
+    }
+
+    @Test
     fun failedStateOffersRetryWithoutPretendingSuccess() {
         val snapshot = TaskPresentationProjector.project(
             task(phase = TaskPhase.FAILED, outcome = "I couldn't finish. Your place is saved."),
