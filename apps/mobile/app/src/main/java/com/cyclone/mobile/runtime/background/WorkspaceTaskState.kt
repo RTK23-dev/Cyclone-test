@@ -31,6 +31,9 @@ data class WorkspaceTaskUi(
     val outcome: String? = null,
     val steps: List<String> = emptyList(),
     val semanticSteps: List<SemanticTaskStep> = emptyList(),
+    /** Safe consumer plan derived from typed trajectory kinds, never raw model plan prose. */
+    val plannedMilestones: List<String> = emptyList(),
+    val plannedMilestoneIndex: Int = 0,
     val interruption: TaskInterruption? = null,
     val controlRevision: Long = 0,
     val queued: String? = null,
