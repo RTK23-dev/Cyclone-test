@@ -58,9 +58,6 @@ import com.cyclone.mobile.ui.v32.CycloneTaskStatusPill
 import com.cyclone.mobile.ui.v32.CycloneTaskVisualState
 import com.cyclone.mobile.ui.v32.CycloneV32Theme
 import com.cyclone.mobile.ui.v32.cycloneConversationPalette
-import com.cyclone.mobile.ui.v32.canAutofillFromUi
-import com.cyclone.mobile.ui.v32.canContinueAfterHumanFromUi
-import com.cyclone.mobile.ui.v32.canTakeOverFromUi
 import com.cyclone.mobile.ui.v32.taskVisualState
 import kotlinx.coroutines.delay
 
