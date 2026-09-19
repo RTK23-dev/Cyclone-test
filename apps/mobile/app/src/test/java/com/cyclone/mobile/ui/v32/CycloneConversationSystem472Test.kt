@@ -53,6 +53,14 @@ class CycloneConversationSystem472Test {
     }
 
     @Test
+    fun brainActiveTaskUsesTheSamePresentationProjection() {
+        val brain = source("ui/v32/CycloneV39BrainPage.kt")
+        assertTrue(brain.contains("TaskPresentationProjector.project("))
+        assertTrue(brain.contains("projected.currentMilestone ?: projected.title"))
+        assertFalse(brain.contains("TaskGlassPresentation.current(active"))
+    }
+
+    @Test
     fun overlayTaskCardIsNotWrappedInAnotherGlassCard() {
         val overlay = source("ui/overlay/OverlayChrome.kt")
         val taskIndex = overlay.indexOf("task != null -> CycloneAskTaskPanel(task)")
