@@ -188,12 +188,28 @@ object TaskPresentationProjector {
 
 object TaskFollowUpPolicy {
     fun actions(task: WorkspaceTaskUi, state: TaskConsumerState): List<TaskFollowUpAction> = buildList {
+        val interactiveSession = !task.sessionId.isNullOrBlank() && task.displayId != null
         when (state) {
             TaskConsumerState.WORKING -> add(TaskFollowUpAction.VIEW_DETAILS)
             TaskConsumerState.ACTION_NEEDED -> {
-                if (task.interruption?.canAutofill == true) add(TaskFollowUpAction.AUTOFILL)
-                if (task.interruption?.canTakeOver == true) add(TaskFollowUpAction.TAKE_OVER)
-                if (task.interruption?.canResumeAfterHuman == true && task.resumable && task.confirmation == null) {
+                val interruption = task.interruption
+                val resumableHumanBoundary =
+                    interactiveSession &&
+                        task.resumable &&
+                        task.confirmation == null &&
+                        task.phase in setOf(TaskPhase.HUMAN, TaskPhase.PAUSED, TaskPhase.REVIEW)
+
+                if (resumableHumanBoundary && interruption?.canAutofill == true) {
+                    add(TaskFollowUpAction.AUTOFILL)
+                }
+                if (
+                    interactiveSession &&
+                    interruption?.canTakeOver == true &&
+                    task.phase !in setOf(TaskPhase.HUMAN, TaskPhase.DONE, TaskPhase.FAILED, TaskPhase.STOPPED)
+                ) {
+                    add(TaskFollowUpAction.TAKE_OVER)
+                }
+                if (resumableHumanBoundary && interruption?.canResumeAfterHuman == true) {
                     add(TaskFollowUpAction.CONTINUE)
                 }
                 add(TaskFollowUpAction.VIEW_DETAILS)
