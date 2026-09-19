@@ -126,7 +126,11 @@ class TaskPresentationSnapshotTest {
         assertEquals("You're logged in to Instagram.", snapshot.outcomeCopy)
         assertEquals(1f, snapshot.progressFraction!!, .0001f)
         assertEquals(
-            listOf(TaskFollowUpAction.VIEW_DETAILS, TaskFollowUpAction.RUN_AGAIN),
+            listOf(
+                TaskFollowUpAction.VIEW_DETAILS,
+                TaskFollowUpAction.OPEN_APP,
+                TaskFollowUpAction.RUN_AGAIN,
+            ),
             snapshot.followUps,
         )
     }
