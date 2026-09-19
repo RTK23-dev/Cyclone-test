@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Button
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -213,28 +212,7 @@ private fun WorkingBody(
 ) {
     val palette = cycloneConversationPalette()
     Column(verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8)) {
-        if (snapshot.progressFraction != null) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth(snapshot.progressFraction.coerceIn(0f, 1f))
-                        .height(4.dp)
-                        .background(palette.active),
-                )
-            }
-        } else {
-            LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(999.dp)),
-                color = palette.active,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            )
-        }
+        CycloneTaskProgressIndicator(snapshot.progressFraction)
 
         val countLabel = snapshot.totalCount?.let { total ->
             "${snapshot.completedCount} of $total complete"
