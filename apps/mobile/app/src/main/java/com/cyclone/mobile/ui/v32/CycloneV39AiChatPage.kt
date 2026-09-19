@@ -6,6 +6,7 @@ import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -17,6 +18,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -421,7 +423,26 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                 }
             }
 
-            if (drawerCollapsed) {
+            AnimatedContent(
+                targetState = drawerCollapsed,
+                transitionSpec = {
+                    (fadeIn(tween(CycloneConversationTokens.stateTransitionMs)) +
+                        slideInVertically(
+                            animationSpec = tween(
+                                CycloneConversationTokens.stateTransitionMs,
+                                easing = FastOutSlowInEasing,
+                            ),
+                        ) { it / 6 }
+                    ).togetherWith(
+                        fadeOut(tween(CycloneConversationTokens.fastTransitionMs)) +
+                            slideOutVertically(
+                                animationSpec = tween(CycloneConversationTokens.fastTransitionMs),
+                            ) { it / 8 },
+                    )
+                },
+                label = "Ask Cyclone retraction",
+            ) { minimized ->
+                if (minimized) {
                 val minimizedSendEnabled = composer.isNotBlank() && when (previewRoute.intent) {
                     RequestIntent.PHONE_TASK -> true
                     RequestIntent.CHAT -> hasKey && !session.busy
@@ -643,6 +664,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             }
         }
                 }
+            }
             }
 
         AnimatedVisibility(
