@@ -83,7 +83,12 @@ object TaskPresentationProjector {
         }
 
         val semantic = task.semanticSteps
-        val milestones = TaskMilestoneProjector.project(semantic)
+        val milestones = TaskMilestoneProjector.project(semantic).filter { milestone ->
+            // Harness FAILED can mean an operation was superseded without fresh verification.
+            // Keep that diagnostic evidence in semanticSteps, but do not paint a red consumer
+            // milestone unless the task itself is terminally failed.
+            milestone.state != SemanticStepState.FAILED || state == TaskConsumerState.FAILED
+        }
         val verifiedOperations = milestones.filter { it.state == SemanticStepState.DONE }
         val activeOperation = milestones.lastOrNull {
             it.state == SemanticStepState.ACTIVE || it.state == SemanticStepState.ACTION_NEEDED
