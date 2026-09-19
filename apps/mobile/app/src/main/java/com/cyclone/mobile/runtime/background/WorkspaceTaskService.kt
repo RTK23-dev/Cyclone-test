@@ -319,7 +319,9 @@ class WorkspaceTaskService : Service() {
         val progress = PendingIntent.getActivity(this, 0, WorkspaceTasks.progressIntent(this, task),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val builder = Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_cyclone_status)
-            .setContentTitle(TaskNotificationProjection.title(task)).setContentText(task.subtitle).setOnlyAlertOnce(true).setShowWhen(false)
+            .setContentTitle(TaskNotificationProjection.title(task))
+            .setContentText(TaskNotificationProjection.body(task))
+            .setOnlyAlertOnce(true).setShowWhen(false)
             .setOngoing(task.working)
             .setVisibility(Notification.VISIBILITY_PRIVATE).setContentIntent(progress)
             .setPublicVersion(Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_cyclone_status)
