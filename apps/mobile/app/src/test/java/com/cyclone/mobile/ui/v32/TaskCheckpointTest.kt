@@ -59,7 +59,7 @@ class TaskCheckpointTest {
         assertFalse(trace.contains("addView"))
         assertTrue(source("ui/v32/CycloneAskTaskPanel.kt").contains("CycloneTaskCheckpoints(snapshot)"))
         assertFalse(source("runtime/background/WorkspaceProgressActivity.kt").contains("SemanticProgress("))
-        assertTrue(source("ui/overlay/BackgroundTaskGlass.kt").contains("enabled = task.canContinueAfterHumanFromUi()"))
+        assertTrue(source("ui/overlay/BackgroundTaskGlass.kt").contains("enabled = TaskFollowUpAction.CONTINUE in snapshot.followUps"))
     }
 
     @Test
