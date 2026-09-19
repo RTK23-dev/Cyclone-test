@@ -514,7 +514,7 @@ private fun ComposerPanel(
         )
         val quickIntelligenceLabel = aiSettings.reasoningEffort
             .takeIf(String::isNotBlank)
-            ?.let(com.cyclone.mobile.ui.v32::reasoningEffortLabel)
+            ?.let { com.cyclone.mobile.ui.v32.reasoningEffortLabel(it) }
             ?: "Auto"
 
         OverlayAppleComposerBar(
