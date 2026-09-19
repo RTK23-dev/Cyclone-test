@@ -332,7 +332,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
         if (keyboardOpen) {
             modelMenuOpen = false
             toolsOpen = false
-            drawerCollapsed = false
         } else if (toolsOpen || modelMenuOpen) {
             drawerCollapsed = false
         }
@@ -423,17 +422,36 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             }
 
             if (drawerCollapsed) {
-                CycloneCollapsedAskPill(
+                val minimizedSendEnabled = composer.isNotBlank() && when (previewRoute.intent) {
+                    RequestIntent.PHONE_TASK -> true
+                    RequestIntent.CHAT -> hasKey && !session.busy
+                }
+                CycloneMinimizedComposerBar(
+                    text = composer,
+                    onTextChanged = { composer = it },
                     onExpand = { drawerCollapsed = false },
-                    active = task?.working == true || foregroundWorking || session.busy,
-                    status = when {
-                        task?.working == true -> task?.subtitle?.takeIf(String::isNotBlank) ?: "Current run"
-                        foregroundWorking -> foregroundSnapshot.statusMessage ?: "Current run"
-                        session.busy -> "Answering…"
-                        queuedRequests.isNotEmpty() -> "Tasks waiting"
-                        else -> null
+                    onAdd = {
+                        drawerCollapsed = false
+                        modelMenuOpen = false
+                        toolsOpen = true
                     },
-                    modifier = Modifier.padding(bottom = 12.dp),
+                    onModelAndIntelligence = {
+                        drawerCollapsed = false
+                        toolsOpen = false
+                        modelMenuOpen = true
+                    },
+                    onVoice = { startVoice() },
+                    onSubmit = { submit() },
+                    modelLabel = cycloneShortModelLabel(
+                        V39AiChatContract.modelForStored(selectedModelId).label.ifBlank { "Cyclone" },
+                    ),
+                    intelligenceLabel = reasoningEffort
+                        .takeIf(String::isNotBlank)
+                        ?.let(::reasoningEffortLabel)
+                        ?: "Auto",
+                    sendEnabled = minimizedSendEnabled,
+                    busy = session.busy,
+                    modifier = Modifier.padding(bottom = CycloneConversationTokens.space8),
                 )
             } else {
                 CycloneChatDrawerSurface(
