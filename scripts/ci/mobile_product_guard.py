@@ -59,6 +59,7 @@ REQUIRED_AI_CHAT = (
     "OpenRouterCatalogStore.activeId(context)",
     '"Ask Cyclone…"',
     "CycloneModelIntelligencePanel(",
+    "CycloneConversationBubble(",
     "showModelSelector = true",
     'contentDescription = "Model and intelligence"',
     "onPhotos = { openPhotos() }",
