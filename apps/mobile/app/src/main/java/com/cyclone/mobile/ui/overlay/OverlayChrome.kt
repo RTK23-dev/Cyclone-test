@@ -423,25 +423,18 @@ private fun ComposerPanel(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 8.dp, end = 8.dp, bottom = 8.dp),
     ) {
         if (!minimized && (task != null || foregroundWorking || queued.isNotEmpty())) {
-            OverlayAppleGlass(
-                modifier = Modifier.fillMaxWidth(),
-                cornerRadius = 24.dp,
-                strong = true,
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = taskAreaMax.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(10.dp)
-                        .heightIn(max = taskAreaMax.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    when {
-                        task != null -> CycloneAskTaskPanel(task)
-                        foregroundWorking -> CycloneForegroundWorkCard(snapshot)
-                    }
-                    CyclonePendingRequests { onAction(OverlayUserAction.MINIMIZE) }
+                when {
+                    task != null -> CycloneAskTaskPanel(task)
+                    foregroundWorking -> CycloneForegroundWorkCard(snapshot)
                 }
+                CyclonePendingRequests { onAction(OverlayUserAction.MINIMIZE) }
             }
         }
 
