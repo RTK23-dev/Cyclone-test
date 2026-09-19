@@ -354,8 +354,11 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
         AskCycloneDotField(Modifier.matchParentSize())
 
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.fillMaxSize().padding(
+                horizontal = CycloneConversationTokens.space16,
+                vertical = CycloneConversationTokens.space8,
+            ),
+            verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8),
         ) {
             AskCycloneHeader(
                 onMenu = onSettings,
@@ -372,7 +375,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             } else {
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space12),
                     contentPadding = PaddingValues(top = if (keyboardOpen) 2.dp else 4.dp, bottom = 8.dp),
                 ) {
                     if (session.messages.isNotEmpty()) {
@@ -473,7 +476,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
 
             CycloneLiquidPanel(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                cornerRadius = 30.dp,
+                cornerRadius = CycloneConversationTokens.composerRadius,
                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 5.dp),
             ) {
                 Column(Modifier.fillMaxWidth()) {
@@ -647,7 +650,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         .fillMaxWidth()
                         .heightIn(max = 420.dp)
                         .padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
-                    shape = RoundedCornerShape(28.dp),
+                    shape = RoundedCornerShape(CycloneConversationTokens.sheetRadius),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = .98f),
                     tonalElevation = 0.dp,
                     shadowElevation = 0.dp,
@@ -700,7 +703,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         .fillMaxWidth()
                         .heightIn(max = 390.dp)
                         .padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
-                    shape = RoundedCornerShape(28.dp),
+                    shape = RoundedCornerShape(CycloneConversationTokens.sheetRadius),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = .98f),
                     tonalElevation = 0.dp,
                     shadowElevation = 0.dp,
