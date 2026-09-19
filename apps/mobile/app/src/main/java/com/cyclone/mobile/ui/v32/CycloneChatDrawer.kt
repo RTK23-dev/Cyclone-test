@@ -89,7 +89,10 @@ internal fun CycloneChatDrawerSurface(
             animate(
                 initialValue = dragOffset,
                 targetValue = targetOffset,
-                animationSpec = spring(dampingRatio = .90f, stiffness = 560f),
+                animationSpec = spring(
+                    dampingRatio = CycloneConversationTokens.drawerDampingRatio,
+                    stiffness = CycloneConversationTokens.drawerStiffness,
+                ),
             ) { value, _ -> dragOffset = value }
             when (target) {
                 DrawerSettle.COLLAPSE -> onCollapse()
@@ -104,7 +107,7 @@ internal fun CycloneChatDrawerSurface(
         modifier = modifier
             .fillMaxWidth()
             .graphicsLayer { translationY = dragOffset },
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomStart = 28.dp, bottomEnd = 28.dp),
+        shape = RoundedCornerShape(CycloneConversationTokens.sheetRadius),
         color = containerColor,
         contentColor = contentColor,
         tonalElevation = 0.dp,
@@ -156,7 +159,7 @@ internal fun CycloneChatDrawerSurface(
 
             Column(
                 Modifier.fillMaxWidth().padding(contentPadding),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8),
                 content = content,
             )
         }
