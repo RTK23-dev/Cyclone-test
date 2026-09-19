@@ -61,6 +61,7 @@ data class TaskPresentationSnapshot(
     val title: String,
     val state: TaskConsumerState,
     val currentMilestone: String?,
+    val milestones: List<TaskPresentationMilestone>,
     val completedMilestones: List<String>,
     val completedCount: Int,
     val totalCount: Int?,
@@ -92,14 +93,31 @@ object TaskPresentationProjector {
             TaskConsumerState.DONE -> planned.size
             else -> task.plannedMilestoneIndex.coerceIn(0, planned.size)
         }
+        val presentationMilestones = if (planned.isNotEmpty()) {
+            planned.mapIndexed { index, label ->
+                val milestoneState = when {
+                    state == TaskConsumerState.DONE -> SemanticStepState.DONE
+                    index < planIndex -> SemanticStepState.DONE
+                    index > planIndex -> SemanticStepState.PENDING
+                    state == TaskConsumerState.ACTION_NEEDED -> SemanticStepState.ACTION_NEEDED
+                    state == TaskConsumerState.FAILED -> SemanticStepState.FAILED
+                    else -> SemanticStepState.ACTIVE
+                }
+                TaskPresentationMilestone(label, milestoneState)
+            }
+        } else {
+            milestones
+        }
         val total = planned.size.takeIf { it > 0 }
-        val completedCount = if (total != null) planIndex else verifiedOperations.size
+        val completedCount = presentationMilestones.count { it.state == SemanticStepState.DONE }
         val fraction = total?.let { denominator ->
             (completedCount.toFloat() / denominator.toFloat()).coerceIn(0f, 1f)
         } ?: if (state == TaskConsumerState.DONE) 1f else null
 
         val currentMilestone = activeOperation?.label?.takeIf(String::isNotBlank)
-            ?: planned.getOrNull(planIndex)
+            ?: presentationMilestones.firstOrNull {
+                it.state == SemanticStepState.ACTIVE || it.state == SemanticStepState.ACTION_NEEDED
+            }?.label
             ?: task.subtitle.takeIf(String::isNotBlank)
 
         val supportingCopy = when (state) {
@@ -124,8 +142,11 @@ object TaskPresentationProjector {
             title = consumerTaskTitle(task),
             state = state,
             currentMilestone = currentMilestone,
-            completedMilestones = if (planned.isNotEmpty()) planned.take(planIndex).takeLast(4)
-                else verifiedOperations.map { it.label }.filter(String::isNotBlank).takeLast(4),
+            milestones = presentationMilestones,
+            completedMilestones = presentationMilestones
+                .filter { it.state == SemanticStepState.DONE }
+                .map { it.label }
+                .takeLast(4),
             completedCount = completedCount,
             totalCount = total,
             progressFraction = fraction,
