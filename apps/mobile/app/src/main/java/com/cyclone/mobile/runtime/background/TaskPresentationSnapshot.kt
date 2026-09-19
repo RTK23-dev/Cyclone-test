@@ -9,6 +9,42 @@ package com.cyclone.mobile.runtime.background
  */
 enum class TaskConsumerState { WORKING, ACTION_NEEDED, DONE, FAILED }
 
+data class TaskPresentationMilestone(
+    val label: String,
+    val state: SemanticStepState,
+)
+
+/**
+ * Consumer compaction only. The authoritative semanticSteps list stays untouched for diagnostics.
+ * Adjacent operations with the same safe label are folded into one visual milestone so repeated
+ * verified taps/scrolls do not turn the chat card into an execution log.
+ */
+object TaskMilestoneProjector {
+    fun project(steps: List<SemanticTaskStep>): List<TaskPresentationMilestone> {
+        val out = mutableListOf<TaskPresentationMilestone>()
+        steps.forEach { step ->
+            val label = step.label.trim().take(90)
+            if (label.isBlank()) return@forEach
+            val previous = out.lastOrNull()
+            if (previous != null && previous.label.equals(label, ignoreCase = true)) {
+                out[out.lastIndex] = TaskPresentationMilestone(label, merge(previous.state, step.state))
+            } else {
+                out += TaskPresentationMilestone(label, step.state)
+            }
+        }
+        return out.takeLast(8)
+    }
+
+    private fun merge(previous: SemanticStepState, next: SemanticStepState): SemanticStepState = when {
+        next == SemanticStepState.ACTION_NEEDED -> next
+        next == SemanticStepState.FAILED -> next
+        next == SemanticStepState.ACTIVE -> next
+        next == SemanticStepState.DONE -> SemanticStepState.DONE
+        previous == SemanticStepState.DONE -> previous
+        else -> next
+    }
+}
+
 enum class TaskFollowUpAction {
     VIEW_DETAILS,
     RUN_AGAIN,
@@ -45,9 +81,10 @@ object TaskPresentationProjector {
         }
 
         val semantic = task.semanticSteps
-        val completed = semantic.filter { it.state == SemanticStepState.DONE }
-        val pending = semantic.count { it.state == SemanticStepState.PENDING }
-        val active = semantic.lastOrNull {
+        val milestones = TaskMilestoneProjector.project(semantic)
+        val completed = milestones.filter { it.state == SemanticStepState.DONE }
+        val pending = milestones.count { it.state == SemanticStepState.PENDING }
+        val active = milestones.lastOrNull {
             it.state == SemanticStepState.ACTIVE || it.state == SemanticStepState.ACTION_NEEDED
         }
 
@@ -55,7 +92,7 @@ object TaskPresentationProjector {
         // the task is terminal. The current operation stream grows as work proceeds, so using its
         // current size as a working denominator would create fake backwards progress.
         val totalKnown = pending > 0 || state == TaskConsumerState.DONE
-        val total = semantic.size.takeIf { totalKnown && it > 0 }
+        val total = milestones.size.takeIf { totalKnown && it > 0 }
         val fraction = total?.let { denominator ->
             (completed.size.toFloat() / denominator.toFloat()).coerceIn(0f, 1f)
         } ?: if (state == TaskConsumerState.DONE) 1f else null
