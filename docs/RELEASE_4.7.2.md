@@ -10,6 +10,8 @@ published 4.7.0 / 4.6.9 reliability lineage.
   composer drawer.
 - Assistant prose stays inline; user requests use one restrained right-aligned bubble.
 - The composer remains the calm persistent interaction surface with Model · Intelligence inline.
+- First-stage in-app retraction remains a fully typeable composer with +, model/intelligence,
+  voice/send and expand controls rather than falling back to a dead status pill.
 
 ## Task Card v2
 
@@ -17,9 +19,11 @@ published 4.7.0 / 4.6.9 reliability lineage.
 - Shared conversation tokens define spacing, radii, state colors and motion durations.
 - Working cards show determinate progress only when the typed agent trajectory provides a stable
   waypoint denominator. Raw operation streams remain indeterminate.
+- Grounded progress animates through one shared progress primitive instead of jumping between
+  widths; visual animation never changes the underlying completion evidence.
 - Repeated low-level operations are compacted into visual milestones without deleting diagnostic
   evidence.
-- Done cards preserve a bounded consumer-safe result and expose View details + Run again.
+- Done cards preserve a bounded consumer-safe result and expose View details + Open app + Run again.
 - Failed cards expose Try again + View details without implying completion.
 - Action-needed controls remain capability-gated by the existing runtime interruption contract.
 
@@ -29,7 +33,8 @@ published 4.7.0 / 4.6.9 reliability lineage.
   milestone, progress, outcome and follow-up actions.
 - The existing typed TaskTrajectory is projected into deterministic consumer labels; raw model
   waypoint prose never enters the UI.
-- The Android notification surface now consumes the same task projection as Ask Cyclone.
+- Android notifications, the task details page, background handoff ribbon and Ask Cyclone now
+  consume the same task projection.
 - WorkspaceTaskUi stores a bounded terminal outcome separately from transient status text.
 - Run again / Try again re-enter the existing WorkspaceTasks queue and execution ownership path.
 
