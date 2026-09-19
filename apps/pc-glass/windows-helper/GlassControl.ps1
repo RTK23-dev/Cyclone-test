@@ -95,33 +95,26 @@ function Start-GlassHidden {
     return @{ Ok = $false; Message = 'uv not found on PATH. Install https://docs.astral.sh/uv/' }
   }
   Import-GlassModeAEnv
+  $env:CYCLONE_CONNECTED = '1'
+  $env:PYTHONUNBUFFERED = '1'
   Write-GlassLog "Starting Cyclone Glass in $root (port $Port) session=$($env:CYCLONE_SESSION_ID) tokenLen=$($env:CYCLONE_DEVICE_GATEWAY_TOKEN.Length) device=$($env:CYCLONE_DEVICE_ID)"
 
-  $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.FileName = $uvCmd.Source
-  $psi.Arguments = "run python -m artemis ui --port $Port --no-open"
-  $psi.WorkingDirectory = $root
-  $psi.UseShellExecute = $false
-  $psi.CreateNoWindow = $true
-  $psi.RedirectStandardOutput = $true
-  $psi.RedirectStandardError = $true
-  $psi.EnvironmentVariables['CYCLONE_CONNECTED'] = '1'
-  $psi.EnvironmentVariables['CYCLONE_DEVICE_GATEWAY_URL'] = $env:CYCLONE_DEVICE_GATEWAY_URL
-  $psi.EnvironmentVariables['CYCLONE_SESSION_ID'] = $env:CYCLONE_SESSION_ID
-  if ($env:CYCLONE_DEVICE_GATEWAY_TOKEN) { $psi.EnvironmentVariables['CYCLONE_DEVICE_GATEWAY_TOKEN'] = $env:CYCLONE_DEVICE_GATEWAY_TOKEN }
-  if ($env:CYCLONE_DEVICE_ID) { $psi.EnvironmentVariables['CYCLONE_DEVICE_ID'] = $env:CYCLONE_DEVICE_ID }
+  $logDir = Get-GlassLogDir
+  $logOut = Join-Path $logDir 'glass-stdout.log'
+  $logErr = Join-Path $logDir 'glass-stderr.log'
+  # File redirects (not Start-Job pipe readers): an unread redirected pipe fills
+  # (~4KB) and freezes the Glass event loop / QueueWorker so tasks look "started"
+  # then vanish while /api/status stays idle.
+  Set-Content -LiteralPath $logOut -Value '' -Encoding UTF8
+  Set-Content -LiteralPath $logErr -Value '' -Encoding UTF8
 
-  $proc = New-Object System.Diagnostics.Process
-  $proc.StartInfo = $psi
-  $null = $proc.Start()
-
-  $logOut = Join-Path (Get-GlassLogDir) 'glass-stdout.log'
-  $logErr = Join-Path (Get-GlassLogDir) 'glass-stderr.log'
-  Start-Job -ScriptBlock {
-    param($stdout, $stderr, $outPath, $errPath)
-    try { while ($true) { $line = $stdout.ReadLine(); if ($null -eq $line) { break }; Add-Content $outPath $line } } catch {}
-    try { $err = $stderr.ReadToEnd(); if ($err) { Add-Content $errPath $err } } catch {}
-  } -ArgumentList $proc.StandardOutput, $proc.StandardError, $logOut, $logErr | Out-Null
+  $proc = Start-Process -FilePath $uvCmd.Source `
+    -ArgumentList @('run', 'python', '-m', 'artemis', 'ui', '--port', "$Port", '--no-open') `
+    -WorkingDirectory $root `
+    -WindowStyle Hidden `
+    -PassThru `
+    -RedirectStandardOutput $logOut `
+    -RedirectStandardError $logErr
 
   for ($i = 0; $i -lt 45; $i++) {
     Start-Sleep -Seconds 2

@@ -340,7 +340,25 @@ class CycloneGatewayDriver(BaseDeviceDriver):
             b64 = shot.get("base64") or shot.get("data")
             if isinstance(b64, str):
                 screenshot_b64 = b64
-        if screenshot_b64:
+            # Cyclone agent observe: screenshot.artifact = {kind: LOCAL_FILE, reference: path}
+            if not screenshot_b64:
+                art = shot.get("artifact")
+                if isinstance(art, dict):
+                    inline = art.get("base64") or art.get("data") or art.get("bytesBase64")
+                    if isinstance(inline, str) and inline:
+                        screenshot_b64 = inline.split(",")[-1] if inline.startswith("data:") else inline
+                    ref = art.get("reference") or art.get("path") or art.get("file")
+                    if not screenshot_b64 and isinstance(ref, str) and ref.strip():
+                        try:
+                            from pathlib import Path as _P
+
+                            p = _P(ref.strip())
+                            if p.is_file():
+                                screenshot_bytes = p.read_bytes()
+                                screenshot_b64 = base64.b64encode(screenshot_bytes).decode("ascii")
+                        except OSError:
+                            screenshot_bytes = b""
+        if screenshot_b64 and not screenshot_bytes:
             try:
                 screenshot_bytes = base64.b64decode(screenshot_b64)
             except Exception:
@@ -359,8 +377,20 @@ class CycloneGatewayDriver(BaseDeviceDriver):
                 if isinstance(item, dict):
                     elements.append(item)
         page = response.get("page") if isinstance(response.get("page"), dict) else {}
-        width = int(page.get("width") or response.get("width") or self._width)
-        height = int(page.get("height") or response.get("height") or self._height)
+        shot_meta = response.get("screenshot") if isinstance(response.get("screenshot"), dict) else {}
+        art_meta = shot_meta.get("artifact") if isinstance(shot_meta.get("artifact"), dict) else {}
+        width = int(
+            page.get("width")
+            or response.get("width")
+            or art_meta.get("width")
+            or self._width
+        )
+        height = int(
+            page.get("height")
+            or response.get("height")
+            or art_meta.get("height")
+            or self._height
+        )
         self._width, self._height = width, height
         xml = None
         if isinstance(response.get("ui_hierarchy_xml"), str):
