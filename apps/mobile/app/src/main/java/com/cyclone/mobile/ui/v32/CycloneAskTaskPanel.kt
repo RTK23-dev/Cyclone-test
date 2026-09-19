@@ -248,7 +248,7 @@ private fun WorkingBody(
         }
 
         if (expanded) {
-            CycloneTaskCheckpoints(task)
+            CycloneTaskCheckpoints(snapshot)
         } else {
             snapshot.currentMilestone?.takeIf(String::isNotBlank)?.let { current ->
                 Row(
