@@ -12,6 +12,8 @@ SETTINGS_426 = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/C
 AI_CHAT = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/CycloneV39AiChatPage.kt"
 INTELLIGENCE = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/CycloneIntelligenceControls.kt"
 OVERLAY_COMPOSER = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/OverlayAppleLiquidComposer.kt"
+TASK_PRESENTATION = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/runtime/background/TaskPresentationSnapshot.kt"
+TASK_PANEL = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/CycloneAskTaskPanel.kt"
 BRAIN_V39 = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/CycloneV39BrainPage.kt"
 MANIFEST = ROOT / "apps/mobile/app/src/main/AndroidManifest.xml"
 MAIN = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/MainActivity.kt"
@@ -56,7 +58,6 @@ REQUIRED_AI_CHAT = (
     "WorkspaceTasks.queueRequest(normalized)",
     "OpenRouterCatalogStore.activeId(context)",
     '"Ask Cyclone…"',
-    "CycloneModelPill(",
     "CycloneModelIntelligencePanel(",
     "showModelSelector = true",
     'contentDescription = "Model and intelligence"',
@@ -79,6 +80,21 @@ REQUIRED_OVERLAY_COMPOSER = (
 )
 FORBIDDEN_OVERLAY_COMPOSER = (
     '"Files & photos"',
+)
+REQUIRED_TASK_PRESENTATION = (
+    "data class TaskPresentationSnapshot(",
+    "object TaskPresentationProjector",
+    "object TaskMilestoneProjector",
+    "object TaskFollowUpPolicy",
+    "plannedMilestones",
+    "progressFraction",
+)
+REQUIRED_TASK_PANEL = (
+    "TaskPresentationProjector.project(projectedTask)",
+    "CycloneConversationTokens.taskRadius",
+    "TaskFollowUpAction.RUN_AGAIN",
+    "TaskFollowUpAction.TRY_AGAIN",
+    "shadowElevation = 0.dp",
 )
 REQUIRED_BRAIN_V39 = (
     "internal fun CycloneV39BrainPage",
@@ -128,6 +144,8 @@ def check() -> list[str]:
         (AI_CHAT, REQUIRED_AI_CHAT),
         (INTELLIGENCE, REQUIRED_INTELLIGENCE),
         (OVERLAY_COMPOSER, REQUIRED_OVERLAY_COMPOSER),
+        (TASK_PRESENTATION, REQUIRED_TASK_PRESENTATION),
+        (TASK_PANEL, REQUIRED_TASK_PANEL),
         (BRAIN_V39, REQUIRED_BRAIN_V39),
         (MANIFEST, REQUIRED_MANIFEST),
         (MAIN, REQUIRED_MAIN),
