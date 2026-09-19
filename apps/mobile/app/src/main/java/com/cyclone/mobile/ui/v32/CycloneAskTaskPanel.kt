@@ -150,14 +150,14 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
                         CycloneTaskVisualState.DONE -> TerminalBody(
                             task = task,
                             snapshot = snapshot,
-                            primaryLabel = "Run again",
+                            primaryAction = TaskFollowUpAction.RUN_AGAIN,
                             onPrimary = { rerunTask(context, task) },
                             onDetails = { UiTask(task).open(context) },
                         )
                         CycloneTaskVisualState.FAILED -> TerminalBody(
                             task = task,
                             snapshot = snapshot,
-                            primaryLabel = "Try again",
+                            primaryAction = TaskFollowUpAction.TRY_AGAIN,
                             onPrimary = { rerunTask(context, task) },
                             onDetails = { UiTask(task).open(context) },
                         )
@@ -331,7 +331,7 @@ private fun ActionNeededBody(
 private fun TerminalBody(
     task: WorkspaceTaskUi,
     snapshot: TaskPresentationSnapshot,
-    primaryLabel: String,
+    primaryAction: TaskFollowUpAction,
     onPrimary: () -> Unit,
     onDetails: () -> Unit,
 ) {
@@ -369,11 +369,21 @@ private fun TerminalBody(
                 modifier = Modifier.weight(1f).heightIn(min = 44.dp),
                 shape = RoundedCornerShape(15.dp),
             ) { Text("View details") }
-            Button(
-                onClick = onPrimary,
-                modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                shape = RoundedCornerShape(15.dp),
-            ) { Text(primaryLabel) }
+            if (primaryAction in snapshot.followUps) {
+                Button(
+                    onClick = onPrimary,
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                    shape = RoundedCornerShape(15.dp),
+                ) {
+                    Text(
+                        when (primaryAction) {
+                            TaskFollowUpAction.RUN_AGAIN -> "Run again"
+                            TaskFollowUpAction.TRY_AGAIN -> "Try again"
+                            else -> "Continue"
+                        },
+                    )
+                }
+            }
         }
     }
 }
