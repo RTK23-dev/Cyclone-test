@@ -302,14 +302,14 @@ internal fun OverlayAppleToolsMenu(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OverlayAppleToolTile(Icons.Rounded.CameraAlt, "Camera", onCamera, Modifier.weight(1f))
                 OverlayAppleToolTile(Icons.Rounded.PhotoLibrary, "Photos", onPhotos, Modifier.weight(1f))
-                OverlayAppleToolTile(Icons.Rounded.AttachFile, "Files", onFiles, Modifier.weight(1f))
+                OverlayAppleToolTile(Icons.Rounded.CameraAlt, "Camera", onCamera, Modifier.weight(1f))
             }
             Column(
                 Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
+                OverlayAppleMenuRow(Icons.Rounded.AttachFile, "Files", onFiles)
                 OverlayAppleMenuRow(Icons.Rounded.ScreenShare, "Share screen", onShareScreen, enabled = !sharingActive)
                 OverlayAppleMenuRow(Icons.Rounded.Apps, "Cross-app share", onCrossAppShare, enabled = !sharingActive)
                 OverlayAppleMenuRow(Icons.Rounded.Tune, "Model & intelligence", onModelAndIntelligence)
