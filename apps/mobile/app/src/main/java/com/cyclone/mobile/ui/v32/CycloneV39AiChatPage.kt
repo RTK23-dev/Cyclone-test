@@ -360,21 +360,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
             AskCycloneHeader(
                 onMenu = onSettings,
                 onProfile = onSettings,
-                model = {
-                    CycloneModelPill(
-                        modelId = selectedModelId,
-                        effort = reasoningEffort,
-                        enabled = !session.busy,
-                        compactHeader = true,
-                        expandInLayout = false,
-                        expanded = modelMenuOpen,
-                        onExpandedChange = {
-                            modelMenuOpen = it
-                            if (it) toolsOpen = false
-                        },
-                        onChange = ::persistAiControls,
-                    )
-                },
             )
 
             if (emptyCanvas && composer.isBlank()) {
@@ -743,7 +728,6 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
 private fun AskCycloneHeader(
     onMenu: () -> Unit,
     onProfile: () -> Unit,
-    model: @Composable () -> Unit,
 ) {
     Row(
         Modifier
@@ -764,7 +748,12 @@ private fun AskCycloneHeader(
             Icon(Icons.Rounded.Menu, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurface)
         }
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            model()
+            Text(
+                "Cyclone",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
         Box(
             Modifier
