@@ -181,6 +181,24 @@ class TaskPresentationSnapshotTest {
     }
 
     @Test
+    fun failedTaskAtEndOfTrajectoryDoesNotPaintEveryMilestoneDone() {
+        val snapshot = TaskPresentationProjector.project(
+            task(
+                phase = TaskPhase.FAILED,
+                outcome = "I couldn't finish this task.",
+            ).copy(
+                plannedMilestones = listOf("Opening Instagram", "Checking login status", "Verifying the result"),
+                plannedMilestoneIndex = 3,
+            ),
+        )
+
+        assertEquals(TaskConsumerState.FAILED, snapshot.state)
+        assertEquals(2, snapshot.completedCount)
+        assertEquals(SemanticStepState.FAILED, snapshot.milestones.last().state)
+        assertTrue(snapshot.progressFraction!! < 1f)
+    }
+
+    @Test
     fun failedStateOffersRetryWithoutPretendingSuccess() {
         val snapshot = TaskPresentationProjector.project(
             task(phase = TaskPhase.FAILED, outcome = "I couldn't finish. Your place is saved."),
