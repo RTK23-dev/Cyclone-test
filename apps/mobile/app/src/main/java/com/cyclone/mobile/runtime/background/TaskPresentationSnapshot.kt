@@ -89,9 +89,16 @@ object TaskPresentationProjector {
         }
 
         val planned = task.plannedMilestones.filter(String::isNotBlank).take(8)
-        val planIndex = when (state) {
+        val rawPlanIndex = when (state) {
             TaskConsumerState.DONE -> planned.size
             else -> task.plannedMilestoneIndex.coerceIn(0, planned.size)
+        }
+        // If a task stops after the trajectory cursor reached the end, keep the final milestone as
+        // the interruption/failure point instead of visually claiming every planned step completed.
+        val planIndex = when {
+            state == TaskConsumerState.DONE -> planned.size
+            planned.isNotEmpty() && rawPlanIndex >= planned.size -> planned.lastIndex
+            else -> rawPlanIndex
         }
         val presentationMilestones = if (planned.isNotEmpty()) {
             planned.mapIndexed { index, label ->
