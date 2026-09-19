@@ -84,19 +84,19 @@ class CycloneV39AiChatPageTest {
         assertFalse(page.contains("FilledIconButton("))
     }
 
-    @Test fun modelPillCannotStealComposerWidthAndKeyboardDoesNotDoubleInset() {
+    @Test fun modelIntelligenceControlLivesInsideComposerWithoutDuplicateHeaderPill() {
         val page = source("CycloneV39AiChatPage.kt")
-        val pill = page.indexOf("CycloneModelPill(")
-        val askGlass = page.indexOf("CycloneLiquidPanel(", pill)
-        val composer = page.indexOf("BasicTextField(", askGlass)
-        assertTrue(pill >= 0)
-        assertTrue(askGlass > pill)
-        assertTrue(composer > askGlass)
+        val askGlass = page.indexOf("CycloneLiquidPanel(")
+        val quickControl = page.indexOf("contentDescription = \"Model and intelligence\"", askGlass)
+        val composer = page.indexOf("BasicTextField(", quickControl)
+        assertTrue(askGlass >= 0)
+        assertTrue(quickControl > askGlass)
+        assertTrue(composer > quickControl)
         assertTrue(page.contains("CycloneModelIntelligencePanel("))
         assertTrue(page.contains("showModelSelector = true"))
         assertTrue(page.contains("if (modelMenuOpen && !keyboardOpen)"))
         assertFalse(page.contains(".imePadding()"))
-        assertEquals(1, Regex("CycloneModelPill\\(").findAll(page).count())
+        assertFalse(page.contains("CycloneModelPill("))
     }
 
     @Test fun chatAndPhoneDispatchUseSeparateExistingPaths() {
@@ -149,16 +149,18 @@ class CycloneV39AiChatPageTest {
         assertFalse(window.contains("WorkspaceTasks.command"))
     }
 
-    @Test fun taskAndForegroundWorkAreaIsBoundedAboveComposer() {
+    @Test fun taskAndForegroundWorkAreFirstClassConversationItemsAboveComposer() {
         val page = source("CycloneV39AiChatPage.kt")
         val task = page.indexOf("CycloneAskTaskPanel(current)")
         val foreground = page.indexOf("CycloneForegroundWorkCard(foregroundSnapshot)")
         val queued = page.indexOf("CyclonePendingRequests()")
+        val drawer = page.indexOf("CycloneChatDrawerSurface(")
         val composer = page.lastIndexOf("BasicTextField(")
-        assertTrue(task in 0 until composer)
-        assertTrue(foreground in 0 until composer)
-        assertTrue(queued in 0 until composer)
-        assertTrue(page.contains("heightIn(max = if (keyboardOpen) 132.dp else 230.dp)"))
+        assertTrue(task in 0 until drawer)
+        assertTrue(foreground in 0 until drawer)
+        assertTrue(queued in 0 until drawer)
+        assertTrue(drawer in 0 until composer)
+        assertTrue(page.contains("session.append(V39ChatRole.CYCLONE, \"Got it. I'll work on that on your phone.\")"))
     }
 
     @Test fun translucentChatUsesClippedBackgroundsWithoutElevatedGhostBands() {
@@ -183,8 +185,8 @@ class CycloneV39AiChatPageTest {
         assertFalse(page.contains("Contributor · prompts and responses may be used for training."))
         assertFalse(page.contains("AskSuggestionChip"))
         assertFalse(page.contains("Take a screenshot\", onSuggestion"))
-        assertTrue(page.contains("compactHeader = true"))
-        assertTrue(page.contains("expandInLayout = false"))
+        assertFalse(page.contains("compactHeader = true"))
+        assertFalse(page.contains("expandInLayout = false"))
         assertTrue(page.contains("CycloneModelIntelligencePanel("))
         assertTrue(page.contains("showModelSelector = true"))
         assertTrue(page.contains("AskCycloneOrb()"))
