@@ -73,8 +73,8 @@ FORBIDDEN_INTELLIGENCE = (
     '-> "Autonomy"',
 )
 REQUIRED_OVERLAY_COMPOSER = (
-    'OverlayAppleMenuRow(Icons.Rounded.PhotoLibrary, "Photos"',
-    'OverlayAppleMenuRow(Icons.Rounded.AttachFile, "Files"',
+    'OverlayAppleToolTile(Icons.Rounded.PhotoLibrary, "Photos"',
+    'OverlayAppleToolTile(Icons.Rounded.AttachFile, "Files"',
     'contentDescription = "Model and intelligence"',
 )
 FORBIDDEN_OVERLAY_COMPOSER = (
