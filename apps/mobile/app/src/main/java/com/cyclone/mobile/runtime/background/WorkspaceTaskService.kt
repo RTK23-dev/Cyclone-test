@@ -150,8 +150,15 @@ class WorkspaceTaskService : Service() {
                 if (error is CancellationException && error !is TimeoutCancellationException) throw error
                 sessionId?.let { withContext(Dispatchers.IO) { WorkspaceRuntime.close(it, WorkspaceState.FAILED) } }
                 sessionId = null
-                update { it.copy(phase = TaskPhase.FAILED, resumable = false,
-                    message = BackgroundSetup.failure(applicationContext, task.packageName, error)) }
+                val diagnostic = BackgroundSetup.failure(applicationContext, task.packageName, error)
+                update {
+                    it.copy(
+                        phase = TaskPhase.FAILED,
+                        resumable = false,
+                        message = diagnostic,
+                        outcome = "I couldn't finish this task. Your place is saved.",
+                    )
+                }
                 stopForeground(STOP_FOREGROUND_DETACH); stopSelf()
             }
         }
