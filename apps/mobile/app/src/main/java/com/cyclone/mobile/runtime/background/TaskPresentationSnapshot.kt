@@ -136,6 +136,7 @@ object TaskPresentationProjector {
                 else -> currentMilestone
             }
             TaskConsumerState.ACTION_NEEDED -> task.interruption?.prompt?.takeIf(String::isNotBlank)
+                ?: task.confirmation?.explanation?.takeIf(String::isNotBlank)
                 ?: task.subtitle.takeIf(String::isNotBlank)
             TaskConsumerState.DONE -> task.outcome?.takeIf(String::isNotBlank)
                 ?: "The requested result was checked."
