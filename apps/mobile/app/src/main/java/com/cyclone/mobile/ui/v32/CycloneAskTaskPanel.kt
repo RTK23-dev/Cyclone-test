@@ -2,6 +2,7 @@ package com.cyclone.mobile.ui.v32
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -79,18 +80,28 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
         if (visualState != CycloneTaskVisualState.WORKING) progressExpanded = false
     }
 
-    val container = when (visualState) {
+    val targetContainer = when (visualState) {
         CycloneTaskVisualState.WORKING -> MaterialTheme.colorScheme.surface.copy(alpha = .98f)
         CycloneTaskVisualState.ACTION_NEEDED -> palette.attentionSoft
         CycloneTaskVisualState.DONE -> palette.successSoft
         CycloneTaskVisualState.FAILED -> palette.failureSoft
     }
-    val outline = when (visualState) {
+    val targetOutline = when (visualState) {
         CycloneTaskVisualState.WORKING -> palette.cardOutline
         CycloneTaskVisualState.ACTION_NEEDED -> palette.attention.copy(alpha = .26f)
         CycloneTaskVisualState.DONE -> palette.success.copy(alpha = .26f)
         CycloneTaskVisualState.FAILED -> palette.failure.copy(alpha = .28f)
     }
+    val container by animateColorAsState(
+        targetValue = targetContainer,
+        animationSpec = tween(CycloneConversationTokens.stateTransitionMs),
+        label = "task-card-container",
+    )
+    val outline by animateColorAsState(
+        targetValue = targetOutline,
+        animationSpec = tween(CycloneConversationTokens.stateTransitionMs),
+        label = "task-card-outline",
+    )
 
     CycloneSwipeTaskCard(
         "task:${task.taskId}",
