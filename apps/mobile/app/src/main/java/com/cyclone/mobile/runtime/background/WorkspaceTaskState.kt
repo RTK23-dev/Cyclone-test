@@ -27,6 +27,8 @@ data class WorkspaceTaskUi(
     val goal: String,
     val phase: TaskPhase = TaskPhase.STARTING,
     val message: String = "I'm on it. You can keep using your phone.",
+    /** Bounded, consumer-safe terminal copy. Never raw provider/tool reasoning. */
+    val outcome: String? = null,
     val steps: List<String> = emptyList(),
     val semanticSteps: List<SemanticTaskStep> = emptyList(),
     val interruption: TaskInterruption? = null,
