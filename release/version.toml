@@ -1,14 +1,14 @@
-# Cyclone Mobile 4.7.1: corrected three-stage Ask Cyclone overlay.
-# Built directly on published Cyclone Mobile 4.7.0, which itself is based on 4.6.9.
-# Release notes: docs/RELEASE_4.7.1.md
+# Cyclone Mobile 4.7.2: conversation system, truthful progress and Task Card v2.
+# Includes the green 4.7.1 three-stage overlay correction on top of published 4.7.0 / 4.6.9.
+# Release notes: docs/RELEASE_4.7.2.md
 schema = 1
-product_version = "4.7.1"
+product_version = "4.7.2"
 channel = "development"
-android_version_code = 131
+android_version_code = 132
 python_version = "4.1.0"
 
 [components]
-mobile = "4.7.1"
+mobile = "4.7.2"
 pc_companion = "1.5.5"
 device_gateway = "4.1.0"
 mcp = "4.1.0"
@@ -21,4 +21,4 @@ physical_pixel8_ui_acceptance = "UNVERIFIED"
 android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-4.7.1-overlay-states"
+candidate_generation = "cyclone-4.7.2-conversation-system"
