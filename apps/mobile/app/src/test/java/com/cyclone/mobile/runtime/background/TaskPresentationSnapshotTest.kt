@@ -236,6 +236,27 @@ class TaskPresentationSnapshotTest {
     }
 
     @Test
+    fun confirmationExplanationSurvivesSharedPresentationProjection() {
+        val gated = task(phase = TaskPhase.REVIEW).copy(
+            confirmation = WorkspaceConfirmation(
+                action = "phone.click",
+                nodeId = "pay",
+                fingerprint = "page-1",
+                kind = "pay",
+            ),
+        )
+
+        val snapshot = TaskPresentationProjector.project(gated)
+
+        assertEquals(TaskConsumerState.ACTION_NEEDED, snapshot.state)
+        assertEquals(
+            "Review the total and payment details in the live page before confirming.",
+            snapshot.supportingCopy,
+        )
+        assertEquals(listOf(TaskFollowUpAction.VIEW_DETAILS), snapshot.followUps)
+    }
+
+    @Test
     fun actionFlagsCannotCreateMutationCtasWithoutInteractiveSessionGrounding() {
         val ungrounded = task(
             phase = TaskPhase.REVIEW,
