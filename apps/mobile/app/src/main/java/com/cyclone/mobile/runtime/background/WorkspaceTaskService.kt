@@ -132,6 +132,9 @@ class WorkspaceTaskService : Service() {
                 awaitWorkspace(session.sessionId, ExecutionContext.from(session))
                 agent = OpenRouterAdaptiveAgent(applicationContext, ExecutionContext.from(session)).also { agent ->
                     var revision = 0L
+                    agent.onTrajectory = { trajectory ->
+                        update { TaskHarnessState.applyTrajectory(it, trajectory) }
+                    }
                     agent.onOperation = { tool, result ->
                         if (result == null) { revision = current?.controlRevision ?: -1; update { TaskHarnessState.begin(it, tool) } }
                         else update { TaskHarnessState.finish(it, TaskOperationEvidence(session.sessionId, session.displayId,
