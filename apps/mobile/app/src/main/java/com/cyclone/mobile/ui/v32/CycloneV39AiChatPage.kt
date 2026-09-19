@@ -399,24 +399,26 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
 
                     if (session.busy || session.status.isNotBlank()) {
                         item {
-                            Box(
+                            Row(
                                 Modifier
-                                    .fillMaxWidth(.72f)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = .56f)),
+                                    .fillMaxWidth()
+                                    .padding(
+                                        start = CycloneConversationTokens.space4,
+                                        end = CycloneConversationTokens.space24,
+                                        top = CycloneConversationTokens.space4,
+                                        bottom = CycloneConversationTokens.space4,
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8),
                             ) {
-                                Row(
-                                    Modifier.padding(horizontal = 13.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(9.dp),
-                                ) {
-                                    if (session.busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                                    Text(
-                                        if (session.busy) "Thinking…" else session.status,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
+                                if (session.busy) {
+                                    CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 1.8.dp)
                                 }
+                                Text(
+                                    if (session.busy) "Thinking…" else session.status,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
                             }
                         }
                     }
