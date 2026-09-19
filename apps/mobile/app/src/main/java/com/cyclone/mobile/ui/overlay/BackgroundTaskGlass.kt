@@ -24,12 +24,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cyclone.mobile.DeviceState
 import com.cyclone.mobile.runtime.background.TaskPhase
+import com.cyclone.mobile.runtime.background.TaskPresentationProjector
 import com.cyclone.mobile.runtime.background.WorkspaceTaskUi
 import com.cyclone.mobile.runtime.background.WorkspaceTasks
 import com.cyclone.mobile.ui.v32.CycloneCollapsedAskPill
 import com.cyclone.mobile.ui.v32.CycloneTaskStatusPill
 import com.cyclone.mobile.ui.v32.CycloneTaskVisualState
-import com.cyclone.mobile.ui.v32.TaskHumanizer
 import com.cyclone.mobile.ui.v32.canAutofillFromUi
 import com.cyclone.mobile.ui.v32.canContinueAfterHumanFromUi
 
@@ -60,7 +60,7 @@ fun BackgroundTaskGlass(task: WorkspaceTaskUi, onAsk: () -> Unit) {
 
 @Composable
 private fun BackgroundTaskRibbon(task: WorkspaceTaskUi, onAsk: () -> Unit) {
-    val taskLabel = TaskHumanizer.humanize(task.goal, task.app)
+    val taskLabel = TaskPresentationProjector.project(task).title
     CycloneCollapsedAskPill(
         onExpand = onAsk,
         active = true,
@@ -82,7 +82,7 @@ private fun HumanTakeoverRibbon(task: WorkspaceTaskUi) {
         color = MaterialTheme.colorScheme.surface.copy(alpha = .96f),
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
-        shadowElevation = 4.dp,
+        shadowElevation = 0.dp,
     ) {
         Row(
             Modifier.fillMaxWidth().padding(start = 14.dp, top = 10.dp, end = 8.dp, bottom = 10.dp),
