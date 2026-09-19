@@ -288,6 +288,89 @@ class AdbActuator:
         from artemis.tools.mobile.launch_app import find_package
         from artemis.utils.app_launch_utils import launch_app_with_retries
 
+        # Mode A / Cyclone-connected: never use ADB package dumpsys launch paths.
+        # Call phone.open_app through the Cyclone gateway driver directly.
+        try:
+            from artemis.drivers.factory import cyclone_connected, get_driver
+        except Exception:  # pragma: no cover
+            cyclone_connected = None  # type: ignore
+            get_driver = None  # type: ignore
+
+        if cyclone_connected and cyclone_connected() and action.lower() == "launch":
+            # Well-known aliases first (find_package often needs ADB pm list).
+            aliases = {
+                "gmail": "com.google.android.gm",
+                "chrome": "com.android.chrome",
+                "settings": "com.android.settings",
+                "messages": "com.google.android.apps.messaging",
+                "photos": "com.google.android.apps.photos",
+                "youtube": "com.google.android.youtube",
+                "maps": "com.google.android.apps.maps",
+                "phone": "com.google.android.dialer",
+                "camera": "com.google.android.GoogleCamera",
+                "clock": "com.google.android.deskclock",
+                "play store": "com.android.vending",
+                "playstore": "com.android.vending",
+            }
+            target_pkg = aliases.get(app_name.strip().lower())
+            if not target_pkg:
+                try:
+                    res = find_package(self.ctx, app_name, use_fallback=False)
+                    pkg = await res if inspect.iscoroutine(res) else res
+                    target_pkg = pkg or None
+                except Exception:
+                    target_pkg = None
+            if not target_pkg:
+                # Last resort: pass the name through; gateway may resolve app_name.
+                target_pkg = app_name
+            try:
+                driver = get_driver(self.ctx)
+                # Prefer explicit open_app params the gateway accepts.
+                if hasattr(driver, "_act"):
+                    last_err = None
+                    for attempt in range(3):
+                        try:
+                            driver._observe(include_screenshot=False, mode="compact")
+                            driver._act(
+                                "phone.open_app",
+                                {"package": target_pkg, "app_name": app_name},
+                                goal=f"open_app {app_name}",
+                            )
+                            return ActionResult.success(
+                                "manage_app",
+                                f"Launched app '{app_name}' ({target_pkg}) via Cyclone gateway.",
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            last_err = exc
+                            msg = str(exc)
+                            if "503" in msg or "HUMAN_HAS_CONTROL" in msg or "INVALID_REQUEST" in msg:
+                                import asyncio as _asyncio
+
+                                await _asyncio.sleep(0.8 * (attempt + 1))
+                                continue
+                            break
+                    return ActionResult.failure(
+                        "manage_app",
+                        f"Error during manage_app: {last_err}",
+                        detail=str(last_err) if last_err else None,
+                    )
+                ok = await driver.launch_app(target_pkg)
+                if ok:
+                    return ActionResult.success(
+                        "manage_app",
+                        f"Launched app '{app_name}' ({target_pkg}) via Cyclone gateway.",
+                    )
+                return ActionResult.failure(
+                    "manage_app",
+                    f"Failed to launch app '{app_name}' via Cyclone gateway.",
+                )
+            except Exception as exc:  # noqa: BLE001
+                return ActionResult.failure(
+                    "manage_app",
+                    f"Error during manage_app: {exc}",
+                    detail=str(exc),
+                )
+
         res = find_package(self.ctx, app_name, use_fallback=False)
         pkg = await res if inspect.iscoroutine(res) else res
         if not pkg:
