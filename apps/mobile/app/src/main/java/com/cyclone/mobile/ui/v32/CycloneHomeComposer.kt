@@ -214,7 +214,7 @@ internal fun CycloneAttachmentTools(
     extras: List<Pair<ImageVector, String>> = emptyList(),
     tileExtras: List<Pair<ImageVector, String>> = emptyList(),
     onExtra: (String) -> Unit = {},
-    filesLabel: String = "Files & photos",
+    filesLabel: String = "Files",
 ) {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
@@ -229,25 +229,34 @@ internal fun CycloneAttachmentTools(
                     .background(MaterialTheme.colorScheme.outline.copy(alpha = .45f)),
             )
         }
-        val tiles = buildList {
-            add(Triple(Icons.Rounded.CameraAlt, "Camera", onCamera))
-            add(Triple(Icons.Rounded.PhotoLibrary, "Photos", onPhotos ?: onFiles))
-            add(Triple(Icons.Rounded.AttachFile, filesLabel, onFiles))
-            tileExtras.forEach { (icon, label) -> add(Triple(icon, label, { onExtra(label) })) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CyclonePlusTile(
+                Icons.Rounded.PhotoLibrary,
+                "Photos",
+                Modifier.weight(1f),
+                onPhotos ?: onFiles,
+            )
+            CyclonePlusTile(
+                Icons.Rounded.CameraAlt,
+                "Camera",
+                Modifier.weight(1f),
+                onCamera,
+            )
         }
-        tiles.chunked(3).forEach { row ->
+        tileExtras.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEach { (icon, label, click) ->
-                    CyclonePlusTile(icon, label, Modifier.weight(1f), click)
+                row.forEach { (icon, label) ->
+                    CyclonePlusTile(icon, label, Modifier.weight(1f)) { onExtra(label) }
                 }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            CycloneAttachmentToolRow(Icons.Rounded.AttachFile, filesLabel, onFiles)
+            CycloneAttachmentToolRow(Icons.Rounded.ScreenShare, "Share screen", onShareScreen)
             extras.forEach { (icon, label) ->
                 CycloneAttachmentToolRow(icon, label) { onExtra(label) }
             }
-            CycloneAttachmentToolRow(Icons.Rounded.ScreenShare, "Share screen", onShareScreen)
         }
     }
 }
@@ -261,7 +270,7 @@ private fun CyclonePlusTile(
 ) {
     Surface(
         modifier = modifier
-            .heightIn(min = 96.dp)
+            .heightIn(min = 104.dp)
             .clickable(role = Role.Button, onClick = onClick),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .78f),
