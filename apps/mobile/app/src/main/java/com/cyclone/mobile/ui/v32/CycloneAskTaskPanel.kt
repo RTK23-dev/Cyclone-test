@@ -163,6 +163,7 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
                             primaryAction = TaskFollowUpAction.RUN_AGAIN,
                             onPrimary = { rerunTask(context, task) },
                             onDetails = { UiTask(task).open(context) },
+                            onOpenApp = { openInstalledApp(context, task.packageName) },
                         )
                         CycloneTaskVisualState.FAILED -> TerminalBody(
                             task = task,
@@ -170,6 +171,7 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
                             primaryAction = TaskFollowUpAction.TRY_AGAIN,
                             onPrimary = { rerunTask(context, task) },
                             onDetails = { UiTask(task).open(context) },
+                            onOpenApp = { openInstalledApp(context, task.packageName) },
                         )
                     }
                 }
@@ -323,6 +325,7 @@ private fun TerminalBody(
     primaryAction: TaskFollowUpAction,
     onPrimary: () -> Unit,
     onDetails: () -> Unit,
+    onOpenApp: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space12)) {
         snapshot.outcomeCopy?.takeIf(String::isNotBlank)?.let {
@@ -373,6 +376,22 @@ private fun TerminalBody(
                     )
                 }
             }
+        }
+
+        if (TaskFollowUpAction.OPEN_APP in snapshot.followUps) {
+            TextButton(
+                onClick = onOpenApp,
+                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
+            ) { Text("Open app") }
+        }
+    }
+}
+
+private fun openInstalledApp(context: android.content.Context, packageName: String) {
+    if (packageName.isBlank()) return
+    context.packageManager.getLaunchIntentForPackage(packageName)?.let { launch ->
+        runCatching {
+            context.startActivity(launch.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
 }
