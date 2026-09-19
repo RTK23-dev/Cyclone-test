@@ -70,6 +70,43 @@ class TaskPresentationSnapshotTest {
         assertEquals(1, snapshot.completedCount)
         assertEquals(.25f, snapshot.progressFraction!!, .0001f)
         assertEquals("Checking login status", snapshot.currentMilestone)
+        assertEquals(
+            listOf(
+                SemanticStepState.DONE,
+                SemanticStepState.ACTIVE,
+                SemanticStepState.PENDING,
+                SemanticStepState.PENDING,
+            ),
+            snapshot.milestones.map { it.state },
+        )
+    }
+
+    @Test
+    fun actionNeededMarksCurrentPlannedMilestoneWithoutPretendingCompletion() {
+        val snapshot = TaskPresentationProjector.project(
+            task(
+                phase = TaskPhase.HUMAN,
+                interruption = TaskInterruption(
+                    reason = "LOGIN_WALL",
+                    prompt = "Finish sign-in, then continue.",
+                    canResumeAfterHuman = true,
+                ),
+            ).copy(
+                plannedMilestones = listOf("Opening Instagram", "Checking login status", "Verifying the result"),
+                plannedMilestoneIndex = 1,
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                SemanticStepState.DONE,
+                SemanticStepState.ACTION_NEEDED,
+                SemanticStepState.PENDING,
+            ),
+            snapshot.milestones.map { it.state },
+        )
+        assertEquals(1, snapshot.completedCount)
+        assertEquals(1f / 3f, snapshot.progressFraction!!, .0001f)
     }
 
     @Test
