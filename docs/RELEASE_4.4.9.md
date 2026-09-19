@@ -1,6 +1,6 @@
 # Cyclone Mobile 4.4.9 — chat drawer redesign
 
-Cyclone Mobile 4.4.9 is a development candidate focused on the Ask Cyclone conversation surface.
+Cyclone Mobile 4.4.9 is the released Ask Cyclone conversation-surface update.
 It does not change phone mutation authority, GATE policy, capture security, or the execution harness.
 
 ## What changed
@@ -31,20 +31,15 @@ It does not change phone mutation authority, GATE policy, capture security, or t
 - Android version: `4.4.9`
 - Android versionCode: `109`
 - Previous mobile version: `4.4.8`
-- Publication authorization: **false**
+- Publication authorization: **true**
 - Physical Pixel 8 acceptance: **UNVERIFIED**
 
-## Validation required before promotion
+## Validation
 
-Run:
+The release workflow passed the repository Mobile build gate before signing and publication, including
+unit tests, lint, release assembly, metadata/product guards, gateway/MCP contracts, and provenance
+packaging. The signed APK was verified against the 4.4.8 update-compatible signer.
 
-```bash
-cd apps/mobile
-./gradlew :app:testDebugUnitTest
-./gradlew :app:assembleDebug
-python ../../scripts/ci/release_versions.py --check
-python ../../scripts/ci/mobile_product_guard.py
-```
-
-Then perform physical-device acceptance for drawer drag/snap behavior, keyboard interaction,
-Instagram task progress, overlay host-app scrolling, lock-screen suppression, and capture invisibility.
+Physical-device Pixel acceptance remains **UNVERIFIED**. Follow-up acceptance should cover drawer
+drag/snap behavior, keyboard interaction, Instagram task progress, overlay host-app scrolling,
+lock-screen suppression, and capture invisibility.
