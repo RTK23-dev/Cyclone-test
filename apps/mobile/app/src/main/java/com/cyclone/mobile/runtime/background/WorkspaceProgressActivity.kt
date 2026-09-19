@@ -306,32 +306,30 @@ class WorkspaceProgressActivity : ComponentActivity() {
             }
 
             CycloneTaskVisualState.DONE -> {
-                Button(
-                    onClick = {
-                        if (layer2) openInstalledApp(task.packageName)
-                        else {
-                            WorkspaceTasks.command(this@WorkspaceProgressActivity, task, "handoff")
-                            finish()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
-                    shape = RoundedCornerShape(15.dp),
-                ) { Text("Open Result") }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8),
+                ) {
+                    if (TaskFollowUpAction.OPEN_APP in snapshot.followUps) {
+                        OutlinedButton(
+                            onClick = { openInstalledApp(task.packageName) },
+                            modifier = Modifier.weight(1f).heightIn(min = 46.dp),
+                            shape = RoundedCornerShape(15.dp),
+                        ) { Text("Open app") }
+                    }
+                    if (TaskFollowUpAction.RUN_AGAIN in snapshot.followUps) {
+                        Button(
+                            onClick = { restartTask(task) },
+                            modifier = Modifier.weight(1f).heightIn(min = 46.dp),
+                            shape = RoundedCornerShape(15.dp),
+                        ) { Text("Run again") }
+                    }
+                }
             }
 
             CycloneTaskVisualState.FAILED -> {
                 Button(
-                    onClick = {
-                        runCatching {
-                            WorkspaceTasks.queueRequest(
-                                goal = task.goal,
-                                targetPackageName = task.packageName.takeIf(String::isNotBlank),
-                                targetAppLabel = task.app.takeIf(String::isNotBlank),
-                            )
-                            WorkspaceTasks.tryPromoteNext(this@WorkspaceProgressActivity.applicationContext)
-                        }
-                        finish()
-                    },
+                    onClick = { restartTask(task) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
                     shape = RoundedCornerShape(15.dp),
                 ) { Text("Try again") }
@@ -405,6 +403,18 @@ class WorkspaceProgressActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun restartTask(task: WorkspaceTaskUi) {
+        runCatching {
+            WorkspaceTasks.queueRequest(
+                goal = task.goal,
+                targetPackageName = task.packageName.takeIf(String::isNotBlank),
+                targetAppLabel = task.app.takeIf(String::isNotBlank),
+            )
+            WorkspaceTasks.tryPromoteNext(applicationContext)
+        }
+        finish()
     }
 
     private fun openInstalledApp(packageName: String) {
