@@ -48,6 +48,22 @@ class TaskPresentationSnapshotTest {
     }
 
     @Test
+    fun recoverableFailedOperationDoesNotRenderAsRedMilestoneWhileTaskStillWorks() {
+        val snapshot = TaskPresentationProjector.project(
+            task(
+                semantic = listOf(
+                    SemanticTaskStep(1, "Opening Instagram", SemanticStepState.FAILED, "UNVERIFIED"),
+                    SemanticTaskStep(2, "Checking login status", SemanticStepState.ACTIVE),
+                ),
+            ),
+        )
+
+        assertEquals(TaskConsumerState.WORKING, snapshot.state)
+        assertFalse(snapshot.milestones.any { it.state == SemanticStepState.FAILED })
+        assertEquals(listOf("Checking login status"), snapshot.milestones.map { it.label })
+    }
+
+    @Test
     fun typedTrajectoryPermitsDeterminateProgressWithoutCountingRawOperations() {
         val snapshot = TaskPresentationProjector.project(
             task(
