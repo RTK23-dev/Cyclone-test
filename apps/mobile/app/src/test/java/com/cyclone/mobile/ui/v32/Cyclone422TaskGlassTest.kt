@@ -82,7 +82,7 @@ class Cyclone422TaskGlassTest {
     @Test fun backgroundGlassIsCompactProgressiveDisclosureNotASecondFullTaskCard() {
         val compact = source("ui/overlay/BackgroundTaskGlass.kt")
         assertTrue(compact.contains("BackgroundTaskRibbon(task, onAsk)"))
-        assertTrue(compact.contains("TaskHumanizer.humanize"))
+        assertTrue(compact.contains("TaskPresentationProjector.project(task).title"))
         assertFalse(compact.contains("CycloneAskTaskPanel(task)"))
         assertFalse(compact.contains("BorderStroke"))
         assertFalse(compact.contains("Text(\"Ask Cyclone…\")"))
