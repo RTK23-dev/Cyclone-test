@@ -1,7 +1,7 @@
 # Cyclone Mobile 4.7.0: Ask Cyclone chat drawer and in-chat task progress.
 # Built directly on the published Cyclone Mobile 4.6.9 release.
 # Release notes: docs/RELEASE_4.7.0.md
-# Publication source: exact release branch head; Mobile CI must pass this SHA.
+# Publication source: canonical full-release workflow; Mobile CI must pass this exact SHA.
 schema = 1
 product_version = "4.7.0"
 channel = "development"
