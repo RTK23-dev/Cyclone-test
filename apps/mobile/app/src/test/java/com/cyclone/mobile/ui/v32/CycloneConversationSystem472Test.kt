@@ -20,8 +20,8 @@ class CycloneConversationSystem472Test {
 
         assertTrue(page.contains("CycloneConversationBubble("))
         assertTrue(overlay.contains("CycloneConversationBubble("))
-        assertTrue(bubble.contains("CycloneConversationSpeaker.USER"))
-        assertTrue(bubble.contains("CycloneConversationSpeaker.CYCLONE"))
+        assertTrue(bubble.contains("enum class CycloneConversationSpeaker { USER, CYCLONE }"))
+        assertTrue(bubble.contains("speaker == CycloneConversationSpeaker.CYCLONE"))
         assertTrue(bubble.contains(".fillMaxWidth(.80f)"))
     }
 
