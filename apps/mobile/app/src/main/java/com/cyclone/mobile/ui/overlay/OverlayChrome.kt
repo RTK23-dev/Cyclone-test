@@ -430,6 +430,24 @@ private fun ComposerPanel(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                if (task != null) {
+                    com.cyclone.mobile.ui.v32.CycloneConversationBubble(
+                        text = task.goal,
+                        speaker = com.cyclone.mobile.ui.v32.CycloneConversationSpeaker.USER,
+                        userContainer = Color.White.copy(alpha = .10f),
+                        userContent = Color(0xFFF5F5F7),
+                        assistantContent = Color(0xFFF5F5F7),
+                        maxLines = 3,
+                    )
+                    com.cyclone.mobile.ui.v32.CycloneConversationBubble(
+                        text = "Got it. I'll keep working on that on your phone.",
+                        speaker = com.cyclone.mobile.ui.v32.CycloneConversationSpeaker.CYCLONE,
+                        userContainer = Color.White.copy(alpha = .10f),
+                        userContent = Color(0xFFF5F5F7),
+                        assistantContent = Color(0xFFD1D1D6),
+                        maxLines = 2,
+                    )
+                }
                 when {
                     task != null -> CycloneAskTaskPanel(task)
                     foregroundWorking -> CycloneForegroundWorkCard(snapshot)
