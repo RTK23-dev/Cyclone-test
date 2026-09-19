@@ -38,53 +38,56 @@ fun CycloneConversationBubble(
     val clean = text.trim().replace("**", "")
     if (clean.isBlank()) return
 
-    if (speaker == CycloneConversationSpeaker.CYCLONE) {
-        Row(
-            modifier
-                .fillMaxWidth()
-                .padding(end = CycloneConversationTokens.space24, top = 2.dp, bottom = 2.dp)
-                .animateContentSize(),
-            horizontalArrangement = Arrangement.Start,
-        ) {
-            Text(
-                clean,
-                style = MaterialTheme.typography.bodyLarge,
-                color = assistantContent,
-                maxLines = maxLines,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        return
-    }
-
-    Row(
-        modifier.fillMaxWidth().animateContentSize(),
-        horizontalArrangement = Arrangement.End,
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth(.80f)
-                .clip(
-                    RoundedCornerShape(
-                        CycloneConversationTokens.bubbleRadius,
-                        CycloneConversationTokens.bubbleRadius,
-                        6.dp,
-                        CycloneConversationTokens.bubbleRadius,
-                    ),
+    when (speaker) {
+        CycloneConversationSpeaker.CYCLONE -> {
+            Row(
+                modifier
+                    .fillMaxWidth()
+                    .padding(end = CycloneConversationTokens.space24, top = 2.dp, bottom = 2.dp)
+                    .animateContentSize(),
+                horizontalArrangement = Arrangement.Start,
+            ) {
+                Text(
+                    clean,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = assistantContent,
+                    maxLines = maxLines,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                .background(userContainer),
-        ) {
-            Text(
-                clean,
-                modifier = Modifier.padding(
-                    horizontal = CycloneConversationTokens.space16,
-                    vertical = CycloneConversationTokens.space12,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = userContent,
-                maxLines = maxLines,
-                overflow = TextOverflow.Ellipsis,
-            )
+            }
+        }
+
+        CycloneConversationSpeaker.USER -> {
+            Row(
+                modifier.fillMaxWidth().animateContentSize(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(.80f)
+                        .clip(
+                            RoundedCornerShape(
+                                CycloneConversationTokens.bubbleRadius,
+                                CycloneConversationTokens.bubbleRadius,
+                                6.dp,
+                                CycloneConversationTokens.bubbleRadius,
+                            ),
+                        )
+                        .background(userContainer),
+                ) {
+                    Text(
+                        clean,
+                        modifier = Modifier.padding(
+                            horizontal = CycloneConversationTokens.space16,
+                            vertical = CycloneConversationTokens.space12,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = userContent,
+                        maxLines = maxLines,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }
