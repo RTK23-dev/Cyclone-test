@@ -14,6 +14,7 @@ INTELLIGENCE = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/C
 OVERLAY_COMPOSER = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/OverlayAppleLiquidComposer.kt"
 TASK_PRESENTATION = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/runtime/background/TaskPresentationSnapshot.kt"
 TASK_PANEL = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/CycloneAskTaskPanel.kt"
+MINIMIZED_COMPOSER = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/CycloneMinimizedComposerBar.kt"
 BRAIN_V39 = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/ui/v32/CycloneV39BrainPage.kt"
 MANIFEST = ROOT / "apps/mobile/app/src/main/AndroidManifest.xml"
 MAIN = ROOT / "apps/mobile/app/src/main/java/com/cyclone/mobile/MainActivity.kt"
@@ -96,7 +97,16 @@ REQUIRED_TASK_PANEL = (
     "CycloneConversationTokens.taskRadius",
     "TaskFollowUpAction.RUN_AGAIN",
     "TaskFollowUpAction.TRY_AGAIN",
+    "TaskFollowUpAction.OPEN_APP",
     "shadowElevation = 0.dp",
+)
+REQUIRED_MINIMIZED_COMPOSER = (
+    "BasicTextField(",
+    'contentDescription = "Ask Cyclone minimized composer"',
+    'contentDescription = "Model and intelligence"',
+    "Icons.Rounded.Add",
+    "Icons.Rounded.GraphicEq",
+    "Icons.Rounded.ArrowUpward",
 )
 REQUIRED_BRAIN_V39 = (
     "internal fun CycloneV39BrainPage",
@@ -148,6 +158,7 @@ def check() -> list[str]:
         (OVERLAY_COMPOSER, REQUIRED_OVERLAY_COMPOSER),
         (TASK_PRESENTATION, REQUIRED_TASK_PRESENTATION),
         (TASK_PANEL, REQUIRED_TASK_PANEL),
+        (MINIMIZED_COMPOSER, REQUIRED_MINIMIZED_COMPOSER),
         (BRAIN_V39, REQUIRED_BRAIN_V39),
         (MANIFEST, REQUIRED_MANIFEST),
         (MAIN, REQUIRED_MAIN),
