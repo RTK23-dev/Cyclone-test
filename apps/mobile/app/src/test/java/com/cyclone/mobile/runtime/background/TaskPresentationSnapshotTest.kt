@@ -175,9 +175,42 @@ class TaskPresentationSnapshotTest {
         )
 
         val updated = TaskHarnessState.applyTrajectory(task(), trajectory)
-        assertEquals(listOf("Opening Instagram", "Verifying the result"), updated.plannedMilestones)
+        assertEquals(listOf("Opening Instagram", "Verifying login status"), updated.plannedMilestones)
         assertEquals(1, updated.plannedMilestoneIndex)
         assertFalse(updated.plannedMilestones.any { it.contains("RAW MODEL") })
+    }
+
+    @Test
+    fun loginStatusTrajectoryUsesHumanConsumerMilestonesWithoutRawModelProse() {
+        val trajectory = com.cyclone.mobile.agent.plan.TaskTrajectory(
+            tier = com.cyclone.mobile.agent.plan.TaskDifficultyTier.MEDIUM,
+            from = "current",
+            to = "done",
+            waypoints = listOf(
+                com.cyclone.mobile.agent.plan.TaskWaypoint(
+                    com.cyclone.mobile.agent.plan.WaypointKind.OPEN_APP,
+                    packageName = "com.instagram.android",
+                    summary = "provider wording",
+                ),
+                com.cyclone.mobile.agent.plan.TaskWaypoint(
+                    com.cyclone.mobile.agent.plan.WaypointKind.SCENE,
+                    summary = "provider wording two",
+                ),
+                com.cyclone.mobile.agent.plan.TaskWaypoint(
+                    com.cyclone.mobile.agent.plan.WaypointKind.DONE,
+                    summary = "provider wording three",
+                ),
+            ),
+            index = 1,
+            horizonPlanned = true,
+        )
+
+        val updated = TaskHarnessState.applyTrajectory(task(), trajectory)
+        assertEquals(
+            listOf("Opening Instagram", "Checking Instagram login status", "Verifying login status"),
+            updated.plannedMilestones,
+        )
+        assertFalse(updated.plannedMilestones.any { it.contains("provider wording") })
     }
 
     @Test
