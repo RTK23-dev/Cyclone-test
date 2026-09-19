@@ -49,6 +49,7 @@ enum class TaskFollowUpAction {
     VIEW_DETAILS,
     RUN_AGAIN,
     TRY_AGAIN,
+    OPEN_APP,
     TAKE_OVER,
     AUTOFILL,
     CONTINUE,
@@ -199,6 +200,7 @@ object TaskFollowUpPolicy {
             }
             TaskConsumerState.DONE -> {
                 add(TaskFollowUpAction.VIEW_DETAILS)
+                if (task.packageName.isNotBlank()) add(TaskFollowUpAction.OPEN_APP)
                 add(TaskFollowUpAction.RUN_AGAIN)
             }
             TaskConsumerState.FAILED -> {
