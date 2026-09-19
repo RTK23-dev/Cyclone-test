@@ -34,10 +34,8 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.*
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -65,71 +63,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cyclone.mobile.ui.v32.LocalCycloneInsideLiquidHost
-import com.cyclone.mobile.ui.v32.LocalCycloneLiquidBackdrop
-import com.cyclone.mobile.ui.v32.LocalCycloneOverlayChrome
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.cyclone.mobile.ui.v32.CycloneSignatureGlass
+import com.cyclone.mobile.ui.v32.SignatureAction
+import com.cyclone.mobile.ui.v32.SignatureGlyph
+import com.cyclone.mobile.ui.v32.SignatureIcon
+import com.cyclone.mobile.ui.v32.SignatureInk
+import com.cyclone.mobile.ui.v32.SignatureMuted
+import androidx.compose.ui.draw.clip
 
-private val OverlayGlass = Color(0xFF1C1C1E).copy(alpha = 0.90f)
-private val OverlayGlassStrong = Color(0xFF1C1C1E).copy(alpha = 0.94f)
 private val OverlayGlassInner = Color.White.copy(alpha = 0.10f)
-private val OverlayText = Color(0xFFF5F5F7)
-private val OverlaySecondaryText = Color(0xFFD1D1D6)
-private val OverlayBlue = Color(0xFF64B5FF)
+private val OverlayText = SignatureInk
+private val OverlaySecondaryText = SignatureMuted
+private val OverlayBlue = Color(0xFF83DBD7)
 
-private val OverlayDarkScheme = darkColorScheme(
-    primary = OverlayBlue,
-    onPrimary = Color.White,
-    onSurface = OverlayText,
-    onSurfaceVariant = OverlaySecondaryText,
-    surface = Color(0xFF1C1C1E),
-    surfaceVariant = Color(0xFF2C2C2E),
-)
-
-/**
- * Overlay-only glass. Android cannot sample pixels owned by another app into a Compose backdrop, so
- * the system overlay uses Kyant refraction over a dense charcoal fill — readable white type on
- * Apple Regular glass, never a clear window onto the launcher.
- */
+/** Quiet companion panel sharing the ask capsule's teal optical material. */
 @Composable
 internal fun OverlayAppleGlass(
     modifier: Modifier,
     cornerRadius: androidx.compose.ui.unit.Dp,
-    strong: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val backdrop = LocalCycloneLiquidBackdrop.current
-    val shape = RoundedCornerShape(cornerRadius)
-    val surface = if (strong) OverlayGlassStrong else OverlayGlass
-    val glassModifier = if (backdrop != null) {
-        modifier.drawBackdrop(
-            backdrop = backdrop,
-            shape = { shape },
-            effects = {
-                vibrancy()
-                blur(16f.dp.toPx())
-                lens(12f.dp.toPx(), 24f.dp.toPx(), chromaticAberration = true)
-            },
-            onDrawSurface = { drawRect(surface) },
-        )
-    } else {
-        modifier.background(surface, shape)
-    }
-    CompositionLocalProvider(
-        LocalCycloneInsideLiquidHost provides true,
-        LocalCycloneOverlayChrome provides true,
-    ) {
-        MaterialTheme(colorScheme = OverlayDarkScheme) {
-            Box(
-                glassModifier,
-                contentAlignment = Alignment.Center,
-                content = content,
-            )
-        }
-    }
+    CycloneSignatureGlass(
+        modifier = modifier,
+        textured = false,
+        cornerRadius = cornerRadius,
+        content = content,
+    )
 }
 
 @Composable
@@ -149,133 +108,46 @@ internal fun OverlayAppleComposerBar(
     onMenu: () -> Unit,
     onDictate: () -> Unit,
     onPrimary: () -> Unit,
-    modelLabel: String,
-    intelligenceLabel: String,
-    onModelQuick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    OverlayAppleGlass(
-        modifier = modifier.fillMaxWidth().height(66.dp),
-        cornerRadius = 33.dp,
+    CycloneSignatureGlass(
+        modifier = modifier.fillMaxWidth().heightIn(min = 66.dp),
+        listening = voiceListening,
     ) {
         Row(
-            Modifier.fillMaxWidth().fillMaxHeight().padding(start = 7.dp, end = 7.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            OverlayAppleCircleAction(
-                onClick = onMenu,
+            SignatureAction(
+                SignatureGlyph.ADD, if (menuOpen) "Close tools" else "Open tools", onMenu,
                 selected = menuOpen,
-                description = if (menuOpen) "Close tools" else "Open tools",
-            ) {
-                Icon(
-                    Icons.Rounded.Add,
-                    contentDescription = null,
-                    tint = OverlayText,
-                    modifier = Modifier.size(28.dp),
-                )
-            }
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .heightIn(min = 20.dp)
-                        .clickable(enabled = !working, role = Role.Button, onClick = onModelQuick)
-                        .padding(horizontal = 10.dp, vertical = 1.dp)
-                        .semantics { contentDescription = "Model and intelligence" },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    Text(
-                        modelLabel,
-                        color = if (working) OverlaySecondaryText.copy(alpha = .55f) else OverlayBlue,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                    )
-                    Text("·", color = OverlaySecondaryText.copy(alpha = .65f), fontSize = 11.sp)
-                    Text(
-                        intelligenceLabel,
-                        color = OverlaySecondaryText.copy(alpha = if (working) .50f else .78f),
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                    )
-                }
-
-                BasicTextField(
-                    value = text,
-                    onValueChange = onTextChanged,
-                    singleLine = true,
-                    textStyle = TextStyle(color = OverlayText, fontSize = 16.sp, lineHeight = 20.sp),
-                    cursorBrush = SolidColor(OverlayBlue),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { if (!working && text.isNotBlank()) onPrimary() }),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { onFocusChanged(it.isFocused) }
-                        .heightIn(min = 30.dp)
-                        .padding(horizontal = 10.dp, vertical = 3.dp)
-                        .semantics { contentDescription = "Ask Cyclone" },
-                    decorationBox = { field ->
-                        Box(contentAlignment = Alignment.CenterStart) {
-                            if (text.isEmpty()) {
-                                Text(
-                                    placeholder,
-                                    color = OverlaySecondaryText.copy(alpha = if (working) .56f else .78f),
-                                    fontSize = 16.sp,
-                                    maxLines = 1,
-                                )
-                            }
-                            field()
-                        }
-                    },
-                )
-            }
-
-            run {
-                Box(
-                    Modifier
-                        .size(46.dp)
-                        .clickable(enabled = !working, role = Role.Button, onClick = onDictate)
-                        .semantics { contentDescription = "Dictate request" },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Rounded.Mic,
-                        contentDescription = null,
-                        tint = if (working) OverlaySecondaryText else if (voiceListening) OverlayBlue else OverlayText,
-                        modifier = Modifier.size(26.dp),
-                    )
-                }
-            }
-
+            )
+            BasicTextField(
+                value = text,
+                onValueChange = onTextChanged,
+                singleLine = true,
+                textStyle = TextStyle(color = SignatureInk, fontSize = 16.sp, lineHeight = 22.sp,
+                    fontWeight = FontWeight.Normal),
+                cursorBrush = SolidColor(OverlayBlue),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { if (!working && text.isNotBlank()) onPrimary() }),
+                modifier = Modifier.weight(1f).focusRequester(focusRequester)
+                    .onFocusChanged { onFocusChanged(it.isFocused) }
+                    .heightIn(min = 48.dp).padding(horizontal = 5.dp, vertical = 12.dp)
+                    .semantics { contentDescription = "Ask Cyclone" },
+                decorationBox = { field ->
+                    Box(contentAlignment = Alignment.CenterStart) {
+                        if (text.isEmpty()) Text(placeholder, color = SignatureInk, fontSize = 16.sp, maxLines = 1)
+                        field()
+                    }
+                },
+            )
+            SignatureAction(SignatureGlyph.MIC,
+                if (voiceListening) "Listening" else "Dictate request", onDictate,
+                enabled = !working, selected = voiceListening)
             OverlayRequestAction(working, paused, taskKey, text.isNotBlank(), onPrimary, onPause, onStop)
-
         }
     }
-}
-
-@Composable
-private fun OverlayAppleCircleAction(
-    onClick: () -> Unit,
-    selected: Boolean,
-    description: String,
-    content: @Composable BoxScope.() -> Unit,
-) {
-    Box(
-        Modifier
-            .size(50.dp)
-            .background(if (selected) Color.White.copy(alpha = .14f) else OverlayGlassInner, CircleShape)
-            .border(0.7.dp, Color.White.copy(alpha = if (selected) .18f else .08f), CircleShape)
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-        content = content,
-    )
 }
 
 @Composable
@@ -292,7 +164,6 @@ internal fun OverlayAppleToolsMenu(
     OverlayAppleGlass(
         modifier = modifier.fillMaxWidth(),
         cornerRadius = 30.dp,
-        strong = true,
     ) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp),
@@ -327,12 +198,13 @@ private fun OverlayAppleToolTile(
 ) {
     Column(
         modifier
-            .heightIn(min = 92.dp)
-            .background(OverlayGlassInner.copy(alpha = .72f), RoundedCornerShape(24.dp))
+            .heightIn(min = 76.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF174047).copy(alpha = .75f))
             .border(.7.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(24.dp))
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 13.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         Box(
             Modifier
@@ -363,7 +235,7 @@ private fun OverlayAppleMenuRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .height(62.dp)
+            .heightIn(min = 52.dp)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -371,7 +243,7 @@ private fun OverlayAppleMenuRow(
     ) {
         Box(
             Modifier
-                .size(46.dp)
+                .size(38.dp)
                 .background(OverlayGlassInner.copy(alpha = OverlayGlassInner.alpha * alpha), CircleShape)
                 .border(0.7.dp, Color.White.copy(alpha = .08f * alpha), CircleShape),
             contentAlignment = Alignment.Center,
@@ -386,7 +258,7 @@ private fun OverlayAppleMenuRow(
         Text(
             label,
             color = OverlayText.copy(alpha = alpha),
-            fontSize = 17.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
         )
     }
@@ -476,10 +348,10 @@ private fun OverlayRequestAction(
         }
     else Modifier.clickable(enabled = canSend, role = Role.Button, onClick = onSend)
         .semantics { contentDescription = "Send request" }
-    Box(Modifier.size(50.dp).background(Color.White.copy(alpha = if (working || canSend) 1f else .35f), CircleShape)
+    Box(Modifier.size(48.dp).clip(CircleShape)
         .then(action), contentAlignment = Alignment.Center) {
-        Icon(if (!working) Icons.Rounded.ArrowUpward else if (paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-            contentDescription = null, tint = Color(0xFF111216), modifier = Modifier.size(27.dp))
+        SignatureIcon(if (!working) SignatureGlyph.SEND else if (paused) SignatureGlyph.PLAY else SignatureGlyph.PAUSE,
+            color = SignatureInk.copy(alpha = if (working || canSend) 1f else .50f))
         if (progress > 0f) Canvas(Modifier.size(48.dp)) {
             drawArc(OverlayBlue, -90f, progress * 360f, false,
                 style = Stroke(width = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))

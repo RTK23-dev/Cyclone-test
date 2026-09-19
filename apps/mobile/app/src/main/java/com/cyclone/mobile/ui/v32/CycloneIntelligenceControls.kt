@@ -21,6 +21,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import android.content.Context
+import android.content.Intent
+import com.cyclone.mobile.ui.overlay.CycloneAiSettingsActivity
+import com.cyclone.mobile.ui.overlay.OverlayExternalInteraction
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -97,6 +102,7 @@ private fun ModelPickerRows(
     currentModel: OpenRouterModelPreset,
     onSelect: (OpenRouterModelPreset) -> Unit,
 ) {
+    val context = LocalContext.current
     Column(
         Modifier
             .fillMaxWidth()
@@ -105,11 +111,12 @@ private fun ModelPickerRows(
     ) {
         if (models.isEmpty()) {
             Text(
-                "Choose models in Settings → Model & API",
+                "No enabled models are available yet.",
                 Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            TextButton(onClick = { openCycloneModelSettings(context) }) { Text("Open Settings") }
             return@Column
         }
         models.forEachIndexed { index, option ->
@@ -168,7 +175,7 @@ private fun OverlaySettingsWizard(
     }
 
     Column(
-        modifier = Modifier.widthIn(min = 278.dp, max = 344.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -179,7 +186,8 @@ private fun OverlaySettingsWizard(
                         OverlaySettingsStep.MODEL -> "Model"
                         OverlaySettingsStep.INTELLIGENCE -> "Intelligence"
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        .clickable(role = Role.Tab) { step = item }.padding(vertical = 14.dp),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                     color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -225,6 +233,9 @@ private fun OverlaySettingsWizard(
                     }
                 }
             }
+        }
+        TextButton(onClick = { openCycloneModelSettings(context) }) {
+            Text("Manage models in Settings")
         }
     }
 }
@@ -397,5 +408,17 @@ fun CycloneIntelligenceControls(
                 )
             }
         }
+    }
+}
+
+/** Opens the real catalog/API configuration, including from an accessibility overlay. */
+private fun openCycloneModelSettings(context: Context) {
+    OverlayExternalInteraction.active.value = true
+    runCatching {
+        context.startActivity(Intent(context, CycloneAiSettingsActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.onFailure {
+        OverlayExternalInteraction.active.value = false
+        android.widget.Toast.makeText(context, "Settings could not be opened.", android.widget.Toast.LENGTH_SHORT).show()
     }
 }

@@ -139,13 +139,10 @@ class CycloneAppleUiContractTest {
         assertFalse(chrome.contains("Color.Black.copy(alpha = 0.035f)"))
         assertTrue(selectors.contains("LocalCycloneInsideLiquidHost.current"))
         assertTrue(selectors.contains("if (embedded)"))
-        assertTrue(overlay.contains("chromaticAberration = true"))
-        assertTrue(overlay.contains("OverlayDarkScheme"))
-        assertTrue(overlay.contains("0.90f"))
-        assertTrue(overlay.contains("blur(16f.dp.toPx())"))
-        assertTrue(overlay.contains("LocalCycloneOverlayChrome provides true"))
-        assertFalse(overlay.contains("chromaticAberration = false"))
-        assertFalse(overlay.contains("OverlayGlassRim"))
+        val signature = source("CycloneSignatureGlass.kt")
+        assertTrue(overlay.contains("CycloneSignatureGlass("))
+        assertTrue(signature.contains("LocalCycloneOverlayChrome provides true"))
+        assertFalse(signature.contains("chromaticAberration = true"))
         val overlayChrome = sequenceOf(
             File("src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"),
             File("apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"),

@@ -167,9 +167,8 @@ fun OverlayChrome(
         val presentation = when {
             snapshot.state == OverlayChromeState.IDLE -> "idle"
             snapshot.launcherCollapsed -> "launcher"
-            snapshot.minimized -> "minimized"
             snapshot.state == OverlayChromeState.GATE -> "gate"
-            else -> "drawer"
+            else -> "composer"
         }
         AnimatedContent(
             targetState = presentation,
@@ -200,20 +199,10 @@ fun OverlayChrome(
                 } else {
                     Box(Modifier.size(OverlayChromeContract.IDLE_TOUCH_SIZE_DP.dp))
                 }
-                "minimized" -> ComposerPanel(
-                    snapshot = snapshot,
-                    minimized = true,
-                    onAction = onAction,
-                    onComposerChanged = onComposerChanged,
-                    onRequestSubmitted = onRequestSubmitted,
-                    onVoiceInput = onVoiceInput,
-                    aiSettings = aiSettings,
-                    onAiSettingsChanged = onAiSettingsChanged,
-                )
                 "gate" -> GatePanel(snapshot, onAction)
                 else -> ComposerPanel(
                     snapshot = snapshot,
-                    minimized = false,
+                    minimized = snapshot.minimized,
                     onAction = onAction,
                     onComposerChanged = onComposerChanged,
                     onRequestSubmitted = onRequestSubmitted,
@@ -402,25 +391,47 @@ private fun ComposerPanel(
         }
     }
 
-    CycloneChatDrawerSurface(
+    val upperVisible = !minimized && (task != null || foregroundWorking || queued.isNotEmpty() ||
+        sharing.phase != ScreenSharePhase.OFF || attached || accessory != ComposerAccessory.NONE)
+    SignatureOverlayDrawer(
+        expanded = upperVisible,
+        minimized = minimized,
         onCollapse = {
             focusManager.clearFocus(force = true)
             keyboard?.hide()
             accessory = ComposerAccessory.NONE
             onAction(OverlayUserAction.MINIMIZE)
         },
-        onExpand = if (minimized) {
-            {
-                accessory = ComposerAccessory.NONE
-                onAction(OverlayUserAction.ASK_CYCLONE)
-            }
-        } else null,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
-        containerColor = Color(0xFF111317).copy(alpha = .98f),
-        contentColor = Color(0xFFF5F5F7),
-        outlineColor = Color.White.copy(alpha = .10f),
-        handleColor = Color.White.copy(alpha = .34f),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 8.dp, end = 8.dp, bottom = 8.dp),
+        onExpand = { onAction(OverlayUserAction.ASK_CYCLONE) },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        composer = {
+        OverlayAppleComposerBar(
+            text = snapshot.composerText,
+            onTextChanged = onComposerChanged,
+            focusRequester = focusRequester,
+            onFocusChanged = { editorFocused = it },
+            placeholder = when {
+                snapshot.voiceListening -> OverlayCopy.LISTENING
+                else -> OverlayCopy.COMPOSER
+            },
+            menuOpen = accessory != ComposerAccessory.NONE,
+            voiceListening = snapshot.voiceListening,
+            working = foregroundWorking || snapshot.userPaused,
+            paused = snapshot.userPaused,
+            taskKey = snapshot.sessionId,
+            onPause = { onAction(OverlayUserAction.TAKE_CONTROL) },
+            onStop = { onAction(OverlayUserAction.STOP_TASK) },
+            onMenu = {
+                if (minimized) onAction(OverlayUserAction.ASK_CYCLONE)
+                accessory = if (accessory == ComposerAccessory.ATTACHMENTS) ComposerAccessory.NONE else ComposerAccessory.ATTACHMENTS
+            },
+            onDictate = onVoiceInput,
+            onPrimary = {
+                if (!foregroundWorking && !snapshot.userPaused && snapshot.composerText.isNotBlank()) submit()
+            },
+
+        )
+        },
     ) {
         if (!minimized && (task != null || foregroundWorking || queued.isNotEmpty())) {
             Column(
@@ -491,15 +502,15 @@ private fun ComposerPanel(
                     launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
                 },
                 onModelAndIntelligence = { accessory = ComposerAccessory.MODEL },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().heightIn(max = taskAreaMax.dp)
+                    .verticalScroll(rememberScrollState()),
             )
 
             ComposerAccessory.MODEL -> OverlayAppleGlass(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = 30.dp,
-                strong = true,
             ) {
-                Box(Modifier.padding(12.dp)) {
+                Box(Modifier.heightIn(max = taskAreaMax.dp).verticalScroll(rememberScrollState()).padding(12.dp)) {
                     com.cyclone.mobile.ui.v32.CycloneModelIntelligencePanel(
                         aiSettings.modelId,
                         aiSettings.reasoningEffort,
@@ -520,44 +531,8 @@ private fun ComposerPanel(
             )
         }
 
-        val quickModelLabel = com.cyclone.mobile.ui.v32.cycloneShortModelLabel(
-            com.cyclone.mobile.ui.v32.V39AiChatContract.modelForStored(aiSettings.modelId).label.ifBlank { "Cyclone" },
-        )
-        val quickIntelligenceLabel = aiSettings.reasoningEffort
-            .takeIf(String::isNotBlank)
-            ?.let { com.cyclone.mobile.ui.v32.reasoningEffortLabel(it) }
-            ?: "Auto"
 
-        OverlayAppleComposerBar(
-            text = snapshot.composerText,
-            onTextChanged = onComposerChanged,
-            focusRequester = focusRequester,
-            onFocusChanged = { editorFocused = it },
-            placeholder = when {
-                foregroundWorking -> "Working on it…"
-                snapshot.voiceListening -> OverlayCopy.LISTENING
-                else -> OverlayCopy.COMPOSER
-            },
-            menuOpen = accessory != ComposerAccessory.NONE,
-            voiceListening = snapshot.voiceListening,
-            working = foregroundWorking || snapshot.userPaused,
-            paused = snapshot.userPaused,
-            taskKey = snapshot.sessionId,
-            onPause = { onAction(OverlayUserAction.TAKE_CONTROL) },
-            onStop = { onAction(OverlayUserAction.STOP_TASK) },
-            onMenu = {
-                accessory = if (accessory == ComposerAccessory.ATTACHMENTS) ComposerAccessory.NONE else ComposerAccessory.ATTACHMENTS
-            },
-            onDictate = onVoiceInput,
-            onPrimary = {
-                if (!foregroundWorking && !snapshot.userPaused && snapshot.composerText.isNotBlank()) submit()
-            },
-            modelLabel = quickModelLabel,
-            intelligenceLabel = quickIntelligenceLabel,
-            onModelQuick = {
-                accessory = if (accessory == ComposerAccessory.MODEL) ComposerAccessory.NONE else ComposerAccessory.MODEL
-            },
-        )
+
     }
 }
 
@@ -575,7 +550,6 @@ private fun GatePanel(
         OverlayAppleGlass(
             modifier = Modifier.fillMaxWidth(),
             cornerRadius = 28.dp,
-            strong = true,
         ) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

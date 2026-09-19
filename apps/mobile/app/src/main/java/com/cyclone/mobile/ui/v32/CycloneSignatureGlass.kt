@@ -1,0 +1,200 @@
+package com.cyclone.mobile.ui.v32
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+
+internal val SignatureInk = Color(0xFFE0F5F3)
+internal val SignatureMuted = Color(0xFFA6CCCA)
+internal val SignatureTeal = Color(0xFF83DBD7)
+private val SignatureScheme = darkColorScheme(
+    primary = SignatureTeal, onPrimary = Color(0xFF052528),
+    surface = Color(0xFF08282D), surfaceVariant = Color(0xFF123B40),
+    onSurface = SignatureInk, onSurfaceVariant = SignatureMuted,
+)
+
+/**
+ * The ask capsule is drawn at its actual size, never stretched from a concept bitmap.
+ * The optical rim and contour dots are cached until size/density changes. Listening only
+ * changes a local halo: idle capsules have no animation loop or per-frame dot generation.
+ * This translucent material also works in an accessibility window without sampling or
+ * capturing the app underneath (Compose's backdrop cannot blur another app's pixels).
+ */
+@Composable
+internal fun CycloneSignatureGlass(
+    modifier: Modifier = Modifier,
+    listening: Boolean = false,
+    textured: Boolean = true,
+    cornerRadius: Dp = 33.dp,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val voiceLight = animateFloatAsState(if (listening) 1f else 0f, label = "Voice glass light")
+    CompositionLocalProvider(
+        LocalCycloneInsideLiquidHost provides true,
+        LocalCycloneOverlayChrome provides true,
+    ) {
+        MaterialTheme(colorScheme = SignatureScheme) {
+            Box(
+                modifier.drawWithCache {
+                    val radius = minOf(cornerRadius.toPx(), size.height / 2f)
+                    val silhouette = Path().apply {
+                        addRoundRect(RoundRect(Rect(Offset.Zero, size), CornerRadius(radius)))
+                    }
+                    val fill = Brush.verticalGradient(listOf(
+                        Color(0xE0225259), Color(0xEE08272D), Color(0xF0052027), Color(0xE01B5057),
+                    ))
+                    val rim = Brush.verticalGradient(
+                        0f to Color(0xFFB4EEEA).copy(alpha = .56f),
+                        .22f to SignatureTeal.copy(alpha = .14f),
+                        .55f to SignatureTeal.copy(alpha = .035f),
+                        1f to SignatureTeal.copy(alpha = .57f),
+                    )
+                    // Concentric dotted ridges bend into each capsule end, then fade before
+                    // the text field. The asymmetric whorls are a material signature, not a
+                    // fingerprint button. All geometry is in dp, including on narrow devices.
+                    data class Dot(val center: Offset, val radius: Float, val alpha: Float)
+                    val dots = buildList {
+                        if (textured) {
+                            val unit = 1.dp.toPx()
+                            val reach = minOf(size.width * .28f, 100.dp.toPx())
+                            for (side in 0..1) {
+                                val originX = if (side == 0) -15f * unit else size.width + 12f * unit
+                                val originY = size.height * if (side == 0) .95f else .72f
+                                for (ridge in 1..25) {
+                                    val r = ridge * 4.1f * unit
+                                    val count = (2 * PI * r / (3.8f * unit)).toInt().coerceAtLeast(12)
+                                    for (i in 0 until count) {
+                                        val angle = i * 2.0 * PI / count + ridge * .037
+                                        val x = originX + cos(angle).toFloat() * r
+                                        val y = originY + sin(angle).toFloat() * r * .83f
+                                        val edge = if (side == 0) x else size.width - x
+                                        if (x < 0 || x > size.width || y < 0 || y > size.height || edge !in 0f..reach) continue
+                                        val fade = (1f - edge / reach).coerceIn(0f, 1f)
+                                        val lower = (.24f + .76f * y / size.height)
+                                        add(Dot(Offset(x, y), (.35f + .40f * fade) * unit, fade * lower * .52f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    val leftMist = Brush.radialGradient(
+                        listOf(SignatureTeal.copy(alpha = .19f), Color.Transparent),
+                        center = Offset(radius * .6f, size.height * .78f), radius = radius * 1.9f,
+                    )
+                    val rightMist = Brush.radialGradient(
+                        listOf(SignatureTeal.copy(alpha = .12f), Color.Transparent),
+                        center = Offset(size.width - radius * .65f, size.height * .75f), radius = radius * 1.9f,
+                    )
+                    val voiceHalo = Brush.radialGradient(
+                        listOf(Color(0xFF41D7CB).copy(alpha = .48f), Color.Transparent),
+                        center = Offset(size.width - 81.dp.toPx(), size.height / 2), radius = 31.dp.toPx(),
+                    )
+                    onDrawBehind {
+                        clipPath(silhouette) {
+                            drawRect(fill)
+                            drawRect(leftMist)
+                            drawRect(rightMist)
+                            // Multiple translucent inward strokes form a soft optical edge,
+                            // rather than a saturated neon outline or expensive live blur.
+                            for (layer in 9 downTo 1) {
+                                val inset = layer * .65.dp.toPx()
+                                drawRoundRect(
+                                    rim, topLeft = Offset(inset, inset),
+                                    size = Size(size.width - 2 * inset, size.height - 2 * inset),
+                                    cornerRadius = CornerRadius((radius - inset).coerceAtLeast(0f)),
+                                    alpha = .045f + (10 - layer) * .014f,
+                                    style = Stroke(1.5.dp.toPx()),
+                                )
+                            }
+                            dots.forEach { drawCircle(SignatureTeal.copy(alpha = it.alpha), it.radius, it.center) }
+                            drawRect(voiceHalo, alpha = voiceLight.value)
+                            drawRoundRect(rim, cornerRadius = CornerRadius(radius), style = Stroke(.7.dp.toPx()))
+                        }
+                    }
+                }.clip(RoundedCornerShape(cornerRadius)),
+                contentAlignment = Alignment.Center,
+                content = content,
+            )
+        }
+    }
+}
+
+internal enum class SignatureGlyph { ADD, MIC, SEND, PAUSE, PLAY }
+
+/** Thin, consistent line icons from the reference, with independent 48dp hit targets. */
+@Composable
+internal fun SignatureIcon(glyph: SignatureGlyph, modifier: Modifier = Modifier, color: Color = SignatureInk) {
+    Canvas(modifier.size(26.dp)) {
+        val u = size.minDimension / 24f
+        fun point(x: Float, y: Float) = Offset(x * u, y * u)
+        fun line(x1: Float, y1: Float, x2: Float, y2: Float) =
+            drawLine(color, point(x1, y1), point(x2, y2), 1.45f * u, StrokeCap.Round)
+        when (glyph) {
+            SignatureGlyph.ADD -> { line(12f, 4f, 12f, 20f); line(4f, 12f, 20f, 12f) }
+            SignatureGlyph.SEND -> { line(12f, 21f, 12f, 3f); line(4f, 11f, 12f, 3f); line(12f, 3f, 20f, 11f) }
+            SignatureGlyph.PAUSE -> { line(8f, 5f, 8f, 19f); line(16f, 5f, 16f, 19f) }
+            SignatureGlyph.PLAY -> {
+                val path = Path().apply { moveTo(8f*u, 4f*u); lineTo(19f*u, 12f*u); lineTo(8f*u, 20f*u); close() }
+                drawPath(path, color, style = Stroke(1.45f*u))
+            }
+            SignatureGlyph.MIC -> {
+                drawRoundRect(color, point(9f, 2f), Size(6f*u, 13f*u), CornerRadius(3f*u), style = Stroke(1.45f*u))
+                drawArc(color, 0f, 180f, false, point(5.5f, 6f), Size(13f*u, 13f*u), style = Stroke(1.45f*u, cap = StrokeCap.Round))
+                line(5.5f, 11f, 5.5f, 12.5f); line(18.5f, 11f, 18.5f, 12.5f)
+                line(12f, 19f, 12f, 22f); line(9f, 22f, 15f, 22f)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun SignatureAction(
+    glyph: SignatureGlyph,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    selected: Boolean = false,
+) {
+    Box(
+        modifier.size(48.dp).clip(CircleShape)
+            .background(if (selected) SignatureTeal.copy(alpha = .12f) else Color.Transparent)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) { SignatureIcon(glyph, color = SignatureInk.copy(alpha = if (enabled) 1f else .45f)) }
+}
