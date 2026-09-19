@@ -303,6 +303,24 @@ class WorkspaceProgressActivity : ComponentActivity() {
                     shape = RoundedCornerShape(15.dp),
                 ) { Text("Open Result") }
             }
+
+            CycloneTaskVisualState.FAILED -> {
+                Button(
+                    onClick = {
+                        runCatching {
+                            WorkspaceTasks.queueRequest(
+                                goal = task.goal,
+                                targetPackageName = task.packageName.takeIf(String::isNotBlank),
+                                targetAppLabel = task.app.takeIf(String::isNotBlank),
+                            )
+                            WorkspaceTasks.tryPromoteNext(this@WorkspaceProgressActivity.applicationContext)
+                        }
+                        finish()
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
+                    shape = RoundedCornerShape(15.dp),
+                ) { Text("Try again") }
+            }
         }
     }
 
