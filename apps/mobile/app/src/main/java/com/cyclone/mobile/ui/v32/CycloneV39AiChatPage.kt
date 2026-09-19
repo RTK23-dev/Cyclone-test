@@ -1019,51 +1019,20 @@ private fun AskCycloneVoiceMode(onClose: () -> Unit) {
 
 @Composable
 private fun V39ChatBubble(message: V39ChatMessage) {
-    val isUser = message.role == V39ChatRole.USER
-    if (!isUser) {
-        Column(
-            Modifier.fillMaxWidth().padding(end = 28.dp, top = 4.dp, bottom = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                message.text.replace("**", ""),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            if (message.ok != null) {
-                Text(
-                    if (message.ok) "Checked" else "Stopped",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (message.ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                )
-            }
-        }
-        return
-    }
-    val shape = RoundedCornerShape(
-        CycloneConversationTokens.bubbleRadius,
-        CycloneConversationTokens.bubbleRadius,
-        6.dp,
-        CycloneConversationTokens.bubbleRadius,
+    CycloneConversationBubble(
+        text = message.text,
+        speaker = if (message.role == V39ChatRole.USER) {
+            CycloneConversationSpeaker.USER
+        } else {
+            CycloneConversationSpeaker.CYCLONE
+        },
     )
-    val color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .68f)
-    val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(.80f)
-                .clip(shape)
-                .background(color),
-        ) {
-            Text(
-                message.text.replace("**", ""),
-                modifier = Modifier.padding(
-                    horizontal = CycloneConversationTokens.space16,
-                    vertical = CycloneConversationTokens.space12,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor,
-            )
-        }
+    if (message.role == V39ChatRole.CYCLONE && message.ok != null) {
+        Text(
+            if (message.ok) "Checked" else "Stopped",
+            modifier = Modifier.padding(top = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = if (message.ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+        )
     }
 }
