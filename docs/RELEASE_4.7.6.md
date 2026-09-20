@@ -1,6 +1,6 @@
 # Cyclone Mobile 4.7.6 — Human Gesture V0.3
 
-Android versionCode 136, based on published 4.7.5 (`ed46e176`).
+Android versionCode 136, based on published 4.7.5 (`ed46e176`). Sealed on `release/cyclone-mobile-v4.7.6`.
 
 4.7.6 keeps the 4.7.5 keyboard-aware Ask bar, automatic task-progress opening, and unified live notifications. It adds Android-authoritative Human Gesture V0.3 as a surgical port of the frozen 4.2.0 engine onto this line. It does not merge `integration/human-gesture-v0.3` and does not rewind GATE, MutationGrounding, Fast Path Unchanged, or `nodeAtTaskPath`.
 
