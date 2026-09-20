@@ -4,7 +4,7 @@
 
 This document describes the Android-authoritative Human Gesture runtime behavior.
 
-The original V0.3 engine landed on `integration/human-gesture-v0.3` (`0239ecd7`) as frozen 4.2.0/81. This tree is a **surgical port onto Cyclone Mobile 4.7.4** (`v4.7.4`, versionCode 134). Product identity stays 4.7.x — do not rewind to HG's 4.2.0 numbering. Merge/release of this work should become **4.7.5** / versionCode **135**.
+The original V0.3 engine landed on `integration/human-gesture-v0.3` (`0239ecd7`) as frozen 4.2.0/81. This tree is a **surgical port onto Cyclone Mobile 4.7.5** (`v4.7.5`, versionCode 135). Product identity for this cut is **4.7.6 / versionCode 136**. Do not rewind to HG's 4.2.0 numbering, and do not overwrite the already-published 4.7.5 keyboard/live-progress APK.
 
 Human Gesture remains downstream of Cyclone authorization. `PhoneToolExecutor` remains the phone mutation authority; the runtime does not bypass GATE, human ownership, MutationGrounding, `nodeAtTaskPath`, duplicate suppression, confirmation, Session Contract identity, Layer2 ownership, or Fast Path settle (300 then +500/+1000; Unchanged is not a second click).
 
