@@ -1,5 +1,9 @@
 package com.cyclone.mobile.ui.overlay
 
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import com.cyclone.mobile.ui.v32.CycloneSignatureCard
+import com.cyclone.mobile.ui.v32.taskVisualState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -61,30 +65,31 @@ fun BackgroundTaskGlass(task: WorkspaceTaskUi, onAsk: () -> Unit) {
 private fun BackgroundTaskRibbon(task: WorkspaceTaskUi, onAsk: () -> Unit) {
     val snapshot = TaskPresentationProjector.project(task)
     val taskLabel = snapshot.currentMilestone ?: snapshot.title
-    CycloneCollapsedAskPill(
-        onExpand = onAsk,
-        active = true,
-        status = taskLabel,
-        containerColor = androidx.compose.ui.graphics.Color(0xFF1C1C1E).copy(alpha = .96f),
-        contentColor = androidx.compose.ui.graphics.Color(0xFFF5F5F7),
-        secondaryColor = androidx.compose.ui.graphics.Color(0xFFD1D1D6),
-        accentColor = androidx.compose.ui.graphics.Color(0xFF64B5FF),
-        outlineColor = androidx.compose.ui.graphics.Color.White.copy(alpha = .10f),
-    )
+    CycloneSignatureCard(
+        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onAsk)
+            .semantics { contentDescription = "View progress: $taskLabel" },
+    ) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Cyclone", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(taskLabel, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis)
+            }
+            CycloneTaskStatusPill(task.taskVisualState())
+        }
+    }
 }
 
 @Composable
 private fun HumanTakeoverRibbon(task: WorkspaceTaskUi) {
     val context = LocalContext.current
     val snapshot = TaskPresentationProjector.project(task)
-    Surface(
-        modifier = Modifier.fillMaxWidth().animateContentSize(),
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = .96f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-    ) {
+    CycloneSignatureCard(modifier = Modifier.fillMaxWidth().animateContentSize()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 14.dp, top = 10.dp, end = 8.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,

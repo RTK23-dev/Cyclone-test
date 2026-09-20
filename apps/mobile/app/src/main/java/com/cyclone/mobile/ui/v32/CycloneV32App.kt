@@ -82,46 +82,47 @@ fun CycloneMobileV32App() {
         val phoneReady = v32AccessibilityEnabled(context)
         CycloneSignatureSystemBars(enabled = destination == V32Destination.AI && !settingsOpen)
         CycloneSignatureTheme(enabled = destination == V32Destination.AI && !settingsOpen) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            topBar = {
-                if (settingsOpen) {
-                    CycloneV32TopBar(
-                        title = destination.label,
-                        settingsOpen = true,
-                        ready = phoneReady,
-                        onSettings = {},
-                        onBack = { backFromSettings() },
-                    )
-                }
-            },
-            bottomBar = {
-                if (!settingsOpen) CycloneV32BottomBar(destination) { destination = it }
-            },
-        ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
-                Column(Modifier.fillMaxSize()) {
-                    ProfileRescueBar()
-                    Box(Modifier.weight(1f).fillMaxSize()) {
-                        if (settingsOpen) {
-                            CycloneSettingsPage426(context, refreshTick, { refreshTick++ }, settingsSection) { settingsSection = it }
-                        } else {
-                            when (destination) {
-                                V32Destination.HOME -> V32HomePage(
-                                    context = context,
-                                    refreshTick = refreshTick,
-                                    onAi = { destination = V32Destination.AI },
-                                    onRoutines = { destination = V32Destination.ROUTINES },
-                                    onSettings = { settingsOpen = true },
-                                )
-                                V32Destination.PROFILES -> CycloneProfilesPage(context, refreshTick) { destination = V32Destination.AI }
-                                V32Destination.AI -> V39AiChatPage(context, refreshTick) { settingsOpen = true }
-                                V32Destination.ROUTINES -> CycloneRoutinesPage(
-                                    context,
-                                    refreshTick,
-                                    { destination = V32Destination.AI },
-                                ) { refreshTick++ }
-                                V32Destination.BRAIN -> CycloneV39BrainPage(context, refreshTick)
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
+                topBar = {
+                    if (settingsOpen) {
+                        CycloneV32TopBar(
+                            title = destination.label,
+                            settingsOpen = true,
+                            ready = phoneReady,
+                            onSettings = {},
+                            onBack = { backFromSettings() },
+                        )
+                    }
+                },
+                bottomBar = {
+                    if (!settingsOpen) CycloneV32BottomBar(destination) { destination = it }
+                },
+            ) { padding ->
+                Box(Modifier.fillMaxSize().padding(padding)) {
+                    Column(Modifier.fillMaxSize()) {
+                        ProfileRescueBar()
+                        Box(Modifier.weight(1f).fillMaxSize()) {
+                            if (settingsOpen) {
+                                CycloneSettingsPage426(context, refreshTick, { refreshTick++ }, settingsSection) { settingsSection = it }
+                            } else {
+                                when (destination) {
+                                    V32Destination.HOME -> V32HomePage(
+                                        context = context,
+                                        refreshTick = refreshTick,
+                                        onAi = { destination = V32Destination.AI },
+                                        onRoutines = { destination = V32Destination.ROUTINES },
+                                        onSettings = { settingsOpen = true },
+                                    )
+                                    V32Destination.PROFILES -> CycloneProfilesPage(context, refreshTick) { destination = V32Destination.AI }
+                                    V32Destination.AI -> V39AiChatPage(context, refreshTick) { settingsOpen = true }
+                                    V32Destination.ROUTINES -> CycloneRoutinesPage(
+                                        context,
+                                        refreshTick,
+                                        { destination = V32Destination.AI },
+                                    ) { refreshTick++ }
+                                    V32Destination.BRAIN -> CycloneV39BrainPage(context, refreshTick)
+                                }
                             }
                         }
                     }
@@ -129,8 +130,6 @@ fun CycloneMobileV32App() {
             }
         }
     }
-}
-
 }
 
 @Composable
