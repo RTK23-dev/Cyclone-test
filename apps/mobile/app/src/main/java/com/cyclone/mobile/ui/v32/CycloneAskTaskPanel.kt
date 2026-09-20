@@ -76,7 +76,7 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
     }
     val snapshot = remember(projectedTask) { TaskPresentationProjector.project(projectedTask) }
     val visualState = task.taskVisualState()
-    var progressExpanded by rememberSaveable(task.taskId) { mutableStateOf(false) }
+    var progressExpanded by rememberSaveable(task.taskId) { mutableStateOf(true) }
     val palette = cycloneConversationPalette()
 
     LaunchedEffect(task.taskId, task.phase) {

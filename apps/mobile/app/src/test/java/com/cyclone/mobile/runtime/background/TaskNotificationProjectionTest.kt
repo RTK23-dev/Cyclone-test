@@ -7,7 +7,9 @@ class TaskNotificationProjectionTest {
         for (phase in TaskPhase.entries) {
             val state = TaskHarnessState.normalize(task, task.copy(phase = phase))
             assertEquals(TaskPresentationProjector.project(state).title, TaskNotificationProjection.title(state))
-            assertEquals(TaskPresentationProjector.project(state).supportingCopy, TaskNotificationProjection.body(state))
+            val snapshot = TaskPresentationProjector.project(state)
+            assertEquals(if (state.working) snapshot.currentMilestone else snapshot.supportingCopy,
+                TaskNotificationProjection.body(state))
             assertEquals(state.interruption?.canResumeAfterHuman == true,
                 TaskNotificationProjection.actions(state).any { it.first == "resume" })
             assertEquals(state.interruption?.canAutofill == true,
@@ -31,5 +33,18 @@ class TaskNotificationProjectionTest {
         assertFalse(WorkspaceTasks.matches(task, "t", null))
         assertFalse(WorkspaceTasks.matches(task, "t", "other"))
         assertTrue(WorkspaceTasks.matches(task, "t", "s"))
+    }
+
+    @Test fun notificationShowsCurrentStepAndOnlyUsesGroundedProgress() {
+        val unplanned = task.copy(phase = TaskPhase.WORKING)
+        assertNull(TaskNotificationProjection.progressPercent(unplanned))
+        val planned = unplanned.copy(plannedMilestones = listOf("Opening Reddit", "Checking login"),
+            plannedMilestoneIndex = 1)
+        assertEquals(50, TaskNotificationProjection.progressPercent(planned))
+        assertEquals("Checking login", TaskNotificationProjection.body(planned))
+        assertEquals(listOf("cancel" to "Stop task"), TaskNotificationProjection.actions(planned))
+        for (phase in listOf(TaskPhase.DONE, TaskPhase.STOPPED, TaskPhase.FAILED, TaskPhase.HUMAN)) {
+            assertNull(TaskNotificationProjection.progressPercent(planned.copy(phase = phase)))
+        }
     }
 }

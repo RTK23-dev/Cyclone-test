@@ -250,6 +250,7 @@ class OverlayChromeController(
     private var idleVisualState by mutableStateOf(OverlayIdleVisualState())
     private var imeBottomPx by mutableStateOf(0)
     private var navigationBottomPx by mutableStateOf(0)
+    private var reportedImeBottomPx = 0
     private var speechRecognizer: SpeechRecognizer? = null
 
     fun show(snapshot: OverlayChromeSnapshot) {
@@ -397,6 +398,7 @@ class OverlayChromeController(
 
     fun keyboardClosed() {
         onMain {
+            reportedImeBottomPx = 0
             imeBottomPx = 0
             applyLayout(latest)
         }
@@ -551,7 +553,8 @@ class OverlayChromeController(
 
     private fun trackIme(view: View) {
         val apply = { insets: WindowInsetsCompat ->
-            imeBottomPx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            reportedImeBottomPx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            imeBottomPx = reportedImeBottomPx
             navigationBottomPx = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
             applyLayout(latest)
         }
@@ -574,6 +577,32 @@ class OverlayChromeController(
             },
         )
         ViewCompat.requestApplyInsets(view)
+        // Accessibility overlays can receive frame-relative (zero) IME insets even with a docked
+        // keyboard. Resolve its absolute window bounds; never inspect keyboard nodes or text.
+        val keyboardTracker = object : Runnable {
+            override fun run() {
+                if (root !== view || !view.isAttachedToWindow) return
+                if (view.visibility == View.VISIBLE && !isCompact(latest) && !glass()) {
+                    val screen = wm.maximumWindowMetrics.bounds
+                    val docked = if (view.hasWindowFocus()) runCatching {
+                        service.windows.filter { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+                            .maxOfOrNull { window ->
+                                val bounds = android.graphics.Rect()
+                                window.getBoundsInScreen(bounds)
+                                OverlayImeLift.dockedHeight(screen.width(), screen.bottom, bounds.left,
+                                    bounds.top, bounds.right, bounds.bottom, navigationBottomPx)
+                            } ?: 0
+                    }.getOrDefault(0) else 0
+                    val next = OverlayImeLift.resolvedHeight(reportedImeBottomPx, docked)
+                    if (imeBottomPx != next) {
+                        imeBottomPx = next
+                        applyLayout(latest)
+                    }
+                }
+                main.postDelayed(this, 80L)
+            }
+        }
+        main.post(keyboardTracker)
     }
 
     private fun widthFor(spec: OverlayWindowContract): Int =

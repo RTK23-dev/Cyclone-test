@@ -21,6 +21,8 @@ import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -99,7 +101,7 @@ fun CycloneMobileV32App() {
                     if (!settingsOpen) CycloneV32BottomBar(destination) { destination = it }
                 },
             ) { padding ->
-                Box(Modifier.fillMaxSize().padding(padding)) {
+                Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
                     Column(Modifier.fillMaxSize()) {
                         ProfileRescueBar()
                         Box(Modifier.weight(1f).fillMaxSize()) {

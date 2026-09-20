@@ -21,14 +21,13 @@ class OverlayChromeMachine(
         cta: OverlayAnalysisCta = OverlayAnalysisCta.CONFIRM,
     ) {
         if (snapshot.state != OverlayChromeState.IDLE && snapshot.state != OverlayChromeState.DONE) return
-        val keepMinimized = snapshot.minimized
         snapshot = OverlayChromeSnapshot(
             state = OverlayChromeState.ANALYSIS,
             sessionId = sessionId,
             bullets = bullets,
             analysisCta = cta,
             idleChipVisible = false,
-            minimized = keepMinimized,
+            minimized = false,
             launcherCollapsed = false,
         )
     }
@@ -42,11 +41,19 @@ class OverlayChromeMachine(
             state = OverlayChromeState.WORKING,
             sessionId = sessionId.ifBlank { snapshot.sessionId },
             idleChipVisible = false,
-            minimized = snapshot.minimized,
-            launcherCollapsed = snapshot.launcherCollapsed,
+            minimized = false,
+            launcherCollapsed = false,
             userPaused = false,
         )
         cycloneState.resumeAgent()
+    }
+
+    /** Once per new task; later status updates must respect the user's manual collapse. */
+    fun showTaskProgress() {
+        snapshot = snapshot.copy(
+            state = if (snapshot.state == OverlayChromeState.IDLE) OverlayChromeState.ANALYSIS else snapshot.state,
+            minimized = false, launcherCollapsed = false, idleChipVisible = false,
+        )
     }
 
     fun enterLive() {

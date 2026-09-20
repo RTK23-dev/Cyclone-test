@@ -92,6 +92,9 @@ object OverlayChromeRuntime {
             workspaceJob = aiScope.launch {
                 var previousTask: String? = null
                 com.cyclone.mobile.runtime.background.WorkspaceTasks.state.collect { task ->
+                    if (task != null && task.taskId != previousTask && task.working) {
+                        mutate { it.showTaskProgress() }
+                    }
                     if (task?.foreground == true) {
                         controller?.background(task)
                         service?.let { AgentTaskNotificationRuntime.renderTask(it, task) }

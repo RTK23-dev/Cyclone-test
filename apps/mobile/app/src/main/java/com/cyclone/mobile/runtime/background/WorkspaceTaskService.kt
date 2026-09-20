@@ -3,12 +3,10 @@ package com.cyclone.mobile.runtime.background
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
-import com.cyclone.mobile.R
 import com.cyclone.mobile.ai.*
 import com.cyclone.mobile.runtime.session.ExecutionContext
 import com.cyclone.mobile.ui.overlay.GlassStepKind
@@ -323,25 +321,8 @@ class WorkspaceTaskService : Service() {
         update { if (it.working && it.semanticSteps.isEmpty()) it.copy(message = "Checking the current page") else it }
     }
     private fun update(change: (WorkspaceTaskUi) -> WorkspaceTaskUi) { taskId?.let { WorkspaceTasks.update(it, change) } }
-    private fun notification(task: WorkspaceTaskUi): Notification {
-        fun action(command: String) = PendingIntent.getService(this, 0,
-            WorkspaceTasks.commandIntent(this, task, command), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val progress = PendingIntent.getActivity(this, 0, WorkspaceTasks.progressIntent(this, task),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val builder = Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_cyclone_status)
-            .setContentTitle(TaskNotificationProjection.title(task))
-            .setContentText(TaskNotificationProjection.body(task))
-            .setOnlyAlertOnce(true).setShowWhen(false)
-            .setOngoing(task.working)
-            .setVisibility(Notification.VISIBILITY_PRIVATE).setContentIntent(progress)
-            .setPublicVersion(Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_cyclone_status)
-                .setContentTitle("Cyclone task").setContentText("Unlock to view progress").build())
-        builder.addAction(Notification.Action.Builder(null, "View progress", progress).build())
-        TaskNotificationProjection.actions(task).forEach { (command, label) ->
-            builder.addAction(Notification.Action.Builder(null, label, action(command)).build())
-        }
-        return builder.build()
-    }
+    private fun notification(task: WorkspaceTaskUi): Notification =
+        TaskProgressNotification.build(this, CHANNEL, task)
     override fun onDestroy() {
         // Only a task that was already truly terminal/closed may release the FIFO head.
         val promoteAfterDestroy = current?.phase in setOf(TaskPhase.FAILED, TaskPhase.STOPPED)

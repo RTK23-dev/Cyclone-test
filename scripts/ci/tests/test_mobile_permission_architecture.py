@@ -20,6 +20,9 @@ INFRASTRUCTURE_PERMISSIONS = {
     # It has no runtime grant dialog and does not grant access to another app's data.
     "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
     "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+    # Normal Live Update eligibility permission, without a runtime grant dialog. Android/user
+    # notification settings still control promotion; POST_NOTIFICATIONS retains its setup row.
+    "android.permission.POST_PROMOTED_NOTIFICATIONS",
 }
 
 # Every permission in this set must appear in the Cyclone setup UI as a row that maps to the

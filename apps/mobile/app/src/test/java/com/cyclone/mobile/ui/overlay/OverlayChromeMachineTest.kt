@@ -217,6 +217,37 @@ class OverlayChromeMachineTest {
         assertFalse(request.clicksHost || request.dispatchAccessibilityAction)
     }
 
+
+    @Test fun aNewTaskOpensProgressAfterThePreviousTaskWasCollapsed() {
+        val machine = OverlayChromeMachine()
+        machine.enterWorking("first")
+        machine.dispatch(OverlayUserAction.MINIMIZE)
+        machine.dispatch(OverlayUserAction.MINIMIZE)
+        assertTrue(machine.snapshot().launcherCollapsed)
+        machine.finishStopped("stopped")
+        machine.enterWorking("second")
+        assertFalse(machine.snapshot().minimized)
+        assertFalse(machine.snapshot().launcherCollapsed)
+        // Ordinary progress updates do not undo a deliberate collapse during this task.
+        machine.dispatch(OverlayUserAction.MINIMIZE)
+        machine.updateStatus("Opening Chrome")
+        assertTrue(machine.snapshot().minimized)
+    }
+
+    @Test fun backgroundTaskOverviewOpensWithoutResumingOrConfirmingTheAgent() {
+        val effects = RecordingEffects()
+        val machine = OverlayChromeMachine(cycloneState = effects)
+        machine.showTaskProgress()
+        assertEquals(OverlayChromeState.ANALYSIS, machine.state())
+        assertFalse(machine.snapshot().minimized)
+        assertFalse(machine.snapshot().idleChipVisible)
+        assertEquals(0, effects.resumes)
+        machine.enterGate(OverlayGateClass.PAY)
+        machine.showTaskProgress()
+        assertEquals(OverlayChromeState.GATE, machine.state())
+        assertEquals(0, effects.resumes)
+    }
+
     private fun assertEvent(event: OverlayChromeEvent, kind: OverlayChromeEventKind, clicksHost: Boolean) {
         assertEquals(kind, event.kind)
         assertEquals(clicksHost, event.clicksHost)

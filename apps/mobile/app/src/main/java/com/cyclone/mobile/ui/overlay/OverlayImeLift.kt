@@ -9,6 +9,15 @@ import androidx.compose.runtime.compositionLocalOf
 internal object OverlayImeLift {
     const val KEYBOARD_GAP_DP = 8
 
+    /** Only docked IME windows can occlude the full bottom composer; floating IMEs do not lift it. */
+    fun dockedHeight(screenWidth: Int, screenBottom: Int, left: Int, top: Int, right: Int,
+        bottom: Int, navigationBottom: Int): Int =
+        if (right - left >= screenWidth * .8f && bottom >= screenBottom - navigationBottom - 2 &&
+            top in 1 until screenBottom) (screenBottom - top).coerceAtLeast(0) else 0
+
+    fun resolvedHeight(insetHeight: Int, dockedHeight: Int): Int = maxOf(0, insetHeight, dockedHeight)
+
+
     fun windowY(
         followKeyboard: Boolean,
         specBottomMarginPx: Int,
