@@ -25,7 +25,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
@@ -83,7 +84,7 @@ internal fun SignatureOverlayDrawer(
         // Clip only the upper content. The composer below is never translated, faded,
         // reparented, or clipped by the drawer's animated bounds.
         Column(
-            Modifier.fillMaxWidth().clipToBounds()
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
                 .then(if (reveal == 0f) Modifier.clearAndSetSemantics {} else Modifier)
                 .layout { measurable, constraints ->
                     val measured = measurable.measure(constraints.copy(minHeight = 0))

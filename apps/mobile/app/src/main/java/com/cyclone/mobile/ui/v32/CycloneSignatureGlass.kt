@@ -87,13 +87,14 @@ internal fun CycloneSignatureGlass(
                     // the text field. The asymmetric whorls are a material signature, not a
                     // fingerprint button. All geometry is in dp, including on narrow devices.
                     data class Dot(val center: Offset, val radius: Float, val alpha: Float)
+                    val canvasSize = size
                     val dots = buildList {
                         if (textured) {
                             val unit = 1.dp.toPx()
-                            val reach = minOf(size.width * .28f, 100.dp.toPx())
+                            val reach = minOf(canvasSize.width * .28f, 100.dp.toPx())
                             for (side in 0..1) {
-                                val originX = if (side == 0) -15f * unit else size.width + 12f * unit
-                                val originY = size.height * if (side == 0) .95f else .72f
+                                val originX = if (side == 0) -15f * unit else canvasSize.width + 12f * unit
+                                val originY = canvasSize.height * if (side == 0) .95f else .72f
                                 for (ridge in 1..25) {
                                     val r = ridge * 4.1f * unit
                                     val count = (2 * PI * r / (3.8f * unit)).toInt().coerceAtLeast(12)
@@ -101,10 +102,10 @@ internal fun CycloneSignatureGlass(
                                         val angle = i * 2.0 * PI / count + ridge * .037
                                         val x = originX + cos(angle).toFloat() * r
                                         val y = originY + sin(angle).toFloat() * r * .83f
-                                        val edge = if (side == 0) x else size.width - x
-                                        if (x < 0 || x > size.width || y < 0 || y > size.height || edge !in 0f..reach) continue
+                                        val edge = if (side == 0) x else canvasSize.width - x
+                                        if (x < 0 || x > canvasSize.width || y < 0 || y > canvasSize.height || edge !in 0f..reach) continue
                                         val fade = (1f - edge / reach).coerceIn(0f, 1f)
-                                        val lower = (.24f + .76f * y / size.height)
+                                        val lower = (.24f + .76f * y / canvasSize.height)
                                         add(Dot(Offset(x, y), (.35f + .40f * fade) * unit, fade * lower * .52f))
                                     }
                                 }
