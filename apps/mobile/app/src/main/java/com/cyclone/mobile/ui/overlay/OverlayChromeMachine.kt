@@ -21,13 +21,15 @@ class OverlayChromeMachine(
         cta: OverlayAnalysisCta = OverlayAnalysisCta.CONFIRM,
     ) {
         if (snapshot.state != OverlayChromeState.IDLE && snapshot.state != OverlayChromeState.DONE) return
+        val gateContinuation = snapshot.state == OverlayChromeState.DONE &&
+            snapshot.gateClass != null && snapshot.sessionId == sessionId
         snapshot = OverlayChromeSnapshot(
             state = OverlayChromeState.ANALYSIS,
             sessionId = sessionId,
             bullets = bullets,
             analysisCta = cta,
             idleChipVisible = false,
-            minimized = false,
+            minimized = gateContinuation && snapshot.minimized,
             launcherCollapsed = false,
         )
     }
@@ -37,12 +39,13 @@ class OverlayChromeMachine(
             snapshot.state != OverlayChromeState.ANALYSIS &&
             snapshot.state != OverlayChromeState.LIVE
         ) return
+        val continuation = snapshot.sessionId.isNotBlank() && sessionId == snapshot.sessionId
         snapshot = snapshot.copy(
             state = OverlayChromeState.WORKING,
             sessionId = sessionId.ifBlank { snapshot.sessionId },
             idleChipVisible = false,
-            minimized = false,
-            launcherCollapsed = false,
+            minimized = continuation && snapshot.minimized,
+            launcherCollapsed = continuation && snapshot.launcherCollapsed,
             userPaused = false,
         )
         cycloneState.resumeAgent()
