@@ -48,25 +48,13 @@ internal fun CycloneMinimizedComposerBar(
     onTextChanged: (String) -> Unit,
     onExpand: () -> Unit,
     onAdd: () -> Unit,
-    onModelAndIntelligence: () -> Unit,
     onVoice: () -> Unit,
     onSubmit: () -> Unit,
-    modelLabel: String,
-    intelligenceLabel: String,
     sendEnabled: Boolean,
     busy: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val palette = cycloneConversationPalette()
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(CycloneConversationTokens.composerRadius),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = .98f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        border = BorderStroke(.8.dp, palette.cardOutline),
-    ) {
+    CycloneSignatureGlass(modifier = modifier.fillMaxWidth()) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -80,7 +68,7 @@ internal fun CycloneMinimizedComposerBar(
                 enabled = !busy,
                 modifier = Modifier.size(46.dp),
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .70f),
+                color = androidx.compose.ui.graphics.Color.Transparent,
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp,
             ) {
@@ -90,31 +78,6 @@ internal fun CycloneMinimizedComposerBar(
             }
 
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                Row(
-                    modifier = Modifier
-                        .clickable(enabled = !busy, role = Role.Button, onClick = onModelAndIntelligence)
-                        .padding(horizontal = 7.dp, vertical = 1.dp)
-                        .semantics { contentDescription = "Model and intelligence" },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    Text(
-                        modelLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text("·", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        intelligenceLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                }
-
                 BasicTextField(
                     value = text,
                     onValueChange = onTextChanged,
@@ -149,8 +112,8 @@ internal fun CycloneMinimizedComposerBar(
                 enabled = if (text.isBlank() && !busy) true else sendEnabled,
                 modifier = Modifier.size(44.dp),
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                color = androidx.compose.ui.graphics.Color.Transparent,
+                contentColor = SignatureInk,
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp,
             ) {

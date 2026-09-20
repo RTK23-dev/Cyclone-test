@@ -44,18 +44,10 @@ fun CycloneForegroundWorkCard(
     val shape = RoundedCornerShape(CycloneConversationTokens.taskRadius)
     val palette = cycloneConversationPalette()
 
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .animateContentSize()
-            .clip(shape)
+    CycloneSignatureCard(
+        modifier = modifier.fillMaxWidth().animateContentSize().clip(shape)
             .then(if (compact && onExpand != null) Modifier.clickable(onClick = onExpand) else Modifier),
-        shape = shape,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = if (compact) .94f else .98f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        border = BorderStroke(.8.dp, palette.cardOutline),
+        cornerRadius = CycloneConversationTokens.taskRadius,
     ) {
         if (compact) {
             Row(

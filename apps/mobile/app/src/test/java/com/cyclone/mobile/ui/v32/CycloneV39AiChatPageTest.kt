@@ -79,19 +79,19 @@ class CycloneV39AiChatPageTest {
         assertTrue(page.contains("contentDescription = \"Ask Cyclone composer\""))
         assertTrue(page.contains("maxLines = 4"))
         assertTrue(page.contains("ImeAction.Send"))
-        assertEquals(1, Regex("CycloneKyantLiquidIconButton\\(").findAll(page).count())
-        assertTrue(page.contains("tint = MaterialTheme.colorScheme.primary"))
+        assertTrue(page.contains("SignatureAction(SignatureGlyph.SEND"))
+        assertTrue(page.contains("SignatureAction(SignatureGlyph.MIC"))
         assertFalse(page.contains("FilledIconButton("))
     }
 
-    @Test fun modelIntelligenceControlLivesInsideComposerWithoutDuplicateHeaderPill() {
+    @Test fun modelIntelligenceControlLivesInPlusSheetWithoutDuplicateHeaderPill() {
         val page = source("CycloneV39AiChatPage.kt")
         val askGlass = page.indexOf("CycloneLiquidPanel(")
         val quickControl = page.indexOf("contentDescription = \"Model and intelligence\"", askGlass)
-        val composer = page.indexOf("BasicTextField(", quickControl)
+        val composer = page.indexOf("BasicTextField(", askGlass)
         assertTrue(askGlass >= 0)
         assertTrue(quickControl > askGlass)
-        assertTrue(composer > quickControl)
+        assertTrue(composer in askGlass until quickControl)
         assertTrue(page.contains("CycloneModelIntelligencePanel("))
         assertTrue(page.contains("showModelSelector = true"))
         assertTrue(page.contains("if (modelMenuOpen && !keyboardOpen)"))
@@ -197,7 +197,7 @@ class CycloneV39AiChatPageTest {
         assertTrue(page.contains("AskCycloneOrb()"))
         assertTrue(page.contains("AskCycloneDotField(Modifier.matchParentSize())"))
         assertTrue(page.contains("askCycloneCanvasBrush()"))
-        assertTrue(page.contains("if (isSystemInDarkTheme()) Color.Black else Color.White"))
+        assertTrue(page.contains("Color(0xFF061A20)"))
         assertTrue(page.contains("padding(bottom = 48.dp)"))
         val tools = page.indexOf("CycloneAttachmentTools(")
         val intelligence = page.indexOf("CycloneModelIntelligencePanel(")
@@ -218,7 +218,7 @@ class CycloneV39AiChatPageTest {
         assertTrue(page.contains("keyboardController?.hide()"))
         assertTrue(minimized.contains("BasicTextField("))
         assertTrue(minimized.contains("contentDescription = \"Ask Cyclone minimized composer\""))
-        assertTrue(minimized.contains("contentDescription = \"Model and intelligence\""))
+        assertFalse(minimized.contains("modelLabel"))
         assertTrue(drawer.contains("Drag down or tap to minimize Cyclone chat"))
     }
 
@@ -239,14 +239,14 @@ class CycloneV39AiChatPageTest {
         assertFalse(page.contains("Open app"))
         assertTrue(page.contains("AskCycloneVoiceMode"))
         assertTrue(page.contains("Listening…"))
-        assertEquals(1, Regex("Icons\\.Rounded\\.Add").findAll(page).count())
+        assertEquals(1, Regex("SignatureIcon\\(SignatureGlyph.ADD").findAll(page).count())
     }
 
-    @Test fun askBarContainsQuickModelAndIntelligenceSelector() {
+    @Test fun askPlusContainsModelAndIntelligenceSelector() {
         val page = source("CycloneV39AiChatPage.kt")
         val controls = source("CycloneIntelligenceControls.kt")
         assertTrue(page.contains("contentDescription = \"Model and intelligence\""))
-        assertTrue(page.contains("cycloneShortModelLabel("))
+        assertFalse(page.contains("modelLabel ="))
         assertTrue(page.contains("reasoningEffortLabel"))
         assertTrue(controls.contains("private enum class OverlaySettingsStep { MODEL, INTELLIGENCE }"))
         assertFalse(controls.contains("OverlaySettingsStep.AUTONOMY"))

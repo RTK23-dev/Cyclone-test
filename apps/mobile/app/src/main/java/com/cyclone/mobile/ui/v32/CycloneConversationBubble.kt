@@ -47,13 +47,16 @@ fun CycloneConversationBubble(
                     .animateContentSize(),
                 horizontalArrangement = Arrangement.Start,
             ) {
+                CycloneSignatureCard(cornerRadius = CycloneConversationTokens.bubbleRadius) {
                 Text(
                     clean,
+                    modifier = Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = assistantContent,
+                    color = SignatureInk,
                     maxLines = maxLines,
                     overflow = TextOverflow.Ellipsis,
                 )
+                }
             }
         }
 
@@ -62,8 +65,8 @@ fun CycloneConversationBubble(
                 modifier.fillMaxWidth().animateContentSize(),
                 horizontalArrangement = Arrangement.End,
             ) {
-                Box(
-                    Modifier
+                CycloneSignatureCard(
+                    modifier = Modifier
                         .fillMaxWidth(.80f)
                         .clip(
                             RoundedCornerShape(
@@ -74,6 +77,7 @@ fun CycloneConversationBubble(
                             ),
                         )
                         .background(userContainer),
+                    cornerRadius = CycloneConversationTokens.bubbleRadius,
                 ) {
                     Text(
                         clean,
@@ -82,7 +86,7 @@ fun CycloneConversationBubble(
                             vertical = CycloneConversationTokens.space12,
                         ),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = userContent,
+                        color = SignatureInk,
                         maxLines = maxLines,
                         overflow = TextOverflow.Ellipsis,
                     )

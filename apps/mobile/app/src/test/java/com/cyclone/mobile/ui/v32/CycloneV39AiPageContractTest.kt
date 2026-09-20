@@ -45,7 +45,7 @@ class CycloneV39AiPageContractTest {
         assertTrue(current in 0 until drawer)
         assertTrue(queued in 0 until drawer)
         assertTrue(drawer in 0 until quickModel)
-        assertTrue(quickModel in 0 until composer)
+        assertTrue(composer in drawer until quickModel)
         assertTrue(text.contains("CycloneModelIntelligencePanel("))
         assertTrue(text.contains("showModelSelector = true"))
         assertFalse(text.contains("CycloneModelPill("))

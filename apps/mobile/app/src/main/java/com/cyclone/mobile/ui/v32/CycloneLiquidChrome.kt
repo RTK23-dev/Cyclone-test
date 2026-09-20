@@ -125,6 +125,12 @@ internal fun CycloneLiquidPanel(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     content: @Composable BoxScope.() -> Unit,
 ) {
+    if (LocalCycloneSignatureTheme.current) {
+        CycloneSignatureGlass(modifier.fillMaxWidth(), cornerRadius = cornerRadius) {
+            Box(Modifier.padding(contentPadding), content = content)
+        }
+        return
+    }
     val backdrop = LocalCycloneLiquidBackdrop.current
     val shape = RoundedCornerShape(cornerRadius)
     val container = cycloneGlassFill(panel = true)

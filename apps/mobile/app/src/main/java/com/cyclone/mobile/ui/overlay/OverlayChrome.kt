@@ -162,7 +162,7 @@ fun OverlayChrome(
     onIdleSemanticActivate: () -> Unit = { onAction(OverlayUserAction.ASK_CYCLONE) },
     modifier: Modifier = Modifier,
 ) {
-    CycloneV32Theme(drawBackground = false) {
+    com.cyclone.mobile.ui.v32.CycloneSignatureTheme {
         val presentation = when {
             snapshot.state == OverlayChromeState.IDLE -> "idle"
             snapshot.launcherCollapsed -> "launcher"
@@ -444,7 +444,7 @@ private fun ComposerPanel(
                     com.cyclone.mobile.ui.v32.CycloneConversationBubble(
                         text = task.goal,
                         speaker = com.cyclone.mobile.ui.v32.CycloneConversationSpeaker.USER,
-                        userContainer = Color.White.copy(alpha = .10f),
+                        userContainer = com.cyclone.mobile.ui.v32.SignatureTeal.copy(alpha = .12f),
                         userContent = Color(0xFFF5F5F7),
                         assistantContent = Color(0xFFF5F5F7),
                         maxLines = 3,
@@ -452,7 +452,7 @@ private fun ComposerPanel(
                     com.cyclone.mobile.ui.v32.CycloneConversationBubble(
                         text = "Got it. I'll keep working on that on your phone.",
                         speaker = com.cyclone.mobile.ui.v32.CycloneConversationSpeaker.CYCLONE,
-                        userContainer = Color.White.copy(alpha = .10f),
+                        userContainer = com.cyclone.mobile.ui.v32.SignatureTeal.copy(alpha = .12f),
                         userContent = Color(0xFFF5F5F7),
                         assistantContent = Color(0xFFD1D1D6),
                         maxLines = 2,

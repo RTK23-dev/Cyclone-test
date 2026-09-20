@@ -101,12 +101,11 @@ REQUIRED_TASK_PANEL = (
     "TaskFollowUpAction.RUN_AGAIN",
     "TaskFollowUpAction.TRY_AGAIN",
     "TaskFollowUpAction.OPEN_APP",
-    "shadowElevation = 0.dp",
+    "CycloneSignatureCard(",
 )
 REQUIRED_MINIMIZED_COMPOSER = (
     "BasicTextField(",
     'contentDescription = "Ask Cyclone minimized composer"',
-    'contentDescription = "Model and intelligence"',
     "Icons.Rounded.Add",
     "Icons.Rounded.GraphicEq",
     "Icons.Rounded.ArrowUpward",

@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -61,6 +62,11 @@ import com.cyclone.mobile.runtime.background.WorkspaceTasks
  */
 @Composable
 fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
+    CycloneSignatureTheme { SignatureAskTaskPanel(task) }
+}
+
+@Composable
+private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -79,23 +85,12 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
         if (visualState != CycloneTaskVisualState.WORKING) progressExpanded = false
     }
 
-    val targetContainer = when (visualState) {
-        CycloneTaskVisualState.WORKING -> MaterialTheme.colorScheme.surface.copy(alpha = .98f)
-        CycloneTaskVisualState.ACTION_NEEDED -> palette.attentionSoft
-        CycloneTaskVisualState.DONE -> palette.successSoft
-        CycloneTaskVisualState.FAILED -> palette.failureSoft
-    }
     val targetOutline = when (visualState) {
         CycloneTaskVisualState.WORKING -> palette.cardOutline
         CycloneTaskVisualState.ACTION_NEEDED -> palette.attention.copy(alpha = .26f)
         CycloneTaskVisualState.DONE -> palette.success.copy(alpha = .26f)
         CycloneTaskVisualState.FAILED -> palette.failure.copy(alpha = .28f)
     }
-    val container by animateColorAsState(
-        targetValue = targetContainer,
-        animationSpec = tween(CycloneConversationTokens.stateTransitionMs),
-        label = "task-card-container",
-    )
     val outline by animateColorAsState(
         targetValue = targetOutline,
         animationSpec = tween(CycloneConversationTokens.stateTransitionMs),
@@ -107,14 +102,10 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
         canClear = !UiTask(task).active,
         onOpen = { UiTask(task).open(context) },
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth().animateContentSize(),
-            shape = RoundedCornerShape(CycloneConversationTokens.taskRadius),
-            color = container,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
-            border = BorderStroke(.8.dp, outline),
+        CycloneSignatureCard(
+            modifier = Modifier.fillMaxWidth().animateContentSize()
+                .border(.8.dp, outline, RoundedCornerShape(CycloneConversationTokens.taskRadius)),
+            cornerRadius = CycloneConversationTokens.taskRadius,
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(

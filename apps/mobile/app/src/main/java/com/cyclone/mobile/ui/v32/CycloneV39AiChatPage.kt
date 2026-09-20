@@ -458,26 +458,16 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         modelMenuOpen = false
                         toolsOpen = true
                     },
-                    onModelAndIntelligence = {
-                        drawerCollapsed = false
-                        toolsOpen = false
-                        modelMenuOpen = true
-                    },
                     onVoice = { startVoice() },
                     onSubmit = { submit() },
-                    modelLabel = cycloneShortModelLabel(
-                        V39AiChatContract.modelForStored(selectedModelId).label.ifBlank { "Cyclone" },
-                    ),
-                    intelligenceLabel = reasoningEffort
-                        .takeIf(String::isNotBlank)
-                        ?.let(::reasoningEffortLabel)
-                        ?: "Auto",
                     sendEnabled = minimizedSendEnabled,
                     busy = session.busy,
                     modifier = Modifier.padding(bottom = CycloneConversationTokens.space8),
                 )
             } else {
                 CycloneChatDrawerSurface(
+                    containerColor = Color.Transparent,
+                    outlineColor = Color.Transparent,
                     onCollapse = {
                         focusManager.clearFocus(force = true)
                         keyboardController?.hide()
@@ -517,7 +507,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
 
             CycloneLiquidPanel(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                cornerRadius = CycloneConversationTokens.composerRadius,
+                cornerRadius = 33.dp,
                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 5.dp),
             ) {
                 Column(Modifier.fillMaxWidth()) {
@@ -537,7 +527,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                     }
 
                     Row(
-                        Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                        Modifier.fillMaxWidth().heightIn(min = 56.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         CycloneTrayIconAction(
@@ -546,50 +536,16 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                                 if (toolsOpen) modelMenuOpen = false
                             },
                             enabled = !session.busy,
-                            modifier = Modifier.size(44.dp),
+                            modifier = Modifier.size(48.dp).semantics { contentDescription = "Add attachment" },
                         ) {
-                            Icon(
-                                Icons.Rounded.Add,
-                                "Add attachment",
-                                Modifier.size(22.dp),
-                                tint = if (toolsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            SignatureIcon(SignatureGlyph.ADD)
+
                         }
 
                         Column(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.Center,
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .heightIn(min = 20.dp)
-                                    .clickable(enabled = !session.busy, role = Role.Button) {
-                                        modelMenuOpen = !modelMenuOpen
-                                        if (modelMenuOpen) toolsOpen = false
-                                    }
-                                    .padding(horizontal = 8.dp, vertical = 1.dp)
-                                    .semantics { contentDescription = "Model and intelligence" },
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            ) {
-                                Text(
-                                    cycloneShortModelLabel(
-                                        V39AiChatContract.modelForStored(selectedModelId).label.ifBlank { "Cyclone" },
-                                    ),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                )
-                                Text("·", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    reasoningEffort.takeIf(String::isNotBlank)?.let(::reasoningEffortLabel) ?: "Auto",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                )
-                            }
-
                             BasicTextField(
                                 value = composer,
                                 onValueChange = { composer = it },
@@ -623,44 +579,9 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                             RequestIntent.PHONE_TASK -> true
                             RequestIntent.CHAT -> hasKey && !session.busy
                         }
-                        if (composer.isBlank() && !session.busy) {
-                            Surface(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clickable(role = Role.Button, onClick = { startVoice() }),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                                shadowElevation = 0.dp,
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Rounded.GraphicEq, "Voice mode", Modifier.size(22.dp))
-                                }
-                            }
-                        } else if (backdrop != null) {
-                            CycloneKyantLiquidIconButton(
-                                onClick = { submit() },
-                                backdrop = backdrop,
-                                enabled = sendEnabled,
-                                modifier = Modifier.size(46.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            ) {
-                                Icon(
-                                    Icons.Rounded.ArrowUpward,
-                                    "Send request",
-                                    Modifier.size(22.dp),
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                )
-                            }
-                        } else {
-                            CycloneTrayIconAction(
-                                onClick = { submit() },
-                                enabled = sendEnabled,
-                                modifier = Modifier.size(46.dp),
-                            ) {
-                                Icon(Icons.Rounded.ArrowUpward, "Send request", Modifier.size(22.dp))
-                            }
-                        }
+                        SignatureAction(SignatureGlyph.MIC, "Voice mode", { startVoice() }, enabled = !session.busy)
+                        SignatureAction(SignatureGlyph.SEND, "Send request", { submit() }, enabled = sendEnabled)
+
                     }
                 }
             }
@@ -750,7 +671,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                     tonalElevation = 0.dp,
                     shadowElevation = 0.dp,
                 ) {
-                    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).semantics { contentDescription = "Model and intelligence" }) {
                         CycloneSheetDismissHandle(onDismiss = { modelMenuOpen = false })
                         CycloneModelIntelligencePanel(
                             modelId = selectedModelId,
@@ -844,8 +765,7 @@ private fun AskCycloneEmptyState() {
 
 @Composable
 private fun askCycloneCanvasBrush(): Brush {
-    val base = if (isSystemInDarkTheme()) Color.Black else Color.White
-    return Brush.verticalGradient(listOf(base, base))
+    return Brush.verticalGradient(listOf(Color(0xFF061A20), Color(0xFF0B3037), Color(0xFF061A20)))
 }
 
 /**
@@ -856,7 +776,7 @@ private fun askCycloneCanvasBrush(): Brush {
  */
 @Composable
 private fun AskCycloneDotField(modifier: Modifier = Modifier) {
-    val dark = isSystemInDarkTheme()
+    val dark = true
     val motion = rememberInfiniteTransition(label = "askDotField")
     val phase by motion.animateFloat(
         initialValue = 0f,
@@ -871,9 +791,9 @@ private fun AskCycloneDotField(modifier: Modifier = Modifier) {
         label = "askDotPhase",
     )
 
-    val lilac = if (dark) Color(0xFF9B8CFF) else Color(0xFF7D83FF)
-    val blue = if (dark) Color(0xFF69A7FF) else Color(0xFF3D8DFF)
-    val cyan = if (dark) Color(0xFF5DD8FF) else Color(0xFF43C6F6)
+    val lilac = Color(0xFF327A80)
+    val blue = Color(0xFF58B4B2)
+    val cyan = SignatureTeal
 
     Canvas(modifier) {
         if (size.width <= 0f || size.height <= 0f) return@Canvas
@@ -928,7 +848,7 @@ private fun AskCycloneDotField(modifier: Modifier = Modifier) {
                 ).toFloat()
                 val pulseScale = 0.78f + localWave * 0.42f
                 val radius = (tinyRadius + radiusRange * envelope) * pulseScale
-                val opacity = envelope * (if (dark) 0.66f else 0.56f) * (0.90f + localWave * 0.10f)
+                val opacity = envelope * (if (dark) 0.18f else 0.18f) * (0.90f + localWave * 0.10f)
 
                 val tint = if (nx < 0.5f) {
                     blend(lilac, blue, nx * 2f)
@@ -972,7 +892,7 @@ private fun AskCycloneOrb() {
         val orb = r * 0.52f
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(Color(0xFFB9D4FF), Color(0xFF4D7DFF), Color(0xFF1C3F9C), Color(0xFF14245A)),
+                colors = listOf(Color(0xFFCCF6EF), SignatureTeal, Color(0xFF217C83), Color(0xFF0B3037)),
                 center = Offset(c.x - orb * 0.28f, c.y - orb * 0.34f),
                 radius = orb * 1.55f,
             ),

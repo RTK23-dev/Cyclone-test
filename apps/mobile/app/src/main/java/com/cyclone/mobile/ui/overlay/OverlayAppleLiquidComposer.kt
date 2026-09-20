@@ -86,6 +86,7 @@ internal fun OverlayAppleGlass(
     CycloneSignatureGlass(
         modifier = modifier,
         textured = false,
+        solidBacking = true,
         cornerRadius = cornerRadius,
         content = content,
     )

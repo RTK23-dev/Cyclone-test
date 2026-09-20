@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -41,11 +43,47 @@ import kotlin.math.sin
 internal val SignatureInk = Color(0xFFE0F5F3)
 internal val SignatureMuted = Color(0xFFA6CCCA)
 internal val SignatureTeal = Color(0xFF83DBD7)
-private val SignatureScheme = darkColorScheme(
+internal val SignatureScheme = darkColorScheme(
     primary = SignatureTeal, onPrimary = Color(0xFF052528),
+    primaryContainer = Color(0xFF17494E), onPrimaryContainer = SignatureInk,
+    secondary = Color(0xFF92DBC4), onSecondary = Color(0xFF07382F),
+    secondaryContainer = Color(0xFF153D36), onSecondaryContainer = Color(0xFFBBF4DE),
+    tertiary = Color(0xFFE9C78B), onTertiary = Color(0xFF3F3015),
+    tertiaryContainer = Color(0xFF3C3325), onTertiaryContainer = Color(0xFFFFE1AD),
+    error = Color(0xFFFFB4AB), onError = Color(0xFF5A1E1C),
+    errorContainer = Color(0xFF442C30), onErrorContainer = Color(0xFFFFDAD5),
+    background = Color(0xFF061A20), onBackground = SignatureInk,
+    outline = Color(0xFF527B7D), outlineVariant = Color(0xFF315257),
     surface = Color(0xFF08282D), surfaceVariant = Color(0xFF123B40),
     onSurface = SignatureInk, onSurfaceVariant = SignatureMuted,
 )
+
+internal val LocalCycloneSignatureTheme = compositionLocalOf { false }
+
+/** Scoped to Ask and task surfaces; light device settings cannot leak into overlay text. */
+@Composable
+internal fun CycloneSignatureTheme(enabled: Boolean = true, content: @Composable () -> Unit) {
+    if (!enabled) { content(); return }
+    CompositionLocalProvider(
+        LocalCycloneSignatureTheme provides true,
+        LocalCycloneOverlayChrome provides true,
+        LocalCycloneLiquidBackdrop provides null,
+        LocalContentColor provides SignatureInk,
+    ) {
+        MaterialTheme(colorScheme = SignatureScheme, content = content)
+    }
+}
+
+/** Readable companion card: an opaque teal backing stops launcher icons bleeding into copy. */
+@Composable
+internal fun CycloneSignatureCard(
+    modifier: Modifier = Modifier,
+    cornerRadius: Dp = 24.dp,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    CycloneSignatureGlass(modifier, textured = false, cornerRadius = cornerRadius,
+        solidBacking = true, content = content)
+}
 
 /**
  * The ask capsule is drawn at its actual size, never stretched from a concept bitmap.
@@ -60,6 +98,7 @@ internal fun CycloneSignatureGlass(
     listening: Boolean = false,
     textured: Boolean = true,
     cornerRadius: Dp = 33.dp,
+    solidBacking: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val voiceLight = animateFloatAsState(if (listening) 1f else 0f, label = "Voice glass light")
@@ -67,7 +106,7 @@ internal fun CycloneSignatureGlass(
         LocalCycloneInsideLiquidHost provides true,
         LocalCycloneOverlayChrome provides true,
     ) {
-        MaterialTheme(colorScheme = SignatureScheme) {
+        CycloneSignatureTheme {
             Box(
                 modifier.drawWithCache {
                     val radius = minOf(cornerRadius.toPx(), size.height / 2f)
@@ -126,6 +165,7 @@ internal fun CycloneSignatureGlass(
                     )
                     onDrawBehind {
                         clipPath(silhouette) {
+                            if (solidBacking) drawRect(Color(0xFF08282D))
                             drawRect(fill)
                             drawRect(leftMist)
                             drawRect(rightMist)
@@ -198,4 +238,31 @@ internal fun SignatureAction(
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) { SignatureIcon(glyph, color = SignatureInk.copy(alpha = if (enabled) 1f else .45f)) }
+}
+
+/** Match system-bar contrast while this destination is visible, then restore the host state. */
+@Composable
+internal fun CycloneSignatureSystemBars(enabled: Boolean = true) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }
+        .filterIsInstance<android.app.Activity>().firstOrNull()
+    androidx.compose.runtime.DisposableEffect(activity, enabled) {
+        val window = activity?.window
+        if (window == null || !enabled) return@DisposableEffect onDispose {}
+        val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        val statusLight = controller.isAppearanceLightStatusBars
+        val navigationLight = controller.isAppearanceLightNavigationBars
+        val statusColor = window.statusBarColor
+        val navigationColor = window.navigationBarColor
+        controller.isAppearanceLightStatusBars = false
+        controller.isAppearanceLightNavigationBars = false
+        window.statusBarColor = android.graphics.Color.rgb(6, 26, 32)
+        window.navigationBarColor = android.graphics.Color.rgb(6, 26, 32)
+        onDispose {
+            controller.isAppearanceLightStatusBars = statusLight
+            controller.isAppearanceLightNavigationBars = navigationLight
+            window.statusBarColor = statusColor
+            window.navigationBarColor = navigationColor
+        }
+    }
 }

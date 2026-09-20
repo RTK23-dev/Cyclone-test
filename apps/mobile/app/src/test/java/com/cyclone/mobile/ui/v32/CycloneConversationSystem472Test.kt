@@ -36,7 +36,7 @@ class CycloneConversationSystem472Test {
         assertTrue(minimized.contains("Icons.Rounded.Add"))
         assertTrue(minimized.contains("Icons.Rounded.GraphicEq"))
         assertTrue(minimized.contains("Icons.Rounded.ArrowUpward"))
-        assertTrue(minimized.contains("Model and intelligence"))
+        assertFalse(minimized.contains("modelLabel"))
     }
 
     @Test

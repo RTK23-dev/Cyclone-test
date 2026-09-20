@@ -100,12 +100,12 @@ class CycloneProfile429ContractTest {
         assertTrue(overlay.contains("CycloneModelIntelligencePanel("))
     }
 
-    @Test fun inAppComposerUsesInlineQuickSelectorAndSharedModelIntelligenceSheet() {
+    @Test fun inAppComposerUsesPlusMenuAndSharedModelIntelligenceSheet() {
         val source = source("ui/v32/CycloneV39AiChatPage.kt")
         assertTrue(source.contains("contentDescription = \"Model and intelligence\""))
         assertTrue(source.contains("CycloneModelIntelligencePanel("))
         assertTrue(source.contains("showModelSelector = true"))
-        assertTrue(source.contains("cycloneShortModelLabel("))
+        assertFalse(source.contains("modelLabel ="))
         assertTrue(source.contains("reasoningEffortLabel"))
         assertFalse(source.contains("showModelPill = false"))
     }

@@ -118,15 +118,7 @@ private fun QueuedTaskCard(
         packageName = target?.packageName ?: request.targetPackageName,
         status = status,
     )
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .90f),
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .64f)),
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-    ) {
+    CycloneSignatureCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             Modifier.padding(if (compact) 12.dp else 14.dp),
             verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),

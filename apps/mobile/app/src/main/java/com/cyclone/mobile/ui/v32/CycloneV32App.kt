@@ -80,6 +80,8 @@ fun CycloneMobileV32App() {
         }
 
         val phoneReady = v32AccessibilityEnabled(context)
+        CycloneSignatureSystemBars(enabled = destination == V32Destination.AI && !settingsOpen)
+        CycloneSignatureTheme(enabled = destination == V32Destination.AI && !settingsOpen) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
@@ -127,6 +129,8 @@ fun CycloneMobileV32App() {
             }
         }
     }
+}
+
 }
 
 @Composable

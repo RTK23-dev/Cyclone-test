@@ -6,6 +6,9 @@ import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
+import com.cyclone.mobile.ui.v32.CycloneSignatureTheme
+import com.cyclone.mobile.ui.v32.CycloneSignatureCard
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,7 +82,8 @@ class WorkspaceProgressActivity : ComponentActivity() {
         // screenshots, screen recording, and the Android recent-app snapshot.
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         setContent {
-            CycloneV32Theme {
+            CycloneSignatureTheme {
+                com.cyclone.mobile.ui.v32.CycloneSignatureSystemBars()
                 val current by WorkspaceTasks.state.collectAsState()
                 val task = current?.takeIf {
                     WorkspaceTasks.matches(it, intent.getStringExtra("task"), intent.getStringExtra("session"))
@@ -89,6 +93,7 @@ class WorkspaceProgressActivity : ComponentActivity() {
                 Column(
                     Modifier
                         .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
                         .systemBarsPadding()
                         .padding(horizontal = 18.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -155,14 +160,9 @@ class WorkspaceProgressActivity : ComponentActivity() {
             TaskConsumerState.DONE -> palette.success.copy(alpha = .26f)
             TaskConsumerState.FAILED -> palette.failure.copy(alpha = .28f)
         }
-        Surface(
+        CycloneSignatureCard(
             modifier = Modifier.fillMaxWidth().animateContentSize(),
-            shape = RoundedCornerShape(CycloneConversationTokens.taskRadius),
-            color = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
-            border = BorderStroke(.8.dp, outline),
+            cornerRadius = CycloneConversationTokens.taskRadius,
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(CycloneConversationTokens.space16),
