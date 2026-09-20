@@ -120,8 +120,6 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
                     snapshot.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                 )
 
                 AnimatedContent(
@@ -324,8 +322,6 @@ private fun TerminalBody(
                 it,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
             )
         } ?: snapshot.supportingCopy?.takeIf(String::isNotBlank)?.let {
             Text(

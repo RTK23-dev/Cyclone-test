@@ -47,16 +47,14 @@ fun CycloneConversationBubble(
                     .animateContentSize(),
                 horizontalArrangement = Arrangement.Start,
             ) {
-                CycloneSignatureCard(cornerRadius = CycloneConversationTokens.bubbleRadius) {
                 Text(
                     clean,
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(horizontal = 2.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = SignatureInk,
+                    color = assistantContent,
                     maxLines = maxLines,
                     overflow = TextOverflow.Ellipsis,
                 )
-                }
             }
         }
 

@@ -67,3 +67,44 @@ private fun SignatureTaskPreview(phase: com.cyclone.mobile.runtime.background.Ta
         )
     }
 }
+
+@Preview(name = "Conversation panel · Long context", widthDp = 392, heightDp = 700)
+@Preview(name = "Conversation panel · Narrow large type", widthDp = 320, heightDp = 700, fontScale = 1.5f)
+@Preview(name = "Conversation panel · Keyboard space", widthDp = 392, heightDp = 340)
+@Composable
+private fun UnifiedConversationPreview() {
+    com.cyclone.mobile.ui.v32.CycloneSignatureTheme {
+        Box(Modifier.background(Color(0xFF04171C)).padding(16.dp)) {
+            SignatureOverlayDrawer(
+                expanded = true, minimized = false, onCollapse = {}, onExpand = {},
+                composer = {
+                    OverlayAppleComposerBar(
+                        text = "", onTextChanged = {}, focusRequester = remember { FocusRequester() },
+                        onFocusChanged = {}, placeholder = "Ask Cyclone", menuOpen = false,
+                        voiceListening = false, working = false, paused = false,
+                        taskKey = "preview", onPause = {}, onStop = {}, onMenu = {},
+                        onDictate = {}, onPrimary = {},
+                    )
+                },
+            ) {
+                com.cyclone.mobile.ui.v32.CycloneConversationBubble(
+                    "Open Instagram and check my login status. Then show me the result and explain anything that needs my attention.",
+                    com.cyclone.mobile.ui.v32.CycloneConversationSpeaker.USER,
+                )
+                com.cyclone.mobile.ui.v32.CycloneConversationBubble(
+                    "Got it. I'm opening Instagram and checking your login status. You can follow each step here while I work.",
+                    com.cyclone.mobile.ui.v32.CycloneConversationSpeaker.CYCLONE,
+                )
+                com.cyclone.mobile.ui.v32.CycloneAskTaskPanel(
+                    com.cyclone.mobile.runtime.background.WorkspaceTaskUi(
+                        taskId = "conversation-preview", app = "Instagram", packageName = "com.instagram.android",
+                        goal = "Open Instagram and check login status",
+                        phase = com.cyclone.mobile.runtime.background.TaskPhase.WORKING,
+                        plannedMilestones = listOf("Opening Instagram", "Checking your login status", "Verifying the result"),
+                        plannedMilestoneIndex = 1,
+                    ),
+                )
+            }
+        }
+    }
+}

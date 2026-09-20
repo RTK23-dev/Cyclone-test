@@ -160,11 +160,12 @@ class Cyclone422TaskGlassTest {
     @Test fun largeFontLayoutIsBoundedAndNoLegacy150DpQueueBoxRemains() {
         val overlay = source("ui/overlay/OverlayChrome.kt")
         val queue = source("ui/v32/CyclonePendingRequests.kt")
-        val contract = source("ui/overlay/OverlayChromeContract.kt")
-        assertTrue(overlay.contains("TASK_AREA_MAX_HEIGHT_DP"))
-        assertTrue(overlay.contains("verticalScroll(rememberScrollState())"))
+        val drawer = source("ui/overlay/SignatureOverlayDrawer.kt")
+        assertTrue(overlay.contains("SignatureDrawerGeometry.availableHeight("))
+        assertTrue(overlay.contains("heightIn(max = panelHeight.dp)"))
+        assertTrue(drawer.contains("verticalScroll(rememberScrollState())"))
+        assertTrue(drawer.contains("Modifier.weight(1f, fill = false)"))
         assertFalse(queue.contains("max = 150.dp"))
-        assertTrue(contract.contains("TASK_AREA_MAX_HEIGHT_DP = 430"))
     }
 
     @Test fun keyboardCompactionRetainsQueuedControlsSafely() {
@@ -174,7 +175,7 @@ class Cyclone422TaskGlassTest {
         assertTrue(queue.contains("requests.take(KEYBOARD_VISIBLE_QUEUE_CARDS)"))
         assertTrue(queue.contains("Text(\"Steer\")"))
         assertTrue(queue.contains("Text(\"Stop\")"))
-        assertTrue(overlay.contains("TASK_AREA_KEYBOARD_MAX_HEIGHT_DP"))
+        assertTrue(overlay.contains("screenHeightDp, keyboardHeightDp"))
     }
 
     @Test fun accessibilityDescriptionsNameExactHumanizedTask() {

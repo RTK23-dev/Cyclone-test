@@ -374,51 +374,53 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                     AskCycloneEmptyState()
                 }
             } else {
-                LazyColumn(
-                    Modifier.weight(1f).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space12),
-                    contentPadding = PaddingValues(top = if (keyboardOpen) 2.dp else 4.dp, bottom = 8.dp),
-                ) {
-                    if (session.messages.isNotEmpty()) {
-                        items(session.messages, key = { it.id }) { V39ChatBubble(it) }
-                    }
-
-                    task?.let { current ->
-                        item(key = "current-${current.taskId}") {
-                            CycloneAskTaskPanel(current)
+                CycloneConversationPanel(Modifier.weight(1f).fillMaxWidth()) {
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space12),
+                        contentPadding = PaddingValues(top = if (keyboardOpen) 2.dp else 4.dp, bottom = 8.dp),
+                    ) {
+                        if (session.messages.isNotEmpty()) {
+                            items(session.messages, key = { it.id }) { V39ChatBubble(it) }
                         }
-                    }
-                    if (foregroundWorking) {
-                        item(key = "foreground-${foregroundSnapshot.sessionId}") {
-                            CycloneForegroundWorkCard(foregroundSnapshot)
-                        }
-                    }
-                    if (queuedRequests.isNotEmpty()) {
-                        item(key = "queued") { CyclonePendingRequests() }
-                    }
 
-                    if (session.busy || session.status.isNotBlank()) {
-                        item {
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        start = CycloneConversationTokens.space4,
-                                        end = CycloneConversationTokens.space24,
-                                        top = CycloneConversationTokens.space4,
-                                        bottom = CycloneConversationTokens.space4,
-                                    ),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8),
-                            ) {
-                                if (session.busy) {
-                                    CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 1.8.dp)
+                        task?.let { current ->
+                            item(key = "current-${current.taskId}") {
+                                CycloneAskTaskPanel(current)
+                            }
+                        }
+                        if (foregroundWorking) {
+                            item(key = "foreground-${foregroundSnapshot.sessionId}") {
+                                CycloneForegroundWorkCard(foregroundSnapshot)
+                            }
+                        }
+                        if (queuedRequests.isNotEmpty()) {
+                            item(key = "queued") { CyclonePendingRequests() }
+                        }
+
+                        if (session.busy || session.status.isNotBlank()) {
+                            item {
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            start = CycloneConversationTokens.space4,
+                                            end = CycloneConversationTokens.space24,
+                                            top = CycloneConversationTokens.space4,
+                                            bottom = CycloneConversationTokens.space4,
+                                        ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8),
+                                ) {
+                                    if (session.busy) {
+                                        CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 1.8.dp)
+                                    }
+                                    Text(
+                                        if (session.busy) "Thinking…" else session.status,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
                                 }
-                                Text(
-                                    if (session.busy) "Thinking…" else session.status,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
                             }
                         }
                     }

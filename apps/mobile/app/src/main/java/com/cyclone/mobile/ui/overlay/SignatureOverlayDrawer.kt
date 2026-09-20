@@ -3,6 +3,9 @@ package com.cyclone.mobile.ui.overlay
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.cyclone.mobile.ui.v32.CycloneConversationPanel
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +44,11 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 internal object SignatureDrawerGeometry {
+    /** Reserve the system edges and keyboard before measuring the persistent composer. */
+    fun availableHeight(screenHeight: Int, keyboardHeight: Int, topClearance: Int = 48,
+        restingBottom: Int = 50, keyboardGap: Int = 8): Int =
+        (screenHeight - topClearance - maxOf(restingBottom, keyboardHeight + keyboardGap)).coerceAtLeast(0)
+
     fun visibleHeight(fullHeight: Int, reveal: Float): Int =
         (fullHeight.coerceAtLeast(0) * reveal.coerceIn(0f, 1f)).roundToInt()
 
@@ -83,8 +91,8 @@ internal fun SignatureOverlayDrawer(
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         // Clip only the upper content. The composer below is never translated, faded,
         // reparented, or clipped by the drawer's animated bounds.
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
+        Box(
+            Modifier.weight(1f, fill = false).fillMaxWidth().clip(RoundedCornerShape(30.dp))
                 .then(if (reveal == 0f) Modifier.clearAndSetSemantics {} else Modifier)
                 .layout { measurable, constraints ->
                     val measured = measurable.measure(constraints.copy(minHeight = 0))
@@ -94,9 +102,15 @@ internal fun SignatureOverlayDrawer(
                         measured.placeRelative(0, visible - measured.height)
                     }
                 },
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            content = content,
-        )
+        ) {
+            CycloneConversationPanel(Modifier.fillMaxWidth()) {
+                Column(
+                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    content = content,
+                )
+            }
+        }
         Box(
             Modifier.fillMaxWidth().height(24.dp)
                 .semantics {

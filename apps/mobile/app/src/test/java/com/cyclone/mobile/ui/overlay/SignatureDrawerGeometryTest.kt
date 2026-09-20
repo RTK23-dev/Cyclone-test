@@ -33,4 +33,12 @@ class SignatureDrawerGeometryTest {
         assertEquals(0, SignatureDrawerGeometry.visibleHeight(-1, 1f))
         assertEquals(380, SignatureDrawerGeometry.visibleHeight(380, 2f))
     }
+
+    @Test fun panelBudgetTracksKeyboardAndLeavesSystemEdgesClear() {
+        assertEquals(702, SignatureDrawerGeometry.availableHeight(800, 0))
+        assertEquals(394, SignatureDrawerGeometry.availableHeight(800, 350))
+        assertEquals(702, SignatureDrawerGeometry.availableHeight(800, 0))
+        assertEquals(124, SignatureDrawerGeometry.availableHeight(360, 180))
+        assertEquals(0, SignatureDrawerGeometry.availableHeight(300, 400))
+    }
 }

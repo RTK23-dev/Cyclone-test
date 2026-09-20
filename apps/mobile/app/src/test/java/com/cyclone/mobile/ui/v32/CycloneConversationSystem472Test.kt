@@ -1,6 +1,7 @@
 package com.cyclone.mobile.ui.v32
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -68,6 +69,23 @@ class CycloneConversationSystem472Test {
         assertTrue(taskIndex >= 0)
         val nearby = overlay.substring((taskIndex - 1400).coerceAtLeast(0), (taskIndex + 300).coerceAtMost(overlay.length))
         assertFalse(nearby.contains("OverlayAppleGlass("))
+    }
+
+    @Test
+    fun sharedPanelHasOneBoundedViewportAndKeepsMessagesWhole() {
+        val drawer = source("ui/overlay/SignatureOverlayDrawer.kt")
+        val page = source("ui/v32/CycloneV39AiChatPage.kt")
+        val overlay = source("ui/overlay/OverlayChrome.kt")
+        val bubble = source("ui/v32/CycloneConversationBubble.kt")
+        assertTrue(drawer.contains("CycloneConversationPanel("))
+        assertTrue(page.contains("CycloneConversationPanel(Modifier.weight(1f).fillMaxWidth())"))
+        assertEquals(1, Regex("verticalScroll\\(").findAll(drawer).count())
+        val content = overlay.substringAfter("private fun ComposerPanel(").substringBefore("private fun GatePanel(")
+        assertFalse(content.contains("verticalScroll("))
+        assertFalse(content.contains("maxLines ="))
+        val assistant = bubble.substringAfter("CycloneConversationSpeaker.CYCLONE ->")
+            .substringBefore("CycloneConversationSpeaker.USER ->")
+        assertFalse(assistant.contains("CycloneSignatureCard("))
     }
 
     @Test

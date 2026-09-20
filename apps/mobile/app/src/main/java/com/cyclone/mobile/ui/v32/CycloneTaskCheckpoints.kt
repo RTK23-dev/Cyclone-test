@@ -91,7 +91,6 @@ fun CycloneTaskCheckpoints(snapshot: TaskPresentationSnapshot) {
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    maxLines = 2,
                 )
             }
         }

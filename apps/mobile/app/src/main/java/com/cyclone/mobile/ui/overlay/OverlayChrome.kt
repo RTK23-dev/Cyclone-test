@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -341,12 +342,12 @@ private fun ComposerPanel(
     val foregroundWorking = snapshot.state == OverlayChromeState.WORKING || snapshot.state == OverlayChromeState.LIVE
     val activeWork = task?.working == true || foregroundWorking
     val imePx = LocalOverlayImeBottomPx.current
-    val keyboardOpen = imePx > 0 || WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    val taskAreaMax = if (keyboardOpen) {
-        OverlayChromeContract.TASK_AREA_KEYBOARD_MAX_HEIGHT_DP
-    } else {
-        OverlayChromeContract.TASK_AREA_MAX_HEIGHT_DP
+    val keyboardHeightDp = with(LocalDensity.current) {
+        maxOf(imePx, WindowInsets.ime.getBottom(this)).toDp().value.toInt()
     }
+    val panelHeight = SignatureDrawerGeometry.availableHeight(
+        LocalConfiguration.current.screenHeightDp, keyboardHeightDp,
+    ).coerceAtMost(650)
 
     LaunchedEffect(task?.taskId, task?.working, foregroundWorking) {
         if (activeWork) {
@@ -402,7 +403,7 @@ private fun ComposerPanel(
             onAction(OverlayUserAction.MINIMIZE)
         },
         onExpand = { onAction(OverlayUserAction.ASK_CYCLONE) },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(max = panelHeight.dp).padding(horizontal = 16.dp),
         composer = {
         OverlayAppleComposerBar(
             text = snapshot.composerText,
@@ -434,10 +435,7 @@ private fun ComposerPanel(
     ) {
         if (task != null || foregroundWorking || queued.isNotEmpty()) {
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = taskAreaMax.dp)
-                    .verticalScroll(rememberScrollState()),
+                Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (task != null) {
@@ -447,7 +445,6 @@ private fun ComposerPanel(
                         userContainer = com.cyclone.mobile.ui.v32.SignatureTeal.copy(alpha = .12f),
                         userContent = Color(0xFFF5F5F7),
                         assistantContent = Color(0xFFF5F5F7),
-                        maxLines = 3,
                     )
                     com.cyclone.mobile.ui.v32.CycloneConversationBubble(
                         text = "Got it. I'll keep working on that on your phone.",
@@ -455,7 +452,6 @@ private fun ComposerPanel(
                         userContainer = com.cyclone.mobile.ui.v32.SignatureTeal.copy(alpha = .12f),
                         userContent = Color(0xFFF5F5F7),
                         assistantContent = Color(0xFFD1D1D6),
-                        maxLines = 2,
                     )
                 }
                 when {
@@ -501,15 +497,14 @@ private fun ComposerPanel(
                     launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
                 },
                 onModelAndIntelligence = { accessory = ComposerAccessory.MODEL },
-                modifier = Modifier.fillMaxWidth().heightIn(max = taskAreaMax.dp)
-                    .verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth(),
             )
 
             ComposerAccessory.MODEL -> OverlayAppleGlass(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = 30.dp,
             ) {
-                Box(Modifier.heightIn(max = taskAreaMax.dp).verticalScroll(rememberScrollState()).padding(12.dp)) {
+                Box(Modifier.padding(12.dp)) {
                     com.cyclone.mobile.ui.v32.CycloneModelIntelligencePanel(
                         aiSettings.modelId,
                         aiSettings.reasoningEffort,
