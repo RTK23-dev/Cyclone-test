@@ -42,7 +42,7 @@ class CycloneVisual42ContractTest {
         assertTrue(panel.contains("TaskFollowUpAction.TAKE_OVER"))
         assertTrue(panel.contains("TaskFollowUpAction.CONTINUE"))
         assertTrue(panel.contains("TaskFollowUpAction.RUN_AGAIN"))
-        assertTrue(panel.contains("border = BorderStroke(.8.dp, outline)"))
+        assertTrue(panel.contains(".border(.8.dp, outline, RoundedCornerShape(CycloneConversationTokens.taskRadius))"))
         assertTrue(panel.contains("CycloneSignatureCard("))
         assertTrue(panel.contains("progressExpanded"))
         assertTrue(panel.contains("CycloneConversationTokens.taskRadius"))

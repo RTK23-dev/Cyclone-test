@@ -106,7 +106,7 @@ class CycloneProfile429ContractTest {
         assertTrue(source.contains("CycloneModelIntelligencePanel("))
         assertTrue(source.contains("showModelSelector = true"))
         assertFalse(source.contains("modelLabel ="))
-        assertTrue(source.contains("reasoningEffortLabel"))
+        assertTrue(source.contains("onChange = ::persistAiControls"))
         assertFalse(source.contains("showModelPill = false"))
     }
 }

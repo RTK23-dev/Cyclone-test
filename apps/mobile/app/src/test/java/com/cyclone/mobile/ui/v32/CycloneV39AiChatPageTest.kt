@@ -247,7 +247,7 @@ class CycloneV39AiChatPageTest {
         val controls = source("CycloneIntelligenceControls.kt")
         assertTrue(page.contains("contentDescription = \"Model and intelligence\""))
         assertFalse(page.contains("modelLabel ="))
-        assertTrue(page.contains("reasoningEffortLabel"))
+        assertTrue(page.contains("onChange = ::persistAiControls"))
         assertTrue(controls.contains("private enum class OverlaySettingsStep { MODEL, INTELLIGENCE }"))
         assertFalse(controls.contains("OverlaySettingsStep.AUTONOMY"))
     }
