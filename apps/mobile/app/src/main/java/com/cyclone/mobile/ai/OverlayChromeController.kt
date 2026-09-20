@@ -13,6 +13,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -23,6 +25,7 @@ import android.widget.Toast
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import com.cyclone.mobile.ui.overlay.OverlayExternalInteraction
+import com.cyclone.mobile.ui.overlay.OverlayGesturePassthrough
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
@@ -139,6 +142,9 @@ internal object OverlayChromeWindowPolicy {
         if (spec.notTouchable) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         return flags
     }
+
+    fun withHostGesturePassthrough(flags: Int): Int =
+        flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
 
     fun gravity(spec: OverlayWindowContract): Int =
         Gravity.BOTTOM or if (spec.bottomCenter) Gravity.CENTER_HORIZONTAL else Gravity.END
@@ -614,8 +620,30 @@ class OverlayChromeController(
     private fun gravityFor(spec: OverlayWindowContract): Int = OverlayChromeWindowPolicy.gravity(spec)
 
     private fun flagsFor(spec: OverlayWindowContract): Int = OverlayChromeWindowPolicy.flags(spec).let {
-        if (OverlayExternalInteraction.active.value) it or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else it
+        if (OverlayExternalInteraction.active.value || OverlayGesturePassthrough.active()) {
+            OverlayChromeWindowPolicy.withHostGesturePassthrough(it)
+        } else it
+    }
+
+    /**
+     * Apply current overlay window flags, including host-gesture passthrough.
+     * Called from [OverlayGesturePassthrough] around dispatchGesture only.
+     */
+    fun syncHostGesturePassthrough() {
+        val latch = CountDownLatch(1)
+        val task = {
+            try {
+                if (root != null) applyLayout(latest)
+            } finally {
+                latch.countDown()
+            }
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            task()
+            return
+        }
+        if (!main.post(task)) return
+        latch.await(400, TimeUnit.MILLISECONDS)
     }
 
     private fun recordIdleTap() {

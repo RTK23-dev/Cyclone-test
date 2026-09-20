@@ -88,6 +88,7 @@ object OverlayChromeRuntime {
                 onAiSettingsChanged = { settings -> saveAiSettings(service, settings) },
             )
             controller = next
+            OverlayGesturePassthrough.bind { next.syncHostGesturePassthrough() }
             next.show(machine.snapshot())
             workspaceJob = aiScope.launch {
                 var previousTask: String? = null
@@ -115,6 +116,7 @@ object OverlayChromeRuntime {
         val context = synchronized(lock) { service }
         synchronized(lock) {
             workspaceJob?.cancel(); workspaceJob = null
+            OverlayGesturePassthrough.unbind()
             controller?.dismiss()
             controller = null
             service = null

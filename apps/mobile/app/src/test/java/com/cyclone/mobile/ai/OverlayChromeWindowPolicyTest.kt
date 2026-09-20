@@ -94,6 +94,17 @@ class OverlayChromeWindowPolicyTest {
     }
 
     @Test
+    fun hostGesturePassthroughMakesExpandedPanelIgnoreTouchesWithoutChangingRestingPolicy() {
+        val expanded = OverlayChromeWindowPolicy.main(compact = false)
+        val resting = OverlayChromeWindowPolicy.flags(expanded)
+        val passing = OverlayChromeWindowPolicy.withHostGesturePassthrough(resting)
+        assertTrue(resting and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE == 0)
+        assertTrue(passing and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0)
+        assertTrue(passing and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0)
+        assertTrue(passing and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL != 0)
+    }
+
+    @Test
     fun minimizedComposerIsContentHeightFocusableAndReadyForImmediateTyping() {
         val minimized = OverlayChromeWindowPolicy.minimizedComposer()
         val flags = OverlayChromeWindowPolicy.flags(minimized)

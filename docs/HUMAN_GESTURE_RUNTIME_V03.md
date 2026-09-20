@@ -4,7 +4,7 @@
 
 This document describes the Android-authoritative Human Gesture runtime behavior.
 
-The original V0.3 engine landed on `integration/human-gesture-v0.3` (`0239ecd7`) as frozen 4.2.0/81. This tree is a **surgical port onto Cyclone Mobile 4.7.5** (`v4.7.5`, versionCode 135). Product identity for this cut is **4.7.6 / versionCode 136**. Do not rewind to HG's 4.2.0 numbering, and do not overwrite the already-published 4.7.5 keyboard/live-progress APK.
+The original V0.3 engine landed on `integration/human-gesture-v0.3` (`0239ecd7`) as frozen 4.2.0/81. This tree is a **surgical port onto Cyclone Mobile 4.7.5** (`v4.7.5`, versionCode 135). Product identity for the Human Gesture port is **4.7.6 / versionCode 136**. **4.7.8 / versionCode 138** adds completion wait and overlay passthrough on published 4.7.7. Do not rewind to HG's 4.2.0 numbering, and do not overwrite already-published 4.7.5–4.7.7 APKs.
 
 Human Gesture remains downstream of Cyclone authorization. `PhoneToolExecutor` remains the phone mutation authority; the runtime does not bypass GATE, human ownership, MutationGrounding, `nodeAtTaskPath`, duplicate suppression, confirmation, Session Contract identity, Layer2 ownership, or Fast Path settle (300 then +500/+1000; Unchanged is not a second click).
 
@@ -153,4 +153,4 @@ No Android phone is available for this run. The lane therefore finishes source, 
 
 ## Fast Path
 
-No humanization sleeps were added. Semantic actions are not delayed for appearance. The existing action retry and Fast Path settle implementation remains the post-mutation verification mechanism. Human Gesture only changes the duration/path of an already-required physical gesture.
+No humanization sleeps were added to semantic actions. Semantic `ACTION_CLICK` is not delayed for appearance. Coordinate Human Gesture waits for Android `GestureResultCallback` (stroke duration + 500ms slack) before Fast Path starts. Fast Path itself remains settle 300ms then +500/+1000; Unchanged is not a second click. Overlay chrome is `FLAG_NOT_TOUCHABLE` only while that stroke runs.

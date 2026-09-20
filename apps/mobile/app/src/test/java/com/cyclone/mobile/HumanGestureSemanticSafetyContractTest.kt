@@ -14,6 +14,11 @@ class HumanGestureSemanticSafetyContractTest {
     private val service by lazy { productionSource("com/cyclone/mobile/CycloneAccessibilityService.kt") }
     private val executor by lazy { productionSource("com/cyclone/mobile/PhoneToolExecutor.kt") }
     private val dispatch by lazy { productionSource("com/cyclone/mobile/HumanGestureDispatch.kt") }
+    private val controller by lazy { productionSource("com/cyclone/mobile/ai/OverlayChromeController.kt") }
+    private val passthrough by lazy { productionSource("com/cyclone/mobile/ui/overlay/OverlayGesturePassthrough.kt") }
+    private val runtime by lazy { productionSource("com/cyclone/mobile/ui/overlay/OverlayChromeRuntime.kt") }
+    private val overlayEvent by lazy { productionSource("com/cyclone/mobile/ui/overlay/OverlayChromeEvent.kt") }
+    private val loop by lazy { productionSource("com/cyclone/mobile/fastpath/FastPathLoop.kt") }
 
     @Test
     fun `semantic click and select stay ahead of coordinate fallback`() {
@@ -60,7 +65,6 @@ class HumanGestureSemanticSafetyContractTest {
         assertTrue("cacheKey(request)" in executor)
     }
 
-
     @Test
     fun `workspace stale policy and mutation lock remain ahead of input`() {
         val workspace = slice(executor, "private fun executeWorkspace", "private fun executeInternal")
@@ -77,6 +81,49 @@ class HumanGestureSemanticSafetyContractTest {
         val swipe = slice(dispatch, "fun swipe(", "private fun viewport")
         assertOrdered(tap, "profile == HumanizeProfile.OFF", "legacyTap(")
         assertOrdered(swipe, "profile == HumanizeProfile.OFF", "legacySwipe(")
+    }
+
+    @Test
+    fun `dispatchGesture waits for GestureResultCallback instead of treating queue as success`() {
+        assertTrue("GestureResultCallback" in dispatch)
+        assertTrue("onCompleted" in dispatch)
+        assertTrue("onCancelled" in dispatch)
+        assertTrue("dispatchAndAwait" in dispatch)
+        assertFalse(
+            "queued dispatchGesture must not be treated as completion",
+            "dispatchGesture(gesture, null, null)" in dispatch,
+        )
+        assertTrue("gestureAwaitBudgetMs" in dispatch)
+        assertTrue("OverlayGesturePassthrough.withHostPassthrough" in dispatch)
+        assertOrdered(dispatch, "withHostPassthrough", "dispatchGesture(gesture, callback")
+        assertOrdered(dispatch, "dispatchGesture(gesture, callback", "done.await")
+    }
+
+    @Test
+    fun `overlay becomes not-touchable only for the host stroke`() {
+        assertTrue("withHostPassthrough" in passthrough)
+        assertTrue("OverlayGesturePassthrough.bind" in runtime)
+        assertTrue("OverlayGesturePassthrough.unbind" in runtime)
+        val flagsFor = slice(controller, "private fun flagsFor", "fun syncHostGesturePassthrough")
+        assertTrue("OverlayGesturePassthrough.active()" in flagsFor)
+        assertTrue("withHostGesturePassthrough" in flagsFor)
+        val applyLayout = slice(controller, "private fun applyLayout", "/** Decoration never owns")
+        assertFalse(
+            "host-gesture passthrough must not hide overlay chrome",
+            "OverlayGesturePassthrough" in applyLayout,
+        )
+        assertTrue("clicksHost: Boolean = false" in overlayEvent)
+        assertTrue("Overlay buttons never click host accessibility nodes." in overlayEvent)
+    }
+
+    @Test
+    fun `fast path still forbids a second click after a completed gesture`() {
+        assertTrue("SETTLE_MS = 300L" in loop)
+        assertTrue("settleAfterCompletedGestureMs" in loop)
+        assertTrue("allowSecondClickChannel" in loop)
+        val secondClick = slice(loop, "fun allowSecondClickChannel", "private fun result")
+        assertTrue("return false" in secondClick)
+        assertFalse("durationMs + SETTLE_MS" in loop)
     }
 
     private fun assertOrdered(source: String, first: String, second: String) {
