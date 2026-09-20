@@ -8,8 +8,12 @@ Callers may send `humanize=auto|off|light|normal` on `phone.click`, `phone.long_
 
 Instagram stock `phone.swipe` is pinned `humanize=off` until Pixel smoke.
 
-## Verification
+## Pre-release review
 
-The release requires repository guards, Android unit tests, lint and release assembly in exact-source Mobile CI. The publisher checks artifact provenance and signing continuity with 4.7.5. Gateway, MCP and Human Gesture lab Python tests cover the transport boundary, fail-closed profiles, and evidence projection. Source-order guards keep GATE and semantic actions ahead of Human Gesture dispatch.
+Engineering review of the 4.7.5 overlay plus this Human Gesture port is **GO for publication**. Overlay IME, task-progress, and live-notification sources are identical to 4.7.5. GATE still decides before any Human Gesture dispatch. Invalid `humanize` fails closed before cache lookup and mutation. Duplicate suppression ignores the humanize field so a profile change cannot become a second click. Workspace backends honestly report endpoint+duration rather than claiming cubic fidelity.
 
 Physical Pixel 8 (`3B171FDJH0061G`) Human Gesture smoke remains **UNVERIFIED**. CI does not substitute for an on-device check.
+
+## Verification
+
+The release requires repository guards, Android unit tests, lint and release assembly in exact-source Mobile CI. The publisher checks artifact provenance and signing continuity with 4.7.5. Gateway, MCP and Human Gesture lab Python tests cover the transport boundary, fail-closed profiles, and evidence projection. Source-order guards keep GATE, MutationGrounding and semantic actions ahead of Human Gesture dispatch.

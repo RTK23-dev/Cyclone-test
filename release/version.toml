@@ -1,5 +1,7 @@
 # Cyclone Mobile 4.7.6: Human Gesture V0.3 on the 4.7.5 keyboard/live-progress line.
 # Release source sealed on release/cyclone-mobile-v4.7.6.
+# Pre-release review 2026-09-20: GO. GATE, semantic-first, MutationGrounding,
+# cacheKey(request), and Fast Path Unchanged hold. Pixel 8 remains UNVERIFIED.
 # User authorized publication; exact-SHA Mobile CI gates the existing publisher.
 schema = 1
 product_version = "4.7.6"

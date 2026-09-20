@@ -55,8 +55,11 @@ class HumanGestureSemanticSafetyContractTest {
         val internal = slice(executor, "private fun executeInternal", "private fun currentFingerprint")
         assertOrdered(internal, "DeviceState.controller != DeviceState.Controller.AGENT", "dispatch(context, request")
         assertOrdered(internal, "DeviceState.requireFreshObservation", "dispatch(context, request")
+        assertOrdered(internal, "MutationGrounding.requiredFor", "dispatch(context, request")
         assertOrdered(internal, "isDuplicateAction(request)", "dispatch(context, request")
+        assertTrue("cacheKey(request)" in executor)
     }
+
 
     @Test
     fun `workspace stale policy and mutation lock remain ahead of input`() {
