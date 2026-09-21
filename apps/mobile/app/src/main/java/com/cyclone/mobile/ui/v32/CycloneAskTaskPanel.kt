@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -22,6 +23,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -29,7 +34,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,16 +42,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cyclone.mobile.runtime.background.TaskConsumerState
 import com.cyclone.mobile.runtime.background.TaskFollowUpAction
-import com.cyclone.mobile.runtime.background.TaskPhase
 import com.cyclone.mobile.runtime.background.TaskPresentationProjector
 import com.cyclone.mobile.runtime.background.TaskPresentationSnapshot
 import com.cyclone.mobile.runtime.background.WorkspaceTaskUi
@@ -68,8 +70,6 @@ fun CycloneAskTaskPanel(task: WorkspaceTaskUi) {
 @Composable
 private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
     val context = LocalContext.current
-    val focusManager = LocalFocusManager.current
-    val keyboard = LocalSoftwareKeyboardController.current
     val resolvedApp = remember(task.packageName) { appLabel(context, task.packageName) }
     val projectedTask = remember(task, resolvedApp) {
         if (resolvedApp.isNotBlank() && resolvedApp != "Other") task.copy(app = resolvedApp) else task
@@ -79,12 +79,7 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
     var progressExpanded by rememberSaveable(task.taskId) { mutableStateOf(true) }
     val palette = cycloneConversationPalette()
 
-    LaunchedEffect(task.taskId, task.phase) {
-        focusManager.clearFocus(force = true)
-        keyboard?.hide()
-        if (visualState != CycloneTaskVisualState.WORKING) progressExpanded = false
-    }
-
+    // Progress updates must preserve composer focus and the user's expansion choice.
     val targetOutline = when (visualState) {
         CycloneTaskVisualState.WORKING -> palette.cardOutline
         CycloneTaskVisualState.ACTION_NEEDED -> palette.attention.copy(alpha = .26f)
@@ -97,72 +92,68 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
         label = "task-card-outline",
     )
 
-    CycloneSwipeTaskCard(
-        "task:${task.taskId}",
-        canClear = !UiTask(task).active,
-        onOpen = { UiTask(task).open(context) },
+    CycloneSignatureCard(
+        modifier = Modifier.fillMaxWidth().animateContentSize()
+            .semantics { stateDescription = if (progressExpanded) "Expanded" else "Collapsed" }
+            .clickable(
+                onClickLabel = if (progressExpanded) "Collapse task progress" else "Expand task progress",
+            ) { progressExpanded = !progressExpanded }
+            .border(.8.dp, outline, RoundedCornerShape(CycloneConversationTokens.taskRadius)),
+        cornerRadius = CycloneConversationTokens.taskRadius,
     ) {
-        CycloneSignatureCard(
-            modifier = Modifier.fillMaxWidth().animateContentSize()
-                .border(.8.dp, outline, RoundedCornerShape(CycloneConversationTokens.taskRadius)),
-            cornerRadius = CycloneConversationTokens.taskRadius,
+        Column(
+            Modifier.fillMaxWidth().padding(
+                horizontal = CycloneConversationTokens.space16,
+                vertical = 15.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space12),
         ) {
-            Column(
-                Modifier.fillMaxWidth().padding(
-                    horizontal = CycloneConversationTokens.space16,
-                    vertical = 15.dp,
-                ),
-                verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space12),
-            ) {
-                TaskCardHeader(snapshot, visualState)
+            TaskCardHeader(snapshot, visualState, progressExpanded)
 
-                Text(
-                    snapshot.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
+            Text(
+                snapshot.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
 
-                AnimatedContent(
-                    targetState = visualState,
-                    transitionSpec = {
-                        fadeIn(tween(CycloneConversationTokens.stateTransitionMs)) togetherWith
-                            fadeOut(tween(CycloneConversationTokens.fastTransitionMs))
-                    },
-                    label = "Cyclone task state",
-                ) { state ->
-                    when (state) {
-                        CycloneTaskVisualState.WORKING -> WorkingBody(
-                            task = task,
-                            snapshot = snapshot,
-                            expanded = progressExpanded,
-                            onToggleExpanded = { progressExpanded = !progressExpanded },
-                            onFullDetails = { UiTask(task).open(context) },
-                        )
-                        CycloneTaskVisualState.ACTION_NEEDED -> ActionNeededBody(
-                            task = task,
-                            snapshot = snapshot,
-                            onTakeOver = { WorkspaceTasks.command(context, task, "handoff") },
-                            onAutofill = { WorkspaceTasks.command(context, task, "autofill") },
-                            onDone = { WorkspaceTasks.command(context, task, "resume") },
-                            onProgress = { UiTask(task).open(context) },
-                        )
-                        CycloneTaskVisualState.DONE -> TerminalBody(
-                            task = task,
-                            snapshot = snapshot,
-                            primaryAction = TaskFollowUpAction.RUN_AGAIN,
-                            onPrimary = { rerunTask(context, task) },
-                            onDetails = { UiTask(task).open(context) },
-                            onOpenApp = { openInstalledApp(context, task.packageName) },
-                        )
-                        CycloneTaskVisualState.FAILED -> TerminalBody(
-                            task = task,
-                            snapshot = snapshot,
-                            primaryAction = TaskFollowUpAction.TRY_AGAIN,
-                            onPrimary = { rerunTask(context, task) },
-                            onDetails = { UiTask(task).open(context) },
-                            onOpenApp = { openInstalledApp(context, task.packageName) },
-                        )
-                    }
+            AnimatedContent(
+                targetState = visualState,
+                transitionSpec = {
+                    fadeIn(tween(CycloneConversationTokens.stateTransitionMs)) togetherWith
+                        fadeOut(tween(CycloneConversationTokens.fastTransitionMs))
+                },
+                label = "Cyclone task state",
+            ) { state ->
+                when (state) {
+                    CycloneTaskVisualState.WORKING -> WorkingBody(
+                        snapshot = snapshot,
+                        expanded = progressExpanded,
+                    )
+                    CycloneTaskVisualState.ACTION_NEEDED -> ActionNeededBody(
+                        task = task,
+                        snapshot = snapshot,
+                        onTakeOver = { WorkspaceTasks.command(context, task, "handoff") },
+                        onAutofill = { WorkspaceTasks.command(context, task, "autofill") },
+                        onDone = { WorkspaceTasks.command(context, task, "resume") },
+                        expanded = progressExpanded,
+                        onReviewRequest = { UiTask(task).open(context) },
+                    )
+                    CycloneTaskVisualState.DONE -> TerminalBody(
+                        task = task,
+                        snapshot = snapshot,
+                        primaryAction = TaskFollowUpAction.RUN_AGAIN,
+                        onPrimary = { rerunTask(context, task) },
+                        expanded = progressExpanded,
+                        onOpenApp = { openInstalledApp(context, task.packageName) },
+                    )
+                    CycloneTaskVisualState.FAILED -> TerminalBody(
+                        task = task,
+                        snapshot = snapshot,
+                        primaryAction = TaskFollowUpAction.TRY_AGAIN,
+                        onPrimary = { rerunTask(context, task) },
+                        expanded = progressExpanded,
+                        onOpenApp = { openInstalledApp(context, task.packageName) },
+                    )
                 }
             }
         }
@@ -173,6 +164,7 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
 private fun TaskCardHeader(
     snapshot: TaskPresentationSnapshot,
     state: CycloneTaskVisualState,
+    expanded: Boolean,
 ) {
     Row(
         Modifier.fillMaxWidth(),
@@ -190,18 +182,20 @@ private fun TaskCardHeader(
             overflow = TextOverflow.Ellipsis,
         )
         CycloneTaskStatusPill(state)
+        Icon(
+            if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
 @Composable
 private fun WorkingBody(
-    task: WorkspaceTaskUi,
     snapshot: TaskPresentationSnapshot,
     expanded: Boolean,
-    onToggleExpanded: () -> Unit,
-    onFullDetails: () -> Unit,
 ) {
-    val palette = cycloneConversationPalette()
     Column(verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8)) {
         CycloneTaskProgressIndicator(snapshot.progressFraction)
 
@@ -229,23 +223,8 @@ private fun WorkingBody(
                         current,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8)) {
-            TextButton(
-                onClick = onToggleExpanded,
-                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
-            ) { Text(if (expanded) "Show less" else "View progress") }
-            if (expanded) {
-                TextButton(
-                    onClick = onFullDetails,
-                    contentPadding = PaddingValues(horizontal = CycloneConversationTokens.space8, vertical = 2.dp),
-                ) { Text("Details") }
             }
         }
     }
@@ -258,7 +237,8 @@ private fun ActionNeededBody(
     onTakeOver: () -> Unit,
     onAutofill: () -> Unit,
     onDone: () -> Unit,
-    onProgress: () -> Unit,
+    expanded: Boolean,
+    onReviewRequest: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space12)) {
         snapshot.supportingCopy?.takeIf(String::isNotBlank)?.let {
@@ -300,10 +280,16 @@ private fun ActionNeededBody(
             }
         }
 
-        TextButton(
-            onClick = onProgress,
-            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
-        ) { Text(if (task.confirmation != null) "Review details" else "View progress") }
+        if (expanded && snapshot.milestones.isNotEmpty()) {
+            CycloneTaskCheckpoints(snapshot)
+        }
+        // Keep access to actionable confirmations, not duplicate progress pages.
+        if (task.confirmation != null) {
+            TextButton(
+                onClick = onReviewRequest,
+                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
+            ) { Text("Review request") }
+        }
     }
 }
 
@@ -313,7 +299,7 @@ private fun TerminalBody(
     snapshot: TaskPresentationSnapshot,
     primaryAction: TaskFollowUpAction,
     onPrimary: () -> Unit,
-    onDetails: () -> Unit,
+    expanded: Boolean,
     onOpenApp: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space12)) {
@@ -339,15 +325,14 @@ private fun TerminalBody(
             )
         }
 
+        if (expanded && snapshot.milestones.isNotEmpty()) {
+            CycloneTaskCheckpoints(snapshot)
+        }
+
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space8),
         ) {
-            OutlinedButton(
-                onClick = onDetails,
-                modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                shape = RoundedCornerShape(15.dp),
-            ) { Text("View details") }
             if (primaryAction in snapshot.followUps) {
                 Button(
                     onClick = onPrimary,
