@@ -100,7 +100,7 @@ def test_secret_payload_is_rejected_not_stripped_or_forwarded(service):
                 "persona": "live",
                 "slot": "password",
                 "reason": "Login required",
-                "password": "must-never-cross",
+                "password": True,
             },
         )
     assert bridge.calls == []
