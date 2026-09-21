@@ -19,9 +19,9 @@ The card is the gate. Mapping and Facebook login both die without it.
 
 ## Your individual task
 
-1. `SecretsVault` in Android Keystore / StrongBox. Per place, per persona (`live` | `mapping`). Slots only. **Never** write values into Graph, Brain, diagnostics, or SharedPreferences plaintext.
+1. `SecretsVault` in Android Keystore, using StrongBox when the device supports it and a non-exportable Android Keystore key otherwise. Per place, per persona (`live` | `mapping`). Slots only. **Never** write values into Graph, Brain, diagnostics, or SharedPreferences plaintext. StrongBox absence must not make the card unusable.
 2. `SecretsCardOverlay` — sibling of Ask, same glass language. Pause the run. User types in the card **or** the host field. Overlay stays hittable for the card; host yield still applies to agent taps.
-3. Lease: one fill via existing `PhoneToolExecutor` input path → read-back → revoke. No retry from RAM after revoke.
+3. Lease: one fill via existing `PhoneToolExecutor` input path → local verification → revoke. Verification may check filled/non-empty state or compare inside the lease boundary, but **must not emit the plaintext read-back into observations, Page Cards, Brain, diagnostics, test failure messages, or logs**. No retry from RAM after revoke.
 4. Secret boundary: consume 001’s `needs-secret` task/interruption state. Preserve the existing PAY/SEND/DELETE/GRANT policy GATE semantics; do not turn a password request into a financial/approval risk class. Skip / cancel leaves the place blocked, not crashed.
 5. Settings: list which slots exist; delete/replace; no values on screen.
 6. Tests: strip/redact; lease revoke; overlay does not swallow the card; no password in a fake diagnostic dump.
