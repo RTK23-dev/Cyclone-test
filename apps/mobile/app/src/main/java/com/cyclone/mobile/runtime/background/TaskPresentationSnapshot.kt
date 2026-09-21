@@ -7,7 +7,13 @@ package com.cyclone.mobile.runtime.background
  * manufactures verification. Every field is derived from the authoritative WorkspaceTaskUi /
  * TaskHarnessState evidence already owned by the runtime.
  */
-enum class TaskConsumerState { WORKING, ACTION_NEEDED, DONE, FAILED }
+enum class TaskConsumerState(val wireValue: String) {
+    WORKING("working"),
+    ACTION_NEEDED("action-needed"),
+    NEEDS_SECRET("needs-secret"),
+    DONE("done"),
+    FAILED("failed"),
+}
 
 data class TaskPresentationMilestone(
     val label: String,
@@ -83,7 +89,12 @@ object TaskPresentationProjector {
         task: WorkspaceTaskUi,
         runInformation: TaskRunInformation? = TaskRunInformationProjector.fromTask(task),
     ): TaskPresentationSnapshot {
-        val state = when (task.phase) {
+        val state = if (
+            task.interruption?.kind == TaskInterruptionKind.NEEDS_SECRET &&
+            task.phase in setOf(TaskPhase.PAUSED, TaskPhase.REVIEW, TaskPhase.HUMAN)
+        ) {
+            TaskConsumerState.NEEDS_SECRET
+        } else when (task.phase) {
             TaskPhase.STARTING, TaskPhase.WORKING -> TaskConsumerState.WORKING
             TaskPhase.PAUSED, TaskPhase.REVIEW, TaskPhase.HUMAN -> TaskConsumerState.ACTION_NEEDED
             TaskPhase.DONE -> TaskConsumerState.DONE
@@ -115,7 +126,8 @@ object TaskPresentationProjector {
                         state == TaskConsumerState.DONE -> SemanticStepState.DONE
                         index < planIndex -> SemanticStepState.DONE
                         index > planIndex -> SemanticStepState.PENDING
-                        state == TaskConsumerState.ACTION_NEEDED -> SemanticStepState.ACTION_NEEDED
+                        state == TaskConsumerState.ACTION_NEEDED || state == TaskConsumerState.NEEDS_SECRET ->
+                            SemanticStepState.ACTION_NEEDED
                         state == TaskConsumerState.FAILED -> SemanticStepState.FAILED
                         else -> SemanticStepState.ACTIVE
                     }
@@ -167,6 +179,8 @@ object TaskPresentationProjector {
                 .let { copy ->
                     task.confirmation?.explanation?.takeIf { it.isNotBlank() } ?: copy
                 }
+            TaskConsumerState.NEEDS_SECRET -> task.interruption?.prompt
+                ?: "Secure input is required to continue."
             TaskConsumerState.DONE -> task.outcome?.takeIf(String::isNotBlank)
                 ?: "The requested result was checked."
             TaskConsumerState.FAILED -> task.outcome?.takeIf(String::isNotBlank)
@@ -179,9 +193,9 @@ object TaskPresentationProjector {
                 if (isNotEmpty()) append(" · ")
                 append(current)
             }
-            if (state == TaskConsumerState.ACTION_NEEDED) {
+            if (state == TaskConsumerState.ACTION_NEEDED || state == TaskConsumerState.NEEDS_SECRET) {
                 if (isNotEmpty()) append(" · ")
-                append("Needs your input")
+                append(if (state == TaskConsumerState.NEEDS_SECRET) "Needs secure input" else "Needs your input")
             }
             total?.let {
                 if (isNotEmpty()) append('\n')
@@ -277,6 +291,7 @@ object TaskFollowUpPolicy {
                     add(TaskFollowUpAction.CONTINUE)
                 }
             }
+            TaskConsumerState.NEEDS_SECRET -> Unit
             TaskConsumerState.DONE -> {
                 if (task.packageName.isNotBlank()) add(TaskFollowUpAction.OPEN_APP)
                 add(TaskFollowUpAction.RUN_AGAIN)
