@@ -151,7 +151,7 @@ object PhoneTypeEngine {
                 focused = if (evidence.has("focused")) evidence.optBoolean("focused") else snap?.focused == true,
                 focusable = if (evidence.has("focusable")) evidence.optBoolean("focusable") else snap?.focusable == true,
                 enabled = if (evidence.has("enabled")) evidence.optBoolean("enabled") else snap?.enabled != false,
-                password = evidence.optBoolean("password", false),
+                password = if (evidence.has("password")) evidence.optBoolean("password") else snap?.password == true,
                 actions = actions,
             )
         }
@@ -423,7 +423,7 @@ object PhoneTypeEngine {
         focused = node.focused,
         focusable = node.focusable,
         enabled = node.enabled,
-        password = false,
+        password = node.password,
         actions = node.actions,
     )
 
