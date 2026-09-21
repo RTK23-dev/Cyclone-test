@@ -252,6 +252,43 @@ class PhoneTypeEngineTest {
     }
 
     @Test
+    fun redactedPasswordVerificationAcceptsMaskedLengthChangeButNotSameLengthNoOp() {
+        val screen = phoneTaskScreen(
+            observationId = "obs-masked-secret",
+            focused = true,
+            rawNodeId = "raw-masked-secret",
+            resourceId = "com.example:id/password",
+            contentDescription = "Password",
+            password = true,
+        )
+        val path = screen.snapshot.nodes.first { it.id == "raw-masked-secret" }.path
+        val plan = PhoneTypeEngine.ExecutePlan(
+            elementId = screen.taskElementId,
+            rawNodeId = "raw-masked-secret",
+            path = path,
+            needsFocus = false,
+            valueLength = taskValue.length,
+            valueDigest = PhoneTypeEngine.digest(taskValue),
+        )
+
+        val masked = FakeLiveHost.from(screen, initialText = "", maskSetText = true)
+        val filled = PhoneTypeEngine.perform(plan, taskValue, masked, redactObservedText = true)
+        assertTrue(filled.ok)
+        assertTrue(filled.afterStateVerified)
+
+        val sameLengthNoOp = FakeLiveHost.from(
+            screen,
+            initialText = "•".repeat(taskValue.length),
+            applySetText = false,
+            reportSetText = true,
+            maskSetText = true,
+        )
+        val failed = PhoneTypeEngine.perform(plan, taskValue, sameLengthNoOp, redactObservedText = true)
+        assertFalse(failed.ok)
+        assertFalse(failed.afterStateVerified)
+    }
+
+    @Test
     fun redactedParamsAndReportsNeverContainTypedPlaintext() {
         val screen = phoneTaskScreen(observationId = "obs-redact", focused = true, rawNodeId = "raw-redact")
         val params = authorizedType(screen.taskElementId, taskValue)
@@ -420,6 +457,7 @@ class PhoneTypeEngineTest {
         private val pathToRaw: Map<String, String>,
         private val applySetText: Boolean,
         private val reportSetText: Boolean,
+        private val maskSetText: Boolean,
     ) : PhoneTypeEngine.LiveHost {
         override fun resolve(plan: PhoneTypeEngine.ExecutePlan): Any? {
             val raw = pathToRaw[plan.path] ?: plan.rawNodeId
@@ -437,6 +475,7 @@ class PhoneTypeEngineTest {
                 textLength = node.text.length,
                 textDigest = if (redactText) "<redacted>" else PhoneTypeEngine.digest(node.text),
                 actions = node.actions,
+                password = node.password,
             )
         }
 
@@ -456,7 +495,9 @@ class PhoneTypeEngineTest {
         override fun setText(handle: Any, value: CharSequence): Boolean {
             val node = handle as FakeNode
             if (!reportSetText && !applySetText) return false
-            if (applySetText) node.text = value.toString()
+            if (applySetText) {
+                node.text = if (maskSetText && node.password) "•".repeat(value.length) else value.toString()
+            }
             return reportSetText
         }
 
@@ -478,6 +519,7 @@ class PhoneTypeEngineTest {
                 startFocused: Boolean? = null,
                 applySetText: Boolean = true,
                 reportSetText: Boolean = true,
+                maskSetText: Boolean = false,
             ): FakeLiveHost {
                 val nodes = screen.snapshot.nodes.associate { node ->
                     node.id to FakeNode(
@@ -488,6 +530,7 @@ class PhoneTypeEngineTest {
                         enabled = node.enabled,
                         text = if (node.editable) initialText else node.text,
                         actions = node.actions,
+                        password = node.password,
                     )
                 }.toMutableMap()
                 return FakeLiveHost(
@@ -495,6 +538,7 @@ class PhoneTypeEngineTest {
                     pathToRaw = screen.snapshot.nodes.associate { it.path to it.id },
                     applySetText = applySetText,
                     reportSetText = reportSetText,
+                    maskSetText = maskSetText,
                 )
             }
         }
@@ -508,5 +552,6 @@ class PhoneTypeEngineTest {
         val enabled: Boolean,
         var text: String,
         val actions: List<String>,
+        val password: Boolean,
     )
 }
