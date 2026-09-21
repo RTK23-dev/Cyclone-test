@@ -89,6 +89,7 @@ object PhoneTypeEngine {
         fun focus(handle: Any): Boolean
         fun click(handle: Any): Boolean
         fun setText(handle: Any, value: CharSequence): Boolean
+        fun matchesText(handle: Any, value: CharSequence): Boolean = false
         fun refresh(handle: Any): Any?
     }
 
@@ -270,7 +271,12 @@ object PhoneTypeEngine {
         val digestMatches = after != null && after.textDigest == plan.valueDigest && after.textLength == plan.valueLength
         val textChanged = after != null && (after.textDigest != beforeDigest || after.textLength != beforeLength)
         val unchangedAsLabel = after != null && after.textDigest == beforeDigest && after.textLength == beforeLength
-        val verified = stillEditableFocused && (digestMatches || textChanged || unchangedAsLabel)
+        val exactRedactedMatch = redactObservedText && after != null && host.matchesText(afterHandle, value)
+        val verified = stillEditableFocused && if (redactObservedText) {
+            exactRedactedMatch
+        } else {
+            digestMatches || textChanged || unchangedAsLabel
+        }
         if (!set) {
             return LiveResult(
                 ok = false,
@@ -305,8 +311,8 @@ object PhoneTypeEngine {
             focusRecovered = focusRecovered,
             setTextPerformed = true,
             afterStateVerified = true,
-            charCount = plan.valueLength,
-            textDigest = plan.valueDigest,
+            charCount = if (redactObservedText) 0 else plan.valueLength,
+            textDigest = if (redactObservedText) REDACTED else plan.valueDigest,
             elementId = plan.elementId,
             rawNodeId = plan.rawNodeId,
         )
