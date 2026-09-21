@@ -566,6 +566,16 @@ class CycloneAccessibilityService : AccessibilityService() {
             return target.node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         }
 
+        override fun matchesText(handle: Any, value: CharSequence): Boolean {
+            val target = handle as? AccessibilityTypeHandle ?: return false
+            val observed = target.node.text ?: return false
+            if (observed.length != value.length) return false
+            for (index in 0 until value.length) {
+                if (observed[index] != value[index]) return false
+            }
+            return true
+        }
+
         override fun refresh(handle: Any): Any? {
             val target = handle as? AccessibilityTypeHandle ?: return null
             val node = nodeAtTaskPath(target.path, displayId, targetPackage) ?: return null
