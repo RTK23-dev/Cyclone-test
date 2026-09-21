@@ -1,7 +1,7 @@
 # Glass orchestrator — STATUS
 
 **Wave:** 1 (alpha.1 HUD + alpha.2 Maps look-and-feel)  
-**Integration branch:** `v5/integration` @ `0e14ab9892f429d4006591af7b4804a1b8009f92`  
+**Integration branch:** `v5/integration` @ `805e4b11bcbcf6abefb42d291fb88dbd5289c2a8`  
 **Sync:** issue #137 resolved — integration now exists and carries the hardened V5 plan  
 **Plan:** generation plan `9f1d440e`; orchestrator pack on `main` `d2ec2ca5`  
 **Code base:** `release/cyclone-mobile-v4.8.0` @ `97f81cb692893896b500f2372068fb1cd67d85ed` (One 1.5.5)
@@ -19,6 +19,8 @@ States: `drafted` → `issued` → `in-pr` → `returned` → `merged` | `blocke
 ## Handoff issuance
 
 All three wave-1 handoffs are issued under `agents/` against `v5/integration`.
+
+Run 001 launch pack is also seeded on `v5/integration` under `agents/run-001/`: one shared brief plus one agent-specific brief per implementation agent.
 
 - **001** owns shell/nav, Ask wait-state, Vault slot stub, and the minimum route seam in `src/core/fleet.ts` + route tests. It must not invent atlas/secrets transport.
 - **002** is intentionally standalone/mock-backed and may proceed in parallel without touching `app.ts`. Its output is the full Minitap-class board and a single swappable `AtlasViewModel`.
