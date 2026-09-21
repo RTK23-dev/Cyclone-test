@@ -170,10 +170,10 @@ def test_exact_mobile_capability_registry_shape_is_normalized_truthfully():
                     "humanGesture": True,
                 },
                 "namedVirtualDisplay": {
-                    "backend": "workspace_endpoint_duration",
-                    "cubicPath": False,
-                    "humanGesture": False,
-                    "compatibility": "endpoint_duration_only",
+                    "backend": "accessibility_dispatch_gesture",
+                    "cubicPath": True,
+                    "humanGesture": True,
+                    "displayTarget": "gesture_description_set_display_id",
                 },
                 "layer2": {
                     "backend": "accessibility_dispatch_gesture",
@@ -196,7 +196,7 @@ def test_exact_mobile_capability_registry_shape_is_normalized_truthfully():
     }
     assert gesture["execution_planes"] == {
         "foreground": "full_fidelity",
-        "session_kernel_vd": "legacy_touch",
+        "session_kernel_vd": "full_fidelity",
         "layer2_workspace": "full_fidelity",
     }
 

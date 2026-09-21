@@ -20,6 +20,7 @@ import com.cyclone.mobile.ai.vision.live.LiveVisionRuntime
 import com.cyclone.mobile.runtime.session.ExecutionContext
 import com.cyclone.mobile.runtime.session.ExecutionSession
 import com.cyclone.mobile.runtime.session.InputOwner
+import com.cyclone.mobile.gesture.GestureBounds
 import org.json.JSONObject
 import rikka.shizuku.Shizuku
 import java.util.UUID
@@ -136,6 +137,22 @@ object WorkspaceRuntime {
     }
 
     fun input(scope: ExecutionContext, generation: Long, kind: Int, coordinates: FloatArray = floatArrayOf(), text: String = ""): Bundle = synchronized(lock) {
+        authorizeTouchLocked(scope, generation)
+        try { checked(backend!!.input(scope.sessionId, entries.getValue(scope.sessionId).remoteGeneration, kind, coordinates, text)) }
+        finally { LiveVisionRuntime.mutationFinished(scope.sessionId) }
+    }
+
+    /**
+     * Prove workspace input authority without injecting `/system/bin/input`.
+     * Touch tools then use [com.cyclone.mobile.HumanGestureDispatch] with [android.accessibilityservice.GestureDescription.Builder.setDisplayId].
+     */
+    fun authorizeTouch(scope: ExecutionContext, generation: Long): GestureBounds = synchronized(lock) {
+        authorizeTouchLocked(scope, generation)
+        val entry = entries.getValue(scope.sessionId)
+        GestureBounds(0f, 0f, entry.reader.width.toFloat(), entry.reader.height.toFloat())
+    }
+
+    private fun authorizeTouchLocked(scope: ExecutionContext, generation: Long) {
         val entry = entries[scope.sessionId] ?: error("STALE_SESSION")
         requireScope(scope)
         entry.lifecycle.requireMutation(WorkspaceLease(scope.sessionId, scope.displayId, generation), true, backend != null)
@@ -145,8 +162,8 @@ object WorkspaceRuntime {
             error("SCREEN_LOCKED: unlock and resume the task")
         }
         check(LiveVisionRuntime.healthy(scope.sessionId)) { "FRAME_STREAM_STALLED: no fresh workspace vision" }
-        try { checked(backend!!.input(scope.sessionId, entry.remoteGeneration, kind, coordinates, text)) }
-        finally { LiveVisionRuntime.mutationFinished(scope.sessionId) }
+        val remote = checked(backend!!.status(scope.sessionId))
+        check(remote.getBoolean("agent")) { "HUMAN_HAS_CONTROL: stale input authority" }
     }
 
     fun pause(sessionId: String, state: WorkspaceState = WorkspaceState.PAUSED) = synchronized(lock) {

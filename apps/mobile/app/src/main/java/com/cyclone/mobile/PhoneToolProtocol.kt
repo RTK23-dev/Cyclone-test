@@ -317,22 +317,6 @@ data class PhoneToolResult(
         val trace = HumanGestureDispatch.peekTrace(commandId)
         val sessionId = base.optString("sessionId").takeIf { it.isNotBlank() }
         val displayId = if (base.has("displayId")) base.optInt("displayId") else 0
-        val namedVirtualDisplay = (sessionId != null && sessionId != "default-foreground") || displayId > 0
-        if (namedVirtualDisplay) {
-            return JSONObject()
-                .put("requestedHumanize", JSONObject.NULL)
-                .put("resolvedProfile", JSONObject.NULL)
-                .put("profileSource", "workspace_compatibility")
-                .put("appliedProfile", "compatibility_endpoint_duration")
-                .put("dispatchMode", "workspace_endpoint_duration")
-                .put("interactionMode", "coordinate_compatibility")
-                .put("correctedOrRejected", true)
-                .put("completed", false)
-                .put("reason", "named virtual display backend exposes endpoint+duration only; curved Android path not claimed")
-                .put("durationMs", JSONObject.NULL)
-                .put("sessionId", sessionId ?: JSONObject.NULL)
-                .put("displayId", displayId)
-        }
         return if (trace == null) {
             JSONObject()
                 .put("requestedHumanize", JSONObject.NULL)
@@ -345,8 +329,8 @@ data class PhoneToolResult(
                 .put("completed", true)
                 .put("reason", JSONObject.NULL)
                 .put("durationMs", JSONObject.NULL)
-                .put("sessionId", "default-foreground")
-                .put("displayId", 0)
+                .put("sessionId", sessionId ?: "default-foreground")
+                .put("displayId", displayId)
         } else {
             JSONObject()
                 .put("requestedHumanize", JSONObject.NULL)
@@ -359,8 +343,8 @@ data class PhoneToolResult(
                 .put("completed", trace.accepted)
                 .put("reason", trace.reason ?: JSONObject.NULL)
                 .put("durationMs", trace.durationMs)
-                .put("sessionId", "default-foreground")
-                .put("displayId", 0)
+                .put("sessionId", sessionId ?: "default-foreground")
+                .put("displayId", if (trace.displayId > 0) trace.displayId else displayId)
         }
     }
 
@@ -370,8 +354,7 @@ data class PhoneToolResult(
         val out = JSONObject(value.toString())
         val evidence = out.getJSONObject("humanGesture")
         val dispatchMode = evidence.optString("dispatchMode")
-        val displayId = evidence.optInt("displayId", 0)
-        val backend = if (dispatchMode == "workspace_endpoint_duration" || displayId > 0) {
+        val backend = if (dispatchMode == "workspace_endpoint_duration") {
             "workspace_endpoint_duration"
         } else {
             "accessibility_dispatch_gesture"

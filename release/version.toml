@@ -1,4 +1,5 @@
-# Cyclone Mobile 4.8.0: destination-scoped trajectory authority for multi-app tasks.
+# Cyclone Mobile 4.8.0: destination-scoped trajectory, honest Human Gesture completion,
+# overlay host-yield, and named-VD cubic dispatchGesture.
 # Publication is not authorized; exact-source Mobile CI still gates any later publisher run.
 schema = 1
 product_version = "4.8.0"

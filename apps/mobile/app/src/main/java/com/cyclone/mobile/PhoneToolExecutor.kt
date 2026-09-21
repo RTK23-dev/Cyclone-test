@@ -203,12 +203,25 @@ object PhoneToolExecutor {
                 return node
             }
             val commands = com.cyclone.mobile.runtime.background.WorkspaceCommands
+            val humanize = humanizePreference(p)
+            val viewport = runtime.authorizeTouch(scope, generation)
             when (request.tool) {
                 "phone.click", "phone.tap", "phone.long_press" -> {
                     val node = guardedPoint()
                     val x = node.bounds.centerX; val y = node.bounds.centerY
-                    if (request.tool == "phone.long_press") runtime.input(scope, generation, commands.SWIPE, floatArrayOf(x, y, x, y, 650f))
-                    else runtime.input(scope, generation, commands.TAP, floatArrayOf(x, y))
+                    val landed = if (request.tool == "phone.long_press") {
+                        HumanGestureDispatch.longPress(
+                            service, x, y, 650L, humanize, RuntimeGestureKind.LONG_PRESS,
+                            request.commandId, node.bounds, scope.displayId, viewport,
+                        )
+                    } else {
+                        HumanGestureDispatch.tap(
+                            service, x, y, humanize,
+                            if (request.tool == "phone.tap") RuntimeGestureKind.COORDINATE_TAP else RuntimeGestureKind.FALLBACK_TAP,
+                            request.commandId, node.bounds, scope.displayId, viewport,
+                        )
+                    }
+                    workspaceTouchFailure(request, scope, snapshot, started, landed)?.let { return it }
                 }
                 "phone.scroll" -> {
                     val node = chosen?.takeIf { it.scrollable } ?: snapshot.nodes.firstOrNull { it.scrollable }
@@ -217,7 +230,11 @@ object PhoneToolExecutor {
                     val top = node.bounds.top + node.bounds.height * 0.25f
                     val bottom = node.bounds.top + node.bounds.height * 0.75f
                     val backwards = p.optString("direction") == "backward"
-                    runtime.input(scope, generation, commands.SWIPE, floatArrayOf(x, if (backwards) top else bottom, x, if (backwards) bottom else top, 350f))
+                    val landed = HumanGestureDispatch.swipe(
+                        service, x, if (backwards) top else bottom, x, if (backwards) bottom else top,
+                        350L, humanize, RuntimeGestureKind.SCROLL, request.commandId, scope.displayId, viewport,
+                    )
+                    workspaceTouchFailure(request, scope, snapshot, started, landed)?.let { return it }
                 }
                 "phone.swipe" -> {
                     val x1 = p.optDouble("x1").toFloat(); val y1 = p.optDouble("y1").toFloat()
@@ -225,7 +242,11 @@ object PhoneToolExecutor {
                     check(kotlin.math.abs(y2 - y1) > kotlin.math.abs(x2 - x1) && snapshot.nodes.any {
                         it.scrollable && it.bounds.contains(x1.toInt(), y1.toInt()) && it.bounds.contains(x2.toInt(), y2.toInt())
                     }) { "UNSUPPORTED: workspace swipes require a vertical scrollable target" }
-                    runtime.input(scope, generation, commands.SWIPE, floatArrayOf(x1, y1, x2, y2, p.optLong("durationMs", 350).toFloat()))
+                    val landed = HumanGestureDispatch.swipe(
+                        service, x1, y1, x2, y2, p.optLong("durationMs", 350),
+                        humanize, RuntimeGestureKind.SWIPE, request.commandId, scope.displayId, viewport,
+                    )
+                    workspaceTouchFailure(request, scope, snapshot, started, landed)?.let { return it }
                 }
                 "phone.back" -> runtime.input(scope, generation, commands.BACK)
                 "phone.type", "phone.replace_text" -> {
@@ -238,6 +259,9 @@ object PhoneToolExecutor {
                 }
                 "phone.open_app" -> check(p.optString("package") == session.targetPackage) { "UNSUPPORTED: open another workspace for a different app" }
                 else -> error("UNSUPPORTED: this operation cannot safely target a workspace")
+            }
+            if (request.tool in humanizeAwareTools) {
+                com.cyclone.mobile.ai.vision.live.LiveVisionRuntime.mutationFinished(scope.sessionId)
             }
             GatewayObservationStore.clear(scope.sessionId)
             val settleGeneration = DeviceState.uiGeneration()
@@ -254,8 +278,8 @@ object PhoneToolExecutor {
                 .put("fastPath", settle.toJson())
                 .put("sessionId", scope.sessionId)
                 .put("displayId", scope.displayId)
-            if (request.tool in touchHumanizeTools) {
-                payload.put("humanGesture", workspaceGestureEvidence(request, scope))
+            if (request.tool in humanizeAwareTools) {
+                payload.put("humanGesture", workspaceGestureEvidence(request, scope, HumanGestureDispatch.consumeTrace(request.commandId)))
             }
             PhoneToolResult(request.commandId, request.tool, true, started, System.currentTimeMillis(),
                 beforeFingerprint = snapshot.fingerprint,
@@ -266,6 +290,39 @@ object PhoneToolExecutor {
             PhoneToolResult(request.commandId, request.tool, false, started, System.currentTimeMillis(),
                 error = PhoneToolError(scopeErrorCode(error), "Workspace operation could not complete in its current scope."))
         }
+    }
+
+    private fun workspaceTouchFailure(
+        request: PhoneToolRequest,
+        scope: com.cyclone.mobile.runtime.session.ExecutionContext,
+        snapshot: com.cyclone.mobile.UiSnapshot,
+        started: Long,
+        landed: Boolean,
+    ): PhoneToolResult? {
+        if (landed) return null
+        com.cyclone.mobile.ai.vision.live.LiveVisionRuntime.mutationFinished(scope.sessionId)
+        val trace = HumanGestureDispatch.consumeTrace(request.commandId)
+        val timeout = trace?.reason == HumanGestureDispatch.REASON_TIMEOUT
+        return PhoneToolResult(
+            commandId = request.commandId,
+            tool = request.tool,
+            ok = false,
+            startedAtMs = started,
+            finishedAtMs = System.currentTimeMillis(),
+            beforeFingerprint = snapshot.fingerprint,
+            payload = JSONObject().put("humanGesture", workspaceGestureEvidence(request, scope, trace)),
+            error = PhoneToolError(
+                if (timeout) PhoneToolErrorCode.TIMEOUT else PhoneToolErrorCode.ACTION_FAILED,
+                when (trace?.reason) {
+                    HumanGestureDispatch.REASON_TIMEOUT ->
+                        "Human gesture was queued on the named display but did not complete. Re-observe; do not repeat this mutation."
+                    HumanGestureDispatch.REASON_NOT_QUEUED ->
+                        "Named display did not accept a Human Gesture. Re-observe before trying again."
+                    else ->
+                        "Human gesture did not complete on the named display. Re-observe; do not repeat this mutation."
+                },
+            ),
+        )
     }
 
     private fun executeInternal(context: Context, request: PhoneToolRequest, mutating: Boolean): PhoneToolResult {
@@ -560,23 +617,23 @@ object PhoneToolExecutor {
     private fun workspaceGestureEvidence(
         request: PhoneToolRequest,
         scope: com.cyclone.mobile.runtime.session.ExecutionContext,
+        trace: HumanGestureDispatchTrace?,
     ): JSONObject {
         val preference = humanizePreference(request.params)
         val kind = gestureKind(request.tool)
-        val resolved = HumanGestureRuntimePolicy.resolve(preference, kind)
-        val correction = resolved != HumanizeProfile.OFF
-        return baseGestureEvidence(request, preference, resolved)
-            .put("appliedProfile", if (resolved == HumanizeProfile.OFF) "off" else "compatibility_endpoint_duration")
-            .put("dispatchMode", "workspace_endpoint_duration")
-            .put("interactionMode", "coordinate_compatibility")
-            .put("correctedOrRejected", correction)
-            .put("completed", false)
-            .put(
-                "reason",
-                if (correction) "workspace backend exposes endpoint+duration only; curved Android path not claimed" else JSONObject.NULL,
-            )
+        return gestureEvidence(
+            request = request,
+            preference = preference,
+            kind = kind,
+            trace = trace,
+            dispatchMode = trace?.dispatchMode ?: "not_dispatched",
+            interactionMode = "coordinate",
+            correctedOrRejected = trace?.accepted != true,
+            reason = trace?.reason,
+        )
             .put("sessionId", scope.sessionId)
             .put("displayId", scope.displayId)
+            .put("completed", trace?.accepted == true)
     }
 
     private fun gestureKind(tool: String): RuntimeGestureKind = when (tool) {

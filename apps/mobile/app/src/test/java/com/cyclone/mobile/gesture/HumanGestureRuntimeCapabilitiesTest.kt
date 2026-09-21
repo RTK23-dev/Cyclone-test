@@ -7,7 +7,7 @@ import org.junit.Test
 
 class HumanGestureRuntimeCapabilitiesTest {
     @Test
-    fun `foreground and layer2 display0 report cubic support while named vd stays endpoint duration only`() {
+    fun `foreground layer2 and named vd all report cubic accessibility dispatch`() {
         val runtime = HumanGestureRuntimeCapabilities.toJson(accessibilityConnected = true)
         assertTrue(runtime.getBoolean("runtimeAvailable"))
         assertEquals("cyclone.human_gesture.control.v1", runtime.getString("controlVersion"))
@@ -16,11 +16,17 @@ class HumanGestureRuntimeCapabilitiesTest {
 
         val planes = runtime.getJSONObject("executionPlanes")
         assertTrue(planes.getJSONObject("foregroundDisplay0").getBoolean("cubicPath"))
-        assertFalse(planes.getJSONObject("namedVirtualDisplay").getBoolean("cubicPath"))
+        assertTrue(planes.getJSONObject("namedVirtualDisplay").getBoolean("cubicPath"))
+        assertTrue(planes.getJSONObject("namedVirtualDisplay").getBoolean("humanGesture"))
         assertEquals(
-            "endpoint_duration_only",
-            planes.getJSONObject("namedVirtualDisplay").getString("compatibility"),
+            "accessibility_dispatch_gesture",
+            planes.getJSONObject("namedVirtualDisplay").getString("backend"),
         )
+        assertEquals(
+            "gesture_description_set_display_id",
+            planes.getJSONObject("namedVirtualDisplay").getString("displayTarget"),
+        )
+        assertFalse(planes.getJSONObject("namedVirtualDisplay").has("compatibility"))
         assertTrue(planes.getJSONObject("layer2").getBoolean("cubicPath"))
         assertEquals(
             "layer2_display0_mutation_lease",

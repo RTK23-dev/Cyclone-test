@@ -72,6 +72,9 @@ class HumanGestureSemanticSafetyContractTest {
         assertOrdered(workspace, "STALE_SESSION", "runtime.input(")
         assertOrdered(workspace, "CycloneAiAccessPolicy.evaluate", "runtime.input(")
         assertOrdered(workspace, "GateClassifier.classify", "runtime.input(")
+        assertOrdered(workspace, "authorizeTouch", "HumanGestureDispatch.tap")
+        assertOrdered(workspace, "HumanGestureDispatch.tap", "runtime.input(")
+        assertTrue("setDisplayId" in dispatch)
         assertTrue("synchronized(mutationLock)" in executor)
     }
 

@@ -31,7 +31,7 @@ class PhoneToolResultHumanGestureEvidenceTest {
     }
 
     @Test
-    fun `named virtual display click reports endpoint duration compatibility`() {
+    fun `named virtual display click without a dispatch trace does not invent endpoint duration`() {
         val result = PhoneToolResult(
             commandId = "vd-click-test",
             tool = "phone.click",
@@ -45,12 +45,12 @@ class PhoneToolResultHumanGestureEvidenceTest {
         ).toJson()
 
         val evidence = result.getJSONObject("payload").getJSONObject("humanGesture")
-        assertEquals("workspace_endpoint_duration", evidence.getString("dispatchMode"))
-        assertEquals("workspace_endpoint_duration", evidence.getString("backend"))
+        assertEquals("semantic_action", evidence.getString("dispatchMode"))
+        assertEquals("accessibility_dispatch_gesture", evidence.getString("backend"))
         assertEquals("workspace-mail", evidence.getString("sessionId"))
         assertEquals(7, evidence.getInt("displayId"))
-        assertTrue(evidence.getBoolean("correctedOrRejected"))
-        assertFalse(evidence.getBoolean("completed"))
+        assertFalse(evidence.getBoolean("correctedOrRejected"))
+        assertTrue(evidence.getBoolean("completed"))
     }
 
     @Test

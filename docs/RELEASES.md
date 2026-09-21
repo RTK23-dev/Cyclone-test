@@ -2,6 +2,21 @@
 
 Cyclone release artifacts are produced by GitHub Actions and tied to an exact source SHA.
 
+## Next mobile cut: Cyclone 4.8.0 (operator-after-CI)
+
+Candidate branch `agent/cyclone-4.8.0-destination-authority`. Mobile **4.8.0** / versionCode **140**. Gateway/MCP stay **4.1.0**. Physical Pixel 8 remains **UNVERIFIED**. Publication is not authorized until Mobile CI signs this SHA.
+
+Product notes: [`docs/RELEASE_4.8.0.md`](RELEASE_4.8.0.md).
+
+Do not add a one-off publish workflow. Cut 4.8.0 through existing `mobile-ci.yml` / `mobile-release.yml`:
+
+1. Merge the 4.8.0 branch. Push `release/cyclone-mobile-v4.8.0` from that SHA.
+2. Wait for Mobile CI success. Copy `build_run_id` and `Cyclone-Android-4.8.0`.
+3. Dispatch **Cyclone Mobile Release Signing**.
+4. `gh release create v4.8.0 --title "Cyclone 4.8.0" --notes-file docs/RELEASE_4.8.0.md` attaching the signed APK.
+
+Never force-push, delete tags, or overwrite a GitHub Release.
+
 ## Next One cut: Cyclone One 1.1.1 (operator-after-CI)
 
 Tag `one-1.1.1` is the **next** Cyclone One **1.1.1** cut (`Cyclone-PC-Companion-1.1.1-Setup.exe`) on published `one-1.1.0` + PR **#86** (Settings MCP tunnel). Gateway/MCP stay **4.1.0**. Mobile on this tree stays **4.0.4** / versionCode **75**. Physical Pixel 8 remains **UNVERIFIED**. Never replace `one-1.1.0`.

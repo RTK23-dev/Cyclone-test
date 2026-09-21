@@ -28,6 +28,7 @@ data class HumanGestureDispatchTrace(
     val durationMs: Long,
     val accepted: Boolean,
     val reason: String? = null,
+    val displayId: Int = 0,
 )
 
 private data class GestureDispatchOutcome(
@@ -40,8 +41,8 @@ private data class GestureDispatchOutcome(
  *
  * This object deliberately owns no GATE, stale-observation, duplicate, confirmation, control-owner,
  * or SessionContract decisions. Callers reach it only after those existing authorities have allowed
- * the mutation. Named-VD and Layer2 backends do not use this adapter in V0.3 because their current
- * input protocol accepts only start/end/duration rather than cubic paths.
+ * the mutation. Named virtual displays use the same cubic [GestureDescription] path via
+ * [GestureDescription.Builder.setDisplayId]; they do not fall back to `/system/bin/input` swipe.
  *
  * `dispatchGesture` is queued, not completed. This adapter waits for [AccessibilityService.GestureResultCallback]
  * before returning so Fast Path settle observes the screen after the stroke has landed.
@@ -89,13 +90,15 @@ object HumanGestureDispatch {
         kind: RuntimeGestureKind,
         commandId: String? = null,
         targetBounds: UiBounds? = null,
+        displayId: Int = 0,
+        viewportBounds: GestureBounds? = null,
     ): Boolean {
         val profile = HumanGestureRuntimePolicy.resolve(preference, kind)
         if (profile == HumanizeProfile.OFF && targetBounds == null) {
-            val outcome = legacyTap(service, x, y)
-            return record(commandId, HumanGestureDispatchTrace(profile, "legacy_straight", 80L, outcome.accepted, outcome.reason))
+            val outcome = legacyTap(service, x, y, displayId)
+            return record(commandId, HumanGestureDispatchTrace(profile, "legacy_straight", 80L, outcome.accepted, outcome.reason, displayId))
         }
-        val viewport = viewport(service)
+        val viewport = viewportBounds ?: viewport(service)
         val target = targetBounds?.takeIf { it.width > 0 && it.height > 0 }?.toGestureBounds()
             ?: pointBounds(x, y)
         val ordinal = localOrdinal.incrementAndGet()
@@ -108,14 +111,11 @@ object HumanGestureDispatch {
                 preferredDurationMs = 80L,
             )
         }.getOrElse {
-            return record(commandId, HumanGestureDispatchTrace(profile, "plan_rejected", 0L, false, it.message))
+            return record(commandId, HumanGestureDispatchTrace(profile, "plan_rejected", 0L, false, it.message, displayId))
         }
         val path = AndroidGestureRenderer.tapPath(plan)
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, plan.durationMs))
-            .build()
-        val outcome = dispatchAndAwait(service, gesture, plan.durationMs)
-        return record(commandId, HumanGestureDispatchTrace(profile, "humanized_path", plan.durationMs, outcome.accepted, outcome.reason))
+        val outcome = dispatchAndAwait(service, description(path, plan.durationMs, displayId), plan.durationMs, displayId)
+        return record(commandId, HumanGestureDispatchTrace(profile, "humanized_path", plan.durationMs, outcome.accepted, outcome.reason, displayId))
     }
 
     fun longPress(
@@ -127,14 +127,16 @@ object HumanGestureDispatch {
         kind: RuntimeGestureKind,
         commandId: String? = null,
         targetBounds: UiBounds? = null,
+        displayId: Int = 0,
+        viewportBounds: GestureBounds? = null,
     ): Boolean {
         val profile = HumanGestureRuntimePolicy.resolve(preference, kind)
         if (profile == HumanizeProfile.OFF && targetBounds == null) {
             val boundedDuration = durationMs.coerceIn(450L, 3_000L)
-            val outcome = legacyLongPress(service, x, y, boundedDuration)
-            return record(commandId, HumanGestureDispatchTrace(profile, "legacy_straight", boundedDuration, outcome.accepted, outcome.reason))
+            val outcome = legacyLongPress(service, x, y, boundedDuration, displayId)
+            return record(commandId, HumanGestureDispatchTrace(profile, "legacy_straight", boundedDuration, outcome.accepted, outcome.reason, displayId))
         }
-        val viewport = viewport(service)
+        val viewport = viewportBounds ?: viewport(service)
         val target = targetBounds?.takeIf { it.width > 0 && it.height > 0 }?.toGestureBounds()
             ?: pointBounds(x, y)
         val ordinal = localOrdinal.incrementAndGet()
@@ -147,15 +149,12 @@ object HumanGestureDispatch {
                 preferredDurationMs = 80L,
             )
         }.getOrElse {
-            return record(commandId, HumanGestureDispatchTrace(profile, "plan_rejected", 0L, false, it.message))
+            return record(commandId, HumanGestureDispatchTrace(profile, "plan_rejected", 0L, false, it.message, displayId))
         }
         val path = AndroidGestureRenderer.tapPath(tapPlan)
         val boundedDuration = durationMs.coerceIn(450L, 3_000L)
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, boundedDuration))
-            .build()
-        val outcome = dispatchAndAwait(service, gesture, boundedDuration)
-        return record(commandId, HumanGestureDispatchTrace(profile, "humanized_path", boundedDuration, outcome.accepted, outcome.reason))
+        val outcome = dispatchAndAwait(service, description(path, boundedDuration, displayId), boundedDuration, displayId)
+        return record(commandId, HumanGestureDispatchTrace(profile, "humanized_path", boundedDuration, outcome.accepted, outcome.reason, displayId))
     }
 
     fun swipe(
@@ -168,14 +167,16 @@ object HumanGestureDispatch {
         preference: HumanizePreference,
         kind: RuntimeGestureKind,
         commandId: String? = null,
+        displayId: Int = 0,
+        viewportBounds: GestureBounds? = null,
     ): Boolean {
         val profile = HumanGestureRuntimePolicy.resolve(preference, kind)
         if (profile == HumanizeProfile.OFF) {
             val boundedDuration = durationMs.coerceIn(100L, 3_000L)
-            val outcome = legacySwipe(service, x1, y1, x2, y2, boundedDuration)
-            return record(commandId, HumanGestureDispatchTrace(profile, "legacy_straight", boundedDuration, outcome.accepted, outcome.reason))
+            val outcome = legacySwipe(service, x1, y1, x2, y2, boundedDuration, displayId)
+            return record(commandId, HumanGestureDispatchTrace(profile, "legacy_straight", boundedDuration, outcome.accepted, outcome.reason, displayId))
         }
-        val viewport = viewport(service)
+        val viewport = viewportBounds ?: viewport(service)
         val ordinal = localOrdinal.incrementAndGet()
         val plan = runCatching {
             HumanGestureEngine.planSwipe(
@@ -193,14 +194,11 @@ object HumanGestureDispatch {
                 preferredDurationMs = durationMs,
             )
         }.getOrElse {
-            return record(commandId, HumanGestureDispatchTrace(profile, "plan_rejected", 0L, false, it.message))
+            return record(commandId, HumanGestureDispatchTrace(profile, "plan_rejected", 0L, false, it.message, displayId))
         }
         val path = AndroidGestureRenderer.strokePath(plan)
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, plan.durationMs))
-            .build()
-        val outcome = dispatchAndAwait(service, gesture, plan.durationMs)
-        return record(commandId, HumanGestureDispatchTrace(profile, "humanized_path", plan.durationMs, outcome.accepted, outcome.reason))
+        val outcome = dispatchAndAwait(service, description(path, plan.durationMs, displayId), plan.durationMs, displayId)
+        return record(commandId, HumanGestureDispatchTrace(profile, "humanized_path", plan.durationMs, outcome.accepted, outcome.reason, displayId))
     }
 
     private fun viewport(service: CycloneAccessibilityService): GestureBounds {
@@ -222,12 +220,21 @@ object HumanGestureDispatch {
         bottom.toFloat(),
     )
 
-    private fun legacyTap(service: CycloneAccessibilityService, x: Float, y: Float): GestureDispatchOutcome {
+    private fun description(path: Path, durationMs: Long, displayId: Int): GestureDescription {
+        val builder = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, durationMs))
+        if (displayId > 0) builder.setDisplayId(displayId)
+        return builder.build()
+    }
+
+    private fun legacyTap(
+        service: CycloneAccessibilityService,
+        x: Float,
+        y: Float,
+        displayId: Int,
+    ): GestureDispatchOutcome {
         val path = Path().apply { moveTo(x, y) }
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 80L))
-            .build()
-        return dispatchAndAwait(service, gesture, 80L)
+        return dispatchAndAwait(service, description(path, 80L, displayId), 80L, displayId)
     }
 
     private fun legacyLongPress(
@@ -235,12 +242,11 @@ object HumanGestureDispatch {
         x: Float,
         y: Float,
         durationMs: Long,
+        displayId: Int,
     ): GestureDispatchOutcome {
+        val bounded = durationMs.coerceIn(450L, 3_000L)
         val path = Path().apply { moveTo(x, y) }
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, durationMs.coerceIn(450L, 3_000L)))
-            .build()
-        return dispatchAndAwait(service, gesture, durationMs.coerceIn(450L, 3_000L))
+        return dispatchAndAwait(service, description(path, bounded, displayId), bounded, displayId)
     }
 
     private fun legacySwipe(
@@ -250,27 +256,38 @@ object HumanGestureDispatch {
         x2: Float,
         y2: Float,
         durationMs: Long,
+        displayId: Int,
     ): GestureDispatchOutcome {
+        val bounded = durationMs.coerceIn(100L, 3_000L)
         val path = Path().apply { moveTo(x1, y1); lineTo(x2, y2) }
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, durationMs.coerceIn(100L, 3_000L)))
-            .build()
-        return dispatchAndAwait(service, gesture, durationMs.coerceIn(100L, 3_000L))
+        return dispatchAndAwait(service, description(path, bounded, displayId), bounded, displayId)
     }
 
     /**
-     * Queue the stroke, make overlay chrome pass through for its duration, then wait for completion.
+     * Queue the stroke, yield overlay chrome on display 0, then wait for completion.
+     *
+     * Named virtual displays are not covered by the Ask overlay; they skip overlay yield and
+     * target [GestureDescription.Builder.setDisplayId] instead of `/system/bin/input`.
      *
      * `dispatchGesture` returning true means Android queued the stroke, not that it landed.
      * Only [AccessibilityService.GestureResultCallback.onCompleted] is success.
-     * Timeout and cancel are incomplete: callers must not treat them as performed, and must not
-     * dispatch a second click channel on the same observation.
      */
     private fun dispatchAndAwait(
         service: CycloneAccessibilityService,
         gesture: GestureDescription,
         durationMs: Long,
-    ): GestureDispatchOutcome = OverlayGesturePassthrough.withHostPassthrough {
+        displayId: Int,
+    ): GestureDispatchOutcome =
+        if (displayId > 0) dispatchQueued(service, gesture, durationMs)
+        else OverlayGesturePassthrough.withHostPassthrough {
+            dispatchQueued(service, gesture, durationMs)
+        }
+
+    private fun dispatchQueued(
+        service: CycloneAccessibilityService,
+        gesture: GestureDescription,
+        durationMs: Long,
+    ): GestureDispatchOutcome {
         val done = CountDownLatch(1)
         val completed = AtomicBoolean(false)
         val cancelled = AtomicBoolean(false)
@@ -286,9 +303,9 @@ object HumanGestureDispatch {
             }
         }
         val queued = service.dispatchGesture(gesture, callback, Handler(callbackLooper))
-        if (!queued) return@withHostPassthrough GestureDispatchOutcome(false, REASON_NOT_QUEUED)
+        if (!queued) return GestureDispatchOutcome(false, REASON_NOT_QUEUED)
         val finished = done.await(FastPathTimings.gestureAwaitBudgetMs(durationMs), TimeUnit.MILLISECONDS)
-        when {
+        return when {
             completed.get() -> GestureDispatchOutcome(true)
             cancelled.get() -> GestureDispatchOutcome(false, REASON_CANCELLED)
             !finished -> GestureDispatchOutcome(false, REASON_TIMEOUT)
