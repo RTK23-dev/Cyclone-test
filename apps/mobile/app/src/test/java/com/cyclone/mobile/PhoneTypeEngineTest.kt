@@ -375,7 +375,7 @@ class PhoneTypeEngineTest {
             return nodes[raw]
         }
 
-        override fun view(handle: Any): PhoneTypeEngine.LiveView? {
+        override fun view(handle: Any, redactText: Boolean): PhoneTypeEngine.LiveView? {
             val node = handle as? FakeNode ?: return null
             return PhoneTypeEngine.LiveView(
                 rawNodeId = node.rawId,
@@ -384,7 +384,7 @@ class PhoneTypeEngineTest {
                 focused = node.focused,
                 enabled = node.enabled,
                 textLength = node.text.length,
-                textDigest = PhoneTypeEngine.digest(node.text),
+                textDigest = if (redactText) "<redacted>" else PhoneTypeEngine.digest(node.text),
                 actions = node.actions,
             )
         }
