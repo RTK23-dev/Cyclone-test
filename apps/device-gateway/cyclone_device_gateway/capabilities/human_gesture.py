@@ -297,6 +297,10 @@ def safe_gesture_diagnostics(execution: Any) -> dict[str, Any] | None:
     if type(synthesis_us) is int and 0 <= synthesis_us <= 10_000_000:
         out["synthesisUs"] = synthesis_us
 
+    completed = raw.get("completed")
+    if isinstance(completed, bool):
+        out["completed"] = completed
+
     reason = raw.get("downgradeReason")
     if isinstance(reason, str) and len(reason) <= 96 and _SAFE_TOKEN.fullmatch(reason):
         out["downgradeReason"] = reason

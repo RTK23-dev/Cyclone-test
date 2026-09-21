@@ -570,6 +570,7 @@ object PhoneToolExecutor {
             .put("dispatchMode", "workspace_endpoint_duration")
             .put("interactionMode", "coordinate_compatibility")
             .put("correctedOrRejected", correction)
+            .put("completed", false)
             .put(
                 "reason",
                 if (correction) "workspace backend exposes endpoint+duration only; curved Android path not claimed" else JSONObject.NULL,
@@ -602,6 +603,7 @@ object PhoneToolExecutor {
             .put("dispatchMode", dispatchMode)
             .put("interactionMode", interactionMode)
             .put("correctedOrRejected", correctedOrRejected)
+            .put("completed", trace?.accepted == true && !correctedOrRejected)
             .put("reason", reason ?: JSONObject.NULL)
             .put("durationMs", trace?.durationMs ?: JSONObject.NULL)
             .put("sessionId", "default-foreground")
@@ -708,6 +710,27 @@ object PhoneToolExecutor {
                     payload = payload,
                     attempts = attempts,
                     afterFingerprint = settle.afterFingerprint ?: afterSnapshot?.fingerprint,
+                )
+            }
+            val gesture = HumanGestureDispatch.peekTrace(request.commandId)
+            if (HumanGestureDispatch.incomplete(gesture)) {
+                val reason = gesture?.reason
+                val timeout = reason == HumanGestureDispatch.REASON_TIMEOUT
+                return Outcome(
+                    error = PhoneToolError(
+                        if (timeout) PhoneToolErrorCode.TIMEOUT else PhoneToolErrorCode.ACTION_FAILED,
+                        when (reason) {
+                            HumanGestureDispatch.REASON_TIMEOUT ->
+                                "Human gesture was queued but did not complete. Re-observe; do not repeat this mutation."
+                            HumanGestureDispatch.REASON_CANCELLED ->
+                                "Human gesture was cancelled. Re-observe; do not repeat this mutation."
+                            HumanGestureDispatch.REASON_NOT_QUEUED ->
+                                "Human gesture was not accepted by Android. Re-observe before trying again."
+                            else ->
+                                "Human gesture did not complete. Re-observe; do not repeat this mutation."
+                        },
+                    ),
+                    attempts = attempts,
                 )
             }
             if (attempts <= retries) DeviceState.awaitUiEventAfter(eventGeneration, 100L * attempts)

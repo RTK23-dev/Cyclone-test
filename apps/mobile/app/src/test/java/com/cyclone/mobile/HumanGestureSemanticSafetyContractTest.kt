@@ -97,6 +97,19 @@ class HumanGestureSemanticSafetyContractTest {
         assertTrue("OverlayGesturePassthrough.withHostPassthrough" in dispatch)
         assertOrdered(dispatch, "withHostPassthrough", "dispatchGesture(gesture, callback")
         assertOrdered(dispatch, "dispatchGesture(gesture, callback", "done.await")
+        assertTrue("REASON_TIMEOUT" in dispatch)
+        assertTrue("GestureDispatchOutcome(false, REASON_TIMEOUT)" in dispatch)
+        assertFalse("GestureDispatchOutcome(true, \"gesture_timeout\")" in dispatch)
+        assertFalse("GestureDispatchOutcome(true, REASON_TIMEOUT)" in dispatch)
+    }
+
+    @Test
+    fun `incomplete human gesture is not retried as a second click channel`() {
+        val confirmation = slice(executor, "private fun actionWithConfirmation", "private fun launchedOutcome")
+        assertTrue("HumanGestureDispatch.incomplete" in confirmation)
+        assertTrue("PhoneToolErrorCode.TIMEOUT" in confirmation)
+        assertTrue("do not repeat this mutation" in confirmation)
+        assertOrdered(confirmation, "HumanGestureDispatch.incomplete", "if (attempts <= retries)")
     }
 
     @Test

@@ -464,7 +464,10 @@ class CipEngine:
             "home": "phone.home",
             "open_app": "phone.open_app",
         }
-        return mapping[kind], params
+        tool = mapping[kind]
+        if kind in {"tap", "long_press", "scroll", "swipe"}:
+            params["humanize"] = "auto"
+        return tool, params
 
     @staticmethod
     def _status(outcome: dict[str, Any], after: dict[str, Any] | None) -> str:
@@ -477,6 +480,8 @@ class CipEngine:
             return "FAILED"
         if error in DEFINITIVE_FAILURES:
             return "FAILED"
+        if error in {"TIMEOUT"} or str(outcome.get("error") or "") in {"TIMEOUT"}:
+            return "UNCERTAIN"
         return "UNCERTAIN"
 
     def act(

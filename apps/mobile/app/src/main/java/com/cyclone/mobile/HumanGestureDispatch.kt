@@ -47,6 +47,11 @@ private data class GestureDispatchOutcome(
  * before returning so Fast Path settle observes the screen after the stroke has landed.
  */
 object HumanGestureDispatch {
+    const val REASON_TIMEOUT = "gesture_timeout"
+    const val REASON_CANCELLED = "gesture_cancelled"
+    const val REASON_NOT_QUEUED = "not_queued"
+    const val REASON_UNKNOWN = "gesture_unknown"
+
     private val localOrdinal = AtomicLong(0L)
     private val traces = object : LinkedHashMap<String, HumanGestureDispatchTrace>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, HumanGestureDispatchTrace>?): Boolean = size > 128
@@ -72,6 +77,9 @@ object HumanGestureDispatch {
     @Synchronized
     fun consumeTrace(commandId: String?): HumanGestureDispatchTrace? =
         commandId?.takeIf { it.isNotBlank() }?.let(traces::remove)
+
+    fun incomplete(trace: HumanGestureDispatchTrace?): Boolean =
+        trace != null && !trace.accepted
 
     fun tap(
         service: CycloneAccessibilityService,
@@ -252,8 +260,11 @@ object HumanGestureDispatch {
 
     /**
      * Queue the stroke, make overlay chrome pass through for its duration, then wait for completion.
-     * Cancelled or not-queued is a hard failure (retry is allowed). A timeout after a successful
-     * queue is accepted so PhoneToolExecutor will not fire a second click channel.
+     *
+     * `dispatchGesture` returning true means Android queued the stroke, not that it landed.
+     * Only [AccessibilityService.GestureResultCallback.onCompleted] is success.
+     * Timeout and cancel are incomplete: callers must not treat them as performed, and must not
+     * dispatch a second click channel on the same observation.
      */
     private fun dispatchAndAwait(
         service: CycloneAccessibilityService,
@@ -275,13 +286,13 @@ object HumanGestureDispatch {
             }
         }
         val queued = service.dispatchGesture(gesture, callback, Handler(callbackLooper))
-        if (!queued) return@withHostPassthrough GestureDispatchOutcome(false, "not_queued")
+        if (!queued) return@withHostPassthrough GestureDispatchOutcome(false, REASON_NOT_QUEUED)
         val finished = done.await(FastPathTimings.gestureAwaitBudgetMs(durationMs), TimeUnit.MILLISECONDS)
         when {
             completed.get() -> GestureDispatchOutcome(true)
-            cancelled.get() -> GestureDispatchOutcome(false, "gesture_cancelled")
-            !finished -> GestureDispatchOutcome(true, "gesture_timeout")
-            else -> GestureDispatchOutcome(false, "gesture_unknown")
+            cancelled.get() -> GestureDispatchOutcome(false, REASON_CANCELLED)
+            !finished -> GestureDispatchOutcome(false, REASON_TIMEOUT)
+            else -> GestureDispatchOutcome(false, REASON_UNKNOWN)
         }
     }
 }

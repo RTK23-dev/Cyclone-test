@@ -82,8 +82,8 @@ class FastPathLoopTest {
     fun completedGestureKeepsTheOrdinary300msSettleAndDoesNotAddStrokeDurationAgain() {
         assertEquals(300L, FastPathTimings.SETTLE_MS)
         assertEquals(300L, FastPathTimings.settleAfterCompletedGestureMs())
-        assertEquals(580L, FastPathTimings.gestureAwaitBudgetMs(80L))
-        assertEquals(850L, FastPathTimings.gestureAwaitBudgetMs(350L))
+        assertEquals(1_580L, FastPathTimings.gestureAwaitBudgetMs(80L))
+        assertEquals(1_850L, FastPathTimings.gestureAwaitBudgetMs(350L))
         val sleeps = mutableListOf<Long>()
         FastPathLoop.settle(
             beforeFingerprint = "before",

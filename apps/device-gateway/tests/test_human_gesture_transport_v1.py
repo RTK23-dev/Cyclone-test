@@ -325,3 +325,28 @@ def test_malformed_gesture_fields_are_dropped_not_reinterpreted():
         }}
     })
     assert projected == {"ok": True}
+
+
+def test_incomplete_queued_gesture_projects_completed_false():
+    projected = _safe_android_execution({
+        "result": {"execution": {
+            "ok": False,
+            "humanGesture": {
+                "controlVersion": "cyclone.human_gesture.control.v1",
+                "traceVersion": "cyclone.human_gesture.trace.v1",
+                "synthesisVersion": "human-gesture-v03",
+                "requestedHumanize": "auto",
+                "resolvedProfile": "LIGHT",
+                "interactionMode": "synthesized_touch",
+                "dispatchMode": "human_gesture",
+                "backend": "accessibility_dispatch_gesture",
+                "completed": False,
+                "reason": "gesture_timeout",
+            },
+        }}
+    })
+    assert projected["ok"] is False
+    assert projected["gesture"]["completed"] is False
+    assert projected["gesture"]["profileRequested"] == "auto"
+    assert "reason" not in projected["gesture"]
+    assert "points" not in projected.get("gesture", {})

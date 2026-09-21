@@ -12,6 +12,14 @@ from cyclone_phone_mcp.cip import CipEngine
 class FakeTools:
     def __init__(self):
         self.calls = []
+        self.outcome = {
+            "ok": True,
+            "actionStatus": {
+                "transport": "ok",
+                "execution": "ok",
+                "gatewayVerification": "passed",
+            },
+        }
 
     def phone_ui_search(self, args):
         return {"results": [{"elementId": "e1", "label": args["query"]}]}
@@ -21,14 +29,7 @@ class FakeTools:
 
     def _run_verified_mutation(self, device, tool, params, goal, scope=None):
         self.calls.append((device, tool, params, goal, scope))
-        return {
-            "ok": True,
-            "actionStatus": {
-                "transport": "ok",
-                "execution": "ok",
-                "gatewayVerification": "passed",
-            },
-        }
+        return dict(self.outcome)
 
 
 class FakeLive:
@@ -125,6 +126,7 @@ class CipTests(unittest.TestCase):
         self.assertEqual(params["x2"], 500)
         self.assertEqual(params["y2"], 400)
         self.assertEqual(params["durationMs"], 350)
+        self.assertEqual(params["humanize"], "auto")
 
     def test_coordinate_tap_is_observation_bound(self):
         temp, live, cip = self.make()
@@ -140,6 +142,7 @@ class CipTests(unittest.TestCase):
         _, tool, params, _, _ = live.tools.calls[0]
         self.assertEqual(tool, "phone.click")
         self.assertEqual(params["selector"], {"x": 250, "y": 1499})
+        self.assertEqual(params["humanize"], "auto")
 
     def test_element_tap_and_after_observation(self):
         temp, live, cip = self.make()
@@ -155,6 +158,31 @@ class CipTests(unittest.TestCase):
         self.assertEqual(result["after"]["id"], "obs-2")
         self.assertEqual(live.tools.calls[0][1], "phone.click")
         self.assertEqual(live.tools.calls[0][2]["elementId"], "e1")
+        self.assertEqual(live.tools.calls[0][2]["humanize"], "auto")
+
+    def test_queued_gesture_timeout_is_uncertain_never_retry(self):
+        temp, live, cip = self.make()
+        self.addCleanup(temp.cleanup)
+        live.tools.outcome = {
+            "ok": False,
+            "errorClass": "TIMEOUT",
+            "actionStatus": {
+                "transport": "ok",
+                "execution": "timeout",
+                "gatewayVerification": "not_run",
+            },
+        }
+        obs = cip.see()["observation"]["id"]
+        result = cip.act(
+            request_id="request-gesture-timeout",
+            observation_id=obs,
+            action={"kind": "tap", "target": {"element_id": "e1"}},
+            goal="Tap Go",
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status"], "UNCERTAIN")
+        self.assertEqual(result["retry"], "NEVER_RETRY_MUTATION")
+        self.assertEqual(live.tools.calls[0][2]["humanize"], "auto")
 
     def test_mutation_request_id_is_at_most_once(self):
         temp, live, cip = self.make()

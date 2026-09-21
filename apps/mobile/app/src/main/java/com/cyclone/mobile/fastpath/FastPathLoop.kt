@@ -7,13 +7,14 @@ import org.json.JSONObject
 object FastPathTimings {
     const val SETTLE_MS = 300L
     val LADDER_MS = longArrayOf(500L, 1_000L)
-    const val GESTURE_COMPLETION_SLACK_MS = 500L
+    const val GESTURE_COMPLETION_SLACK_MS = 1_500L
     const val UNCHANGED_WARNING =
         "UNCHANGED: UI fingerprint did not change after settle+ladder. Do not retry via a second click channel."
 
     /**
      * How long Human Gesture may wait for [android.accessibilityservice.GestureResultCallback]
-     * after queueing a stroke. Fast Path settle still starts only after that wait returns.
+     * after queueing a stroke. Fast Path settle starts only after onCompleted. A timeout is
+     * incomplete, not a performed action.
      */
     fun gestureAwaitBudgetMs(durationMs: Long): Long =
         durationMs.coerceAtLeast(0L) + GESTURE_COMPLETION_SLACK_MS

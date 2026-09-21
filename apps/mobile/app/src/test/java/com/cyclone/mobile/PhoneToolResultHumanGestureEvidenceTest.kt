@@ -27,6 +27,7 @@ class PhoneToolResultHumanGestureEvidenceTest {
         assertEquals("cyclone.human_gesture.trace.v1", evidence.getString("traceVersion"))
         assertTrue(evidence.isNull("requestedHumanize"))
         assertFalse(evidence.getBoolean("correctedOrRejected"))
+        assertTrue(evidence.getBoolean("completed"))
     }
 
     @Test
@@ -49,6 +50,7 @@ class PhoneToolResultHumanGestureEvidenceTest {
         assertEquals("workspace-mail", evidence.getString("sessionId"))
         assertEquals(7, evidence.getInt("displayId"))
         assertTrue(evidence.getBoolean("correctedOrRejected"))
+        assertFalse(evidence.getBoolean("completed"))
     }
 
     @Test
