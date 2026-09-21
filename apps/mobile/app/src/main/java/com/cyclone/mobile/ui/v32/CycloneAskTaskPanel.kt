@@ -9,15 +9,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,7 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -93,7 +88,9 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
     )
 
     CycloneSignatureCard(
-        modifier = Modifier.fillMaxWidth().animateContentSize()
+        modifier = Modifier.fillMaxWidth()
+            .animateContentSize(animationSpec = tween(CycloneConversationTokens.stateTransitionMs))
+            .clip(RoundedCornerShape(CycloneConversationTokens.taskRadius))
             .semantics { stateDescription = if (progressExpanded) "Expanded" else "Collapsed" }
             .clickable(
                 onClickLabel = if (progressExpanded) "Collapse task progress" else "Expand task progress",
@@ -139,7 +136,6 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
                         onReviewRequest = { UiTask(task).open(context) },
                     )
                     CycloneTaskVisualState.DONE -> TerminalBody(
-                        task = task,
                         snapshot = snapshot,
                         primaryAction = TaskFollowUpAction.RUN_AGAIN,
                         onPrimary = { rerunTask(context, task) },
@@ -147,7 +143,6 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
                         onOpenApp = { openInstalledApp(context, task.packageName) },
                     )
                     CycloneTaskVisualState.FAILED -> TerminalBody(
-                        task = task,
                         snapshot = snapshot,
                         primaryAction = TaskFollowUpAction.TRY_AGAIN,
                         onPrimary = { rerunTask(context, task) },
@@ -295,7 +290,6 @@ private fun ActionNeededBody(
 
 @Composable
 private fun TerminalBody(
-    task: WorkspaceTaskUi,
     snapshot: TaskPresentationSnapshot,
     primaryAction: TaskFollowUpAction,
     onPrimary: () -> Unit,
