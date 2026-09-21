@@ -63,6 +63,9 @@ class CycloneAccessibilityService : AccessibilityService() {
     private var lastAutomationPackage: String? = null
     private var guidedOverlay: GuidedRecorderOverlayController? = null
     private val observationRevisions = java.util.concurrent.ConcurrentHashMap<Int, java.util.concurrent.atomic.AtomicLong>()
+    private val sensitiveEditableHint = Regex(
+        "(?i)(password|passcode|passwd|secret|otp|one.?time|verification.?code|cvv|cvc|card.?number|pin|api.?key|token)"
+    )
 
     /** Window metadata only: this must never traverse semantic children. Overlay chrome is excluded. */
     fun observationSurface(sessionId: String, displayId: Int, scope: String, profileId: Int?): com.cyclone.mobile.agent.ObservationSurface {
@@ -803,10 +806,9 @@ class CycloneAccessibilityService : AccessibilityService() {
             childIds += stableNodeId("$path/$i", child, UiBounds(childRect.left, childRect.top, childRect.right, childRect.bottom))
         }
         val password = node.isPassword
-        // Editable text is user-entered state. Redact before PageAwareness/learning sees the raw
-        // snapshot, not only later at the GatewayPrivacy export boundary.
-        val safeText = if (node.isEditable || password) "" else node.text?.toString().orEmpty()
-        val safeDescription = if (password) "" else node.contentDescription?.toString().orEmpty()
+        val sensitive = isSensitiveEditable(node)
+        val safeText = if (sensitive) "" else node.text?.toString().orEmpty()
+        val safeDescription = if (sensitive) "" else node.contentDescription?.toString().orEmpty()
         out += UiNodeSnapshot(
             id = id, path = path, parentId = parentId, childIds = childIds, depth = depth, windowId = node.windowId,
             className = node.className?.toString().orEmpty(),
@@ -842,8 +844,8 @@ class CycloneAccessibilityService : AccessibilityService() {
 
     private fun automationSelector(node: AccessibilityNodeInfo): AutomationSelector = AutomationSelector(
         resourceId = node.viewIdResourceName?.takeIf { it.isNotBlank() },
-        text = if (node.isEditable || node.isPassword) null else node.text?.toString()?.takeIf { it.isNotBlank() },
-        contentDescription = if (node.isPassword) null else node.contentDescription?.toString()?.takeIf { it.isNotBlank() },
+        text = if (isSensitiveEditable(node)) null else node.text?.toString()?.takeIf { it.isNotBlank() },
+        contentDescription = if (isSensitiveEditable(node)) null else node.contentDescription?.toString()?.takeIf { it.isNotBlank() },
         role = inferRole(node, ""),
         className = node.className?.toString()?.takeIf { it.isNotBlank() },
         requireClickable = node.isClickable.takeIf { it },
@@ -860,8 +862,8 @@ class CycloneAccessibilityService : AccessibilityService() {
     private fun inferRole(
         node: AccessibilityNodeInfo,
         parentClassName: String,
-        safeText: String = if (node.isEditable || node.isPassword) "" else node.text?.toString().orEmpty(),
-        safeDescription: String = if (node.isPassword) "" else node.contentDescription?.toString().orEmpty(),
+        safeText: String = if (isSensitiveEditable(node)) "" else node.text?.toString().orEmpty(),
+        safeDescription: String = if (isSensitiveEditable(node)) "" else node.contentDescription?.toString().orEmpty(),
     ): String {
         return AccessibilityRoles.inferRole(
             className = node.className?.toString().orEmpty(),
@@ -876,6 +878,18 @@ class CycloneAccessibilityService : AccessibilityService() {
             parentClassName = parentClassName,
             actions = accessibilityActionNames(node),
         )
+    }
+
+    private fun isSensitiveEditable(node: AccessibilityNodeInfo): Boolean {
+        if (node.isPassword) return true
+        if (!node.isEditable) return false
+        val hints = listOf(
+            node.viewIdResourceName.orEmpty(),
+            node.contentDescription?.toString().orEmpty(),
+            node.hintText?.toString().orEmpty(),
+            node.className?.toString().orEmpty(),
+        ).joinToString(" ")
+        return sensitiveEditableHint.containsMatchIn(hints)
     }
 
     private fun screenFingerprint(packageName: String?, nodes: List<UiNodeSnapshot>): String {
