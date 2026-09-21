@@ -241,16 +241,41 @@ object AtlasPrivacy {
 
     fun safeNode(node: GraphNode): GraphNode = when (node) {
         is AppNode -> node.copy(displayName = structuralLabel(node.displayName, node.packageName))
-        is ActivityNode -> node.copy(displayName = structuralLabel(node.displayName, node.className))
-        is PageNode -> node.copy(displayName = structuralLabel(node.displayName, node.identity))
-        is ElementNode -> node.copy(displayName = structuralLabel(node.displayName, node.semanticName))
+        is ActivityNode -> node.copy(
+            className = structuralIdentity(node.className, "activity"),
+            displayName = structuralLabel(node.displayName, "Activity"),
+        )
+        is PageNode -> node.copy(
+            identity = structuralIdentity(node.identity, "page"),
+            displayName = structuralLabel(node.displayName, "Screen"),
+        )
+        is ElementNode -> node.copy(
+            semanticName = structuralIdentity(node.semanticName, "control"),
+            displayName = structuralLabel(node.displayName, "Control"),
+        )
         is SelectorNode -> node.copy(
             selectorKey = if (node.selectorKey.startsWith("sha256:")) node.selectorKey else selectorDigest(node.selectorKey),
             displayName = structuralLabel(node.displayName, "Semantic selector"),
         )
-        is TransitionNode -> node.copy(displayName = structuralLabel(node.displayName, node.actionName))
-        is RoutineNode -> node.copy(displayName = structuralLabel(node.displayName, node.routineId))
-        is CapabilityNode -> node.copy(displayName = structuralLabel(node.displayName, node.capabilityId))
+        is TransitionNode -> node.copy(
+            actionName = structuralIdentity(node.actionName, "navigate"),
+            displayName = structuralLabel(node.displayName, "Navigate"),
+        )
+        is RoutineNode -> node.copy(
+            routineId = structuralIdentity(node.routineId, "routine"),
+            displayName = structuralLabel(node.displayName, "Routine"),
+        )
+        is CapabilityNode -> node.copy(
+            capabilityId = structuralIdentity(node.capabilityId, "capability"),
+            displayName = structuralLabel(node.displayName, "Capability"),
+        )
+    }
+
+    private fun structuralIdentity(raw: String, fallback: String): String {
+        val safe = structuralLabel(raw, fallback)
+        return safe.replace(Regex("[^A-Za-z0-9._:/=_-]+"), "_")
+            .take(160)
+            .ifBlank { fallback }
     }
 
     private fun selectorDigest(raw: String): String = AtlasGraphIds.selectorDigest(raw)
