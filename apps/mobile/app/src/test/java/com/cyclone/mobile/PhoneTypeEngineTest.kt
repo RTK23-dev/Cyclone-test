@@ -124,6 +124,27 @@ class PhoneTypeEngineTest {
     }
 
     @Test
+    fun passwordFlagIsPolicyDeniedEvenWhenLabelsAreNeutral() {
+        val screen = phoneTaskScreen(
+            observationId = "obs-password-flag",
+            focused = true,
+            rawNodeId = "raw-password-flag",
+            resourceId = "com.example:id/input",
+            contentDescription = "Input",
+            role = "textbox",
+            password = true,
+        )
+        val decision = PhoneTypeEngine.decide(
+            authorizedType(screen.taskElementId, secretAttempt),
+            screen.catalog,
+        )
+        assertEquals(
+            PhoneToolErrorCode.POLICY_DENIED,
+            (decision as PhoneTypeEngine.Decision.Reject).deny.code,
+        )
+    }
+
+    @Test
     fun otpFieldIsPolicyDenied() {
         assertSensitiveDenied(
             resourceId = "com.example:id/otp_code",
@@ -285,6 +306,7 @@ class PhoneTypeEngineTest {
         role: String = "textbox",
         resourceId: String = "com.cyclone.mobile:id/task_input",
         contentDescription: String = "Task",
+        password: Boolean = false,
     ): PhoneTaskScreen {
         val chrome = node(
             id = "raw-chrome",
@@ -305,6 +327,7 @@ class PhoneTypeEngineTest {
             resourceId = resourceId,
             contentDescription = contentDescription,
             className = if (editable) "android.widget.EditText" else "android.widget.Button",
+            password = password,
             actions = if (editable) listOf("ACTION_SET_TEXT", "ACTION_FOCUS") else listOf("ACTION_CLICK"),
             bounds = UiBounds(16, 80, 360, 128),
         )
@@ -357,6 +380,7 @@ class PhoneTypeEngineTest {
         className: String = "android.view.View",
         actions: List<String> = emptyList(),
         bounds: UiBounds = UiBounds(0, 0, 10, 10),
+        password: Boolean = false,
     ) = UiNodeSnapshot(
         id = id,
         path = path,
@@ -382,6 +406,7 @@ class PhoneTypeEngineTest {
         focusable = true,
         visibleToUser = true,
         actions = actions,
+        password = password,
     )
 
     private data class PhoneTaskScreen(
