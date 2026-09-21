@@ -94,6 +94,7 @@ data class TaskRunInformation(
 
 object OutcomeStageCopy {
     private val LOGIN = Regex("\\b(log\\s*in|login|sign\\s*in|signin|logged\\s*in|signed\\s*in)\\b", RegexOption.IGNORE_CASE)
+    private val SEARCH = Regex("\\b(search|find|look\\s*up|look\\s*for)\\b", RegexOption.IGNORE_CASE)
 
     fun completedPhrase(objective: String): String = when {
         objective.startsWith("Finding the signed-in email", ignoreCase = true) -> "Email address found"

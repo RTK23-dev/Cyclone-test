@@ -156,6 +156,17 @@ class OutcomeStageProjectorTest {
     }
 
     @Test
+    fun singleDestinationSearchTitleDoesNotInventALoginCheck() {
+        val goal = "Search Gmail for last week's receipts"
+        val projected = OutcomeStageProjector.project(
+            goal, TaskTrajectory.seed(goal), "Gmail", "com.google.android.gm", TaskPhase.WORKING,
+        )
+        assertEquals(1, projected.stages.size)
+        assertEquals("Gmail", projected.stages.single().destinationLabel)
+        assertEquals("Searching Gmail", projected.title)
+    }
+
+    @Test
     fun usageParserNeverInventedZeroFromEmptyDetails() {
         assertEquals(null to null, TaskRunInformationLive.parseUsage(emptyList()))
         assertEquals(820L to 96L, TaskRunInformationLive.parseUsage(listOf("prompt_tokens=820 completion_tokens=96")))
