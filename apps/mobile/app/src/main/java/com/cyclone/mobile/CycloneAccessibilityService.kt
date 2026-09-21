@@ -474,7 +474,11 @@ class CycloneAccessibilityService : AccessibilityService() {
         return false
     }
 
-    fun typeEditable(plan: PhoneTypeEngine.ExecutePlan, value: CharSequence): PhoneTypeEngine.LiveResult {
+    fun typeEditable(
+        plan: PhoneTypeEngine.ExecutePlan,
+        value: CharSequence,
+        redactObservedText: Boolean = false,
+    ): PhoneTypeEngine.LiveResult {
         if (!agentCanAct()) {
             return PhoneTypeEngine.LiveResult(
                 ok = false,
@@ -483,7 +487,12 @@ class CycloneAccessibilityService : AccessibilityService() {
                 rawNodeId = plan.rawNodeId,
             )
         }
-        return PhoneTypeEngine.perform(plan, value, AccessibilityTypeLive(displayId = 0, targetPackage = null))
+        return PhoneTypeEngine.perform(
+            plan,
+            value,
+            AccessibilityTypeLive(displayId = 0, targetPackage = null),
+            redactObservedText = redactObservedText,
+        )
     }
 
     /**
@@ -508,6 +517,7 @@ class CycloneAccessibilityService : AccessibilityService() {
             plan,
             value,
             AccessibilityTypeLive(displayId = displayId, targetPackage = targetPackage),
+            redactObservedText = true,
         )
     }
 
@@ -521,18 +531,19 @@ class CycloneAccessibilityService : AccessibilityService() {
             return if (node.isEditable) AccessibilityTypeHandle(plan.path, node, plan.rawNodeId) else null
         }
 
-        override fun view(handle: Any): PhoneTypeEngine.LiveView? {
+        override fun view(handle: Any, redactText: Boolean): PhoneTypeEngine.LiveView? {
             val target = handle as? AccessibilityTypeHandle ?: return null
             val node = target.node
-            val text = node.text?.toString().orEmpty()
+            val text = node.text
+            val textLength = text?.length ?: 0
             return PhoneTypeEngine.LiveView(
                 rawNodeId = target.rawNodeId,
                 path = target.path,
                 editable = node.isEditable,
                 focused = node.isFocused,
                 enabled = node.isEnabled,
-                textLength = text.length,
-                textDigest = PhoneTypeEngine.digest(text),
+                textLength = textLength,
+                textDigest = if (redactText) "<redacted>" else PhoneTypeEngine.digest(text ?: ""),
                 actions = accessibilityActionNames(node),
             )
         }
