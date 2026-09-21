@@ -81,6 +81,7 @@ object PhoneTypeEngine {
         val textLength: Int,
         val textDigest: String,
         val actions: List<String>,
+        val password: Boolean = false,
     )
 
     interface LiveHost {
@@ -272,8 +273,12 @@ object PhoneTypeEngine {
         val textChanged = after != null && (after.textDigest != beforeDigest || after.textLength != beforeLength)
         val unchangedAsLabel = after != null && after.textDigest == beforeDigest && after.textLength == beforeLength
         val exactRedactedMatch = redactObservedText && after != null && host.matchesText(afterHandle, value)
+        val maskedPasswordFilled = redactObservedText &&
+            after?.password == true &&
+            beforeLength != after.textLength &&
+            after.textLength == value.length
         val verified = stillEditableFocused && if (redactObservedText) {
-            exactRedactedMatch
+            exactRedactedMatch || maskedPasswordFilled
         } else {
             digestMatches || textChanged || unchangedAsLabel
         }
