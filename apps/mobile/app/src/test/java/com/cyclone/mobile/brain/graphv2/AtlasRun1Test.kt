@@ -178,17 +178,17 @@ class AtlasRun1Test {
 
             assertEquals(
                 setOf("place", "persona", "mapStatus", "screens", "edges", "capabilities", "confidence", "lastObservedAt", "lastVerifiedAt"),
-                doc.keySet(),
+                doc.keys().asSequence().toSet(),
             )
             assertEquals("live", doc.getString("persona"))
             assertTrue(doc.getString("mapStatus") in setOf("unmapped", "mapped", "stale", "blocked"))
             val place = doc.getJSONObject("place")
-            assertEquals(setOf("placeId", "kind", "label", "packageName"), place.keySet())
+            assertEquals(setOf("placeId", "kind", "label", "packageName"), place.keys().asSequence().toSet())
             Instant.parse(doc.getString("lastObservedAt"))
             val first = doc.getJSONArray("screens").getJSONObject(0)
             assertEquals(
                 setOf("screenId", "label", "purpose", "factSlots", "risk", "confidence", "lastObservedAt", "lastVerifiedAt", "layout"),
-                first.keySet(),
+                first.keys().asSequence().toSet(),
             )
             assertTrue(first.getJSONObject("risk").has("danger"))
             assertTrue(first.getJSONObject("risk").has("classes"))
