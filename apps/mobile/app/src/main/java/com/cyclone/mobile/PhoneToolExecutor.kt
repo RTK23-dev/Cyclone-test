@@ -166,7 +166,9 @@ object PhoneToolExecutor {
         val live = try {
             leasedValue.position(0)
             if (foreground) {
-                service.typeEditable(plan, leasedValue)
+                com.cyclone.mobile.ui.overlay.OverlayGesturePassthrough.withHostPassthrough {
+                    service.typeEditable(plan, leasedValue)
+                }
             } else {
                 val session = com.cyclone.mobile.runtime.background.WorkspaceRuntime.requireScope(scope)
                 val targetPackage = session.targetPackage?.takeIf { it.isNotBlank() }
