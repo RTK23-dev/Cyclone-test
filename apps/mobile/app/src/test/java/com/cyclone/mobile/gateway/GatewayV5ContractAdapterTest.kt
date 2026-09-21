@@ -54,7 +54,7 @@ class GatewayV5ContractAdapterTest {
                     .put("persona", "live")
                     .put("slot", "password")
                     .put("reason", "Login required")
-                    .put("password", "must-never-cross"),
+                    .put("password", true),
             )
         }.exceptionOrNull()
         assertTrue(error is GatewayProtocolException)
