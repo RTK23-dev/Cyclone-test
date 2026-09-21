@@ -205,6 +205,32 @@ class PhoneTypeEngineTest {
     }
 
     @Test
+    fun redactedSecretVerificationRequiresExactInProcessMatchAndExportsNoDigest() {
+        val screen = phoneTaskScreen(observationId = "obs-secret", focused = true, rawNodeId = "raw-secret")
+        val plan = PhoneTypeEngine.ExecutePlan(
+            elementId = screen.taskElementId,
+            rawNodeId = "raw-secret",
+            path = screen.snapshot.nodes.first { it.id == "raw-secret" }.path,
+            needsFocus = false,
+            valueLength = taskValue.length,
+            valueDigest = PhoneTypeEngine.digest(taskValue),
+        )
+        val good = FakeLiveHost.from(screen, initialText = "")
+        val verified = PhoneTypeEngine.perform(plan, taskValue, good, redactObservedText = true)
+        assertTrue(verified.ok)
+        assertTrue(verified.afterStateVerified)
+        assertEquals("<redacted>", verified.textDigest)
+        assertEquals(0, verified.charCount)
+        assertFalse(verified.toPayload().toString().contains(taskValue))
+        assertFalse(verified.toPayload().toString().contains(PhoneTypeEngine.digest(taskValue)))
+
+        val rejected = FakeLiveHost.from(screen, initialText = "", applySetText = false, reportSetText = true)
+        val failed = PhoneTypeEngine.perform(plan, taskValue, rejected, redactObservedText = true)
+        assertFalse(failed.ok)
+        assertFalse(failed.afterStateVerified)
+    }
+
+    @Test
     fun redactedParamsAndReportsNeverContainTypedPlaintext() {
         val screen = phoneTaskScreen(observationId = "obs-redact", focused = true, rawNodeId = "raw-redact")
         val params = authorizedType(screen.taskElementId, taskValue)
@@ -407,6 +433,12 @@ class PhoneTypeEngineTest {
             if (!reportSetText && !applySetText) return false
             if (applySetText) node.text = value.toString()
             return reportSetText
+        }
+
+        override fun matchesText(handle: Any, value: CharSequence): Boolean {
+            val node = handle as? FakeNode ?: return false
+            if (node.text.length != value.length) return false
+            return node.text.indices.all { index -> node.text[index] == value[index] }
         }
 
         override fun refresh(handle: Any): Any? = handle as? FakeNode
