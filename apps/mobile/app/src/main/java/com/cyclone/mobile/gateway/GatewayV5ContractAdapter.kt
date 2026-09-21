@@ -212,11 +212,11 @@ internal object GatewayV5ContractAdapter {
     }
 
     private fun rejectSecretFactSlots(screens: JSONArray) {
-        repeat(screens.length()) { index ->
-            val screen = screens.optJSONObject(index) ?: return@repeat
-            val slots = screen.optJSONArray("factSlots") ?: return@repeat
-            repeat(slots.length()) { slotIndex ->
-                val slot = slots.optJSONObject(slotIndex) ?: return@repeat
+        for (index in 0 until screens.length()) {
+            val screen = screens.optJSONObject(index) ?: continue
+            val slots = screen.optJSONArray("factSlots") ?: continue
+            for (slotIndex in 0 until slots.length()) {
+                val slot = slots.optJSONObject(slotIndex) ?: continue
                 val name = slot.optString("name")
                 if (name.isNotBlank() && SkillSecrets.isSecretKey(name)) {
                     fail("SECRET_PAYLOAD_REJECTED", "Atlas source attempted to expose a secret fact slot.")
