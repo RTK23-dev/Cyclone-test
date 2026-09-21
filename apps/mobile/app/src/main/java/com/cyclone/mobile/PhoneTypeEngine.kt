@@ -88,7 +88,7 @@ object PhoneTypeEngine {
         fun view(handle: Any): LiveView?
         fun focus(handle: Any): Boolean
         fun click(handle: Any): Boolean
-        fun setText(handle: Any, value: String): Boolean
+        fun setText(handle: Any, value: CharSequence): Boolean
         fun refresh(handle: Any): Any?
     }
 
@@ -223,7 +223,7 @@ object PhoneTypeEngine {
         )
     }
 
-    fun perform(plan: ExecutePlan, value: String, host: LiveHost): LiveResult {
+    fun perform(plan: ExecutePlan, value: CharSequence, host: LiveHost): LiveResult {
         if (digest(value) != plan.valueDigest || value.length != plan.valueLength) {
             return fail(plan, PhoneToolErrorCode.INTERNAL_ERROR, "Type plan does not match the authorized value")
         }
@@ -328,9 +328,15 @@ object PhoneTypeEngine {
         return null
     }
 
-    fun digest(value: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }.take(16)
+    fun digest(value: CharSequence): String {
+        val encoded = Charsets.UTF_8.encode(java.nio.CharBuffer.wrap(value))
+        val bytes = ByteArray(encoded.remaining()).also(encoded::get)
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+            digest.joinToString("") { "%02x".format(it) }.take(16)
+        } finally {
+            bytes.fill(0)
+        }
     }
 
     fun duplicateSignature(tool: String, params: JSONObject): String {

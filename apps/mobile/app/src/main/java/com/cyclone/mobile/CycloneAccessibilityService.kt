@@ -474,7 +474,7 @@ class CycloneAccessibilityService : AccessibilityService() {
         return false
     }
 
-    fun typeEditable(plan: PhoneTypeEngine.ExecutePlan, value: String): PhoneTypeEngine.LiveResult {
+    fun typeEditable(plan: PhoneTypeEngine.ExecutePlan, value: CharSequence): PhoneTypeEngine.LiveResult {
         if (!agentCanAct()) {
             return PhoneTypeEngine.LiveResult(
                 ok = false,
@@ -483,13 +483,41 @@ class CycloneAccessibilityService : AccessibilityService() {
                 rawNodeId = plan.rawNodeId,
             )
         }
-        return PhoneTypeEngine.perform(plan, value, AccessibilityTypeLive())
+        return PhoneTypeEngine.perform(plan, value, AccessibilityTypeLive(displayId = 0, targetPackage = null))
     }
 
-    private inner class AccessibilityTypeLive : PhoneTypeEngine.LiveHost {
+    /**
+     * Workspace-scoped secure input. Authority is proved by PhoneToolExecutor before entry;
+     * this method only resolves the exact node on [displayId] and performs ACTION_SET_TEXT.
+     */
+    internal fun typeEditableOnDisplay(
+        plan: PhoneTypeEngine.ExecutePlan,
+        value: CharSequence,
+        displayId: Int,
+        targetPackage: String,
+    ): PhoneTypeEngine.LiveResult {
+        if (displayId <= 0 || targetPackage.isBlank()) {
+            return PhoneTypeEngine.LiveResult(
+                ok = false,
+                error = PhoneToolError(PhoneToolErrorCode.INVALID_REQUEST, "Invalid workspace target"),
+                elementId = plan.elementId,
+                rawNodeId = plan.rawNodeId,
+            )
+        }
+        return PhoneTypeEngine.perform(
+            plan,
+            value,
+            AccessibilityTypeLive(displayId = displayId, targetPackage = targetPackage),
+        )
+    }
+
+    private inner class AccessibilityTypeLive(
+        private val displayId: Int,
+        private val targetPackage: String?,
+    ) : PhoneTypeEngine.LiveHost {
 
         override fun resolve(plan: PhoneTypeEngine.ExecutePlan): Any? {
-            val node = nodeAtTaskPath(plan.path) ?: return null
+            val node = nodeAtTaskPath(plan.path, displayId, targetPackage) ?: return null
             return if (node.isEditable) AccessibilityTypeHandle(plan.path, node, plan.rawNodeId) else null
         }
 
@@ -519,7 +547,7 @@ class CycloneAccessibilityService : AccessibilityService() {
             return target.node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         }
 
-        override fun setText(handle: Any, value: String): Boolean {
+        override fun setText(handle: Any, value: CharSequence): Boolean {
             val target = handle as? AccessibilityTypeHandle ?: return false
             val args = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)
@@ -529,7 +557,7 @@ class CycloneAccessibilityService : AccessibilityService() {
 
         override fun refresh(handle: Any): Any? {
             val target = handle as? AccessibilityTypeHandle ?: return null
-            val node = nodeAtTaskPath(target.path) ?: return null
+            val node = nodeAtTaskPath(target.path, displayId, targetPackage) ?: return null
             return if (node.isEditable) AccessibilityTypeHandle(target.path, node, target.rawNodeId) else null
         }
     }
@@ -695,14 +723,38 @@ class CycloneAccessibilityService : AccessibilityService() {
     private fun liveNodeAtSnapshotPath(snapshotNode: UiNodeSnapshot): AccessibilityNodeInfo? =
         nodeAtTaskPath(snapshotNode.path)?.takeIf { sameNode(snapshotNode, it) }
 
-    private fun nodeAtTaskPath(path: String): AccessibilityNodeInfo? {
+    private fun nodeAtTaskPath(
+        path: String,
+        displayId: Int = 0,
+        targetPackage: String? = null,
+    ): AccessibilityNodeInfo? {
         val parsed = TaskSurfaceWindows.parseNodePath(path) ?: return null
-        val primary = preferredForegroundRoot() ?: return null
-        val root = if (parsed.windowId == null || parsed.windowId == primary.windowId) primary else {
-            val window = windowsOnAllDisplays.get(0).orEmpty().firstOrNull { it.id == parsed.windowId } ?: return null
+        val root = if (displayId == 0) {
+            val primary = preferredForegroundRoot() ?: return null
+            if (parsed.windowId == null || parsed.windowId == primary.windowId) {
+                primary
+            } else {
+                val window = windowsOnAllDisplays.get(0).orEmpty()
+                    .firstOrNull { it.id == parsed.windowId } ?: return null
+                val candidate = window.root ?: return null
+                if (!TaskSurfaceWindows.includeSibling(
+                        window.type,
+                        candidate.packageName?.toString().orEmpty(),
+                        primary.packageName?.toString().orEmpty(),
+                    )
+                ) return null
+                candidate
+            }
+        } else {
+            val packageName = targetPackage ?: return null
+            val windows = windowsOnAllDisplays.get(displayId).orEmpty()
+            val window = parsed.windowId?.let { id -> windows.firstOrNull { it.id == id } }
+                ?: windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+                    .sortedByDescending { it.layer }
+                    .firstOrNull { it.root?.packageName?.toString() == packageName }
+                ?: return null
             val candidate = window.root ?: return null
-            if (!TaskSurfaceWindows.includeSibling(window.type, candidate.packageName?.toString().orEmpty(),
-                    primary.packageName?.toString().orEmpty())) return null
+            if (candidate.packageName?.toString() != packageName) return null
             candidate
         }
         var node = root

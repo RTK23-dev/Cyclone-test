@@ -291,11 +291,12 @@ class OverlayChromeController(
                 setViewTreeSavedStateRegistryOwner(lifecycle)
                 setContent {
                     val externalActive by OverlayExternalInteraction.active.collectAsState()
-                    LaunchedEffect(externalActive) {
+                    val secretCardState by com.cyclone.mobile.secrets.SecretsCardRuntime.state.collectAsState()
+                    LaunchedEffect(externalActive, secretCardState?.visible) {
                         aiSettings = getAiSettings()
                         applyLayout(latest)
                     }
-                    if (glass()) {
+                    if (glass() && secretCardState?.visible != true) {
                         com.cyclone.mobile.ui.v32.CycloneV32Theme(drawBackground = false) {
                             com.cyclone.mobile.ui.overlay.BackgroundTaskGlass(backgroundTask!!) { onAction(OverlayUserAction.ASK_CYCLONE) }
                         }
@@ -313,6 +314,7 @@ class OverlayChromeController(
                                     onAiSettingsChanged(next)
                                 },
                                 idleVisualState = idleVisualState,
+                                secretCardState = secretCardState,
                                 onIdleTap = ::recordIdleTap,
                                 onIdleSemanticActivate = ::recordSemanticActivation,
                             )
@@ -373,7 +375,8 @@ class OverlayChromeController(
                 return@onMain
             }
             if (root == null) {
-                if (snapshot.state != OverlayChromeState.IDLE || snapshot.idleChipVisible || glass()) show(snapshot)
+                val secretVisible = com.cyclone.mobile.secrets.SecretsCardRuntime.state.value?.visible == true
+                if (snapshot.state != OverlayChromeState.IDLE || snapshot.idleChipVisible || glass() || secretVisible) show(snapshot)
                 return@onMain
             }
             if (!isCompact(snapshot)) resetIdleActivation()
@@ -423,24 +426,33 @@ class OverlayChromeController(
         renderActiveBorder(snapshot)
         val view = root ?: return
         val layout = params ?: return
-        val compact = isCompact(snapshot)
-        val minimizedComposer = isMinimizedComposer(snapshot)
-        val visible = (!compact || snapshot.idleChipVisible || glass()) &&
+        val secretVisible = com.cyclone.mobile.secrets.SecretsCardRuntime.state.value?.visible == true
+        val compact = !secretVisible && isCompact(snapshot)
+        val minimizedComposer = !secretVisible && isMinimizedComposer(snapshot)
+        val visible = (secretVisible || !compact || snapshot.idleChipVisible || glass()) &&
             !OverlayExternalInteraction.active.value &&
             !yieldHost
 
         view.importantForAccessibility =
             if (yieldHost) View.IMPORTANT_FOR_ACCESSIBILITY_NO else View.IMPORTANT_FOR_ACCESSIBILITY_YES
-        view.contentDescription =
-            if (snapshot.state == OverlayChromeState.GATE && !snapshot.minimized) OverlayCopy.GATE else null
+        view.contentDescription = when {
+            secretVisible -> "Secret needed"
+            snapshot.state == OverlayChromeState.GATE && !snapshot.minimized -> OverlayCopy.GATE
+            else -> null
+        }
         view.visibility = if (visible) View.VISIBLE else View.GONE
 
         val spec = when {
+            secretVisible -> OverlayChromeWindowPolicy.main(compact = false)
             glass() -> OverlayChromeWindowPolicy.glass()
             minimizedComposer -> OverlayChromeWindowPolicy.minimizedComposer()
             else -> OverlayChromeWindowPolicy.main(compact)
         }
-        val changed = applyWindowContract(layout, spec, followKeyboard = !compact && !glass())
+        val changed = applyWindowContract(
+            layout,
+            spec,
+            followKeyboard = secretVisible || (!compact && !glass()),
+        )
         if (changed || yieldHost != hostGestureYielded) {
             runCatching { wm.updateViewLayout(view, layout) }
         }
@@ -449,6 +461,7 @@ class OverlayChromeController(
             halo.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             halo.visibility = if (
                 visible &&
+                !secretVisible &&
                 (snapshot.state == OverlayChromeState.IDLE || snapshot.launcherCollapsed) &&
                 !glass() &&
                 snapshot.idleChipVisible
@@ -465,7 +478,9 @@ class OverlayChromeController(
 
     /** Decoration never owns touch/focus and yields with every explicit external interaction. */
     private fun renderActiveBorder(snapshot: OverlayChromeSnapshot) {
-        if (OverlayGesturePassthrough.active()) {
+        if (OverlayGesturePassthrough.active() ||
+            com.cyclone.mobile.secrets.SecretsCardRuntime.state.value?.visible == true
+        ) {
             activeBorder?.visibility = View.GONE
             return
         }
@@ -504,6 +519,8 @@ class OverlayChromeController(
     private fun overlayParams(snapshot: OverlayChromeSnapshot): WindowManager.LayoutParams =
         windowParams(
             when {
+                com.cyclone.mobile.secrets.SecretsCardRuntime.state.value?.visible == true ->
+                    OverlayChromeWindowPolicy.main(compact = false)
                 glass() -> OverlayChromeWindowPolicy.glass()
                 isMinimizedComposer(snapshot) -> OverlayChromeWindowPolicy.minimizedComposer()
                 else -> OverlayChromeWindowPolicy.main(isCompact(snapshot))

@@ -402,10 +402,10 @@ class PhoneTypeEngineTest {
             return true
         }
 
-        override fun setText(handle: Any, value: String): Boolean {
+        override fun setText(handle: Any, value: CharSequence): Boolean {
             val node = handle as FakeNode
             if (!reportSetText && !applySetText) return false
-            if (applySetText) node.text = value
+            if (applySetText) node.text = value.toString()
             return reportSetText
         }
 

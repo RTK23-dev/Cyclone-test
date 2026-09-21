@@ -67,6 +67,11 @@ object OverlayChromeRuntime {
 
     fun snapshot(): OverlayChromeSnapshot = synchronized(lock) { machine.snapshot() }
 
+    /** Re-evaluate externally-owned sibling surfaces such as the phone-local Secrets Card. */
+    fun refreshExternalSurface() {
+        synchronized(lock) { controller?.render(machine.snapshot()) }
+    }
+
     fun attach(service: CycloneAccessibilityService) {
         synchronized(lock) {
             if (controller != null && this.service === service) {
