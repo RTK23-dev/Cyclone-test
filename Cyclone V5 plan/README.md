@@ -9,6 +9,19 @@ V5 is not a feature dump on 4.8. The phone grows an **atlas** and a **vault**. T
 
 > One button to learn the house. A vault for the keys. A Minitap-class board on the PC so the operator can *see* the house. Eyes every time the agent walks through a door.
 
+## Orchestrators (start here to build)
+
+Two team leads, GitHub-only, first handoffs already written:
+
+| Orchestrator | Prompt | First brief |
+|---|---|---|
+| Mobile 5.0 | [`orchestrators/mobile/ORCHESTRATOR.md`](orchestrators/mobile/ORCHESTRATOR.md) | [`HANDOFF-000-start.md`](orchestrators/mobile/HANDOFF-000-start.md) |
+| Glass 1.0 | [`orchestrators/glass/ORCHESTRATOR.md`](orchestrators/glass/ORCHESTRATOR.md) | [`HANDOFF-000-start.md`](orchestrators/glass/HANDOFF-000-start.md) |
+
+How they run, branch names, and the pipe: [`orchestrators/README.md`](orchestrators/README.md) · [`CONTRACT.md`](orchestrators/CONTRACT.md)
+
+Each orch issues **three** agent handoffs (drafted under `orchestrators/<team>/agents/`). Agents return under `returns/` with PR URLs.
+
 ## Read in this order
 
 | # | Doc | What it is |
@@ -38,3 +51,5 @@ Invariant that does not move: **the phone mutates. Glass shows, types, and asks.
 ## Folder rule
 
 This folder is the generation plan. It does not describe the shipping 4.8 product. Current-product docs stay in [`docs/`](../docs/). When a V5 cut ships, promote the matching slice into `docs/` and leave this folder as the source plan.
+
+Orchestrators and agents work **inside GitHub** under `Cyclone V5 plan/orchestrators/`. They do not invent a parallel docs tree.
