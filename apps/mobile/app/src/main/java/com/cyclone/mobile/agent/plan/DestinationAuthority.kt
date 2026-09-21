@@ -71,11 +71,17 @@ object DestinationAuthority {
         val label = labelFor(destination, goal)
         return when {
             wantsSignedInEmail(goal, destination) -> "Finding the signed-in email address"
-            untilFor(goal, destination, last) == UNTIL_LOGIN_WALL -> "Signing in with the selected email"
-            LOGIN.containsMatchIn(goal) && last -> "Checking $label login status"
+            usesSelectedEmailSignIn(goal, destination, last) -> "Signing in with the selected email"
+            LOGIN.containsMatchIn(goal) -> "Checking $label login status"
             destination.kind == "host" -> "Opening $label"
             else -> "Working in $label"
         }
+    }
+
+    /** Facebook-in-Chrome (host login) after an email lookup — not a native "check login status" ask. */
+    private fun usesSelectedEmailSignIn(goal: String, destination: TaskDestination, last: Boolean): Boolean {
+        if (untilFor(goal, destination, last) != UNTIL_LOGIN_WALL) return false
+        return destination.kind == "host" || (EMAIL_LOOKUP.containsMatchIn(goal) && FIND.containsMatchIn(goal))
     }
 
     fun labelFor(destination: TaskDestination, goal: String): String = when (destination.kind) {
