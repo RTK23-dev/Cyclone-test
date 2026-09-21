@@ -95,8 +95,22 @@ internal class SecretsCardController(
             errorCode = null,
             lastStatus = status,
         )
-        session = null
+        // Keep only safe request/target metadata so a still-waiting task can reopen the card.
+        // No plaintext value is retained here.
         active.onResolution(result)
+    }
+
+    @Synchronized
+    fun reopen(): Boolean {
+        if (session == null) return false
+        val current = stateBacking.value ?: return false
+        if (current.visible) return true
+        stateBacking.value = current.copy(
+            visible = true,
+            busy = false,
+            errorCode = null,
+        )
+        return true
     }
 
     private fun applyResult(active: Session, result: SecretUseResult) {
@@ -150,6 +164,12 @@ object SecretsCardRuntime {
 
     internal fun useStored() {
         controller?.useStored()
+    }
+
+    fun reopenWaiting(): Boolean {
+        val reopened = controller?.reopen() == true
+        if (reopened) com.cyclone.mobile.ui.overlay.OverlayChromeRuntime.refreshExternalSurface()
+        return reopened
     }
 
     internal fun skip() {
