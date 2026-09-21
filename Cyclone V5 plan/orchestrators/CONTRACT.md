@@ -59,12 +59,15 @@ Password, OTP, cookie, token, raw typed secret, unredacted vault field in JSON, 
 | Surface | Mobile orch | Glass orch |
 |---|---|---|
 | `protocol/*.schema.json` | Writes | Reviews, generates/types client |
-| `apps/device-gateway` op handlers | Writes | Reviews contract tests |
+| `apps/mobile/**/gateway` phone op registration / dispatch / data adapters | Writes; phone remains source of truth | — |
+| `apps/device-gateway` forwarding / validation handlers | Writes | Reviews contract tests |
 | `apps/mobile` vault, GATE, atlas, mapper, overlay | Writes | — |
 | `apps/pc-companion` Ask, Maps, Vault UI, `atlasClient` | — | Writes |
 | Overlay JPEG / live / handoff | Keep 4.8 behavior | Keep One 1.5.5 live path |
 
 ## Handshake for this wave
+
+Coordination note: Mobile 001 publishes the `needs-secret` presentation state and schemas. Glass may mock atlas data for canvas work, but must replace the mock with Mobile 003's phone-owned `atlas.get` before the read-only alpha.2 exit test.
 
 - [ ] Schemas exist on `v5/integration`
 - [ ] GATE `NEED_SECRET` + overlay card on phone

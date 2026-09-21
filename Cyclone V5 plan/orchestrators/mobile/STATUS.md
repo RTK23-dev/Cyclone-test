@@ -1,7 +1,7 @@
 # Mobile orchestrator — STATUS
 
 **Wave:** 1 (alpha.1 + atlas foundation)  
-**Integration branch:** `v5/integration` — current wave-1 docs base `46db46bf7b7dfd17b3d6d66e6ac6da20436382f1`  
+**Integration branch:** `v5/integration` — wave-1 handoff seed `e15cf30d142d31f6392d0aca606986acf0310580` (branch continues to advance with orchestration docs)  
 **Plan source:** `main@d2ec2ca5a397f82fdaf90c72c93e3168f89b47dd` (V5 plan + orchestrators)  
 **Code base:** `release/cyclone-mobile-v4.8.0@97f81cb692893896b500f2372068fb1cd67d85ed`
 
@@ -34,10 +34,12 @@ States: `drafted` → `issued` → `in-pr` → `returned` → `merged` | `blocke
 - `TaskPresentationProjector` currently maps human interruptions to generic `ACTION_NEEDED`.
 - `GateClass` currently covers PAY / SEND / DELETE / GRANT only. `needs-secret` must be a task/interruption state, not a fake fifth approval-risk class.
 - Login-regex presentation logic still exists in `OutcomeStageCopy` / `TaskHumanizer`; wave 1 must not turn that into a wider Ask-compiler rewrite.
+- Graph v2's visible `InMemoryTemporalGraphStore` is non-durable while the existing App Graph is SQLite-backed; 003 must ship durable AtlasStore persistence and safe legacy projection/import.
+- Existing App Graph records include `dynamic_json` and optional screenshot paths; `atlas.get` must not pass raw dynamic values or unredacted frames to Glass.
 - Physical Pixel 8 remains **UNVERIFIED**.
 
 ## Notes
 
 - Integration plan seed landed via PR #138; wave-1 issue/status landed via PR #139.
-- Before implementation, handoffs 001–003 were amended from the live 4.8 code review: Android gateway owns atlas/secrets ops; Python gateway only forwards/validates; V5 atlas must not reuse `AppGraphExecutor` as a rapid-fire macro executor.
+- Before implementation, handoffs 001–003 were amended from the live 4.8 code review: Android gateway owns atlas/secrets ops; Python gateway only forwards/validates; V5 atlas must not reuse `AppGraphExecutor` as a rapid-fire macro executor; Atlas persistence/redaction and StrongBox fallback are explicit acceptance constraints.
 - This orchestrator does not implement 001–003 itself.

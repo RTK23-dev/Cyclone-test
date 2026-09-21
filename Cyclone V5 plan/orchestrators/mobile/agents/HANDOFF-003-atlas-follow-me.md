@@ -20,13 +20,13 @@ Follow Me already learns screens. Promote that to **the** atlas. Dummy ≠ live 
 
 ## Your individual task
 
-1. `AtlasStore` + `PlaceCatalog` (packages + chrome origins stub: origin field exists even if unused). Persona split.
-2. Promote Graph v2: purpose, fact slots, danger, confidence, lastVerified, layout coords (so Glass can persist operator drags later). Reuse the existing Graph v2 and `LegacyAppGraphV2Adapter`; do not fork a second graph. The current `AppGraphExecutor` rapid-replays saved hops — **do not make that the V5 atlas execution path**. Atlas retrieval is a sketch/hint only.
+1. Durable phone-local `AtlasStore` + `PlaceCatalog` (packages + chrome origins stub: origin field exists even if unused). Persona split. Maps must survive process death/restart; the current Graph v2 `InMemoryTemporalGraphStore` is not sufficient as the V5 store by itself.
+2. Promote Graph v2: purpose, fact slots, danger, confidence, lastVerified, layout coords (so Glass can persist operator drags later). Reuse the existing Graph v2 and `LegacyAppGraphV2Adapter`; do not fork a second graph. Import/project existing persistent `AppKnowledgeStore` knowledge rather than abandoning it. The current `AppGraphExecutor` rapid-replays saved hops — **do not make that the V5 atlas execution path**. Atlas retrieval is a sketch/hint only.
 3. Follow Me writes the same store (teach path). Keep its existing typed-text/sensitive-field exclusion intact.
 4. Settings → App Maps: catalog list, status, **small** graph or “open on Glass”, Start button **disabled / labeled coming** if mapper is not this PR. Do not fake a crawl.
-5. Fill the Android gateway `atlas.places` and `atlas.get` adapters from the phone store (empty valid document if unmapped). 001 owns op registration/PC forwarding; do not add a second Python-side atlas store.
+5. Fill the Android gateway `atlas.places` and `atlas.get` adapters from the phone store (empty valid document if unmapped). 001 owns op registration/PC forwarding; do not add a second Python-side atlas store. Serialize only atlas-safe fields: no raw typed values, no legacy `dynamic_json` dump, and no unredacted screenshot path/frame. If a thumbnail is exposed, it must be redacted on-phone before it crosses the gateway.
 6. Retriever: capability+slot query sketch is allowed; **do not** execute macros from it.
-7. Tests: Follow Me → atlas node; dummy persona not mixed; `atlas.get` matches schema; no raw password on a node.
+7. Tests: Follow Me → atlas node; atlas survives store reopen/process-style reinitialization; dummy persona not mixed; `atlas.get` matches schema; no raw password/typed value/dynamic payload on a node; any exported thumbnail is demonstrably redacted.
 
 ## Required
 
