@@ -1,6 +1,6 @@
 # Cyclone Mobile 4.8.0 — destination authority + honest Human Gesture
 
-Android **4.8.0** / versionCode **140**, based on published **4.7.9**. Candidate on `agent/cyclone-4.8.0-destination-authority`. **Not publication-authorized** until Mobile CI signs this SHA and a Pixel 8 matrix is recorded.
+Android **4.8.0** / versionCode **140**, based on published **4.7.9**. User authorized publication. Exact-source Mobile CI and the existing Full Release publisher (`mobile-publish-v3910.yml`) gate the GitHub Release. Physical Pixel 8 remains **UNVERIFIED**; CI is not a substitute for it.
 
 This cut is one product: a Gmail → Facebook-in-Chrome ask, or any other AI driving the phone, must leave the first app, land a real finger-like stroke on the host (not the overlay ball), wait until that stroke completes, and use the same cubic path on a named virtual display.
 
@@ -49,13 +49,8 @@ GATE, MutationGrounding, Fast Path Unchanged, Instagram `humanize=off`, overlay 
 - Named VD capabilities are cubic; click serialization does not invent endpoint-duration
 - CIP unit tests passed in this cut
 
-Physical Pixel 8 remains **UNVERIFIED**. Publication stays false until Mobile CI on this SHA and a later Pixel matrix.
+Physical Pixel 8 remains **UNVERIFIED**. CI unit tests, lint, repository guards, and release assembly are required; they are not a device pass.
 
-## Operator cut (after CI)
+## Operator cut
 
-Do not invent a one-off publish workflow.
-
-1. Merge this branch; push `release/cyclone-mobile-v4.8.0` from the merged SHA.
-2. Wait for **Cyclone Mobile CI** success. Copy `build_run_id` and artifact name (`Cyclone-Android-4.8.0`).
-3. Dispatch **Cyclone Mobile Release Signing** with those inputs.
-4. `gh release create v4.8.0 --title "Cyclone 4.8.0" --notes-file docs/RELEASE_4.8.0.md` attaching the signed APK. Never overwrite an existing tag.
+Do not invent a one-off publish workflow. Push `release/cyclone-mobile-v4.8.0` from this SHA so **Cyclone Mobile CI** and **Cyclone Mobile Full Release** run together. The publisher waits for CI, signs with the 4.7.9-compatible development key, and creates `v4.8.0`. Never overwrite an existing tag.

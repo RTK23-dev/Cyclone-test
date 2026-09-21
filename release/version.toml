@@ -1,6 +1,6 @@
 # Cyclone Mobile 4.8.0: destination-scoped trajectory, honest Human Gesture completion,
 # overlay host-yield, and named-VD cubic dispatchGesture.
-# Publication is not authorized; exact-source Mobile CI still gates any later publisher run.
+# User authorized publication; exact-source Mobile CI gates the existing publisher.
 schema = 1
 product_version = "4.8.0"
 channel = "development"
@@ -15,10 +15,10 @@ mcp = "4.1.0"
 
 [release]
 previous_mobile_version = "4.7.9"
-publication_authorized = false
+publication_authorized = true
 physical_pixel8 = "UNVERIFIED"
 physical_pixel8_ui_acceptance = "UNVERIFIED"
 android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-4.8.0-destination-authority"
+candidate_generation = "cyclone-4.8.0-release"
