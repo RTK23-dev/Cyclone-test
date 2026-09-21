@@ -138,9 +138,11 @@ internal object GatewayObservationAdapter {
         }
         val screenshot = captured.image
         val raw = snapshot.toJson()
-        val learned = PageAwarenessRuntime.capture(context, raw)
-        val page = com.cyclone.mobile.agent.tools.ObservationProjections.freshLegacy(raw, learned)
         val safeRaw = GatewayPrivacy.sanitizeAccessibilitySnapshot(raw)
+        // Learning and legacy page projection never receive raw editable text. The unsanitized
+        // snapshot remains process-local only for salted, non-exported verification state below.
+        val learned = PageAwarenessRuntime.capture(context, safeRaw)
+        val page = com.cyclone.mobile.agent.tools.ObservationProjections.freshLegacy(safeRaw, learned)
         val observationId = UUID.randomUUID().toString()
         val rawNodes = safeRaw.optJSONArray("nodes") ?: JSONArray()
         val rawTextById = snapshot.nodes.associate { it.id to it.text }
