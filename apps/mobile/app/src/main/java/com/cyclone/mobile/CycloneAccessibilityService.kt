@@ -545,6 +545,7 @@ class CycloneAccessibilityService : AccessibilityService() {
                 textLength = textLength,
                 textDigest = if (redactText) "<redacted>" else PhoneTypeEngine.digest(text ?: ""),
                 actions = accessibilityActionNames(node),
+                password = node.isPassword,
             )
         }
 
