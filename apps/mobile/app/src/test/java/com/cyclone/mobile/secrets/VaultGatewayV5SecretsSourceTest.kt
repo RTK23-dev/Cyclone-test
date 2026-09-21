@@ -65,7 +65,7 @@ class VaultGatewayV5SecretsSourceTest {
             assertEquals(SecretPersona.LIVE, requested?.persona)
             assertEquals("password", requested?.slot)
             assertEquals("Login required", requested?.reason)
-            assertFalse(acknowledgement.toString().contains(""value""))
+            assertFalse(acknowledgement.toString().contains("\\\"value\\\""))
             assertTrue(acknowledgement.getJSONObject("request").keys().asSequence().toSet() ==
                 setOf("placeId", "persona", "slot", "reason"))
         } finally {
