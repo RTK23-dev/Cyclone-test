@@ -156,7 +156,7 @@ class WorkspaceProgressActivity : ComponentActivity() {
         val palette = cycloneConversationPalette()
         val outline = when (snapshot.state) {
             TaskConsumerState.WORKING -> palette.cardOutline
-            TaskConsumerState.ACTION_NEEDED -> palette.attention.copy(alpha = .26f)
+            TaskConsumerState.ACTION_NEEDED, TaskConsumerState.NEEDS_SECRET -> palette.attention.copy(alpha = .26f)
             TaskConsumerState.DONE -> palette.success.copy(alpha = .26f)
             TaskConsumerState.FAILED -> palette.failure.copy(alpha = .28f)
         }
