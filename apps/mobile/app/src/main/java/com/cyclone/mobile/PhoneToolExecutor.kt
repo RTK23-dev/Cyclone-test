@@ -167,7 +167,7 @@ object PhoneToolExecutor {
             leasedValue.position(0)
             if (foreground) {
                 com.cyclone.mobile.ui.overlay.OverlayGesturePassthrough.withHostPassthrough {
-                    service.typeEditable(plan, leasedValue)
+                    service.typeEditable(plan, leasedValue, redactObservedText = true)
                 }
             } else {
                 val session = com.cyclone.mobile.runtime.background.WorkspaceRuntime.requireScope(scope)
