@@ -1,23 +1,23 @@
-# Cyclone Mobile 4.7.9: inline task-card interaction and composer focus UI fixes.
-# User authorized publication; exact-source Mobile CI gates the existing publisher.
+# Cyclone Mobile 4.8.0: destination-scoped trajectory authority for multi-app tasks.
+# Publication is not authorized; exact-source Mobile CI still gates any later publisher run.
 schema = 1
-product_version = "4.7.9"
+product_version = "4.8.0"
 channel = "development"
-android_version_code = 139
+android_version_code = 140
 python_version = "4.1.0"
 
 [components]
-mobile = "4.7.9"
+mobile = "4.8.0"
 pc_companion = "1.5.5"
 device_gateway = "4.1.0"
 mcp = "4.1.0"
 
 [release]
-previous_mobile_version = "4.7.8"
-publication_authorized = true
+previous_mobile_version = "4.7.9"
+publication_authorized = false
 physical_pixel8 = "UNVERIFIED"
 physical_pixel8_ui_acceptance = "UNVERIFIED"
 android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-4.7.9-release"
+candidate_generation = "cyclone-4.8.0-destination-authority"

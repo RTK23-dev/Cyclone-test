@@ -44,6 +44,12 @@ data class WorkspaceTaskUi(
     /** Safe consumer plan derived from typed trajectory kinds, never raw model plan prose. */
     val plannedMilestones: List<String> = emptyList(),
     val plannedMilestoneIndex: Int = 0,
+    /** Destination-specific outcome stages. Waypoints remain diagnostic-only. */
+    val plannedStages: List<OutcomeStage> = emptyList(),
+    /** AgentTraceRuntime session id for this run. Distinct from Session Contract sessionId. */
+    val traceSessionId: String? = null,
+    /** Wall-clock start; 0 means unknown so tests do not depend on the clock. */
+    val startedAtMs: Long = 0L,
 ) {
     val foreground get() = sessionId == "default-foreground" && workspaceId == null
     val working get() = phase == TaskPhase.STARTING || phase == TaskPhase.WORKING
@@ -222,7 +228,16 @@ object WorkspaceTasks {
             context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
         val pending = pendingRequestId?.let { requests.find(it) ?: error("This saved task was removed. Return to Up next.") }
-        val task = WorkspaceTaskUi(UUID.randomUUID().toString(), app = label, packageName = packageName, goal = goal)
+        val task = TaskHarnessState.applyTrajectory(
+            WorkspaceTaskUi(
+                UUID.randomUUID().toString(),
+                app = label,
+                packageName = packageName,
+                goal = goal,
+                startedAtMs = System.currentTimeMillis(),
+            ),
+            com.cyclone.mobile.agent.plan.TaskTrajectory.seed(goal),
+        )
         val attachment = if (pending != null) pending.attachment else com.cyclone.mobile.ui.overlay.PendingTaskAttachment.take()
         attachment?.let { attachments[task.taskId] = it }
         publishStart(task)

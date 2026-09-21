@@ -359,8 +359,19 @@ object OverlayChromeRuntime {
             aiJob?.cancel()
             adaptiveAgent?.cancelActiveTask()
         }
-        val shared = WorkspaceTaskUi("foreground-${java.util.UUID.randomUUID()}", "default-foreground",
-            "your app", launchPackage ?: "", request, phase = TaskPhase.WORKING, displayId = 0)
+        val shared = TaskHarnessState.applyTrajectory(
+            WorkspaceTaskUi(
+                "foreground-${java.util.UUID.randomUUID()}",
+                "default-foreground",
+                "your app",
+                launchPackage ?: "",
+                request,
+                phase = TaskPhase.WORKING,
+                displayId = 0,
+                startedAtMs = System.currentTimeMillis(),
+            ),
+            com.cyclone.mobile.agent.plan.TaskTrajectory.seed(request),
+        )
         WorkspaceTasks.publishStart(shared)
         foregroundTaskId = shared.taskId
         AgentTaskNotificationRuntime.start(context)
@@ -370,6 +381,9 @@ object OverlayChromeRuntime {
                 WorkspaceTasks.update(shared.taskId) { task ->
                     TaskHarnessState.applyTrajectory(task, trajectory)
                 }
+            }
+            agent.onTraceSession = { traceId ->
+                WorkspaceTasks.update(shared.taskId) { it.copy(traceSessionId = traceId) }
             }
             agent.onOperation = { tool, result ->
                 WorkspaceTasks.update(shared.taskId) { task ->
@@ -593,7 +607,11 @@ object OverlayChromeRuntime {
                 }
                 val safeOutcome = when (nextPhase) {
                     TaskPhase.DONE -> WorkspaceCopy.result(result.message)
-                    TaskPhase.FAILED -> "I couldn't finish this task. Your place is saved."
+                    TaskPhase.FAILED -> OutcomeStageCopy.terminalFailure(
+                        task.plannedStages,
+                        result.message,
+                        resumable = false,
+                    )
                     TaskPhase.STOPPED -> "The task was stopped."
                     else -> null
                 }

@@ -4,6 +4,9 @@ package com.cyclone.mobile.runtime.background
 object TaskConsumerCopy {
     fun subtitle(task: WorkspaceTaskUi): String {
         task.interruption?.let { return it.prompt }
+        task.plannedStages.firstOrNull {
+            it.status == OutcomeStageStatus.ACTIVE || it.status == OutcomeStageStatus.NEEDS_INPUT
+        }?.collapsedLine?.let { return it }
         task.semanticSteps.lastOrNull()?.takeIf { it.state == SemanticStepState.ACTIVE }?.let { return it.label }
         task.plannedMilestones
             .getOrNull(task.plannedMilestoneIndex.coerceAtLeast(0))

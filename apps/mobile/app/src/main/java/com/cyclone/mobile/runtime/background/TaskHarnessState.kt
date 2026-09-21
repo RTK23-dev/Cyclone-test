@@ -18,30 +18,28 @@ object TaskHarnessState {
         trajectory: com.cyclone.mobile.agent.plan.TaskTrajectory,
     ): WorkspaceTaskUi {
         if (!trajectory.horizonPlanned || trajectory.waypoints.isEmpty()) return task
-        val app = task.app.takeIf { it.isNotBlank() && it.length <= 45 } ?: "your app"
-        val goal = task.goal.lowercase()
-        val loginStatus = Regex("\\b(login|log in|logged in|signed in|sign in)\\b").containsMatchIn(goal)
-        val searching = Regex("\\b(find|search|look for|locate)\\b").containsMatchIn(goal)
-        val labels = trajectory.waypoints.take(8).map { waypoint ->
-            when (waypoint.kind) {
-                com.cyclone.mobile.agent.plan.WaypointKind.OPEN_APP -> "Opening $app"
-                com.cyclone.mobile.agent.plan.WaypointKind.LAUNCH_INTENT -> "Opening the requested page"
-                com.cyclone.mobile.agent.plan.WaypointKind.LOCAL_INTERRUPTIONS -> "Clearing interruptions"
-                com.cyclone.mobile.agent.plan.WaypointKind.SCENE -> when {
-                    loginStatus -> "Checking $app login status"
-                    searching -> "Searching $app"
-                    else -> "Working in $app"
-                }
-                com.cyclone.mobile.agent.plan.WaypointKind.STOP_HUMAN -> "Preparing a step for you"
-                com.cyclone.mobile.agent.plan.WaypointKind.DONE -> when {
-                    loginStatus -> "Verifying login status"
-                    else -> "Verifying the result"
-                }
-            }
+        val projected = OutcomeStageProjector.project(
+            goal = task.goal,
+            trajectory = trajectory,
+            app = task.app,
+            packageName = task.packageName,
+            phase = task.phase,
+            interruption = task.interruption,
+            outcome = task.outcome,
+        )
+        if (projected.stages.isEmpty()) return task
+        val first = projected.stages.first()
+        val resolvedApp = when {
+            task.app.isBlank() || task.app.equals("your app", true) || task.app.equals("Other", true) ->
+                first.destinationLabel
+            else -> task.app
         }
         return task.copy(
-            plannedMilestones = labels,
-            plannedMilestoneIndex = trajectory.index.coerceIn(0, labels.size),
+            app = resolvedApp,
+            packageName = task.packageName.ifBlank { first.destinationPackage.orEmpty() },
+            plannedStages = projected.stages,
+            plannedMilestones = projected.stages.map { it.milestoneLabel() },
+            plannedMilestoneIndex = projected.activeIndex.coerceIn(0, projected.stages.lastIndex),
         )
     }
 

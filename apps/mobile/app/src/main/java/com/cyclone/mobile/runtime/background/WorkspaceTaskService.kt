@@ -133,6 +133,9 @@ class WorkspaceTaskService : Service() {
                     agent.onTrajectory = { trajectory ->
                         update { TaskHarnessState.applyTrajectory(it, trajectory) }
                     }
+                    agent.onTraceSession = { traceId ->
+                        update { it.copy(traceSessionId = traceId) }
+                    }
                     agent.onOperation = { tool, result ->
                         if (result == null) { revision = current?.controlRevision ?: -1; update { TaskHarnessState.begin(it, tool) } }
                         else update { TaskHarnessState.finish(it, TaskOperationEvidence(session.sessionId, session.displayId,
@@ -192,7 +195,7 @@ class WorkspaceTaskService : Service() {
                     else "Review the prepared page in ${it.app} before continuing.",
                     loginAutofill = result.gateClass == "login")
                 else -> {
-                    val safeFailure = "I couldn't finish. Your place in ${it.app} is saved for you."
+                    val safeFailure = OutcomeStageCopy.terminalFailure(it.plannedStages, result.message, resumable = false)
                     it.copy(
                         phase = TaskPhase.FAILED,
                         resumable = false,

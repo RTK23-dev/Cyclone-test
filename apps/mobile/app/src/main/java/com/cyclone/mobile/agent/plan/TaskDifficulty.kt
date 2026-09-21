@@ -120,7 +120,40 @@ object TaskDifficulty {
         if (hosts.isNotEmpty()) {
             return ordered.filterNot { it.kind == "app" && it.value in BROWSERS }
         }
-        return ordered
+        return preferWebsiteInsideNamedBrowser(goal, ordered)
+    }
+
+    /**
+     * "Go to Chrome and log in to Facebook" is a browser-site destination, not the native Facebook app.
+     * Gmail as a prior app destination is preserved. Chrome itself is not a user outcome.
+     */
+    private fun preferWebsiteInsideNamedBrowser(goal: String, ordered: List<TaskDestination>): List<TaskDestination> {
+        val browserIndex = ordered.filter { it.kind == "app" && it.value in BROWSERS }.minOfOrNull { it.index }
+            ?: return ordered
+        val wantsWebsite = Regex(
+            "(?i)\\b(log\\s*in|sign\\s*in|website|in chrome|using chrome|go to chrome|open chrome)\\b",
+        ).containsMatchIn(goal)
+        if (!wantsWebsite) return ordered
+        val rewritten = mutableListOf<TaskDestination>()
+        ordered.forEach { destination ->
+            if (destination.kind == "app" && destination.value in BROWSERS) return@forEach
+            if (
+                destination.kind == "app" &&
+                destination.index >= browserIndex &&
+                destination.value !in BROWSERS
+            ) {
+                val host = FastPathLanding.webFallback(destination.value)
+                    ?.substringAfter("://")
+                    ?.substringBefore('/')
+                    ?.removePrefix("www.")
+                if (host != null) {
+                    rewritten += TaskDestination("host", host, destination.index)
+                    return@forEach
+                }
+            }
+            rewritten += destination
+        }
+        return rewritten.ifEmpty { ordered }
     }
 
     fun hasAuthenticatedSession(goal: String): Boolean =
@@ -158,29 +191,46 @@ object TaskDifficulty {
         val assessment = assess(goal)
         if (!assessment.localHardPlan) return null
         val waypoints = mutableListOf<TaskWaypoint>()
-        assessment.destinations.forEach { destination ->
+        assessment.destinations.forEachIndexed { index, destination ->
+            val last = index == assessment.destinations.lastIndex
+            val pkg = DestinationAuthority.landingPackage(destination, goal)
+            val uri = DestinationAuthority.landingUri(destination)
             when (destination.kind) {
                 "app" -> waypoints += TaskWaypoint(
                     WaypointKind.OPEN_APP,
                     packageName = destination.value,
-                    until = "app_foreground",
-                    summary = "Open ${destination.value}",
+                    until = DestinationAuthority.UNTIL_APP_FOREGROUND,
+                    summary = "Open ${DestinationAuthority.packageLabel(destination.value)}",
                 )
                 "host" -> waypoints += TaskWaypoint(
                     WaypointKind.LAUNCH_INTENT,
-                    uri = "https://${destination.value}",
-                    until = "host_visible",
-                    summary = "Open ${destination.value}",
+                    packageName = pkg,
+                    uri = uri,
+                    until = DestinationAuthority.UNTIL_HOST_VISIBLE,
+                    summary = "Open ${DestinationAuthority.labelFor(destination, goal)}",
                 )
             }
-            waypoints += TaskWaypoint(WaypointKind.LOCAL_INTERRUPTIONS, until = "clear", summary = "Dismiss cookie and notice banners")
-            waypoints += if (hasAuthenticatedSession(goal) && destination == assessment.destinations.last()) {
-                TaskWaypoint(WaypointKind.STOP_HUMAN, until = "login_wall", summary = "Stop at login so you can sign in")
-            } else {
-                TaskWaypoint(WaypointKind.SCENE, until = "goal_contract", summary = "Continue until this stop is done")
-            }
+            waypoints += TaskWaypoint(
+                WaypointKind.LOCAL_INTERRUPTIONS,
+                packageName = pkg,
+                uri = uri,
+                until = DestinationAuthority.UNTIL_CLEAR,
+                summary = "Dismiss cookie and notice banners",
+            )
+            val until = DestinationAuthority.untilFor(goal, destination, last)
+            waypoints += TaskWaypoint(
+                DestinationAuthority.workKind(goal, destination, last),
+                packageName = pkg,
+                uri = uri,
+                until = until,
+                summary = DestinationAuthority.objective(goal, destination, last),
+            )
         }
-        waypoints += TaskWaypoint(WaypointKind.DONE, until = "goal_contract", summary = "Finish when the original goal is verified")
+        waypoints += TaskWaypoint(
+            WaypointKind.DONE,
+            until = DestinationAuthority.UNTIL_GOAL_CONTRACT,
+            summary = "Finish when the original goal is verified",
+        )
         return waypoints
     }
 }

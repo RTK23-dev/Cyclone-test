@@ -123,16 +123,11 @@ data class TaskTrajectory(
                 val expected = waypoint.packageName.orEmpty()
                 expected.isNotBlank() && FastPathLanding.launchCandidates(expected).any { it == page.packageName }
             }
-            WaypointKind.LAUNCH_INTENT -> {
-                val host = waypoint.uri?.substringAfter("://")?.substringBefore('/')?.removePrefix("www.").orEmpty()
-                host.isNotBlank() && page.title.contains(host, ignoreCase = true)
-            }
+            WaypointKind.LAUNCH_INTENT -> DestinationAuthority.hostVisible(page, waypoint.uri)
             WaypointKind.LOCAL_INTERRUPTIONS -> true
-            WaypointKind.STOP_HUMAN -> {
-                val launcher = page.packageName.contains("launcher", ignoreCase = true)
-                !launcher && !looksLikeLoginWall(page)
-            }
-            WaypointKind.SCENE, WaypointKind.DONE -> false
+            WaypointKind.STOP_HUMAN -> DestinationAuthority.stopHumanSatisfied(waypoint, page)
+            WaypointKind.SCENE -> DestinationAuthority.sceneSatisfied(waypoint, page)
+            WaypointKind.DONE -> false
         }
 
         fun looksLikeLoginWall(page: PageContext): Boolean {

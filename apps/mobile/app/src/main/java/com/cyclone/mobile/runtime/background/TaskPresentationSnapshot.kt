@@ -71,10 +71,18 @@ data class TaskPresentationSnapshot(
     val supportingCopy: String?,
     val outcomeCopy: String?,
     val followUps: List<TaskFollowUpAction>,
+    val stages: List<OutcomeStage> = emptyList(),
+    val destinationChain: String? = null,
+    val collapsedSummary: String? = null,
+    val runInformation: TaskRunInformation? = null,
+    val traceSessionId: String? = null,
 )
 
 object TaskPresentationProjector {
-    fun project(task: WorkspaceTaskUi): TaskPresentationSnapshot {
+    fun project(
+        task: WorkspaceTaskUi,
+        runInformation: TaskRunInformation? = TaskRunInformationProjector.fromTask(task),
+    ): TaskPresentationSnapshot {
         val state = when (task.phase) {
             TaskPhase.STARTING, TaskPhase.WORKING -> TaskConsumerState.WORKING
             TaskPhase.PAUSED, TaskPhase.REVIEW, TaskPhase.HUMAN -> TaskConsumerState.ACTION_NEEDED
@@ -83,77 +91,114 @@ object TaskPresentationProjector {
         }
 
         val semantic = task.semanticSteps
-        val milestones = TaskMilestoneProjector.project(semantic).filter { milestone ->
-            // Harness FAILED can mean an operation was superseded without fresh verification.
-            // Keep that diagnostic evidence in semanticSteps, but do not paint a red consumer
-            // milestone unless the task itself is terminally failed.
+        val compacted = TaskMilestoneProjector.project(semantic).filter { milestone ->
             milestone.state != SemanticStepState.FAILED || state == TaskConsumerState.FAILED
         }
-        val verifiedOperations = milestones.filter { it.state == SemanticStepState.DONE }
-        val activeOperation = milestones.lastOrNull {
-            it.state == SemanticStepState.ACTIVE || it.state == SemanticStepState.ACTION_NEEDED
-        }
-
-        val planned = task.plannedMilestones.filter(String::isNotBlank).take(8)
-        val rawPlanIndex = when (state) {
-            TaskConsumerState.DONE -> planned.size
-            else -> task.plannedMilestoneIndex.coerceIn(0, planned.size)
-        }
-        // If a task stops after the trajectory cursor reached the end, keep the final milestone as
-        // the interruption/failure point instead of visually claiming every planned step completed.
-        val planIndex = when {
-            state == TaskConsumerState.DONE -> planned.size
-            planned.isNotEmpty() && rawPlanIndex >= planned.size -> planned.lastIndex
-            else -> rawPlanIndex
-        }
-        val presentationMilestones = if (planned.isNotEmpty()) {
-            planned.mapIndexed { index, label ->
-                val milestoneState = when {
-                    state == TaskConsumerState.DONE -> SemanticStepState.DONE
-                    index < planIndex -> SemanticStepState.DONE
-                    index > planIndex -> SemanticStepState.PENDING
-                    state == TaskConsumerState.ACTION_NEEDED -> SemanticStepState.ACTION_NEEDED
-                    state == TaskConsumerState.FAILED -> SemanticStepState.FAILED
-                    else -> SemanticStepState.ACTIVE
-                }
-                TaskPresentationMilestone(label, milestoneState)
+        val stages = task.plannedStages
+        val presentationMilestones = when {
+            stages.isNotEmpty() -> stages.map { stage ->
+                TaskPresentationMilestone(stage.expandedLine, semanticState(stage.status))
             }
-        } else {
-            milestones
+            task.plannedMilestones.any(String::isNotBlank) -> {
+                val planned = task.plannedMilestones.filter(String::isNotBlank)
+                val rawPlanIndex = when (state) {
+                    TaskConsumerState.DONE -> planned.size
+                    else -> task.plannedMilestoneIndex.coerceIn(0, planned.size)
+                }
+                val planIndex = when {
+                    state == TaskConsumerState.DONE -> planned.size
+                    planned.isNotEmpty() && rawPlanIndex >= planned.size -> planned.lastIndex
+                    else -> rawPlanIndex
+                }
+                planned.mapIndexed { index, label ->
+                    val milestoneState = when {
+                        state == TaskConsumerState.DONE -> SemanticStepState.DONE
+                        index < planIndex -> SemanticStepState.DONE
+                        index > planIndex -> SemanticStepState.PENDING
+                        state == TaskConsumerState.ACTION_NEEDED -> SemanticStepState.ACTION_NEEDED
+                        state == TaskConsumerState.FAILED -> SemanticStepState.FAILED
+                        else -> SemanticStepState.ACTIVE
+                    }
+                    TaskPresentationMilestone(label, milestoneState)
+                }
+            }
+            else -> compacted
         }
-        val total = planned.size.takeIf { it > 0 }
-        val completedCount = presentationMilestones.count { it.state == SemanticStepState.DONE }
-        val fraction = total?.let { denominator ->
+        val total = when {
+            stages.isNotEmpty() -> stages.size
+            task.plannedMilestones.any(String::isNotBlank) -> task.plannedMilestones.count(String::isNotBlank)
+            else -> null
+        }
+        val completedCount = when {
+            stages.isNotEmpty() -> stages.count { it.status == OutcomeStageStatus.COMPLETED }
+            else -> presentationMilestones.count { it.state == SemanticStepState.DONE }
+        }
+        val fraction = total?.takeIf { it > 0 }?.let { denominator ->
             (completedCount.toFloat() / denominator.toFloat()).coerceIn(0f, 1f)
         } ?: if (state == TaskConsumerState.DONE) 1f else null
 
-        val currentMilestone = activeOperation?.label?.takeIf(String::isNotBlank)
+        val activeStage = stages.firstOrNull {
+            it.status in setOf(OutcomeStageStatus.ACTIVE, OutcomeStageStatus.NEEDS_INPUT, OutcomeStageStatus.FAILED)
+        } ?: stages.lastOrNull { it.status == OutcomeStageStatus.COMPLETED }
+
+        val currentMilestone = activeStage?.collapsedLine
+            ?: compacted.lastOrNull {
+                it.state == SemanticStepState.ACTIVE || it.state == SemanticStepState.ACTION_NEEDED
+            }?.label
             ?: presentationMilestones.firstOrNull {
                 it.state == SemanticStepState.ACTIVE || it.state == SemanticStepState.ACTION_NEEDED
             }?.label
             ?: task.subtitle.takeIf(String::isNotBlank)
 
+        val destinationChain = stages.joinToString(" → ") { it.destinationLabel }.takeIf { stages.size >= 2 }
+            ?: stages.singleOrNull()?.destinationLabel
+
         val supportingCopy = when (state) {
             TaskConsumerState.WORKING -> when {
+                total != null && stages.isNotEmpty() -> "$completedCount of $total stages complete"
                 total != null -> "$completedCount of $total complete"
-                verifiedOperations.isNotEmpty() ->
-                    "${verifiedOperations.size} verified step${if (verifiedOperations.size == 1) "" else "s"} complete"
+                compacted.any { it.state == SemanticStepState.DONE } -> {
+                    val verified = compacted.count { it.state == SemanticStepState.DONE }
+                    "$verified verified step${if (verified == 1) "" else "s"} complete"
+                }
                 else -> currentMilestone
             }
-            TaskConsumerState.ACTION_NEEDED -> task.interruption?.prompt?.takeIf(String::isNotBlank)
-                ?: task.confirmation?.explanation?.takeIf(String::isNotBlank)
-                ?: task.subtitle.takeIf(String::isNotBlank)
+            TaskConsumerState.ACTION_NEEDED -> OutcomeStageCopy.attention(activeStage, task.interruption)
+                .let { copy ->
+                    task.confirmation?.explanation?.takeIf { it.isNotBlank() } ?: copy
+                }
             TaskConsumerState.DONE -> task.outcome?.takeIf(String::isNotBlank)
                 ?: "The requested result was checked."
             TaskConsumerState.FAILED -> task.outcome?.takeIf(String::isNotBlank)
-                ?: task.subtitle.takeIf(String::isNotBlank)
+                ?: OutcomeStageCopy.terminalFailure(stages, task.subtitle, task.resumable)
         }
+
+        val collapsedSummary = buildString {
+            destinationChain?.let { append(it) }
+            currentMilestone?.takeIf { it.isNotBlank() }?.let { current ->
+                if (isNotEmpty()) append(" · ")
+                append(current)
+            }
+            if (state == TaskConsumerState.ACTION_NEEDED) {
+                if (isNotEmpty()) append(" · ")
+                append("Needs your input")
+            }
+            total?.let {
+                if (isNotEmpty()) append('\n')
+                append("$completedCount of $it stages complete")
+            }
+            runInformation?.elapsedLabel?.let { elapsed ->
+                if (isNotEmpty()) append(" · ")
+                append(elapsed)
+                if (runInformation.waiting) append(" waiting")
+            }
+        }.takeIf { it.isNotBlank() }
 
         return TaskPresentationSnapshot(
             taskId = task.taskId,
             app = task.app,
-            packageName = task.packageName,
-            title = consumerTaskTitle(task),
+            packageName = stages.firstOrNull()?.destinationPackage ?: task.packageName,
+            title = if (stages.isNotEmpty()) OutcomeStageCopy.title(task.goal, stages) else consumerTaskTitle(task),
             state = state,
             currentMilestone = currentMilestone,
             milestones = presentationMilestones,
@@ -167,13 +212,26 @@ object TaskPresentationProjector {
             supportingCopy = supportingCopy,
             outcomeCopy = task.outcome?.takeIf(String::isNotBlank),
             followUps = TaskFollowUpPolicy.actions(task, state),
+            stages = stages,
+            destinationChain = destinationChain,
+            collapsedSummary = collapsedSummary,
+            runInformation = runInformation,
+            traceSessionId = task.traceSessionId,
         )
+    }
+
+    fun semanticState(status: OutcomeStageStatus): SemanticStepState = when (status) {
+        OutcomeStageStatus.COMPLETED -> SemanticStepState.DONE
+        OutcomeStageStatus.ACTIVE -> SemanticStepState.ACTIVE
+        OutcomeStageStatus.NEEDS_INPUT -> SemanticStepState.ACTION_NEEDED
+        OutcomeStageStatus.FAILED -> SemanticStepState.FAILED
+        else -> SemanticStepState.PENDING
     }
 
     private fun consumerTaskTitle(task: WorkspaceTaskUi): String {
         val clean = task.goal.trim().replace(Regex("\\s+"), " ")
         if (clean.isBlank()) return task.app.ifBlank { "Phone task" }
-        val app = task.app.takeIf { it.isNotBlank() && !it.equals("Other", true) }
+        val app = task.app.takeIf { it.isNotBlank() && !it.equals("Other", true) && !it.equals("your app", true) }
         val lower = clean.lowercase()
         return when {
             "battery" in lower && ("setting" in lower || app.equals("Settings", true)) ->
@@ -196,7 +254,7 @@ object TaskFollowUpPolicy {
     fun actions(task: WorkspaceTaskUi, state: TaskConsumerState): List<TaskFollowUpAction> = buildList {
         val interactiveSession = !task.sessionId.isNullOrBlank() && task.displayId != null
         when (state) {
-            TaskConsumerState.WORKING -> add(TaskFollowUpAction.VIEW_DETAILS)
+            TaskConsumerState.WORKING -> Unit
             TaskConsumerState.ACTION_NEEDED -> {
                 val interruption = task.interruption
                 val resumableHumanBoundary =
@@ -218,16 +276,13 @@ object TaskFollowUpPolicy {
                 if (resumableHumanBoundary && interruption?.canResumeAfterHuman == true) {
                     add(TaskFollowUpAction.CONTINUE)
                 }
-                add(TaskFollowUpAction.VIEW_DETAILS)
             }
             TaskConsumerState.DONE -> {
-                add(TaskFollowUpAction.VIEW_DETAILS)
                 if (task.packageName.isNotBlank()) add(TaskFollowUpAction.OPEN_APP)
                 add(TaskFollowUpAction.RUN_AGAIN)
             }
             TaskConsumerState.FAILED -> {
                 add(TaskFollowUpAction.TRY_AGAIN)
-                add(TaskFollowUpAction.VIEW_DETAILS)
             }
         }
     }

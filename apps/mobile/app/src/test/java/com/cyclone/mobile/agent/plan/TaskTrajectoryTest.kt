@@ -86,6 +86,9 @@ class TaskTrajectoryTest {
         assertTrue(trajectory.horizonPlanned)
         assertEquals(2, trajectory.waypoints.count { it.kind == WaypointKind.OPEN_APP })
         assertEquals("com.google.android.gm", trajectory.waypoints.first { it.kind == WaypointKind.OPEN_APP }.packageName)
+        val gmailScene = trajectory.waypoints.first { it.kind == WaypointKind.SCENE }
+        assertEquals(DestinationAuthority.UNTIL_DESTINATION_READY, gmailScene.until)
+        assertEquals("com.google.android.gm", gmailScene.packageName)
     }
 
     private fun control(label: String) = PageControl(

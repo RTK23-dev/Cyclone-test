@@ -79,6 +79,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
     private val execution: com.cyclone.mobile.runtime.session.ExecutionContext = com.cyclone.mobile.runtime.session.ExecutionContext.DEFAULT) {
     var onOperation: ((String, com.cyclone.mobile.agent.contract.AgentActionEnvelope?) -> Unit)? = null
     var onTrajectory: ((com.cyclone.mobile.agent.plan.TaskTrajectory) -> Unit)? = null
+    var onTraceSession: ((String) -> Unit)? = null
     private val background get() = execution.sessionId != "default-foreground"
     private fun ownsInput(): Boolean = if (background) com.cyclone.mobile.runtime.background.WorkspaceRuntime.ownsInput(execution.sessionId)
         else DeviceState.controller == DeviceState.Controller.AGENT
@@ -142,6 +143,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         var pendingAutofill: Boolean = false,
         var pendingLoginAutofill: Boolean = false,
         var splashWaits: Int = 0,
+        /** Raw observed account for this run only. Never copied into traces or consumer stages. */
+        var observedAccountRaw: String? = null,
     )
 
     private data class ActiveLocalSession(
@@ -162,6 +165,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
     ): QuickAgentResult {
         val traceId = AgentTraceRuntime.start(context, goal, config.model.id)
         requestTraceId = traceId
+        onTraceSession?.invoke(traceId)
         return RequestOutcomeBoundary.run(traceId, config.model.id, { result ->
             AgentTraceRuntime.finish(context, traceId,
                 if (result.ok) "COMPLETED" else if (result.classification == "CANCELLED") "CANCELLED" else "FAILED",
@@ -390,8 +394,58 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     else -> Unit
                 }
 
+                val accountWaypoint = session.trajectory.current
+                if (accountWaypoint?.until == com.cyclone.mobile.agent.plan.DestinationAuthority.UNTIL_ACCOUNT_OBSERVED) {
+                    val sighting = com.cyclone.mobile.agent.plan.DestinationAuthority.visibleEmails(session.state.page)
+                    if (
+                        sighting.ambiguous &&
+                        com.cyclone.mobile.agent.plan.DestinationAuthority.packageMatches(accountWaypoint, session.state.page)
+                    ) {
+                        val summary = "Several accounts are visible. Which should I use?"
+                        onProgress(summary)
+                        return CyclonePlanResult.Valid(
+                            CycloneModelTurn(
+                                CycloneModelDirective.NEED_HUMAN,
+                                reason = "account.ambiguous",
+                                payload = PageAgentDecision(
+                                    "need_human",
+                                    session.state.page.title,
+                                    summary,
+                                    emptyList(),
+                                    null,
+                                    "account.ambiguous",
+                                ),
+                            ),
+                        )
+                    }
+                    sighting.rawSingle?.let { session.observedAccountRaw = it }
+                }
                 session.trajectory = session.trajectory.advanceIfSatisfied(session.state.page)
                 session.packagesSeen += session.state.page.packageName
+                val currentWaypoint = session.trajectory.current
+                if (
+                    currentWaypoint?.kind == com.cyclone.mobile.agent.plan.WaypointKind.STOP_HUMAN &&
+                    com.cyclone.mobile.agent.plan.TaskTrajectory.looksLikeLoginWall(session.state.page) &&
+                    com.cyclone.mobile.agent.plan.DestinationAuthority.packageMatches(currentWaypoint, session.state.page)
+                ) {
+                    val summary = currentWaypoint.summary.ifBlank { "This screen needs your sign-in." }
+                    onProgress(summary)
+                    session.pendingLoginAutofill = true
+                    return CyclonePlanResult.Valid(
+                        CycloneModelTurn(
+                            CycloneModelDirective.NEED_HUMAN,
+                            reason = "trajectory.login_wall",
+                            payload = PageAgentDecision(
+                                "need_human",
+                                session.state.page.title,
+                                summary,
+                                emptyList(),
+                                null,
+                                "trajectory.login_wall",
+                            ),
+                        ),
+                    )
+                }
                 val promoted = com.cyclone.mobile.agent.plan.TaskDifficultyEscalator.next(
                     session.difficulty,
                     goal,
@@ -459,6 +513,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 val loginPage = session.bridge.currentPage()
                 if (!com.cyclone.mobile.agent.plan.TaskDifficulty.isEasy(goal) &&
                     loginPage != null &&
+                    com.cyclone.mobile.agent.plan.DestinationAuthority.loginHandoffActive(session.trajectory) &&
                     LoginAutofillPolicy.shouldHandle(goal, loginPage)
                 ) {
                     val autofill = session.loginAutofill.evaluate(loginPage, session.pendingAutofill, goal)
@@ -530,7 +585,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     }
                 }
 
-                val landing = com.cyclone.mobile.fastpath.FastPathLanding.resolve(goal)
+                val landing = currentLanding(session, goal)
                 if (landing?.tool == "phone.launch_intent" && !landing.uri.isNullOrBlank()) {
                     val landingKey = "fastpath:${landing.uri}"
                     if (landingKey !in session.compiledAttempts) {
@@ -981,6 +1036,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 turn: CycloneModelTurn,
             ): CycloneTaskClassification {
                 if (turn.reason == "user.md.ask_which") return CycloneTaskClassification.HUMAN_OR_GATE
+                if (turn.reason == "account.ambiguous") return CycloneTaskClassification.HUMAN_OR_GATE
                 if (turn.reason?.startsWith("cookie.") == true) return CycloneTaskClassification.HUMAN_OR_GATE
                 if (turn.reason?.startsWith("login.") == true || turn.reason == "trajectory.login_wall") {
                     session.pendingLoginAutofill = true
@@ -1705,6 +1761,20 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 payload = decision,
             ),
         )
+    }
+
+    private fun currentLanding(
+        session: LocalSessionContext,
+        goal: String,
+    ): com.cyclone.mobile.fastpath.FastPathLandingHint? {
+        if (session.trajectory.horizonPlanned) {
+            val waypoint = session.trajectory.current ?: return null
+            com.cyclone.mobile.agent.plan.DestinationAuthority.landingHint(waypoint)?.let { return it }
+            // SCENE / STOP_HUMAN / DONE are not whole-goal landings. Resolving the original
+            // ask here would re-open Gmail forever on a Gmail → Chrome task.
+            return null
+        }
+        return com.cyclone.mobile.fastpath.FastPathLanding.resolve(goal)
     }
 
     private fun requestHorizonPlan(session: LocalSessionContext, goal: String): com.cyclone.mobile.agent.plan.TaskTrajectory? {

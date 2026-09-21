@@ -143,7 +143,6 @@ class TaskPresentationSnapshotTest {
         assertEquals(1f, snapshot.progressFraction!!, .0001f)
         assertEquals(
             listOf(
-                TaskFollowUpAction.VIEW_DETAILS,
                 TaskFollowUpAction.OPEN_APP,
                 TaskFollowUpAction.RUN_AGAIN,
             ),
@@ -170,7 +169,7 @@ class TaskPresentationSnapshotTest {
         assertTrue(TaskFollowUpAction.AUTOFILL in snapshot.followUps)
         assertTrue(TaskFollowUpAction.CONTINUE in snapshot.followUps)
         assertFalse(TaskFollowUpAction.TAKE_OVER in snapshot.followUps)
-        assertTrue(TaskFollowUpAction.VIEW_DETAILS in snapshot.followUps)
+        assertFalse(TaskFollowUpAction.VIEW_DETAILS in snapshot.followUps)
     }
 
     @Test
@@ -195,8 +194,8 @@ class TaskPresentationSnapshotTest {
         )
 
         val updated = TaskHarnessState.applyTrajectory(task(), trajectory)
-        assertEquals(listOf("Opening Instagram", "Verifying login status"), updated.plannedMilestones)
-        assertEquals(1, updated.plannedMilestoneIndex)
+        assertEquals(1, updated.plannedStages.size)
+        assertEquals("Instagram", updated.plannedStages.single().destinationLabel)
         assertFalse(updated.plannedMilestones.any { it.contains("RAW MODEL") })
     }
 
@@ -226,10 +225,7 @@ class TaskPresentationSnapshotTest {
         )
 
         val updated = TaskHarnessState.applyTrajectory(task(), trajectory)
-        assertEquals(
-            listOf("Opening Instagram", "Checking Instagram login status", "Verifying login status"),
-            updated.plannedMilestones,
-        )
+        assertEquals(listOf("Checking Instagram login status"), updated.plannedStages.map { it.objective })
         assertFalse(updated.plannedMilestones.any { it.contains("provider wording") })
     }
 
@@ -269,7 +265,7 @@ class TaskPresentationSnapshotTest {
             "Review the total and payment details in the live page before confirming.",
             snapshot.supportingCopy,
         )
-        assertEquals(listOf(TaskFollowUpAction.VIEW_DETAILS), snapshot.followUps)
+        assertTrue(snapshot.followUps.isEmpty())
     }
 
     @Test
@@ -290,7 +286,7 @@ class TaskPresentationSnapshotTest {
         assertFalse(TaskFollowUpAction.AUTOFILL in snapshot.followUps)
         assertFalse(TaskFollowUpAction.TAKE_OVER in snapshot.followUps)
         assertFalse(TaskFollowUpAction.CONTINUE in snapshot.followUps)
-        assertEquals(listOf(TaskFollowUpAction.VIEW_DETAILS), snapshot.followUps)
+        assertTrue(snapshot.followUps.isEmpty())
     }
 
     @Test
@@ -302,7 +298,7 @@ class TaskPresentationSnapshotTest {
         assertEquals(TaskConsumerState.FAILED, snapshot.state)
         assertNull(snapshot.progressFraction)
         assertEquals(
-            listOf(TaskFollowUpAction.TRY_AGAIN, TaskFollowUpAction.VIEW_DETAILS),
+            listOf(TaskFollowUpAction.TRY_AGAIN),
             snapshot.followUps,
         )
     }

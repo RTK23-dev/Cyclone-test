@@ -25,7 +25,7 @@ Schema:
   "from":"current scene in a few words",
   "to":"verified end state",
   "waypoints":[
-    {"do":"open_app|launch_intent|local_interruptions|scene|stop_human|done","package":"optional","uri":"optional https","until":"app_foreground|host_visible|login_wall|goal_contract","summary":"short user sentence"}
+    {"do":"open_app|launch_intent|local_interruptions|scene|stop_human|done","package":"optional","uri":"optional https","until":"app_foreground|host_visible|account_observed|destination_ready|login_wall|goal_contract","summary":"short user sentence"}
   ]
 }
 """.trimIndent()

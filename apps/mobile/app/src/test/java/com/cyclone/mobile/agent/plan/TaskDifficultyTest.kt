@@ -62,6 +62,20 @@ class TaskDifficultyTest {
     }
 
     @Test
+    fun chromeThenFacebookLoginIsWebsiteNotNativeApp() {
+        val assessment = TaskDifficulty.assess(
+            "Open Gmail and find my current logged-in email, then go to Chrome and log in to Facebook using that email.",
+        )
+        assertEquals(TaskDifficultyTier.HARD, assessment.tier)
+        assertEquals(2, assessment.destinationCount)
+        assertEquals("com.google.android.gm", assessment.destinations[0].value)
+        assertEquals("host", assessment.destinations[1].kind)
+        assertTrue(assessment.destinations[1].value.contains("facebook"))
+        assertFalse(assessment.packages.contains("com.facebook.katana"))
+        assertFalse(assessment.packages.contains("com.android.chrome"))
+    }
+
+    @Test
     fun easyOpenUsesInstalledLauncherInventory() {
         com.cyclone.mobile.fastpath.InstalledAppInventory.replace(
             listOf(
