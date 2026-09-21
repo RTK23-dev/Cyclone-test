@@ -95,6 +95,11 @@ data class SecretRequestMetadata(
     }
 }
 
+data class SecretWallRequest(
+    val request: SecretRequestMetadata,
+    val target: SecretFillTarget,
+)
+
 data class SecretFillTarget(
     val elementId: String,
     val observationId: String,
