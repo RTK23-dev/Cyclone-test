@@ -2,10 +2,15 @@ package com.cyclone.mobile.brain.graphv2
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.Instant
 
 /**
- * Narrow phone-owned read surface for Agent 001's gateway adapter. It only emits whitelisted Atlas
- * metadata; there is deliberately no generic graph/database dump method.
+ * Narrow phone-owned read surface for Agent 001's gateway adapter.
+ *
+ * The provider emits only the fields accepted by cyclone-atlas-v1.schema.json. Internal Atlas
+ * metadata may be richer (for example PARTIAL map status and hashed selector hints), but raw
+ * selectors, typed values, screenshots, legacy dynamic_json, and secret-shaped values never cross
+ * this boundary.
  */
 interface AtlasReadProvider {
     fun places(persona: AtlasPersona? = null): JSONObject
@@ -30,38 +35,39 @@ class StoreBackedAtlasReadProvider(
         val navigation = snapshot.edges
             .filter { it.key.type in NAVIGATION_EDGES && it.key.from in pages && it.key.to in pages }
             .sortedBy { it.key }
+        val capabilities = snapshot.screens
+            .flatMap { it.capabilities }
+            .map(::wireCapability)
+            .filter(String::isNotBlank)
+            .distinct()
+            .sorted()
+            .take(64)
+        val confidence = snapshot.screens.minOfOrNull { it.confidence } ?: 0.0
 
         return JSONObject()
-            .put("placeId", snapshot.place.id)
-            .put("kind", snapshot.place.kind.wireValue)
-            .put("label", snapshot.place.label)
-            .put("packageName", snapshot.place.packageName ?: JSONObject.NULL)
-            .put("origin", snapshot.place.origin ?: JSONObject.NULL)
+            .put("place", placeJson(snapshot.place))
             .put("persona", snapshot.place.persona.wireValue)
-            .put("mapStatus", snapshot.place.mapStatus.wireValue)
-            .put("lastObservedAt", snapshot.place.lastObservedAtEpochMillis ?: JSONObject.NULL)
-            .put("lastVerifiedAt", snapshot.place.lastVerifiedAtEpochMillis ?: JSONObject.NULL)
+            .put("mapStatus", wireMapStatus(snapshot))
             .put("screens", JSONArray().also { out ->
                 pages.values.sortedBy { it.id.value }.forEachIndexed { index, page ->
                     val meta = screenMeta[page.id]
-                    val fallback = AtlasGraphIds.stableLayout(snapshot.place.id + ":" + persona.wireValue, index)
+                    val fallback = AtlasGraphIds.stableLayout(
+                        snapshot.place.id + ":" + persona.wireValue,
+                        index,
+                    )
                     out.put(JSONObject()
-                        .put("id", page.id.value)
-                        .put("purpose", meta?.purpose ?: AtlasPrivacy.structuralPurpose(page.displayName))
-                        .put("capabilities", JSONArray(meta?.capabilities?.sorted().orEmpty()))
+                        .put("screenId", page.id.value.take(160))
+                        .put("label", AtlasPrivacy.structuralLabel(page.displayName, page.identity).take(120))
+                        .put("purpose", (meta?.purpose ?: AtlasPrivacy.structuralPurpose(page.displayName)).take(200))
                         .put("factSlots", JSONArray().also { facts ->
                             meta?.factSlots?.sortedBy { it.name }.orEmpty().forEach { slot ->
-                                facts.put(JSONObject()
-                                    .put("name", slot.name)
-                                    .put("purpose", slot.purpose)
-                                    .put("selectorKey", slot.selectorKey ?: JSONObject.NULL)
-                                    .put("confidence", slot.confidence))
+                                facts.put(factSlotJson(slot))
                             }
                         })
-                        .put("danger", (meta?.danger ?: AtlasDanger.NONE).wireValue)
+                        .put("risk", riskJson(meta?.danger ?: AtlasDanger.NONE))
                         .put("confidence", meta?.confidence ?: 0.0)
-                        .put("lastObservedAt", meta?.lastObservedAtEpochMillis ?: JSONObject.NULL)
-                        .put("lastVerifiedAt", meta?.lastVerifiedAtEpochMillis ?: JSONObject.NULL)
+                        .put("lastObservedAt", timestamp(meta?.lastObservedAtEpochMillis))
+                        .put("lastVerifiedAt", timestamp(meta?.lastVerifiedAtEpochMillis))
                         .put("layout", JSONObject()
                             .put("x", meta?.layoutX ?: fallback.first)
                             .put("y", meta?.layoutY ?: fallback.second)))
@@ -71,38 +77,107 @@ class StoreBackedAtlasReadProvider(
                 navigation.forEach { edge ->
                     val meta = edgeMeta[edge.key]
                     out.put(JSONObject()
-                        .put("id", edgeId(edge.key))
-                        .put("from", edge.key.from.value)
-                        .put("to", edge.key.to.value)
-                        .put("kind", edge.key.type.name.lowercase())
-                        .put("action", meta?.action ?: "navigate")
-                        .put("selectorKey", meta?.selectorKey ?: JSONObject.NULL)
-                        .put("danger", (meta?.danger ?: AtlasDanger.NONE).wireValue)
-                        .put("confidence", meta?.confidence ?: edge.evidence.confidence)
-                        .put("lastObservedAt", meta?.lastObservedAtEpochMillis ?: edge.evidence.observedAtEpochMillis)
-                        .put("lastVerifiedAt", meta?.lastVerifiedAtEpochMillis ?: edge.evidence.lastSucceededAtEpochMillis ?: JSONObject.NULL))
+                        .put("edgeId", stableEdgeId(edge.key))
+                        .put("fromScreenId", edge.key.from.value.take(160))
+                        .put("toScreenId", edge.key.to.value.take(160))
+                        .put("actionHint", AtlasPrivacy.structuralLabel(meta?.action ?: "navigate", "navigate").take(160))
+                        .put("risk", riskJson(meta?.danger ?: AtlasDanger.NONE))
+                        .put("confidence", (meta?.confidence ?: edge.evidence.confidence).coerceIn(0.0, 1.0))
+                        .put("lastVerifiedAt", timestamp(meta?.lastVerifiedAtEpochMillis)))
                 }
             })
+            .put("capabilities", JSONArray(capabilities))
+            .put("confidence", confidence.coerceIn(0.0, 1.0))
+            .put("lastObservedAt", timestamp(snapshot.place.lastObservedAtEpochMillis))
+            .put("lastVerifiedAt", timestamp(snapshot.place.lastVerifiedAtEpochMillis))
     }
 
-    private fun placeSummaryJson(summary: AtlasPlaceSummary): JSONObject = JSONObject()
-        .put("placeId", summary.place.id)
-        .put("kind", summary.place.kind.wireValue)
-        .put("label", summary.place.label)
-        .put("packageName", summary.place.packageName ?: JSONObject.NULL)
-        .put("origin", summary.place.origin ?: JSONObject.NULL)
-        .put("persona", summary.place.persona.wireValue)
-        .put("mapStatus", summary.place.mapStatus.wireValue)
-        .put("screenCount", summary.screenCount)
-        .put("edgeCount", summary.edgeCount)
-        .put("lastObservedAt", summary.place.lastObservedAtEpochMillis ?: JSONObject.NULL)
-        .put("lastVerifiedAt", summary.place.lastVerifiedAtEpochMillis ?: JSONObject.NULL)
+    private fun placeSummaryJson(summary: AtlasPlaceSummary): JSONObject {
+        val snapshot = store.snapshot(summary.place.key)
+        val confidence = snapshot?.screens?.minOfOrNull { it.confidence } ?: 0.0
+        return JSONObject()
+            .put("place", placeJson(summary.place))
+            .put("persona", summary.place.persona.wireValue)
+            .put("mapStatus", snapshot?.let(::wireMapStatus) ?: "unmapped")
+            .put("confidence", confidence.coerceIn(0.0, 1.0))
+            .put("lastObservedAt", timestamp(summary.place.lastObservedAtEpochMillis))
+            .put("lastVerifiedAt", timestamp(summary.place.lastVerifiedAtEpochMillis))
+    }
 
-    private fun edgeId(key: GraphEdgeKey): String =
-        key.from.value + "|" + key.type.name.lowercase() + "|" + key.to.value
+    private fun placeJson(place: AtlasPlace): JSONObject = JSONObject()
+        .put("placeId", place.id)
+        .put("kind", place.kind.wireValue)
+        .put("label", AtlasPrivacy.structuralLabel(
+            place.label,
+            place.packageName ?: place.origin ?: "App",
+        ).take(120))
+        .apply {
+            place.packageName?.let { put("packageName", it) }
+            place.origin?.let { put("origin", it) }
+        }
+
+    private fun factSlotJson(slot: AtlasFactSlot): JSONObject = JSONObject()
+        .put("name", wireFactSlotName(slot.name))
+        .put("factType", "text")
+        .put("required", false)
+        .put("description", AtlasPrivacy.structuralPurpose(
+            slot.purpose,
+            "Read " + slot.name + " from this screen",
+        ).take(160))
+
+    private fun riskJson(danger: AtlasDanger): JSONObject {
+        val classes = when (danger) {
+            AtlasDanger.NONE -> emptyList()
+            AtlasDanger.AUTHENTICATION -> listOf("authentication")
+            AtlasDanger.PAYMENT -> listOf("payment")
+            AtlasDanger.SEND_PUBLIC -> listOf("send-public")
+            AtlasDanger.DELETE_ACCOUNT -> listOf("delete-account")
+            AtlasDanger.LOGOUT_ALL -> listOf("logout-all")
+            AtlasDanger.PERMISSION -> listOf("permission")
+            AtlasDanger.UNKNOWN -> listOf("unknown")
+        }
+        return JSONObject()
+            .put("danger", danger != AtlasDanger.NONE)
+            .put("classes", JSONArray(classes))
+    }
+
+    /**
+     * Agent 001's Run-1 schema currently exposes unmapped|mapped|stale|blocked. Phone-local Atlas
+     * intentionally keeps PARTIAL for Settings and mapper coverage. A non-empty partial graph is
+     * therefore serialized as mapped rather than falsely claiming that no map exists.
+     */
+    private fun wireMapStatus(snapshot: AtlasGraphSnapshot): String = when {
+        snapshot.place.mapStatus == AtlasMapStatus.STALE -> "stale"
+        snapshot.screens.isEmpty() -> "unmapped"
+        else -> "mapped"
+    }
+
+    private fun timestamp(epochMillis: Long?): Any =
+        epochMillis?.let { Instant.ofEpochMilli(it).toString() } ?: JSONObject.NULL
+
+    private fun stableEdgeId(key: GraphEdgeKey): String =
+        "edge:" + AtlasGraphIds.selectorDigest(
+            key.from.value + "|" + key.type.name + "|" + key.to.value,
+        ).removePrefix("sha256:")
+
+    private fun wireCapability(value: String): String {
+        val clean = value.replace(Regex("[^A-Za-z0-9._-]+"), "_").trim('_', '-', '.').take(80)
+        return clean.takeIf { it.firstOrNull()?.isLetter() == true } ?: "C_" + clean.take(78)
+    }
+
+    private fun wireFactSlotName(value: String): String =
+        value.lowercase()
+            .replace(Regex("[^a-z0-9._-]+"), "_")
+            .trim('_', '-', '.')
+            .take(64)
+            .ifBlank { "fact" }
 
     companion object {
-        private val NAVIGATION_EDGES = setOf(GraphEdgeType.NAVIGATES_TO, GraphEdgeType.OPENS, GraphEdgeType.SUBMITS)
+        private val NAVIGATION_EDGES = setOf(
+            GraphEdgeType.NAVIGATES_TO,
+            GraphEdgeType.OPENS,
+            GraphEdgeType.SUBMITS,
+        )
     }
 }
 
@@ -125,8 +200,8 @@ class PlaceCatalog(
 }
 
 /**
- * Atlas retrieval returns data-only hints. It cannot dispatch phone actions and has no dependency on
- * PhoneToolExecutor or AppGraphExecutor.
+ * Atlas retrieval returns data-only hints. It has no dependency on PhoneToolExecutor or
+ * AppGraphExecutor and therefore cannot execute a stored route.
  */
 class AtlasRetriever(
     private val store: AtlasStore,
@@ -151,8 +226,9 @@ class AtlasRetriever(
             }
             page to tokenScore(normalized, haystack)
         }.filter { it.second > 0 }
-        val target = scored.maxWithOrNull(compareBy<Pair<PageNode, Int>>({ it.second }, { it.first.id.value }))?.first
-            ?: return null
+        val target = scored.maxWithOrNull(
+            compareBy<Pair<PageNode, Int>>({ it.second }, { it.first.id.value }),
+        )?.first ?: return null
 
         val path = if (currentScreenId == null || currentScreenId == target.id) {
             listOf(target.id)
@@ -160,21 +236,24 @@ class AtlasRetriever(
             shortestPath(snapshot, currentScreenId, target.id) ?: listOf(target.id)
         }
         val targetMeta = meta[target.id]
-        val pathKeys = path.zipWithNext { from, to -> GraphEdgeKey(from, GraphEdgeType.NAVIGATES_TO, to) }
         val edgeMeta = snapshot.edgeMetadata.associateBy { it.key }
         val confidence = buildList {
             targetMeta?.confidence?.let(::add)
-            pathKeys.mapNotNullTo(this) { edgeMeta[it]?.confidence }
+            path.zipWithNext { from, to -> GraphEdgeKey(from, GraphEdgeType.NAVIGATES_TO, to) }
+                .mapNotNullTo(this) { edgeMeta[it]?.confidence }
         }.minOrNull() ?: targetMeta?.confidence ?: 0.0
         val danger = buildList {
             targetMeta?.danger?.let(::add)
-            pathKeys.mapNotNullTo(this) { edgeMeta[it]?.danger }
+            path.zipWithNext { from, to -> GraphEdgeKey(from, GraphEdgeType.NAVIGATES_TO, to) }
+                .mapNotNullTo(this) { edgeMeta[it]?.danger }
         }.maxByOrNull(::dangerRank) ?: AtlasDanger.NONE
         val matchedSlot = targetMeta?.factSlots?.firstOrNull {
             normalized.contains(it.name.replace('_', ' ')) || it.purpose.lowercase().contains(normalized)
         }?.name
         val matchedCapability = targetMeta?.capabilities?.firstOrNull {
-            normalized.split(Regex("\\s+")).any { token -> token.length >= 3 && it.lowercase().contains(token) }
+            normalized.split(Regex("\\s+")).any { token ->
+                token.length >= 3 && it.lowercase().contains(token)
+            }
         }
 
         return AtlasNavigationHint(
@@ -237,6 +316,10 @@ class AtlasRetriever(
     }
 
     companion object {
-        private val NAVIGATION_EDGES = setOf(GraphEdgeType.NAVIGATES_TO, GraphEdgeType.OPENS, GraphEdgeType.SUBMITS)
+        private val NAVIGATION_EDGES = setOf(
+            GraphEdgeType.NAVIGATES_TO,
+            GraphEdgeType.OPENS,
+            GraphEdgeType.SUBMITS,
+        )
     }
 }
