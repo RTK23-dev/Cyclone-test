@@ -4,9 +4,21 @@ package com.cyclone.mobile.runtime.background
 enum class SemanticStepState { PENDING, ACTIVE, DONE, ACTION_NEEDED, FAILED }
 data class SemanticTaskStep(val id: Long, val label: String, val state: SemanticStepState,
     val evidence: String? = null)
+
+enum class TaskInterruptionKind { GENERAL, NEEDS_SECRET }
+
 data class TaskInterruption(val reason: String, val prompt: String,
     val canTakeOver: Boolean = false, val canResumeAfterHuman: Boolean = false,
-    val canAutofill: Boolean = false, val confirmationToken: String? = null)
+    val canAutofill: Boolean = false, val confirmationToken: String? = null,
+    val kind: TaskInterruptionKind = TaskInterruptionKind.GENERAL) {
+    companion object {
+        fun needsSecret(): TaskInterruption = TaskInterruption(
+            reason = "NEEDS_SECRET",
+            prompt = "Secure input is required to continue.",
+            kind = TaskInterruptionKind.NEEDS_SECRET,
+        )
+    }
+}
 data class TaskOperationEvidence(val sessionId: String, val displayId: Int,
     val controlRevision: Long, val executionAccepted: Boolean, val verified: Boolean,
     val freshObservation: Boolean, val classification: String?,
@@ -82,6 +94,9 @@ object TaskHarnessState {
     }
 
     fun interruption(task: WorkspaceTaskUi): TaskInterruption? {
+        if (task.phase in setOf(TaskPhase.HUMAN, TaskPhase.PAUSED, TaskPhase.REVIEW)) {
+            task.interruption?.takeIf { it.kind == TaskInterruptionKind.NEEDS_SECRET }?.let { return it }
+        }
         val bound = !task.sessionId.isNullOrBlank() && task.displayId != null
         if (task.loginAutofill && task.phase in setOf(TaskPhase.REVIEW, TaskPhase.HUMAN, TaskPhase.PAUSED)) {
             return TaskInterruption(
@@ -116,11 +131,16 @@ object TaskHarnessState {
         return next.copy(controlRevision = revision, semanticSteps = steps, interruption = interruption(next))
     }
 
-    fun category(task: WorkspaceTaskUi): String = when (task.phase) {
-        TaskPhase.STARTING, TaskPhase.WORKING -> "Working"
-        TaskPhase.HUMAN, TaskPhase.PAUSED, TaskPhase.REVIEW -> "Action Needed"
-        TaskPhase.DONE -> "Done"
-        TaskPhase.FAILED -> "Failed"
-        TaskPhase.STOPPED -> "Stopped"
+    fun category(task: WorkspaceTaskUi): String {
+        if (task.interruption?.kind == TaskInterruptionKind.NEEDS_SECRET &&
+            task.phase in setOf(TaskPhase.HUMAN, TaskPhase.PAUSED, TaskPhase.REVIEW)
+        ) return "Needs Secret"
+        return when (task.phase) {
+            TaskPhase.STARTING, TaskPhase.WORKING -> "Working"
+            TaskPhase.HUMAN, TaskPhase.PAUSED, TaskPhase.REVIEW -> "Action Needed"
+            TaskPhase.DONE -> "Done"
+            TaskPhase.FAILED -> "Failed"
+            TaskPhase.STOPPED -> "Stopped"
+        }
     }
 }
