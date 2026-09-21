@@ -197,11 +197,12 @@ def test_valid_slot_presence_validates_and_value_field_is_rejected():
         "persona": "live",
         "slots": {"username": True, "password": True, "otp": False},
     })
-    with pytest.raises(Exception):
-        validator.validate({
-            "placeId": "package:com.example.app",
-            "persona": "live",
-            "slot": "password",
-            "reason": "Login required",
-            "password": "must-never-cross",
-        })
+    for forbidden_field in ("password", "value"):
+        with pytest.raises(Exception):
+            validator.validate({
+                "placeId": "package:com.example.app",
+                "persona": "live",
+                "slot": "password",
+                "reason": "Login required",
+                forbidden_field: "must-never-cross",
+            })
