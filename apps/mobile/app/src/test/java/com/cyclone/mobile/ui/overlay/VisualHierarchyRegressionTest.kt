@@ -28,10 +28,14 @@ class VisualHierarchyRegressionTest {
     }
 
     @Test
-    fun taskSurfaceDismissesStaleKeyboardAndDeadControlsStayGone() {
+    fun taskUpdatesPreserveTypingAndDeadControlsStayGone() {
         val taskPanel = source("ui/v32/CycloneAskTaskPanel.kt")
-        assertTrue(taskPanel.contains("focusManager.clearFocus(force = true)"))
-        assertTrue(taskPanel.contains("keyboard?.hide()"))
+        assertFalse(taskPanel.contains("clearFocus("))
+        assertFalse(taskPanel.contains("keyboard?.hide()"))
+        assertFalse(taskPanel.contains("CycloneSwipeTaskCard("))
+        assertFalse(taskPanel.contains("Text(\"Show less\")"))
+        assertFalse(taskPanel.contains("Text(\"Details\")"))
+        assertFalse(taskPanel.contains("Text(\"View details\")"))
         assertTrue(taskPanel.contains("TaskFollowUpAction.AUTOFILL in snapshot.followUps"))
         assertTrue(taskPanel.contains("Text(\"Autofill\")"))
         assertFalse(taskPanel.contains("Text(\"Soon\")"))
