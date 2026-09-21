@@ -95,6 +95,7 @@ internal fun CycloneV39BrainPage(context: Context, refreshTick: Int) {
                 val consumerState = when (projected.state) {
                     TaskConsumerState.WORKING -> "Working"
                     TaskConsumerState.ACTION_NEEDED -> "Action needed"
+                    TaskConsumerState.NEEDS_SECRET -> "Needs secret"
                     TaskConsumerState.DONE -> "Done"
                     TaskConsumerState.FAILED -> "Couldn't finish"
                 }
