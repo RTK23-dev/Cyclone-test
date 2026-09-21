@@ -803,7 +803,9 @@ class CycloneAccessibilityService : AccessibilityService() {
             childIds += stableNodeId("$path/$i", child, UiBounds(childRect.left, childRect.top, childRect.right, childRect.bottom))
         }
         val password = node.isPassword
-        val safeText = if (password) "" else node.text?.toString().orEmpty()
+        // Editable text is user-entered state. Redact before PageAwareness/learning sees the raw
+        // snapshot, not only later at the GatewayPrivacy export boundary.
+        val safeText = if (node.isEditable || password) "" else node.text?.toString().orEmpty()
         val safeDescription = if (password) "" else node.contentDescription?.toString().orEmpty()
         out += UiNodeSnapshot(
             id = id, path = path, parentId = parentId, childIds = childIds, depth = depth, windowId = node.windowId,
@@ -840,7 +842,7 @@ class CycloneAccessibilityService : AccessibilityService() {
 
     private fun automationSelector(node: AccessibilityNodeInfo): AutomationSelector = AutomationSelector(
         resourceId = node.viewIdResourceName?.takeIf { it.isNotBlank() },
-        text = if (node.isPassword) null else node.text?.toString()?.takeIf { it.isNotBlank() },
+        text = if (node.isEditable || node.isPassword) null else node.text?.toString()?.takeIf { it.isNotBlank() },
         contentDescription = if (node.isPassword) null else node.contentDescription?.toString()?.takeIf { it.isNotBlank() },
         role = inferRole(node, ""),
         className = node.className?.toString()?.takeIf { it.isNotBlank() },
@@ -858,7 +860,7 @@ class CycloneAccessibilityService : AccessibilityService() {
     private fun inferRole(
         node: AccessibilityNodeInfo,
         parentClassName: String,
-        safeText: String = if (node.isPassword) "" else node.text?.toString().orEmpty(),
+        safeText: String = if (node.isEditable || node.isPassword) "" else node.text?.toString().orEmpty(),
         safeDescription: String = if (node.isPassword) "" else node.contentDescription?.toString().orEmpty(),
     ): String {
         return AccessibilityRoles.inferRole(
