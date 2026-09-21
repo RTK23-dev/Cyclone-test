@@ -85,7 +85,7 @@ object PhoneTypeEngine {
 
     interface LiveHost {
         fun resolve(plan: ExecutePlan): Any?
-        fun view(handle: Any): LiveView?
+        fun view(handle: Any, redactText: Boolean = false): LiveView?
         fun focus(handle: Any): Boolean
         fun click(handle: Any): Boolean
         fun setText(handle: Any, value: CharSequence): Boolean
@@ -223,13 +223,18 @@ object PhoneTypeEngine {
         )
     }
 
-    fun perform(plan: ExecutePlan, value: CharSequence, host: LiveHost): LiveResult {
+    fun perform(
+        plan: ExecutePlan,
+        value: CharSequence,
+        host: LiveHost,
+        redactObservedText: Boolean = false,
+    ): LiveResult {
         if (digest(value) != plan.valueDigest || value.length != plan.valueLength) {
             return fail(plan, PhoneToolErrorCode.INTERNAL_ERROR, "Type plan does not match the authorized value")
         }
         var handle = host.resolve(plan)
             ?: return fail(plan, PhoneToolErrorCode.STALE_ELEMENT, "Live editable node could not be resolved")
-        var view = host.view(handle)
+        var view = host.view(handle, redactObservedText)
             ?: return fail(plan, PhoneToolErrorCode.STALE_ELEMENT, "Live editable node has no current view")
         if (!view.editable) {
             return fail(plan, PhoneToolErrorCode.INVALID_REQUEST, "Target is not an editable field")
@@ -242,14 +247,14 @@ object PhoneTypeEngine {
         if (!view.focused) {
             focusRecovered = host.focus(handle)
             handle = host.refresh(handle) ?: handle
-            view = host.view(handle) ?: view
+            view = host.view(handle, redactObservedText) ?: view
             if (!view.focused) {
                 if (host.click(handle)) {
                     focusRecovered = true
                     handle = host.refresh(handle) ?: handle
                     host.focus(handle)
                     handle = host.refresh(handle) ?: handle
-                    view = host.view(handle) ?: view
+                    view = host.view(handle, redactObservedText) ?: view
                 }
             } else {
                 focusRecovered = true
@@ -260,7 +265,7 @@ object PhoneTypeEngine {
         val beforeLength = view.textLength
         val set = host.setText(handle, value)
         val afterHandle = host.refresh(handle) ?: handle
-        val after = host.view(afterHandle)
+        val after = host.view(afterHandle, redactObservedText)
         val stillEditableFocused = after != null && after.editable && after.focused
         val digestMatches = after != null && after.textDigest == plan.valueDigest && after.textLength == plan.valueLength
         val textChanged = after != null && (after.textDigest != beforeDigest || after.textLength != beforeLength)
