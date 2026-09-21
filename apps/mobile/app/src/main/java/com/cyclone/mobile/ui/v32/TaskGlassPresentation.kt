@@ -32,12 +32,13 @@ internal object TaskGlassPresentation {
         val status = when (snapshot.state) {
             TaskConsumerState.WORKING -> "Working"
             TaskConsumerState.ACTION_NEEDED -> "Action Needed"
+            TaskConsumerState.NEEDS_SECRET -> "Needs Secret"
             TaskConsumerState.DONE -> "Done"
             TaskConsumerState.FAILED -> "Couldn't finish"
         }
         val action = when (snapshot.state) {
             TaskConsumerState.DONE -> "View result"
-            TaskConsumerState.ACTION_NEEDED, TaskConsumerState.FAILED -> "View options"
+            TaskConsumerState.ACTION_NEEDED, TaskConsumerState.NEEDS_SECRET, TaskConsumerState.FAILED -> "View options"
             TaskConsumerState.WORKING -> "View progress"
         }
         return TaskGlassCardModel(
