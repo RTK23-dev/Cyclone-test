@@ -89,6 +89,65 @@ def test_forwards_all_run1_ops_to_phone_authority(service):
     ]
 
 
+def test_android_response_is_rejected_before_secret_can_enter_pc_context(service):
+    svc, bridge = service
+
+    def secret_result(op, args, request_id=None):
+        bridge.calls.append((op, dict(args), request_id))
+        if op == "atlas.get":
+            return {
+                "place": {
+                    "placeId": args["placeId"],
+                    "kind": "package",
+                    "label": "Example",
+                    "packageName": "com.example.app",
+                },
+                "persona": args["persona"],
+                "mapStatus": "mapped",
+                "screens": [{"screenId": "login", "factSlots": [{"name": "password"}]}],
+                "edges": [],
+                "capabilities": [],
+                "confidence": 1.0,
+                "lastObservedAt": None,
+                "lastVerifiedAt": None,
+            }
+        raise AssertionError(op)
+
+    bridge.request = secret_result
+    with pytest.raises(DesktopRuntimeError):
+        svc.atlas_get("phone-1", "package:com.example.app", "live")
+
+
+def test_secret_slot_presence_accepts_secret_slot_names_only_as_booleans(service):
+    svc, bridge = service
+
+    def slots_result(op, args, request_id=None):
+        bridge.calls.append((op, dict(args), request_id))
+        if op == "secrets.slots":
+            return {
+                "placeId": args["placeId"],
+                "persona": args["persona"],
+                "slots": {"password": True, "otp": False},
+            }
+        raise AssertionError(op)
+
+    bridge.request = slots_result
+    result = svc.secret_slots("phone-1", "package:com.example.app", "live")
+    assert result["slots"] == {"password": True, "otp": False}
+
+    def bad_slots_result(op, args, request_id=None):
+        bridge.calls.append((op, dict(args), request_id))
+        return {
+            "placeId": args["placeId"],
+            "persona": args["persona"],
+            "slots": {"password": "plaintext-must-not-cross"},
+        }
+
+    bridge.request = bad_slots_result
+    with pytest.raises(DesktopRuntimeError):
+        svc.secret_slots("phone-1", "package:com.example.app", "live")
+
+
 def test_secret_payload_is_rejected_not_stripped_or_forwarded(service):
     svc, bridge = service
     with pytest.raises(DesktopRuntimeError):
