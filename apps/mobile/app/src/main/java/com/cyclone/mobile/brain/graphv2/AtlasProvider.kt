@@ -61,7 +61,9 @@ class StoreBackedAtlasReadProvider(
                         .put("purpose", (meta?.purpose ?: AtlasPrivacy.structuralPurpose(page.displayName)).take(200))
                         .put("factSlots", JSONArray().also { facts ->
                             meta?.factSlots?.sortedBy { it.name }.orEmpty().forEach { slot ->
-                                facts.put(factSlotJson(slot))
+                                safeFactSlotName(slot.name)?.let {
+                                    facts.put(factSlotJson(slot, it))
+                                }
                             }
                         })
                         .put("risk", riskJson(meta?.danger ?: AtlasDanger.NONE))
@@ -116,8 +118,8 @@ class StoreBackedAtlasReadProvider(
             place.origin?.let { put("origin", it) }
         }
 
-    private fun factSlotJson(slot: AtlasFactSlot): JSONObject = JSONObject()
-        .put("name", wireFactSlotName(slot.name))
+    private fun factSlotJson(slot: AtlasFactSlot, safeName: String): JSONObject = JSONObject()
+        .put("name", safeName)
         .put("factType", "text")
         .put("required", false)
         .put("description", AtlasPrivacy.structuralPurpose(
@@ -165,14 +167,19 @@ class StoreBackedAtlasReadProvider(
         return clean.takeIf { it.firstOrNull()?.isLetter() == true } ?: "C_" + clean.take(78)
     }
 
-    private fun wireFactSlotName(value: String): String =
-        value.lowercase()
+    private fun safeFactSlotName(value: String): String? {
+        val clean = value.lowercase()
             .replace(Regex("[^a-z0-9._-]+"), "_")
             .trim('_', '-', '.')
             .take(64)
             .ifBlank { "fact" }
+        return clean.takeUnless { SECRET_SLOT_FRAGMENT.containsMatchIn(it) }
+    }
 
     companion object {
+        private val SECRET_SLOT_FRAGMENT = Regex(
+            "(password|passcode|passwd|pin|otp|token|secret|api_key|authorization|cookie|cvv|credential|typed_text|typed_value)",
+        )
         private val NAVIGATION_EDGES = setOf(
             GraphEdgeType.NAVIGATES_TO,
             GraphEdgeType.OPENS,
