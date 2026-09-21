@@ -113,7 +113,7 @@ class HumanGestureSemanticSafetyContractTest {
     }
 
     @Test
-    fun `overlay becomes not-touchable only for the host stroke`() {
+    fun `overlay leaves the hit tree for the host stroke`() {
         assertTrue("withHostPassthrough" in passthrough)
         assertTrue("OverlayGesturePassthrough.bind" in runtime)
         assertTrue("OverlayGesturePassthrough.unbind" in runtime)
@@ -121,10 +121,12 @@ class HumanGestureSemanticSafetyContractTest {
         assertTrue("OverlayGesturePassthrough.active()" in flagsFor)
         assertTrue("withHostGesturePassthrough" in flagsFor)
         val applyLayout = slice(controller, "private fun applyLayout", "/** Decoration never owns")
-        assertFalse(
-            "host-gesture passthrough must not hide overlay chrome",
-            "OverlayGesturePassthrough" in applyLayout,
-        )
+        assertTrue("OverlayGesturePassthrough.active()" in applyLayout)
+        assertTrue("View.GONE" in applyLayout)
+        assertTrue("IMPORTANT_FOR_ACCESSIBILITY_NO" in applyLayout)
+        assertTrue("hostGestureYielded" in applyLayout)
+        val sync = slice(controller, "fun syncHostGesturePassthrough", "private fun recordIdleTap")
+        assertTrue("Choreographer.getInstance().postFrameCallback" in sync)
         assertTrue("clicksHost: Boolean = false" in overlayEvent)
         assertTrue("Overlay buttons never click host accessibility nodes." in overlayEvent)
     }

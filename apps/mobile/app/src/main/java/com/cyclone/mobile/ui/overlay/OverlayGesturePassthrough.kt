@@ -3,11 +3,13 @@ package com.cyclone.mobile.ui.overlay
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Temporarily makes Cyclone overlay windows ignore touches so an already-authorized
- * host [android.accessibilityservice.AccessibilityService.dispatchGesture] can land.
+ * Yield Cyclone overlay windows for an already-authorized host
+ * [android.accessibilityservice.AccessibilityService.dispatchGesture].
  *
- * Overlay buttons still never click host nodes. This flag is held only for the stroke
- * itself, not for the whole WORKING state, so Stop remains usable around the gesture.
+ * TYPE_ACCESSIBILITY_OVERLAY still receives accessibility gestures when it is visible and
+ * important-for-accessibility, even with FLAG_NOT_TOUCHABLE. The idle ball and expanded Ask
+ * card must leave the hit tree (GONE + not important) for the stroke, then come back.
+ * Overlay buttons still never click host nodes. Stop is unusable only for that stroke.
  */
 object OverlayGesturePassthrough {
     private val depth = AtomicInteger(0)

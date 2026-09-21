@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.view.Choreographer
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -258,6 +259,7 @@ class OverlayChromeController(
     private var navigationBottomPx by mutableStateOf(0)
     private var reportedImeBottomPx = 0
     private var speechRecognizer: SpeechRecognizer? = null
+    @Volatile private var hostGestureYielded = false
 
     fun show(snapshot: OverlayChromeSnapshot) {
         onMain {
@@ -395,6 +397,7 @@ class OverlayChromeController(
             params = null
             haloRoot = null
             haloParams = null
+            hostGestureYielded = false
             resetIdleActivation()
             speechRecognizer?.destroy()
             speechRecognizer = null
@@ -412,16 +415,22 @@ class OverlayChromeController(
 
     private fun applyLayout(snapshot: OverlayChromeSnapshot) {
         if (hideLockedWindows()) return
-        shareRoot?.visibility = View.VISIBLE
+        val yieldHost = OverlayGesturePassthrough.active()
+        shareRoot?.let { share ->
+            share.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            share.visibility = if (yieldHost || OverlayExternalInteraction.active.value) View.GONE else View.VISIBLE
+        }
         renderActiveBorder(snapshot)
         val view = root ?: return
         val layout = params ?: return
         val compact = isCompact(snapshot)
         val minimizedComposer = isMinimizedComposer(snapshot)
         val visible = (!compact || snapshot.idleChipVisible || glass()) &&
-            !OverlayExternalInteraction.active.value
+            !OverlayExternalInteraction.active.value &&
+            !yieldHost
 
-        view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        view.importantForAccessibility =
+            if (yieldHost) View.IMPORTANT_FOR_ACCESSIBILITY_NO else View.IMPORTANT_FOR_ACCESSIBILITY_YES
         view.contentDescription =
             if (snapshot.state == OverlayChromeState.GATE && !snapshot.minimized) OverlayCopy.GATE else null
         view.visibility = if (visible) View.VISIBLE else View.GONE
@@ -432,7 +441,9 @@ class OverlayChromeController(
             else -> OverlayChromeWindowPolicy.main(compact)
         }
         val changed = applyWindowContract(layout, spec, followKeyboard = !compact && !glass())
-        if (changed) runCatching { wm.updateViewLayout(view, layout) }
+        if (changed || yieldHost != hostGestureYielded) {
+            runCatching { wm.updateViewLayout(view, layout) }
+        }
 
         haloRoot?.let { halo ->
             halo.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -445,12 +456,19 @@ class OverlayChromeController(
         }
         haloParams?.let { hp ->
             val haloChanged = applyWindowContract(hp, OverlayChromeWindowPolicy.halo, followKeyboard = false)
-            if (haloChanged) haloRoot?.let { halo -> runCatching { wm.updateViewLayout(halo, hp) } }
+            if (haloChanged || yieldHost != hostGestureYielded) {
+                haloRoot?.let { halo -> runCatching { wm.updateViewLayout(halo, hp) } }
+            }
         }
+        hostGestureYielded = yieldHost
     }
 
     /** Decoration never owns touch/focus and yields with every explicit external interaction. */
     private fun renderActiveBorder(snapshot: OverlayChromeSnapshot) {
+        if (OverlayGesturePassthrough.active()) {
+            activeBorder?.visibility = View.GONE
+            return
+        }
         val active = !OverlayExternalInteraction.active.value &&
             !snapshot.userPaused &&
             snapshot.state in setOf(OverlayChromeState.WORKING, OverlayChromeState.LIVE)
@@ -459,6 +477,7 @@ class OverlayChromeController(
             activeBorder = null
             return
         }
+        activeBorder?.visibility = View.VISIBLE
         if (activeBorder != null) return
         val border = object : View(service) {
             private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
@@ -626,23 +645,33 @@ class OverlayChromeController(
     }
 
     /**
-     * Apply current overlay window flags, including host-gesture passthrough.
-     * Called from [OverlayGesturePassthrough] around dispatchGesture only.
+     * Commit overlay yield before dispatchGesture. FLAG_NOT_TOUCHABLE is not enough:
+     * the idle ball and Ask card must be GONE and not important-for-accessibility, then
+     * WindowManager must process that frame or the stroke still hits Cyclone chrome.
      */
     fun syncHostGesturePassthrough() {
         val latch = CountDownLatch(1)
-        val task = {
+        val task = Runnable {
             try {
                 if (root != null) applyLayout(latest)
-            } finally {
+                val attached = sequenceOf(root, haloRoot, shareRoot).firstOrNull { it?.isAttachedToWindow == true }
+                if (attached != null) {
+                    Choreographer.getInstance().postFrameCallback { latch.countDown() }
+                } else {
+                    latch.countDown()
+                }
+            } catch (_: RuntimeException) {
                 latch.countDown()
             }
         }
         if (Looper.myLooper() == Looper.getMainLooper()) {
-            task()
+            task.run()
             return
         }
-        if (!main.post(task)) return
+        if (!main.post(task)) {
+            latch.countDown()
+            return
+        }
         latch.await(400, TimeUnit.MILLISECONDS)
     }
 
