@@ -55,6 +55,9 @@ internal object GatewayProtocol {
         "ui.search",
         "ui.element",
         "app_graph.get",
+        "atlas.places",
+        "atlas.get",
+        "secrets.slots",
         "brain.recall",
         "teach.status",
         "debug.snapshot",
@@ -101,6 +104,10 @@ internal object GatewayProtocol {
         "skill.compile",
         "skill.run",
         "skill.match",
+        "atlas.places",
+        "atlas.get",
+        "secrets.slots",
+        "secrets.request",
     )
 
     fun parse(line: String): GatewayRequest {

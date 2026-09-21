@@ -405,6 +405,8 @@ internal object GatewayDispatcher {
         "teach.stop" -> GatewayTeachingAdapter.stop(context)
         "debug.snapshot" -> debugSnapshot(context)
         "skill.compile", "skill.run", "skill.match" -> dispatchSkill(context, request)
+        "atlas.places", "atlas.get", "secrets.slots", "secrets.request" ->
+            GatewayV5ContractAdapter.dispatch(request.op, request.args)
         else -> throw GatewayProtocolException(
             "PROTOCOL_MISMATCH",
             "Unsupported gateway operation: ${request.op}",

@@ -20,6 +20,7 @@ from ..desktop_runtime.models import (
 from .camera_stream_api import create_camera_stream_router
 from .layer2_api import create_layer2_router
 from .session_api import create_session_router
+from .v5_contract_api import create_v5_contract_router
 
 
 def create_stream_router(runtime: Any, token: str) -> APIRouter:
@@ -83,4 +84,5 @@ def create_stream_router(runtime: Any, token: str) -> APIRouter:
     # requires the phone's trusted Android Gateway credential. No direct ADB execution route exists.
     router.include_router(create_session_router(runtime, token))
     router.include_router(create_layer2_router(runtime, token))
+    router.include_router(create_v5_contract_router(runtime, token))
     return router
