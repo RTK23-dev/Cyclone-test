@@ -101,6 +101,10 @@ internal object GatewayProtocol {
         "skill.compile",
         "skill.run",
         "skill.match",
+        "atlas.places",
+        "atlas.get",
+        "secrets.slots",
+        "secrets.request",
     )
 
     fun parse(line: String): GatewayRequest {
