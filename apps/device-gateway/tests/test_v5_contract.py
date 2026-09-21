@@ -140,7 +140,7 @@ def test_secret_slot_presence_accepts_secret_slot_names_only_as_booleans(service
         return {
             "placeId": args["placeId"],
             "persona": args["persona"],
-            "slots": {"password": "plaintext-must-not-cross"},
+            "slots": {"password": 1},
         }
 
     bridge.request = bad_slots_result
@@ -204,5 +204,5 @@ def test_valid_slot_presence_validates_and_value_field_is_rejected():
                 "persona": "live",
                 "slot": "password",
                 "reason": "Login required",
-                forbidden_field: "must-never-cross",
+                forbidden_field: True,
             })
