@@ -242,6 +242,13 @@ object OverlayChromeRuntime {
 
     fun dispatch(action: OverlayUserAction) {
         val before = snapshot()
+        if (action == OverlayUserAction.ASK_CYCLONE) {
+            val waitingForSecret = WorkspaceTasks.state.value?.interruption?.kind ==
+                TaskInterruptionKind.NEEDS_SECRET
+            if (waitingForSecret && com.cyclone.mobile.secrets.SecretsCardRuntime.reopenWaiting()) {
+                return
+            }
+        }
         if (action == OverlayUserAction.TAKE_CONTROL) {
             WorkspaceTasks.state.value?.takeIf { it.foreground && it.taskId == foregroundTaskId }?.let { task ->
                 commandForegroundTask(task.taskId, if (before.userPaused) "resume" else "handoff")
