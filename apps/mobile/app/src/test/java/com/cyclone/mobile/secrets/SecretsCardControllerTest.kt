@@ -113,6 +113,31 @@ class SecretsCardControllerTest {
     }
 
     @Test
+    fun skippedRunCardCanReopenAndLaterResumeAfterVerifiedFill() {
+        val controller = SecretsCardController(vault())
+        val results = mutableListOf<SecretUseResult>()
+        controller.request(
+            request(),
+            SecretFillTarget("semantic:obs:password", "obs"),
+            results::add,
+        )
+
+        controller.skip()
+        assertFalse(controller.state.value!!.visible)
+        assertEquals(SecretUseStatus.SKIPPED, results.single().status)
+        assertTrue(controller.reopen())
+        assertTrue(controller.state.value!!.visible)
+
+        controller.submit(generatedSecret())
+        assertEquals(
+            listOf(SecretUseStatus.SKIPPED, SecretUseStatus.FILLED),
+            results.map { it.status },
+        )
+        assertFalse(controller.state.value!!.visible)
+        assertTrue(results.last().taskMayResume)
+    }
+
+    @Test
     fun storedValueNeverAppearsInCardOrSettingsPresentation() {
         val store = MemoryStore()
         val vault = vault(store)
