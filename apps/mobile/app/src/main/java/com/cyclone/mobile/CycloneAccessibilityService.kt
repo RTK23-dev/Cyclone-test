@@ -801,14 +801,21 @@ class CycloneAccessibilityService : AccessibilityService() {
             val childRect = Rect().also { child.getBoundsInScreen(it) }
             childIds += stableNodeId("$path/$i", child, UiBounds(childRect.left, childRect.top, childRect.right, childRect.bottom))
         }
+        val password = node.isPassword
+        val safeText = if (password) "" else node.text?.toString().orEmpty()
+        val safeDescription = if (password) "" else node.contentDescription?.toString().orEmpty()
         out += UiNodeSnapshot(
             id = id, path = path, parentId = parentId, childIds = childIds, depth = depth, windowId = node.windowId,
-            className = node.className?.toString().orEmpty(), role = inferRole(node, parentClassName), text = node.text?.toString().orEmpty(),
-            contentDescription = node.contentDescription?.toString().orEmpty(), resourceId = node.viewIdResourceName.orEmpty(), bounds = bounds,
+            className = node.className?.toString().orEmpty(),
+            role = inferRole(node, parentClassName, safeText, safeDescription),
+            text = safeText,
+            contentDescription = safeDescription,
+            resourceId = node.viewIdResourceName.orEmpty(), bounds = bounds,
             clickable = node.isClickable, longClickable = node.isLongClickable, editable = node.isEditable, scrollable = node.isScrollable,
             enabled = node.isEnabled, selected = node.isSelected, checked = node.isChecked, checkable = node.isCheckable,
             focused = node.isFocused, focusable = node.isFocusable, visibleToUser = node.isVisibleToUser,
             actions = accessibilityActionNames(node),
+            password = password,
         )
         val selfClass = node.className?.toString().orEmpty()
         for (i in 0 until node.childCount) node.getChild(i)?.let { collectNode(it, "$path/$i", id, depth + 1, out, selfClass) }
@@ -832,8 +839,8 @@ class CycloneAccessibilityService : AccessibilityService() {
 
     private fun automationSelector(node: AccessibilityNodeInfo): AutomationSelector = AutomationSelector(
         resourceId = node.viewIdResourceName?.takeIf { it.isNotBlank() },
-        text = node.text?.toString()?.takeIf { it.isNotBlank() },
-        contentDescription = node.contentDescription?.toString()?.takeIf { it.isNotBlank() },
+        text = if (node.isPassword) null else node.text?.toString()?.takeIf { it.isNotBlank() },
+        contentDescription = if (node.isPassword) null else node.contentDescription?.toString()?.takeIf { it.isNotBlank() },
         role = inferRole(node, ""),
         className = node.className?.toString()?.takeIf { it.isNotBlank() },
         requireClickable = node.isClickable.takeIf { it },
@@ -847,7 +854,12 @@ class CycloneAccessibilityService : AccessibilityService() {
         return sha256(raw).take(16)
     }
 
-    private fun inferRole(node: AccessibilityNodeInfo, parentClassName: String): String {
+    private fun inferRole(
+        node: AccessibilityNodeInfo,
+        parentClassName: String,
+        safeText: String = if (node.isPassword) "" else node.text?.toString().orEmpty(),
+        safeDescription: String = if (node.isPassword) "" else node.contentDescription?.toString().orEmpty(),
+    ): String {
         return AccessibilityRoles.inferRole(
             className = node.className?.toString().orEmpty(),
             clickable = node.isClickable,
@@ -855,8 +867,8 @@ class CycloneAccessibilityService : AccessibilityService() {
             checkable = node.isCheckable,
             scrollable = node.isScrollable,
             selected = node.isSelected,
-            text = node.text?.toString().orEmpty(),
-            contentDescription = node.contentDescription?.toString().orEmpty(),
+            text = safeText,
+            contentDescription = safeDescription,
             resourceId = node.viewIdResourceName.orEmpty(),
             parentClassName = parentClassName,
             actions = accessibilityActionNames(node),
