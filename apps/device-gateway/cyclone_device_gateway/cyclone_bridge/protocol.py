@@ -11,6 +11,7 @@ ALLOWED_OPS = {
     "teach.stop", "debug.snapshot", "pair.begin", "pair.complete", "pair.qr.complete", "pair.revoke",
     "manual.execute", "clipboard.get", "clipboard.set",
     "skill.compile", "skill.run", "skill.match",
+    "atlas.places", "atlas.get", "secrets.slots", "secrets.request",
 }
 UNAUTHENTICATED_OPS = {
     "trust.negotiate", "trust.begin", "trust.complete", "trust.session.begin", "trust.session.complete",
