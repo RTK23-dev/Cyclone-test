@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
     "skipLibCheck": true,
     "outDir": ".test-dist",
@@ -16,6 +16,10 @@
     "src/video/livePhoneController.ts",
     "src/video/webcodecsH264Decoder.ts",
     "src/services/types.ts",
-    "src/services/mockDesktopService.ts"
+    "src/services/mockDesktopService.ts",
+    "src/maps/**/*.ts",
+    "src/ui/dom.ts",
+    "src/ui/appMapCanvas.ts",
+    "src/pages/mapsPage.ts"
   ]
 }
