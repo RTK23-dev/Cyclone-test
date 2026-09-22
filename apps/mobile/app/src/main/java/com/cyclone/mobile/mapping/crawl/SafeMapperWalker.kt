@@ -38,14 +38,11 @@ class SafeMapperWalker(
         val hint = atlas.hint(beforeSession.placeId, MAPPING_PERSONA, before)
 
         val selection = chooseSafeDoor(beforeSession, before, hint, fromNode)
-        val door = selection.door ?: run {
-            val blocked = selection.blocked.lastOrNull()
-            if (blocked != null) {
-                session.markDanger(blocked.first.key, blocked.second)
-                return completePartial(beforeSession, "no_safe_unexplored_doors")
-            }
-            return completePartial(beforeSession, "no_safe_unexplored_doors")
+        selection.blocked.forEach { (blockedDoor, danger) ->
+            session.markDanger(blockedDoor.key, danger)
         }
+        val door = selection.door
+            ?: return completePartial(beforeSession, "no_safe_unexplored_doors")
 
         // Human/companion/control-revision changes that happen while deciding must win before input.
         val preMutationSession = session.snapshot()
