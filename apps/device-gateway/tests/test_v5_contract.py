@@ -40,6 +40,60 @@ class FakeBridge:
             return {"placeId": args["placeId"], "persona": args["persona"], "slots": {}}
         if op == "secrets.request":
             return {"state": "needs-secret", "request": dict(args)}
+        if op == "atlas.diff":
+            return {
+                "placeId": args["placeId"],
+                "persona": args["persona"],
+                "since": args.get("since"),
+                "cursor": "c1:aaaaaaaaaaaaaaaaaaaa:0",
+                "resyncRequired": False,
+                "changes": [],
+            }
+        if op.startswith("mapping."):
+            state = {
+                "mapping.start": "running",
+                "mapping.pause": "paused",
+                "mapping.stop": "stopped",
+                "mapping.status": "running",
+            }[op]
+            return {
+                "mappingJobId": "map-phone-0001",
+                "placeId": "package:com.example.app",
+                "persona": "mapping",
+                "state": state,
+                "sessionId": args["sessionId"],
+                "displayId": args["displayId"],
+                "plane": {
+                    "kind": "foreground",
+                    "sessionId": args["sessionId"],
+                    "displayId": args["displayId"],
+                    "workspaceId": None,
+                    "workspaceGeneration": None,
+                    "label": "Foreground",
+                },
+                "controlRevision": 7,
+                "executionGeneration": None,
+                "budget": {
+                    "maxNewScreens": 40,
+                    "maxElapsedMs": 600000,
+                    "maxConsecutiveNonProgress": 6,
+                    "maxAttemptsPerDoor": 3,
+                },
+                "currentAtlasNodeId": None,
+                "progress": {
+                    "newScreens": 0,
+                    "verifiedMutations": 0,
+                    "consecutiveNonProgress": 0,
+                    "attemptedDoors": 0,
+                    "remainingDarkRegions": 0,
+                },
+                "atlasStatus": None,
+                "danger": None,
+                "boundary": None,
+                "startedAtEpochMs": 100,
+                "updatedAtEpochMs": 100,
+                "failureCode": None,
+            }
         raise AssertionError(op)
 
 
@@ -226,3 +280,115 @@ def test_valid_slot_presence_validates_and_value_field_is_rejected():
                 "reason": "Login required",
                 forbidden_field: True,
             })
+
+
+def test_run2_atlas_diff_is_android_forwarded_and_cursor_is_phone_owned(service):
+    svc, bridge = service
+    result = svc.atlas_diff(
+        "phone-1",
+        "package:com.example.app",
+        "mapping",
+        None,
+    )
+    assert result["cursor"] == "c1:aaaaaaaaaaaaaaaaaaaa:0"
+    assert result["changes"] == []
+    assert bridge.calls[-1][0] == "atlas.diff"
+    assert bridge.calls[-1][1] == {
+        "placeId": "package:com.example.app",
+        "persona": "mapping",
+        "since": None,
+    }
+
+
+def test_run2_mapping_state_is_forwarded_from_android_not_created_on_pc(service):
+    svc, bridge = service
+    result = svc.forward(
+        "phone-1",
+        "mapping.start",
+        {
+            "placeId": "package:com.example.app",
+            "persona": "mapping",
+            "sessionId": "default-foreground",
+            "displayId": 0,
+        },
+    )
+    assert result["mappingJobId"] == "map-phone-0001"
+    assert result["state"] == "running"
+    assert result["controlRevision"] == 7
+    assert bridge.calls[-1][0] == "mapping.start"
+
+
+def test_run2_mapping_requires_explicit_session_before_forwarding(service):
+    svc, bridge = service
+    with pytest.raises(DesktopRuntimeError) as caught:
+        svc.forward(
+            "phone-1",
+            "mapping.start",
+            {
+                "placeId": "package:com.example.app",
+                "persona": "mapping",
+                "displayId": 0,
+            },
+        )
+    assert str(caught.value.code) == "SESSION_REQUIRED"
+    assert bridge.calls == []
+
+
+def test_run2_named_display_zero_is_rejected_before_forwarding(service):
+    svc, bridge = service
+    with pytest.raises(DesktopRuntimeError) as caught:
+        svc.forward(
+            "phone-1",
+            "mapping.start",
+            {
+                "placeId": "package:com.example.app",
+                "persona": "mapping",
+                "sessionId": "workspace-1",
+                "displayId": 0,
+                "executionGeneration": 1,
+            },
+        )
+    assert str(caught.value.code) == "SESSION_DISPLAY_MISMATCH"
+    assert bridge.calls == []
+
+
+def test_run2_mapping_secret_bearing_extra_is_rejected_not_stripped(service):
+    svc, bridge = service
+    with pytest.raises(DesktopRuntimeError):
+        svc.forward(
+            "phone-1",
+            "mapping.start",
+            {
+                "placeId": "package:com.example.app",
+                "persona": "mapping",
+                "sessionId": "default-foreground",
+                "displayId": 0,
+                "password": True,
+            },
+        )
+    assert bridge.calls == []
+
+
+def test_run2_diff_rejects_non_structural_android_payload(service):
+    svc, bridge = service
+
+    def bad_diff(op, args, request_id=None):
+        bridge.calls.append((op, dict(args), request_id))
+        return {
+            "placeId": args["placeId"],
+            "persona": args["persona"],
+            "since": args.get("since"),
+            "cursor": "c1:aaaaaaaaaaaaaaaaaaaa:1",
+            "resyncRequired": False,
+            "changes": [{
+                "cursor": "c1:aaaaaaaaaaaaaaaaaaaa:1",
+                "entity": "screen",
+                "change": "upsert",
+                "id": "screen:home",
+                "label": "unexpected",
+            }],
+        }
+
+    bridge.request = bad_diff
+    with pytest.raises(DesktopRuntimeError):
+        svc.atlas_diff("phone-1", "package:com.example.app", "mapping", None)
