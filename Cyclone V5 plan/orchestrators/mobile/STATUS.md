@@ -1,76 +1,85 @@
 # Mobile orchestrator — STATUS
 
-**Wave:** Run 1 closeout in parallel with **Run 2 issued**  
-**Integration branch:** `v5/integration@7e5ece6ff17d78a1a42135bc7cbad5bf397e13f3`  
-**Plan source:** `main@d2ec2ca5a397f82fdaf90c72c93e3168f89b47dd`  
-**Original code base:** `release/cyclone-mobile-v4.8.0@97f81cb692893896b500f2372068fb1cd67d85ed`
+**Wave:** consolidated V5 checkpoint  
+**Combined candidate:** `5.0.0-alpha.2.dev1`  
+**Combined branch:** `v5/mobile/alpha2-preview1-combined`  
+**Integration base:** `v5/integration@f52eae1d9d3aad766fffd7aa436ead280cacdd75`  
+**Original Mobile baseline:** `release/cyclone-mobile-v4.8.0@97f81cb692893896b500f2372068fb1cd67d85ed`
 
-## Run 1 board
+## Current Mobile integration picture
 
-| ID | Agent | Branch | State | PR | Return |
-|---|---|---|---|---|---|
-| 001 | protocol-need-secret | `v5/mobile/protocol-need-secret` | **merged** | #144 → `c980b43e3245016b5fb29fe524ab20d4b7dd6737` | `RETURN-RUN1-001-protocol-need-secret.md` |
-| 002 | vault-secrets-card | `v5/mobile/vault-secrets-card` | **merged** | #145 → `367ce4ed9864f9358802bf329de768b1676c109d` | `RETURN-RUN1-002-vault-secrets-card.md` |
-| 003 | atlas-follow-me | `v5/mobile/atlas-follow-me` | **in-pr — changes required** | #146 | **missing** |
-
-### Run-1 orchestrator correction
-
-PR #147 is merged at `7e5ece6ff17d78a1a42135bc7cbad5bf397e13f3`.
-
-Deep integration review found that Agent 001's original Atlas wire schema omitted the `partial` map state even though the V5 plan and Run-1 shared brief require incomplete coverage to remain distinguishable. The correction freezes:
-
-```text
-unmapped | partial | mapped | stale | blocked
-```
-
-A non-empty graph is not automatically mapped.
-
-## Agent 003 required corrections before merge
-
-PR #146 is not approved for integration until all are true:
-
-1. Rebase/merge current `v5/integration` and rerun final CI on the combined head.
-2. Install the real `AtlasRuntime.provider` through Agent 001's `GatewayV5ContractSources.installAtlas(...)` seam so production `atlas.get` / `atlas.places` return the phone Atlas instead of the empty fallback after initialization.
-3. Serialize internal `PARTIAL` as wire `partial`; remove the non-empty → `mapped` coercion.
-4. Harden Atlas promotion so ordinary user-content labels (person/thread names, message subjects, order/content titles) cannot become durable Atlas structure merely because they are not secret-shaped.
-5. Add regressions for the real gateway hookup and structural-vs-content privacy.
-6. Write `returns/RETURN-RUN1-003-atlas-follow-me.md`.
-7. Final CI must pass; physical Pixel remains **UNVERIFIED**.
-
-## Agent 002 follow-up hardening
-
-Run-1 Vault architecture is accepted and merged. The phone card currently uses Compose immutable `String` state for the value while the user is typing, then converts to/clears a `CharArray`. The value does not enter the wire, Atlas, Brain or diagnostics, but the UI memory lifetime is not truthfully zeroizable. This is recorded as focused hardening for a later run; it is not a Run-1 merge blocker.
-
-## Contract with Glass
-
-- [x] Atlas/Secrets schemas on integration.
-- [x] `needs-secret` is a distinct nonterminal consumer state.
-- [x] Phone Secrets Card + metadata-only Vault gateway are integrated.
-- [x] Atlas map status includes truthful `partial`.
-- [ ] Production `atlas.get` returns Agent 003's durable Follow Me graph — blocked on #146 correction.
-- [ ] Glass read-only Maps board consumes the real phone graph — Glass-owned exit test.
-- [ ] Run-1 orchestrator return written — waits for #146.
-
-## Run 2 — issued now
-
-Files: `orchestrators/mobile/run-2/`
-
-**RUN2_START_BASE_SHA:** `2a0f97179c2a57eb0548e558a98d90d81eb30064`
-
-| ID | Agent | Branch | State |
+| ID | Work | Source | Combined checkpoint |
 |---|---|---|---|
-| 004 | mapping-session-protocol | `v5/mobile/mapping-session-protocol` | **issued — branch created @ RUN2_START_BASE_SHA; code now** |
-| 005 | mapper-walker-safety | `v5/mobile/mapper-walker-safety` | **issued — branch created @ RUN2_START_BASE_SHA; code now; use narrow 004/006 seams as needed** |
-| 006 | place-catalog-chrome-settings | `v5/mobile/place-catalog-chrome-settings` | **issued — branch created @ RUN2_START_BASE_SHA; code now** |
+| 001 | protocol + needs-secret | PR #144 | merged earlier |
+| 002 | Vault + Secrets Card | PR #145 | merged earlier |
+| 003 | durable Atlas + Follow Me | PR #146 / corrected source | **included in 5.0.0-alpha.2.dev1 candidate** |
+| 004 | mapping session + protocol | PR #152 | **included in candidate** |
+| 005 | safe mapper walker | PR #151 / nullability correction | **included in candidate** |
+| 006 | canonical Place/Chrome + Settings | branch exists, no commits | **NOT included / still missing** |
 
-Run-2 coding is allowed before Run-1 closes. The hard gate is now: **no Run-2 merge before #146 merges, RUN1_CLOSEOUT_SHA is recorded, each Run-2 branch rebases/merges-forward onto it, and final CI passes again.**
+The combined checkpoint deliberately overlays 003/004/005 onto the latest integration line instead of merging their stale histories. This preserves all already-merged Glass work.
 
-Planned final integration order:
+## V5 foundation now represented in the candidate
 
-```text
-004 → 006 → 005
-```
+- [x] nonterminal `needs-secret`;
+- [x] Vault + phone Secrets Card;
+- [x] metadata-only secret slot wire;
+- [x] durable phone Atlas;
+- [x] Follow Me → same Atlas;
+- [x] production phone-owned `atlas.get` / `atlas.places`;
+- [x] truthful `partial`;
+- [x] structural/content privacy boundary;
+- [x] mapping session state machine;
+- [x] `atlas.diff`;
+- [x] `mapping.start | pause | stop | status`;
+- [x] existing session/display/workspace authority reused;
+- [x] safe mapper walker;
+- [x] one mutation per decision;
+- [x] never-pay/send/delete/auto-GRANT mapping policy;
+- [x] mapping persona isolation;
+- [ ] canonical Chrome origin Place resolver — Agent 006;
+- [ ] root Settings mount for App Maps + Vault — Agent 006;
+- [ ] physical Pixel acceptance.
 
-## Physical acceptance
+## Glass on the same integration lineage
 
-Pixel/device acceptance remains **UNVERIFIED**. GitHub CI, lint and release assembly are not physical-device evidence.
+Glass Runs 1–3 are already merged on the candidate base:
+
+- Ask / Maps / Vault shell;
+- full read-only Maps board;
+- honest demo/live source;
+- phone Vault slot presence;
+- focused device + session plane binding;
+- English edge inspector;
+- dark-door filter;
+- Take control → Phone;
+- honest Ask samples and redacted HUD log.
+
+The combined Mobile candidate is intended to remove Glass's largest remaining read-only blocker: a real phone-owned Atlas source.
+
+## Version
+
+`5.0.0-alpha.2.dev1` / Android versionCode **141**.
+
+Gateway and both MCP packages are bumped to the same V5 development version. Glass remains `1.6.0-alpha.1`.
+
+Publication is **disabled**. This branch is a CI candidate, not a public production release.
+
+## Required exit before calling this alpha.2
+
+1. exact-source combined Mobile CI green;
+2. Agent 006 canonical Place/Chrome + Settings integration;
+3. named physical Pixel pass;
+4. Follow Me one real app and render that real Atlas in Glass;
+5. operator can explain the rooms from Glass without logs.
+
+## Later V5 work
+
+- Glass live mapping cursor/start;
+- Chrome-host mapping;
+- Ask compiler;
+- People memory / Louella;
+- stale/remap freshness;
+- encrypted Glass secret fill or documented phone-card-only V1 path.
+
+**Physical Pixel status:** UNVERIFIED.
