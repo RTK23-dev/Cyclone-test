@@ -234,6 +234,7 @@ sealed class MappingStepResult {
 enum class PauseReason {
     NEEDS_SECRET,
     HUMAN_CONTROL,
+    DANGER,
 }
 
 /**
