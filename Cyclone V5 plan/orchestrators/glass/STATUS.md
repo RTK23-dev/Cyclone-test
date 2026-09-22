@@ -1,42 +1,38 @@
 # Glass orchestrator — STATUS
 
-**Wave:** Run 1 **COMPLETE** (alpha.1 HUD + alpha.2 Maps look-and-feel)  
-**Integration branch:** `v5/integration`  
-**Release:** `glass-1.0.0-alpha.1` (companion `1.6.0-alpha.1`)  
-**Orch session:** 2026-09-22  
-**Tests:** `cd apps/pc-companion && npm test` → **156 pass / 0 fail** on the glued tree
+**Wave:** Run 2 **PLANNED** (alpha.2 pipe — live atlas/vault replica). Waiting for operator go.  
+**Do not launch agents until go.**  
+**Integration branch:** `v5/integration` @ `8c597e1b58cfa117520146c43328b1a1bbedeb88`  
+**Last release:** `glass-1.0.0-alpha.1` (companion `1.6.0-alpha.1`)  
+**Code base:** One 1.5.5 live path on Mobile 4.8.0; Glass HUD from Run 1
 
-## Board
+## Run 1 (complete)
 
-| ID | Agent | Branch | State | PR | Return |
-|---|---|---|---|---|---|
-| 001 | shell-ask-secret | `v5/glass/shell-ask-secret` | merged | [#153](https://github.com/premiumcentraal-boop/Cyclone/pull/153) | RETURN-001 |
-| 002 | maps-canvas | `v5/glass/maps-canvas` | merged | [#155](https://github.com/premiumcentraal-boop/Cyclone/pull/155) (local merge `c9f33385`; GH squash blocked on tsconfig) | RETURN-002 |
-| 003 | atlas-client | `v5/glass/atlas-client` | merged | [#154](https://github.com/premiumcentraal-boop/Cyclone/pull/154) | RETURN-003 |
-| 004 | glue-maps | `v5/glass/glue-maps` | merged | [#156](https://github.com/premiumcentraal-boop/Cyclone/pull/156) | RETURN-004 |
-| 005 | glue-copy-adapter | `v5/glass/glue-copy-adapter` | merged | [#158](https://github.com/premiumcentraal-boop/Cyclone/pull/158) | RETURN-005 |
-| 006 | glass-identity | `v5/glass/glass-identity` | merged | [#157](https://github.com/premiumcentraal-boop/Cyclone/pull/157) | RETURN-006 |
+| ID | Agent | PR | State |
+|---|---|---|---|
+| 001 | shell-ask-secret | [#153](https://github.com/premiumcentraal-boop/Cyclone/pull/153) | merged |
+| 002 | maps-canvas | [#155](https://github.com/premiumcentraal-boop/Cyclone/pull/155) | merged |
+| 003 | atlas-client | [#154](https://github.com/premiumcentraal-boop/Cyclone/pull/154) | merged |
+| 004 | glue-maps | [#156](https://github.com/premiumcentraal-boop/Cyclone/pull/156) | merged |
+| 005 | glue-copy-adapter | [#158](https://github.com/premiumcentraal-boop/Cyclone/pull/158) | merged |
+| 006 | glass-identity | [#157](https://github.com/premiumcentraal-boop/Cyclone/pull/157) | merged |
 
-## Shipped on integration
+## Run 2 board (planned)
 
-- Nav: Phone / Ask / Maps / Vault / Tasks / Connections / ChatGPT. Brand **Cyclone Glass**.
-- Ask: `needs-secret` wait card (not failed). Title **Facebook needs a password**. Send disabled until Mobile Ask transport. Phones < 5.0 get “update the phone.”
-- Maps: Minitap-class board mounted (`createMapsPage()`). Gmail house + Chrome Facebook + unmapped YouTube. Live vs Dummy. Mock atlas for Run 1.
-- Vault: slot booleans only. No PC password input.
-- `atlasClient` + `atlasClientAdapter` (async `atlas.get` → sync `MapsDataSource`). Not auto-mounted; mock remains the visible board until phone 5.0 atlas is live.
-- Window title Cyclone Glass. Installer `productName` still Cyclone One.
-- Live JPEG / handoff / camera / ChatGPT Attach untouched.
+| ID | Agent | Branch | Paths | State |
+|---|---|---|---|---|
+| 007 | maps-honest-source | `v5/glass/maps-honest-source` | `mapsPage.ts`, empty/loading, live `MapsDataSource` load | planned |
+| 008 | vault-live-slots | `v5/glass/vault-live-slots` | `vaultPage.ts`, `secrets.slots` / `secrets.request` UI | planned |
+| 009 | glass-runtime-wire | `v5/glass/glass-runtime-wire` | `app.ts` constructors, `glassRuntime.ts`, version/session, doctor card | planned |
 
-## Contract with Mobile
+Merge order after returns: **007 + 008 first** (defaults stay compile-safe), then **009** if 009 lands first it must still typecheck against the option names in the shared brief.
 
-- [x] Schemas on integration — #144
-- [x] `needs-secret` consumer state — #144
-- [ ] Follow Me house as real `atlas.get` — #146 still open
-- [x] `session_id` rules preserved
-- [x] Glass Ask shows `needs-secret` / waiting-for-card
-- [x] Maps board renders a graph (mock until #146)
-- [x] No secret values in fixtures
+## Why this wave, not mapping
 
-## Not this cut (do not start)
+alpha.3 Start mapping / live cursor waits on Mobile mapper (PRs [#151](https://github.com/premiumcentraal-boop/Cyclone/pull/151), [#152](https://github.com/premiumcentraal-boop/Cyclone/pull/152) still draft). `ask.start` is **not** in gateway `V5_OPS`. Run 2 closes the **alpha.2 exit**: Maps/Vault consume phone-owned `atlas.*` / `secrets.*`, and a 4.8 phone never sees a fake Gmail house.
 
-Mapping cursor / `mapping.start` (alpha.3). Encrypted PC fill. Mobile 5.0.0-alpha.N pipe bump (Mobile orch). Windows installer binary (CI unsigned).
+Mobile [#146](https://github.com/premiumcentraal-boop/Cyclone/pull/146) (Follow Me atlas) is still open. Glass codes the consume path now; empty-valid / `partial` / update-the-phone are success. Do not invent a second atlas.
+
+## Not this cut
+
+`mapping.start` / cursor / `atlas.diff`. Encrypted PC fill. `ask.start` / Send. Gateway/MCP 5.0 bump (Mobile orch). `apps/mobile/**`. ChatGPT Attach. Camera.
