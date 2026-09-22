@@ -114,7 +114,7 @@ class AtlasStore(
             "Atlas screen metadata requires a registered Graph-v2 PAGE node"
         }
         record.screens[metadata.screenId] = metadata.copy(
-            purpose = AtlasPrivacy.structuralPurpose(metadata.purpose),
+            purpose = AtlasPrivacy.structuralScreenPurpose(metadata.purpose),
             capabilities = metadata.capabilities.map(::sanitizeCapability).filter(String::isNotBlank).toSet(),
             factSlots = metadata.factSlots.map(::sanitizeFactSlot),
         )
@@ -133,7 +133,7 @@ class AtlasStore(
             "Atlas edge metadata requires registered Graph-v2 nodes"
         }
         record.edgeMetadata[metadata.key] = metadata.copy(
-            action = AtlasPrivacy.structuralLabel(metadata.action, "navigate"),
+            action = AtlasPrivacy.structuralControlLabel(metadata.action, "Navigate"),
             selectorKey = metadata.selectorKey?.let {
                 if (it.startsWith("sha256:")) it else AtlasGraphIds.selectorDigest(it)
             },
