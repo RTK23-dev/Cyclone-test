@@ -178,7 +178,7 @@ data class MappingJob(
         requirePersona(persona)
         require(startedAtEpochMs >= 0L)
         require(updatedAtEpochMs >= startedAtEpochMs)
-        require(currentAtlasNodeId == null || AtlasStructuralIds.valid(currentAtlasNodeId))
+        require(currentAtlasNodeId == null || AtlasStructuralIds.screen(currentAtlasNodeId))
         require(failureCode == null || failureCode.matches(Regex("[A-Z0-9_]{1,80}")))
     }
 
@@ -195,7 +195,7 @@ data class MappingVerifiedProgress(
     val atlasChanges: List<AtlasStructuralChange> = emptyList(),
 ) {
     init {
-        require(currentAtlasNodeId == null || AtlasStructuralIds.valid(currentAtlasNodeId))
+        require(currentAtlasNodeId == null || AtlasStructuralIds.screen(currentAtlasNodeId))
         require(remainingDarkRegions == null || remainingDarkRegions >= 0)
     }
 }
