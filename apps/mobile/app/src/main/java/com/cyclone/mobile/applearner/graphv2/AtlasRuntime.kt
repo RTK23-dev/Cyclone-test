@@ -32,6 +32,7 @@ object AtlasRuntime {
             val root = File(context.applicationContext.filesDir, "atlas")
             store = AtlasStore(File(root, "cyclone_atlas_v1.json"))
             provider = StoreBackedAtlasReadProvider(store)
+            AtlasGatewayV5Integration.install(provider)
             catalog = PlaceCatalog(store)
             retriever = AtlasRetriever(store)
             followMe = FollowMeAtlasPromoter(store)
