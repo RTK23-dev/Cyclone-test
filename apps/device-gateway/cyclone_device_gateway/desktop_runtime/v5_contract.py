@@ -50,6 +50,8 @@ JOB_ID = re.compile(r"^[A-Za-z0-9_-]{8,120}$")
 WORKSPACE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 CURSOR = re.compile(r"^c1:[a-f0-9]{20}:[0-9]+$")
 STRUCTURAL_ID = re.compile(r"^[A-Za-z0-9._:-]{1,180}$")
+SCREEN_ID = re.compile(r"^(?:page|screen):[A-Za-z0-9._:-]{1,173}$")
+EDGE_ID = re.compile(r"^edge:[A-Za-z0-9._:-]{1,175}$")
 MAPPING_JOB_KEYS = frozenset({
     "mappingJobId", "placeId", "persona", "state", "sessionId", "displayId", "plane",
     "controlRevision", "executionGeneration", "budget", "currentAtlasNodeId", "progress",
@@ -263,8 +265,16 @@ def _validate_atlas_diff(value: dict[str, Any], args: dict[str, Any]) -> None:
             raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff change cursor is malformed.")
         if change.get("entity") not in {"place", "screen", "edge"} or change.get("change") not in {"upsert", "remove"}:
             raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff change type is invalid.")
-        if not isinstance(change.get("id"), str) or STRUCTURAL_ID.fullmatch(change["id"]) is None:
+        change_id = change.get("id")
+        if not isinstance(change_id, str) or STRUCTURAL_ID.fullmatch(change_id) is None:
             raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff structural id is invalid.")
+        entity = change["entity"]
+        if entity == "place" and change_id != "place":
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas place diff id must be literal place.")
+        if entity == "screen" and SCREEN_ID.fullmatch(change_id) is None:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas screen diff id must be page:/screen:.")
+        if entity == "edge" and EDGE_ID.fullmatch(change_id) is None:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas edge diff id must use edge:.")
         if "mapStatus" in change and change["mapStatus"] not in {"unmapped", "partial", "mapped", "stale", "blocked"}:
             raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff mapStatus is invalid.")
         endpoints = ("fromScreenId" in change, "toScreenId" in change)
@@ -272,9 +282,19 @@ def _validate_atlas_diff(value: dict[str, Any], args: dict[str, Any]) -> None:
             raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff edge topology is incomplete.")
         for key in ("fromScreenId", "toScreenId"):
             if key in change and (
-                not isinstance(change[key], str) or STRUCTURAL_ID.fullmatch(change[key]) is None
+                not isinstance(change[key], str) or SCREEN_ID.fullmatch(change[key]) is None
             ):
                 raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff topology id is invalid.")
+        if entity == "edge" and not all(endpoints):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas edge diff requires topology.")
+        if entity != "edge" and any(endpoints):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Only Atlas edge diffs may carry topology.")
+        if entity == "place" and "layout" in change:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas place diff cannot carry layout.")
+        if entity == "screen" and "mapStatus" in change:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas screen diff cannot carry mapStatus.")
+        if entity == "edge" and ("mapStatus" in change or "layout" in change):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas edge diff carries topology only.")
         if "layout" in change:
             layout = change["layout"]
             if not isinstance(layout, dict) or set(layout) != {"x", "y"}:
@@ -319,8 +339,8 @@ def _validate_mapping_response(value: dict[str, Any], args: dict[str, Any]) -> N
     if not all(_is_int(progress.get(key)) for key in PROGRESS_KEYS):
         raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping progress counters are invalid.")
     node_id = value.get("currentAtlasNodeId")
-    if node_id is not None and (not isinstance(node_id, str) or STRUCTURAL_ID.fullmatch(node_id) is None):
-        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping node id is invalid.")
+    if node_id is not None and (not isinstance(node_id, str) or SCREEN_ID.fullmatch(node_id) is None):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping node id must be page:/screen:.")
     if value.get("atlasStatus") not in {None, "partial", "mapped"}:
         raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping atlasStatus is invalid.")
 
