@@ -49,6 +49,7 @@ export function createFocusedPhonePage(
   onBack: () => void,
   onSettings: () => void,
   onPair: (device: DesktopDevice) => void,
+  onSessionFocus?: (sessionId: string) => void,
 ): FocusedPhonePageHandle {
   const page = el("section", "page focus-page preview-first");
   const topbar = el("header", "focus-topbar");
@@ -271,6 +272,7 @@ export function createFocusedPhonePage(
 
   const applyTileSelection = async (tile: SessionTile): Promise<void> => {
     selectedSessionId = tile.sessionId;
+    onSessionFocus?.(tile.sessionId);
     syncSelectedActions(tile);
     renderSessionTiles();
     controlStatus.classList.remove("error");

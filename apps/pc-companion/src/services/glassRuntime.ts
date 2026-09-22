@@ -38,6 +38,8 @@ export interface GlassRuntime {
   ): Promise<SecretsRequestResult>;
 }
 
+export type GlassSessionPlane = "foreground" | "session_kernel_vd";
+
 /**
  * Named session if non-empty; otherwise the live human display.
  * Never rewrites a named id (e.g. `vd-mail`) to display 0 / default-foreground.
@@ -46,6 +48,13 @@ export function resolveGlassSessionId(focusedSessionId?: string | null): string 
   const named = String(focusedSessionId ?? "").trim();
   if (named) return named;
   return DEFAULT_FOREGROUND_SESSION_ID;
+}
+
+/** Foreground for default-foreground; named ids are Session Kernel VD. Never `layer2`. */
+export function sessionPlaneFromSessionId(sessionId?: string | null): GlassSessionPlane {
+  return resolveGlassSessionId(sessionId) === DEFAULT_FOREGROUND_SESSION_ID
+    ? "foreground"
+    : "session_kernel_vd";
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   GLASS_OPERATOR_REQUEST_REASON,
   readDeviceMobileVersion,
   resolveGlassSessionId,
+  sessionPlaneFromSessionId,
   slotsFromPresence,
 } from "../.test-dist/services/glassRuntime.js";
 import { AtlasClientError } from "../.test-dist/services/atlasClient.js";
@@ -86,6 +87,18 @@ test("resolveGlassSessionId uses default-foreground when the focused id is blank
   assert.equal(resolveGlassSessionId(null), DEFAULT_FOREGROUND_SESSION_ID);
   assert.equal(resolveGlassSessionId(undefined), DEFAULT_FOREGROUND_SESSION_ID);
   assert.equal(resolveGlassSessionId(), DEFAULT_FOREGROUND_SESSION_ID);
+});
+
+test("sessionPlaneFromSessionId is foreground only for default-foreground", () => {
+  assert.equal(sessionPlaneFromSessionId("vd-mail"), "session_kernel_vd");
+  assert.equal(sessionPlaneFromSessionId(" workspace-mail "), "session_kernel_vd");
+  assert.equal(sessionPlaneFromSessionId(""), "foreground");
+  assert.equal(sessionPlaneFromSessionId("   "), "foreground");
+  assert.equal(sessionPlaneFromSessionId(null), "foreground");
+  assert.equal(sessionPlaneFromSessionId(undefined), "foreground");
+  assert.equal(sessionPlaneFromSessionId(DEFAULT_FOREGROUND_SESSION_ID), "foreground");
+  assert.notEqual(sessionPlaneFromSessionId("vd-mail"), "foreground");
+  assert.notEqual(sessionPlaneFromSessionId("vd-mail"), "layer2");
 });
 
 test("missing session → loadMapsSource does not fetch", async () => {
@@ -191,6 +204,12 @@ test("app.ts source mounts loadSource, mobileVersion, and glassRuntime", () => {
   assert.match(appSource, /previewSlots/);
   assert.match(appSource, /onRequestSlot/);
   assert.match(appSource, /GLASS_OPERATOR_REQUEST_REASON|operator-request/);
+  assert.match(appSource, /sessionPlane/);
+  assert.match(appSource, /onOpenControl/);
+  assert.match(appSource, /previewSnapshots/);
+  assert.match(appSource, /focusedSessionId/);
+  assert.match(appSource, /session_kernel_vd/);
+  assert.match(appSource, /focus_session/);
   assert.doesNotMatch(appSource, /atlasClient/);
   assert.doesNotMatch(appSource, /mapping\.start/);
   assert.doesNotMatch(appSource, /ask\.start/);
@@ -202,6 +221,9 @@ test("settingsPage source mentions Mobile 5.0 / Glass atlas", () => {
   assert.match(settingsSource, /Maps \/ Ask atlas \/ Vault need Mobile 5\.0/);
   assert.match(settingsSource, /Cyclone One/);
   assert.match(settingsSource, /createRemoteMcpCard/);
+  assert.match(settingsSource, /Foreground \(default-foreground\)/);
+  assert.match(settingsSource, /Session Kernel VD/);
+  assert.match(settingsSource, /never rewritten to display 0/);
 });
 
 test("HttpDesktopService surfaces glassGateway; mock omits it and leaves version unset", () => {

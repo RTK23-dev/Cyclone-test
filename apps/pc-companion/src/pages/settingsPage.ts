@@ -43,7 +43,7 @@ export function createSettingsPage(service: DesktopService, devices: DesktopDevi
   const glassAtlas = statusCard(
     "Cyclone Glass atlas",
     "Mobile 5.0",
-    "Maps / Ask atlas / Vault need Mobile 5.0. Installer path may still say Cyclone One.",
+    "Maps / Ask atlas / Vault need Mobile 5.0. Installer path may still say Cyclone One. Ask/Maps declare Foreground (default-foreground) or the named Session Kernel VD; named ids are never rewritten to display 0.",
   );
   const phones = statusCard(
     "Phones",
