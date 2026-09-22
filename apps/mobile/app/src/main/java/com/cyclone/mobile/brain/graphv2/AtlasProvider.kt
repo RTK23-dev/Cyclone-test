@@ -143,15 +143,12 @@ class StoreBackedAtlasReadProvider(
             .put("classes", JSONArray(classes))
     }
 
-    /**
-     * Agent 001's Run-1 schema currently exposes unmapped|mapped|stale|blocked. Phone-local Atlas
-     * intentionally keeps PARTIAL for Settings and mapper coverage. A non-empty partial graph is
-     * therefore serialized as mapped rather than falsely claiming that no map exists.
-     */
-    private fun wireMapStatus(snapshot: AtlasGraphSnapshot): String = when {
-        snapshot.place.mapStatus == AtlasMapStatus.STALE -> "stale"
-        snapshot.screens.isEmpty() -> "unmapped"
-        else -> "mapped"
+    /** Wire coverage is truthful: non-empty does not imply mapped. */
+    private fun wireMapStatus(snapshot: AtlasGraphSnapshot): String = when (snapshot.place.mapStatus) {
+        AtlasMapStatus.UNMAPPED -> "unmapped"
+        AtlasMapStatus.PARTIAL -> "partial"
+        AtlasMapStatus.MAPPED -> "mapped"
+        AtlasMapStatus.STALE -> "stale"
     }
 
     private fun timestamp(epochMillis: Long?): Any =
