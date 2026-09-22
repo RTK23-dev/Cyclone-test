@@ -166,6 +166,35 @@ export function vaultSlotPresenceLabel(slot: GlassVaultSlot): string {
   return `${slot.placeLabel} ${slot.slotLabel}: ${slot.set ? "set" : "missing"}`;
 }
 
+/**
+ * Map `secrets.slots` boolean presence onto Glass rows.
+ * Non-boolean values are dropped (fail closed). Never copies a value field.
+ * Slot names such as `password` are allowed as keys when the value is boolean.
+ */
+export function slotsFromPresence(placeLabel: string, slots: Record<string, boolean>): GlassVaultSlot[] {
+  const place = String(placeLabel ?? "").trim();
+  if (!place) return [];
+  if (slots == null || typeof slots !== "object" || Array.isArray(slots)) return [];
+  const placeSlug = slugVaultToken(place);
+  const out: GlassVaultSlot[] = [];
+  for (const [rawName, present] of Object.entries(slots)) {
+    if (typeof present !== "boolean") continue;
+    const slotLabel = String(rawName ?? "").trim();
+    if (!slotLabel) continue;
+    out.push({
+      id: `${placeSlug}-${slugVaultToken(slotLabel)}`,
+      placeLabel: place,
+      slotLabel,
+      set: present,
+    });
+  }
+  return out;
+}
+
+function slugVaultToken(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "slot";
+}
+
 export function describeAskHud(snapshot: GlassAskSnapshot): AskHudDescription {
   const waiting = snapshot.state === "needs-secret";
   return {
