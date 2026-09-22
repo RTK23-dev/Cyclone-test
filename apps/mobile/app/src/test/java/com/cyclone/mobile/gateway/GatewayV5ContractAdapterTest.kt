@@ -95,6 +95,29 @@ class GatewayV5ContractAdapterTest {
             )
             assertEquals("mapped", atlas.getString("mapStatus"))
 
+            GatewayV5ContractSources.installAtlas(object : GatewayV5AtlasSource {
+                override fun places(): List<JSONObject> = emptyList()
+                override fun get(placeId: String, persona: String): JSONObject = JSONObject()
+                    .put("place", JSONObject()
+                        .put("placeId", placeId)
+                        .put("kind", "package")
+                        .put("label", "Example")
+                        .put("packageName", "com.example.app"))
+                    .put("persona", persona)
+                    .put("mapStatus", "partial")
+                    .put("screens", org.json.JSONArray())
+                    .put("edges", org.json.JSONArray())
+                    .put("capabilities", org.json.JSONArray())
+                    .put("confidence", 0.5)
+                    .put("lastObservedAt", JSONObject.NULL)
+                    .put("lastVerifiedAt", JSONObject.NULL)
+            })
+            val partial = GatewayV5ContractAdapter.dispatch(
+                "atlas.get",
+                JSONObject().put("placeId", "package:com.example.app").put("persona", "live"),
+            )
+            assertEquals("partial", partial.getString("mapStatus"))
+
             val slots = GatewayV5ContractAdapter.dispatch(
                 "secrets.slots",
                 JSONObject().put("placeId", "package:com.example.app").put("persona", "live"),

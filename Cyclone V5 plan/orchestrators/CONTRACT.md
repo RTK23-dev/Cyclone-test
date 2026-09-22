@@ -12,6 +12,7 @@ Standing spec: [`../08-protocol-gateway.md`](../08-protocol-gateway.md)
 |---|---|---|
 | Place | `package` **or** `chrome\|origin` | Mobile atlas |
 | Persona | `live` \| `mapping` | Mobile |
+| Atlas map status | `unmapped` \| `partial` \| `mapped` \| `stale` \| `blocked` | Mobile atlas |
 | Screen / Edge / Capability / FactSlot | Atlas objects | Mobile |
 | Run state `needs-secret` | Not a failure | Mobile GATE |
 | `session_id` | Required on observe/act/ask/mapping | Existing V4 kernel |
@@ -34,6 +35,8 @@ secrets.request                     # slot name; UI shows the card
 
 Schemas: `protocol/cyclone-atlas-v1.schema.json`, `protocol/cyclone-secrets-v1.schema.json`  
 Mobile agent 001 **authors** them. Glass agent 003 **consumes** them. Changing a name requires a CONTRACT note in the same PR.
+
+`partial` means the phone has useful structural Atlas knowledge but coverage is knowingly incomplete. It must never be serialized as `mapped` merely because at least one screen exists.
 
 ## Forbidden on the wire
 

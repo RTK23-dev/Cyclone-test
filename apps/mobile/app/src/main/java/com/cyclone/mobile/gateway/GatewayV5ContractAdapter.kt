@@ -163,7 +163,7 @@ internal object GatewayV5ContractAdapter {
     private val atlasSummaryKeys = setOf(
         "place", "persona", "mapStatus", "confidence", "lastObservedAt", "lastVerifiedAt",
     )
-    private val mapStatuses = setOf("unmapped", "mapped", "stale", "blocked")
+    private val mapStatuses = setOf("unmapped", "partial", "mapped", "stale", "blocked")
 
     private fun validateAtlasSummary(summary: JSONObject) {
         requireExactKeys(summary, atlasSummaryKeys, "Atlas place summary")

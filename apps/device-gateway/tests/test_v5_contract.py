@@ -190,6 +190,26 @@ def test_valid_empty_atlas_document_validates():
     Draft202012Validator(_schema("cyclone-atlas-v1.schema.json")).validate(document)
 
 
+def test_partial_atlas_document_validates():
+    document = {
+        "place": {
+            "placeId": "package:com.example.app",
+            "kind": "package",
+            "label": "Example",
+            "packageName": "com.example.app",
+        },
+        "persona": "live",
+        "mapStatus": "partial",
+        "screens": [],
+        "edges": [],
+        "capabilities": [],
+        "confidence": 0.5,
+        "lastObservedAt": None,
+        "lastVerifiedAt": None,
+    }
+    Draft202012Validator(_schema("cyclone-atlas-v1.schema.json")).validate(document)
+
+
 def test_valid_slot_presence_validates_and_value_field_is_rejected():
     validator = Draft202012Validator(_schema("cyclone-secrets-v1.schema.json"))
     validator.validate({
