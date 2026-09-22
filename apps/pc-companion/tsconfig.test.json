@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
     "skipLibCheck": true,
     "outDir": ".test-dist",
@@ -19,6 +19,13 @@
     "src/services/mockDesktopService.ts",
     "src/services/atlasClient.ts",
     "src/services/atlasTypes.ts",
-    "src/services/secretGuards.ts"
+    "src/services/secretGuards.ts",
+    "src/maps/**/*.ts",
+    "src/ui/dom.ts",
+    "src/ui/appMapCanvas.ts",
+    "src/ui/secretsCard.ts",
+    "src/pages/mapsPage.ts",
+    "src/pages/askPage.ts",
+    "src/pages/vaultPage.ts"
   ]
 }
