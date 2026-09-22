@@ -37,8 +37,15 @@ class SafeMapperWalker(
         session.reportCurrentNode(fromNode)
         val hint = atlas.hint(beforeSession.placeId, MAPPING_PERSONA, before)
 
-        val door = chooseSafeDoor(beforeSession, before, hint, fromNode)
-            ?: return completePartial(beforeSession, "no_safe_unexplored_doors")
+        val selection = chooseSafeDoor(beforeSession, before, hint, fromNode)
+        val door = selection.door ?: run {
+            val blocked = selection.blocked.lastOrNull()
+            if (blocked != null) {
+                session.markDanger(blocked.first.key, blocked.second)
+                return MappingStepResult.Paused(PauseReason.DANGER)
+            }
+            return completePartial(beforeSession, "no_safe_unexplored_doors")
+        }
 
         // Human/companion/control-revision changes that happen while deciding must win before input.
         val preMutationSession = session.snapshot()
@@ -135,12 +142,17 @@ class SafeMapperWalker(
         return MappingStepResult.NoProgress(action, reason)
     }
 
+    private data class DoorSelection(
+        val door: MappingDoor?,
+        val blocked: List<Pair<MappingDoor, MappingDanger>>,
+    )
+
     private fun chooseSafeDoor(
         snapshot: MappingSessionSnapshot,
         observation: MappingObservation,
         hint: MappingAtlasHint,
         nodeKey: String,
-    ): MappingDoor? {
+    ): DoorSelection {
         val budget = snapshot.budget
         val candidates = StructuralDoorPolicy.rank(observation.doors)
             .filter { it.enabled && it.visible }
@@ -150,15 +162,18 @@ class SafeMapperWalker(
             .filter { (attemptsByDoor[it.key] ?: 0) < budget.maxAttemptsPerDoor }
             .filterNot { unchangedKey(observation, it) in unchangedOnFingerprint }
 
+        val blocked = mutableListOf<Pair<MappingDoor, MappingDanger>>()
         for (door in candidates) {
             val danger = safety.classify(observation, door)
-            if (danger == MappingDanger.NONE) return door
+            if (danger == MappingDanger.NONE) return DoorSelection(door, blocked)
 
             // Safety boundaries are structural information, not permission to cross them.
-            session.markDanger(door.key, danger)
+            // Record the dark door in Atlas, but do not pause the whole job while a safe
+            // unexplored alternative still exists.
+            blocked += door to danger
             atlas.markDanger(snapshot.placeId, MAPPING_PERSONA, nodeKey, door.key, danger)
         }
-        return null
+        return DoorSelection(null, blocked)
     }
 
     private fun validateObservation(
@@ -239,7 +254,7 @@ internal object StructuralRoomClassifier {
             .digest(observation.structuralFingerprint.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
             .take(16)
-        return "room:${purpose.name.lowercase()}:$digest"
+        return "screen:${purpose.name.lowercase()}:$digest"
     }
 
     private fun infer(doors: List<MappingDoor>): StructuralScreenPurpose {
