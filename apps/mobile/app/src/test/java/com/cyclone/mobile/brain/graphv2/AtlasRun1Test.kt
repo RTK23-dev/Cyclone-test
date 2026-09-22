@@ -152,7 +152,7 @@ class AtlasRun1Test {
             assertEquals("Screen", page.displayName)
             assertEquals("control", element.semanticName)
             assertEquals("Control", element.displayName)
-            assertEquals("Learned app screen", snapshot.screens.single().purpose)
+            assertEquals("Messages", snapshot.screens.single().purpose)
 
             val wire = StoreBackedAtlasReadProvider(store)
                 .get(key(AtlasPersona.LIVE).placeId, AtlasPersona.LIVE)
