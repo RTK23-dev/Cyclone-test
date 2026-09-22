@@ -108,6 +108,27 @@ data class MappingPlaneRequest(
         if (executionGeneration != null && executionGeneration < 0L) {
             throw MappingSessionException("STALE_CONTROL_REVISION", "executionGeneration must be non-negative.")
         }
+        when {
+            workspaceId != null &&
+                (sessionId != "default-foreground" || displayId != 0) -> {
+                throw MappingSessionException(
+                    "SESSION_DISPLAY_MISMATCH",
+                    "Layer-2 mapping requires default-foreground/display 0.",
+                )
+            }
+            workspaceId == null && sessionId == "default-foreground" && displayId != 0 -> {
+                throw MappingSessionException(
+                    "SESSION_DISPLAY_MISMATCH",
+                    "default-foreground mapping must use display 0.",
+                )
+            }
+            workspaceId == null && sessionId != "default-foreground" && displayId <= 0 -> {
+                throw MappingSessionException(
+                    "SESSION_DISPLAY_MISMATCH",
+                    "Named mapping sessions require a nonzero displayId.",
+                )
+            }
+        }
     }
 }
 
