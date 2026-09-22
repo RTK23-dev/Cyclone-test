@@ -43,6 +43,7 @@ import {
 import { bindLayer2Status } from "../core/layer2.js";
 import { normalizeTunnelStatus } from "../core/mcpTunnel.js";
 import { isDefaultForegroundSession, parseFleetWsEvent, readExactSessionSnapshotHeaders } from "../core/sessionTiles.js";
+import { applyDeviceMobileVersion } from "./glassRuntime.js";
 
 export interface HttpDesktopServiceOptions {
   httpBaseUrl?: string;
@@ -150,6 +151,13 @@ export class HttpDesktopService implements DesktopService {
     this.token = options.token;
   }
 
+  get glassGateway(): { httpBase: string; getBearer: () => string } {
+    return {
+      httpBase: this.httpBase,
+      getBearer: () => this.token,
+    };
+  }
+
   async waitUntilReady(timeoutMs = 12_000): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     let lastError: unknown = null;
@@ -170,11 +178,15 @@ export class HttpDesktopService implements DesktopService {
   }
 
   listDevices(): Promise<DesktopDevice[]> {
-    return this.request<{ devices: DesktopDevice[] }>("/v1/fleet").then((value) => value.devices);
+    return this.request<{ devices: DesktopDevice[] }>("/v1/fleet").then((value) =>
+      (value.devices ?? []).map((device) => applyDeviceMobileVersion(device)),
+    );
   }
 
   scanDevices(): Promise<DesktopDevice[]> {
-    return this.request<{ devices: DesktopDevice[] }>("/v1/fleet/scan", { method: "POST" }).then((value) => value.devices);
+    return this.request<{ devices: DesktopDevice[] }>("/v1/fleet/scan", { method: "POST" }).then((value) =>
+      (value.devices ?? []).map((device) => applyDeviceMobileVersion(device)),
+    );
   }
 
   getFleetWorkspace(): Promise<FleetWorkspace> {
@@ -312,7 +324,9 @@ export class HttpDesktopService implements DesktopService {
         { method: "POST", body: JSON.stringify({ pairing_id: pairingId }) },
       );
       if (value.pending === true) return { ok: false, pending: true };
-      const device = value.device ?? (await this.listDevices()).find((candidate) => candidate.id === deviceId);
+      const device = applyDeviceMobileVersion(
+        value.device ?? (await this.listDevices()).find((candidate) => candidate.id === deviceId),
+      );
       return value.paired === true && device
         ? { ok: true, device }
         : { ok: false, pending: false, reason: "UNAVAILABLE" };
@@ -333,7 +347,9 @@ export class HttpDesktopService implements DesktopService {
         method: "POST",
         body: JSON.stringify({ pairing_id: pairingId, code: code.trim().toUpperCase() }),
       });
-      const device = value.device ?? (await this.listDevices()).find((candidate) => candidate.id === deviceId);
+      const device = applyDeviceMobileVersion(
+        value.device ?? (await this.listDevices()).find((candidate) => candidate.id === deviceId),
+      );
       return device ? { ok: true, device } : { ok: false, reason: "UNAVAILABLE" };
     } catch (error) {
       const codeValue = error instanceof DesktopHttpError ? error.code : "";

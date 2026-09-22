@@ -1,12 +1,20 @@
 import {
   canPreserveFocusedPage,
   initialCompanionState,
+  phoneSupportsGlassAtlas,
   reduceCompanionState,
   type AppRoute,
   type CompanionState,
 } from "./core/fleet.js";
 import { TopologyRefreshGate } from "./core/topologyRefresh.js";
 import type { DesktopDevice, DesktopService, FleetWsEvent } from "./services/types.js";
+import {
+  createGlassRuntime,
+  GLASS_OPERATOR_REQUEST_REASON,
+  readDeviceMobileVersion,
+  resolveGlassSessionId,
+  type GlassRuntime,
+} from "./services/glassRuntime.js";
 import { isSessionFabricEvent } from "./core/sessionTiles.js";
 import { createChatgptAttachPage } from "./pages/chatgptAttachPage.js";
 import { createConnectionsPage } from "./pages/connectionsPage.js";
@@ -259,16 +267,31 @@ export class CyclonePcCompanionApp {
       );
     }
     if (!this.currentPage && this.state.route === "ask") {
+      const { version } = this.glassContext();
       this.currentPage = createAskPage({
         devices: this.state.devices,
+        mobileVersion: version ?? undefined,
         onOpenControl: () => this.navigate("fleet"),
       });
     }
     if (!this.currentPage && this.state.route === "maps") {
-      this.currentPage = createMapsPage();
+      const { version, sessionId, demo, loadSource } = this.glassContext();
+      this.currentPage = createMapsPage({
+        phoneVersion: version,
+        loadSource,
+        demo,
+        sessionId,
+      } as import("./pages/mapsPage.js").MapsPageOptions);
     }
     if (!this.currentPage && this.state.route === "vault") {
-      this.currentPage = createVaultPage({ devices: this.state.devices });
+      const { version, demo, loadSlots, onRequestSlot } = this.glassContext();
+      this.currentPage = createVaultPage({
+        devices: this.state.devices,
+        mobileVersion: version,
+        loadSlots,
+        onRequestSlot,
+        previewSlots: demo,
+      } as import("./pages/vaultPage.js").VaultPageOptions);
     }
     if (!this.currentPage && this.state.route === "automations") {
       this.currentPage = createAutomationsPage(this.state.devices, (device) => {
@@ -306,6 +329,46 @@ export class CyclonePcCompanionApp {
       );
     }
     this.content.replaceChildren(this.currentPage.element);
+  }
+
+  private glassContext(): {
+    device: DesktopDevice | undefined;
+    version: string | null;
+    sessionId: string;
+    demo: boolean;
+    runtime: GlassRuntime | null;
+    loadSource: (() => Promise<import("./maps/mockAtlas.js").MapsDataSource>) | undefined;
+    loadSlots: (() => Promise<import("./core/fleet.js").GlassVaultSlot[]>) | undefined;
+    onRequestSlot: ((slotId: string) => void) | undefined;
+  } {
+    const device = selectGlassDevice(this.state.devices, this.state.focusedDeviceId);
+    const version = device ? (readDeviceMobileVersion(device) ?? null) : null;
+    const sessionId = resolveGlassSessionId();
+    const demo = this.service.mode === "mock";
+    const gateway = this.service.glassGateway;
+    const httpBase = String(gateway?.httpBase ?? "").trim();
+    const bearer = gateway && typeof gateway.getBearer === "function" ? String(gateway.getBearer() ?? "").trim() : "";
+    const atlasReady = version != null && phoneSupportsGlassAtlas(version);
+    const runtime = device && gateway && httpBase && bearer
+      ? createGlassRuntime({
+          httpBase,
+          getBearer: gateway.getBearer,
+          getDeviceId: () => device.id,
+          getSessionId: () => sessionId,
+          getPhoneVersion: () => version,
+        })
+      : null;
+    const live = Boolean(runtime && atlasReady && sessionId);
+    return {
+      device,
+      version,
+      sessionId,
+      demo,
+      runtime,
+      loadSource: live && runtime ? () => loadMapsSourceBoth(runtime) : undefined,
+      loadSlots: live && runtime ? () => loadVaultSlotsLive(runtime) : undefined,
+      onRequestSlot: live && runtime ? (slotId) => requestVaultSlot(runtime, slotId) : undefined,
+    };
   }
 
   private updateNavState(): void {
@@ -373,6 +436,7 @@ function deviceSignature(device: DesktopDevice): string {
     JSON.stringify(device.planes ?? {}),
     JSON.stringify(device.readiness ?? {}),
     JSON.stringify(device.operatorHealth ?? {}),
+    device.mobileVersion ?? "",
   ].join(":");
 }
 
@@ -381,4 +445,54 @@ function friendlyGatewayError(error: unknown): string {
   if (/401|403|token|session/i.test(message)) return "Local session verification failed. Reopen PC Companion to start a fresh protected session.";
   if (/fetch|network|offline|gateway|connect/i.test(message)) return "The local Gateway sidecar is not responding. Retry discovery, then reopen PC Companion if needed.";
   return message ? message.slice(0, 180) : "Cyclone could not refresh local phone inventory.";
+}
+
+function selectGlassDevice(devices: DesktopDevice[], focusedDeviceId: string | null): DesktopDevice | undefined {
+  if (focusedDeviceId) {
+    const focused = devices.find((candidate) => candidate.id === focusedDeviceId);
+    if (focused) return focused;
+  }
+  return devices.find((candidate) => candidate.state === "READY" && candidate.paired)
+    ?? devices.find((candidate) => candidate.paired)
+    ?? devices[0];
+}
+
+async function loadMapsSourceBoth(runtime: GlassRuntime): Promise<import("./maps/mockAtlas.js").MapsDataSource> {
+  const [live, mapping] = await Promise.all([
+    runtime.loadMapsSource("live"),
+    runtime.loadMapsSource("mapping"),
+  ]);
+  return {
+    listSummaries: (persona) => (persona === "mapping" ? mapping : live).listSummaries(persona),
+    getDocument: (placeId, persona) => (persona === "mapping" ? mapping : live).getDocument(placeId, persona),
+  };
+}
+
+async function loadVaultSlotsLive(runtime: GlassRuntime): Promise<import("./core/fleet.js").GlassVaultSlot[]> {
+  const catalog = await runtime.atlas.places();
+  const slots: import("./core/fleet.js").GlassVaultSlot[] = [];
+  const seen = new Set<string>();
+  for (const summary of catalog.places ?? []) {
+    const placeId = summary?.place?.placeId;
+    if (!placeId || seen.has(placeId)) continue;
+    seen.add(placeId);
+    const placeLabel = summary.place.label || placeId;
+    slots.push(...await runtime.loadVaultSlots(placeId, "live", placeLabel));
+  }
+  return slots;
+}
+
+function requestVaultSlot(runtime: GlassRuntime, slotId: string): void {
+  const parsed = parseVaultSlotId(slotId);
+  if (!parsed) return;
+  void runtime.requestSecret(parsed.placeId, "live", parsed.slot, GLASS_OPERATOR_REQUEST_REASON).catch(() => {
+    /* swallow — never log payloads, bearers, or slot values */
+  });
+}
+
+function parseVaultSlotId(slotId: string): { placeId: string; slot: string } | null {
+  const raw = String(slotId ?? "").trim();
+  const separator = raw.lastIndexOf(":");
+  if (separator <= 0 || separator === raw.length - 1) return null;
+  return { placeId: raw.slice(0, separator), slot: raw.slice(separator + 1) };
 }

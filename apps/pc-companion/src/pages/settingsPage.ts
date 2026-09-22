@@ -40,6 +40,11 @@ export function createSettingsPage(service: DesktopService, devices: DesktopDevi
     "Cyclone One",
     "Installs to %LOCALAPPDATA%\\Cyclone One. Uninstall Cyclone PC Companion 3.8.x if it remains beside One; doctor reports this.",
   );
+  const glassAtlas = statusCard(
+    "Cyclone Glass atlas",
+    "Mobile 5.0",
+    "Maps / Ask atlas / Vault need Mobile 5.0. Installer path may still say Cyclone One.",
+  );
   const phones = statusCard(
     "Phones",
     `${devices.length} detected`,
@@ -97,7 +102,7 @@ export function createSettingsPage(service: DesktopService, devices: DesktopDevi
   crashDiagnostics.append(diagnosticsPath, diagnosticsDetail, openDiagnostics);
 
   const privacy = statusCard("Privacy", "Protected", "Pairing codes are short-lived. Keyboard and clipboard contents are never kept by the desktop UI or live crash monitor.");
-  cards.append(remoteMcp.element, companion, installPath, phones, mcpLiveDisplay, adb, autoDetect, bridgeRecovery, crashDiagnostics, connectionDiagnostics, privacy);
+  cards.append(remoteMcp.element, companion, installPath, glassAtlas, phones, mcpLiveDisplay, adb, autoDetect, bridgeRecovery, crashDiagnostics, connectionDiagnostics, privacy);
   page.append(header, cards);
 
   if (service.mode === "real") {
