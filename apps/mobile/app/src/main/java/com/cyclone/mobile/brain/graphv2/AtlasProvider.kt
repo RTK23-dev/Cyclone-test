@@ -122,10 +122,7 @@ class StoreBackedAtlasReadProvider(
         .put("name", safeName)
         .put("factType", "text")
         .put("required", false)
-        .put("description", AtlasPrivacy.structuralPurpose(
-            slot.purpose,
-            "Read " + slot.name + " from this screen",
-        ).take(160))
+        .put("description", ("Read " + safeName.replace('_', ' ') + " from this screen").take(160))
 
     private fun riskJson(danger: AtlasDanger): JSONObject {
         val classes = when (danger) {
