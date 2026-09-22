@@ -1,4 +1,9 @@
 import {
+  GLASS_UPDATE_PHONE_COPY,
+  GLASS_UPDATE_PHONE_TITLE,
+  phoneSupportsGlassAtlas,
+} from "../core/fleet.js";
+import {
   applyBoardFilters,
   formatCoverage,
   inspectorState,
@@ -17,6 +22,17 @@ import {
   mockMapsDataSource,
   type MapsDataSource,
 } from "../maps/mockAtlas.js";
+import {
+  emptyMapsDataSource,
+  MAPS_DEMO_COPY,
+  MAPS_DEMO_LABEL,
+  MAPS_EMPTY_ATLAS_COPY,
+  MAPS_EMPTY_ATLAS_TITLE,
+  MAPS_LOADING_COPY,
+  MAPS_LOADING_TITLE,
+  namedMapsLoadError,
+  type MapsLoadErrorView,
+} from "../maps/phoneAtlasSource.js";
 import { button, el, setChildren } from "../ui/dom.js";
 import { createAppMapCanvas, type AppMapCanvasHandle } from "../ui/appMapCanvas.js";
 
@@ -27,9 +43,15 @@ export interface MapsPageHandle {
 
 export interface MapsPageOptions {
   source?: MapsDataSource;
+  loadSource?: () => Promise<MapsDataSource>;
+  phoneVersion?: string | null;
+  demo?: boolean;
+  sessionId?: string;
 }
 
 const ALPHA_HINT = "phone alpha.3";
+
+type BoardPhase = "update-phone" | "loading" | "ready" | "empty" | "error";
 
 let mapsCssLinked = false;
 
@@ -49,14 +71,48 @@ function ensureMapsCss(): void {
   document.head.appendChild(link);
 }
 
+function hasPhoneVersionOption(options: MapsPageOptions): boolean {
+  return Object.prototype.hasOwnProperty.call(options, "phoneVersion");
+}
+
 export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
   ensureMapsCss();
-  const source = options.source ?? mockMapsDataSource;
+  const demo = options.demo === true;
+  const versionGiven = hasPhoneVersionOption(options);
+  const atlasReady = phoneSupportsGlassAtlas(options.phoneVersion || "");
+  const loadSource = options.loadSource;
+
+  let source: MapsDataSource = emptyMapsDataSource();
+  let phase: BoardPhase = "empty";
+  let loadError: MapsLoadErrorView | null = null;
+  let destroyed = false;
+  let loadGen = 0;
+
+  if (demo) {
+    source = options.source ?? mockMapsDataSource;
+    phase = "ready";
+  } else if (versionGiven && !atlasReady) {
+    source = emptyMapsDataSource();
+    phase = "update-phone";
+  } else if (loadSource) {
+    source = emptyMapsDataSource();
+    phase = "loading";
+  } else if (versionGiven && atlasReady) {
+    source = options.source ?? emptyMapsDataSource();
+    phase = sourceHasPlaces(source, "live") ? "ready" : "empty";
+  } else if (options.source) {
+    source = options.source;
+    phase = sourceHasPlaces(source, "live") ? "ready" : "empty";
+  } else {
+    source = mockMapsDataSource;
+    phase = "ready";
+  }
+
   const page = el("section", "page maps-page");
   page.setAttribute("aria-label", "Maps");
 
   let persona: Persona = "live";
-  let placeId = defaultMapsPlaceId();
+  let placeId = phase === "ready" ? defaultPlaceId(source, persona) : "";
   let selectedScreenId: string | null = null;
   let viewMode: "screens" | "capabilities" = "screens";
   let railQuery = "";
@@ -64,10 +120,13 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
   let kindFilter: "all" | PlaceKind = "all";
   const filters: BoardFilters = { stale: false, blocked: false, danger: false };
 
+  const banner = el("aside", "glass-compat-banner");
+  banner.hidden = true;
+
   const top = el("div", "maps-top");
   const heading = el("div", "maps-place-heading");
   const kicker = el("div", "maps-kicker", "Maps");
-  const placeTitle = el("div", "maps-place-title", "Gmail");
+  const placeTitle = el("div", "maps-place-title", "");
   heading.append(kicker, placeTitle);
 
   const personaSeg = segment("persona", [
@@ -117,9 +176,12 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
     },
   });
   canvas.element.style.flex = "1";
+  const overlay = el("div", "maps-board-state");
+  overlay.hidden = true;
+  overlay.setAttribute("aria-live", "polite");
   const capabilities = el("div", "maps-capabilities");
   capabilities.hidden = true;
-  boardHost.append(canvas.element, capabilities);
+  boardHost.append(canvas.element, overlay, capabilities);
 
   const inspector = el("aside", "maps-inspector");
   const inspectorHead = el("div", "maps-pane-head", "Inspector");
@@ -127,7 +189,7 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
   inspector.append(inspectorHead, inspectorBody);
 
   body.append(rail, boardHost, inspector);
-  page.append(top, body);
+  page.append(banner, top, body);
 
   const loadModel = (): AtlasViewModel => {
     const document = source.getDocument(placeId, persona);
@@ -135,7 +197,7 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
     const summary = summaries.find((item) => item.place.placeId === placeId);
     if (!document) {
       return toViewModel({
-        place: summary?.place ?? { placeId, kind: "package", label: placeId, packageName: "com.unknown.app" },
+        place: summary?.place ?? { placeId: placeId || "package:com.unknown.app", kind: "package", label: placeId || "Maps", packageName: "com.unknown.app" },
         persona,
         mapStatus: "unmapped",
         screens: [],
@@ -149,6 +211,78 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
     return applyBoardFilters(toViewModel(document), filters);
   };
 
+  const paintBanner = (): void => {
+    banner.replaceChildren();
+    banner.classList.remove("maps-demo-banner", "maps-update-banner");
+    if (demo) {
+      banner.hidden = false;
+      banner.classList.add("maps-demo-banner");
+      banner.append(
+        el("div", "glass-compat-title", MAPS_DEMO_LABEL),
+        el("p", "glass-compat-copy", MAPS_DEMO_COPY),
+      );
+      return;
+    }
+    if (phase === "update-phone") {
+      banner.hidden = false;
+      banner.classList.add("maps-update-banner");
+      banner.append(
+        el("div", "glass-compat-title", GLASS_UPDATE_PHONE_TITLE),
+        el("p", "glass-compat-copy", GLASS_UPDATE_PHONE_COPY),
+      );
+      return;
+    }
+    banner.hidden = true;
+  };
+
+  const paintOverlay = (): void => {
+    const show = phase === "loading" || phase === "update-phone" || phase === "error" || phase === "empty";
+    overlay.hidden = !show;
+    overlay.replaceChildren();
+    overlay.className = "maps-board-state";
+    if (!show) return;
+    overlay.classList.add(`maps-${phase}`);
+    const card = el("div", "maps-state-card");
+    if (phase === "loading") {
+      card.classList.add("maps-loading");
+      card.append(
+        el("div", "maps-state-title", MAPS_LOADING_TITLE),
+        el("p", "maps-state-copy", MAPS_LOADING_COPY),
+      );
+    } else if (phase === "update-phone") {
+      card.classList.add("glass-compat-banner", "maps-update-phone");
+      card.append(
+        el("div", "glass-compat-title", GLASS_UPDATE_PHONE_TITLE),
+        el("p", "glass-compat-copy", GLASS_UPDATE_PHONE_COPY),
+      );
+    } else if (phase === "error") {
+      card.classList.add("maps-error");
+      card.append(
+        el("div", "maps-state-kicker", loadError?.code ?? "LOAD_FAILED"),
+        el("div", "maps-state-title", loadError?.title ?? "LOAD_FAILED"),
+        el("p", "maps-state-copy", loadError?.copy ?? "Maps could not load this phone’s atlas."),
+      );
+    } else {
+      card.classList.add("maps-empty");
+      card.append(
+        el("div", "maps-state-title", MAPS_EMPTY_ATLAS_TITLE),
+        el("p", "maps-state-copy", MAPS_EMPTY_ATLAS_COPY),
+      );
+    }
+    overlay.append(card);
+  };
+
+  const syncPlace = (): void => {
+    const summaries = source.listSummaries(persona);
+    if (!summaries.length) {
+      placeId = "";
+      return;
+    }
+    if (!summaries.some((item) => item.place.placeId === placeId)) {
+      placeId = summaries[0].place.placeId;
+    }
+  };
+
   const renderRail = (): void => {
     const summaries = source.listSummaries(persona).filter((item) => {
       if (mappedOnly && item.mapStatus === "unmapped") return false;
@@ -157,6 +291,16 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
       if (!q) return true;
       return `${item.place.label} ${item.place.placeId}`.toLowerCase().includes(q);
     });
+    if (!summaries.length) {
+      const emptyRail = el("div", "maps-muted maps-rail-empty");
+      emptyRail.textContent = phase === "update-phone"
+        ? GLASS_UPDATE_PHONE_TITLE
+        : phase === "loading"
+          ? MAPS_LOADING_TITLE
+          : MAPS_EMPTY_ATLAS_TITLE;
+      setChildren(placeList, emptyRail);
+      return;
+    }
     setChildren(
       placeList,
       ...summaries.map((item) => placeRow(item, item.place.placeId === placeId, () => {
@@ -168,6 +312,28 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
   };
 
   const renderInspector = (): void => {
+    if (phase !== "ready") {
+      const title = phase === "update-phone"
+        ? GLASS_UPDATE_PHONE_TITLE
+        : phase === "loading"
+          ? MAPS_LOADING_TITLE
+          : phase === "error"
+            ? (loadError?.title ?? "LOAD_FAILED")
+            : MAPS_EMPTY_ATLAS_TITLE;
+      const subtitle = phase === "update-phone"
+        ? GLASS_UPDATE_PHONE_COPY
+        : phase === "loading"
+          ? MAPS_LOADING_COPY
+          : phase === "error"
+            ? (loadError?.copy ?? "")
+            : MAPS_EMPTY_ATLAS_COPY;
+      setChildren(
+        inspectorBody,
+        el("div", "maps-inspector-title", title),
+        el("p", "maps-muted", subtitle),
+      );
+      return;
+    }
     const model = loadModel();
     const state = inspectorState(model, selectedScreenId);
     setChildren(inspectorBody, ...inspectorNodes(state));
@@ -189,6 +355,24 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
   };
 
   const renderAll = (fit: boolean): void => {
+    if (phase === "ready" && !sourceHasPlaces(source, persona)) phase = "empty";
+    if (phase === "empty" && sourceHasPlaces(source, persona)) phase = "ready";
+    page.dataset.mapsPhase = phase;
+    paintBanner();
+    paintOverlay();
+    const boardReady = phase === "ready";
+    if (!boardReady) {
+      placeTitle.textContent = "Maps";
+      coverage.textContent = "";
+      canvas.element.hidden = true;
+      capabilities.hidden = true;
+      personaSeg.set(persona);
+      viewSeg.set(viewMode);
+      renderRail();
+      renderInspector();
+      return;
+    }
+    syncPlace();
     const model = loadModel();
     selectedScreenId = resolveSelection(model, selectedScreenId);
     placeTitle.textContent = model.place.label;
@@ -256,12 +440,49 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
 
   renderAll(true);
 
+  if (phase === "loading" && loadSource) {
+    const gen = ++loadGen;
+    let pending: Promise<MapsDataSource>;
+    try {
+      pending = Promise.resolve(loadSource());
+    } catch (error) {
+      pending = Promise.reject(error);
+    }
+    void pending
+      .then((next) => {
+        if (destroyed || gen !== loadGen) return;
+        source = next ?? emptyMapsDataSource();
+        syncPlace();
+        phase = sourceHasPlaces(source, persona) ? "ready" : "empty";
+        loadError = null;
+        renderAll(true);
+      })
+      .catch((error: unknown) => {
+        if (destroyed || gen !== loadGen) return;
+        source = emptyMapsDataSource();
+        placeId = "";
+        loadError = namedMapsLoadError(error);
+        phase = "error";
+        renderAll(false);
+      });
+  }
+
   return {
     element: page,
     destroy(): void {
+      destroyed = true;
+      loadGen += 1;
       canvas.destroy();
     },
   };
+}
+
+function sourceHasPlaces(source: MapsDataSource, persona: Persona): boolean {
+  return source.listSummaries(persona).length > 0;
+}
+
+function defaultPlaceId(source: MapsDataSource, persona: Persona): string {
+  return source.listSummaries(persona)[0]?.place.placeId ?? defaultMapsPlaceId();
 }
 
 function placeRow(summary: PlaceSummary, selected: boolean, onSelect: () => void): HTMLButtonElement {
