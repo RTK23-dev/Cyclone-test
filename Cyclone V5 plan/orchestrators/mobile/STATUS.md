@@ -1,45 +1,74 @@
 # Mobile orchestrator — STATUS
 
-**Wave:** 1 (alpha.1 + atlas foundation)  
-**Integration branch:** `v5/integration` — wave-1 handoff seed `e15cf30d142d31f6392d0aca606986acf0310580` (branch continues to advance with orchestration docs)  
-**Plan source:** `main@d2ec2ca5a397f82fdaf90c72c93e3168f89b47dd` (V5 plan + orchestrators)  
-**Code base:** `release/cyclone-mobile-v4.8.0@97f81cb692893896b500f2372068fb1cd67d85ed`
+**Wave:** Run 1 closeout; Run 2 drafted, **not issued**  
+**Integration branch:** `v5/integration@7e5ece6ff17d78a1a42135bc7cbad5bf397e13f3`  
+**Plan source:** `main@d2ec2ca5a397f82fdaf90c72c93e3168f89b47dd`  
+**Original code base:** `release/cyclone-mobile-v4.8.0@97f81cb692893896b500f2372068fb1cd67d85ed`
 
-## Board
+## Run 1 board
 
 | ID | Agent | Branch | State | PR | Return |
 |---|---|---|---|---|---|
-| 001 | protocol-need-secret | `v5/mobile/protocol-need-secret` | issued | | |
-| 002 | vault-secrets-card | `v5/mobile/vault-secrets-card` | issued — wait for 001 merge | | |
-| 003 | atlas-follow-me | `v5/mobile/atlas-follow-me` | issued — wait for 001 schemas | | |
+| 001 | protocol-need-secret | `v5/mobile/protocol-need-secret` | **merged** | #144 → `c980b43e3245016b5fb29fe524ab20d4b7dd6737` | `RETURN-RUN1-001-protocol-need-secret.md` |
+| 002 | vault-secrets-card | `v5/mobile/vault-secrets-card` | **merged** | #145 → `367ce4ed9864f9358802bf329de768b1676c109d` | `RETURN-RUN1-002-vault-secrets-card.md` |
+| 003 | atlas-follow-me | `v5/mobile/atlas-follow-me` | **in-pr — changes required** | #146 | **missing** |
 
-States: `drafted` → `issued` → `in-pr` → `returned` → `merged` | `blocked`
+### Run-1 orchestrator correction
+
+PR #147 is merged at `7e5ece6ff17d78a1a42135bc7cbad5bf397e13f3`.
+
+Deep integration review found that Agent 001's original Atlas wire schema omitted the `partial` map state even though the V5 plan and Run-1 shared brief require incomplete coverage to remain distinguishable. The correction freezes:
+
+```text
+unmapped | partial | mapped | stale | blocked
+```
+
+A non-empty graph is not automatically mapped.
+
+## Agent 003 required corrections before merge
+
+PR #146 is not approved for integration until all are true:
+
+1. Rebase/merge current `v5/integration` and rerun final CI on the combined head.
+2. Install the real `AtlasRuntime.provider` through Agent 001's `GatewayV5ContractSources.installAtlas(...)` seam so production `atlas.get` / `atlas.places` return the phone Atlas instead of the empty fallback after initialization.
+3. Serialize internal `PARTIAL` as wire `partial`; remove the non-empty → `mapped` coercion.
+4. Harden Atlas promotion so ordinary user-content labels (person/thread names, message subjects, order/content titles) cannot become durable Atlas structure merely because they are not secret-shaped.
+5. Add regressions for the real gateway hookup and structural-vs-content privacy.
+6. Write `returns/RETURN-RUN1-003-atlas-follow-me.md`.
+7. Final CI must pass; physical Pixel remains **UNVERIFIED**.
+
+## Agent 002 follow-up hardening
+
+Run-1 Vault architecture is accepted and merged. The phone card currently uses Compose immutable `String` state for the value while the user is typing, then converts to/clears a `CharArray`. The value does not enter the wire, Atlas, Brain or diagnostics, but the UI memory lifetime is not truthfully zeroizable. This is recorded as focused hardening for a later run; it is not a Run-1 merge blocker.
 
 ## Contract with Glass
 
-- [ ] Schemas on integration — Mobile 001 owns.
-- [ ] `needs-secret` in the Ask presentation snapshot Glass already mirrors — Mobile 001 owns; Glass 001 must not guess.
-- [ ] `atlas.get` shape Glass 002/003 can render — Glass 002 may use a mock only until Mobile 003 fills the contract.
+- [x] Atlas/Secrets schemas on integration.
+- [x] `needs-secret` is a distinct nonterminal consumer state.
+- [x] Phone Secrets Card + metadata-only Vault gateway are integrated.
+- [x] Atlas map status includes truthful `partial`.
+- [ ] Production `atlas.get` returns Agent 003's durable Follow Me graph — blocked on #146 correction.
+- [ ] Glass read-only Maps board consumes the real phone graph — Glass-owned exit test.
+- [ ] Run-1 orchestrator return written — waits for #146.
 
-## Wave-1 dependency order
+## Run 2 — drafted only
 
-1. 001 runs first against the exact 4.8 tip above plus the merged V5 orchestration docs.
-2. 002 may implement only after 001 lands, unless it limits itself to a thin compile stub and rebases before PR review.
-3. 003 starts graph writes only after 001 schemas are stable on `v5/integration`.
-4. No Mapper crawl, People memory, Ask compiler/Louella, Chrome-host mapper, Glass canvas, encrypted PC fill, fleet/camera, or Magisk in this wave.
+Files: `orchestrators/mobile/run-2/`
 
-## Live baseline notes
+| ID | Agent | Planned branch | State |
+|---|---|---|---|
+| 004 | mapping-session-protocol | `v5/mobile/mapping-session-protocol` | **drafted — blocked on Run-1 closeout** |
+| 005 | mapper-walker-safety | `v5/mobile/mapper-walker-safety` | **drafted — blocked on Run-1 closeout** |
+| 006 | place-catalog-chrome-settings | `v5/mobile/place-catalog-chrome-settings` | **drafted — blocked on Run-1 closeout** |
 
-- 4.8 has `TaskPhase { STARTING, WORKING, PAUSED, REVIEW, HUMAN, DONE, FAILED, STOPPED }`; no secret-specific run state exists yet.
-- `TaskPresentationProjector` currently maps human interruptions to generic `ACTION_NEEDED`.
-- `GateClass` currently covers PAY / SEND / DELETE / GRANT only. `needs-secret` must be a task/interruption state, not a fake fifth approval-risk class.
-- Login-regex presentation logic still exists in `OutcomeStageCopy` / `TaskHumanizer`; wave 1 must not turn that into a wider Ask-compiler rewrite.
-- Graph v2's visible `InMemoryTemporalGraphStore` is non-durable while the existing App Graph is SQLite-backed; 003 must ship durable AtlasStore persistence and safe legacy projection/import.
-- Existing App Graph records include `dynamic_json` and optional screenshot paths; `atlas.get` must not pass raw dynamic values or unredacted frames to Glass.
-- Physical Pixel 8 remains **UNVERIFIED**.
+**Do not create/issue Run-2 implementation branches until this file records a `RUN1_CLOSEOUT_SHA` after #146 merges.**
 
-## Notes
+Planned final integration order:
 
-- Integration plan seed landed via PR #138; wave-1 issue/status landed via PR #139.
-- Before implementation, handoffs 001–003 were amended from the live 4.8 code review: Android gateway owns atlas/secrets ops; Python gateway only forwards/validates; V5 atlas must not reuse `AppGraphExecutor` as a rapid-fire macro executor; Atlas persistence/redaction and StrongBox fallback are explicit acceptance constraints.
-- This orchestrator does not implement 001–003 itself.
+```text
+004 → 006 → 005
+```
+
+## Physical acceptance
+
+Pixel/device acceptance remains **UNVERIFIED**. GitHub CI, lint and release assembly are not physical-device evidence.
