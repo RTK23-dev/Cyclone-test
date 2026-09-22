@@ -55,13 +55,13 @@ Run-1 Vault architecture is accepted and merged. The phone card currently uses C
 
 Files: `orchestrators/mobile/run-2/`
 
-**RUN2_START_BASE_SHA:** `71c1e4b2e020d8355e6bdba69243b91c813df7c0`
+**RUN2_START_BASE_SHA:** `2a0f97179c2a57eb0548e558a98d90d81eb30064`
 
 | ID | Agent | Branch | State |
 |---|---|---|---|
-| 004 | mapping-session-protocol | `v5/mobile/mapping-session-protocol` | **issued — code now** |
-| 005 | mapper-walker-safety | `v5/mobile/mapper-walker-safety` | **issued — code now; use narrow 004/006 seams as needed** |
-| 006 | place-catalog-chrome-settings | `v5/mobile/place-catalog-chrome-settings` | **issued — code now** |
+| 004 | mapping-session-protocol | `v5/mobile/mapping-session-protocol` | **issued — branch created @ RUN2_START_BASE_SHA; code now** |
+| 005 | mapper-walker-safety | `v5/mobile/mapper-walker-safety` | **issued — branch created @ RUN2_START_BASE_SHA; code now; use narrow 004/006 seams as needed** |
+| 006 | place-catalog-chrome-settings | `v5/mobile/place-catalog-chrome-settings` | **issued — branch created @ RUN2_START_BASE_SHA; code now** |
 
 Run-2 coding is allowed before Run-1 closes. The hard gate is now: **no Run-2 merge before #146 merges, RUN1_CLOSEOUT_SHA is recorded, each Run-2 branch rebases/merges-forward onto it, and final CI passes again.**
 
