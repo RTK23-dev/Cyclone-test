@@ -57,8 +57,8 @@ class StoreBackedAtlasReadProvider(
                     )
                     out.put(JSONObject()
                         .put("screenId", page.id.value.take(160))
-                        .put("label", AtlasPrivacy.structuralLabel(page.displayName, page.identity).take(120))
-                        .put("purpose", (meta?.purpose ?: AtlasPrivacy.structuralPurpose(page.displayName)).take(200))
+                        .put("label", AtlasPrivacy.structuralScreenLabel(page.displayName, "Screen").take(120))
+                        .put("purpose", (meta?.purpose ?: AtlasPrivacy.structuralScreenPurpose(page.displayName)).take(200))
                         .put("factSlots", JSONArray().also { facts ->
                             meta?.factSlots?.sortedBy { it.name }.orEmpty().forEach { slot ->
                                 safeFactSlotName(slot.name)?.let {
@@ -82,7 +82,7 @@ class StoreBackedAtlasReadProvider(
                         .put("edgeId", stableEdgeId(edge.key))
                         .put("fromScreenId", edge.key.from.value.take(160))
                         .put("toScreenId", edge.key.to.value.take(160))
-                        .put("actionHint", AtlasPrivacy.structuralLabel(meta?.action ?: "navigate", "navigate").take(160))
+                        .put("actionHint", AtlasPrivacy.structuralControlLabel(meta?.action ?: "navigate", "Navigate").take(160))
                         .put("risk", riskJson(meta?.danger ?: AtlasDanger.NONE))
                         .put("confidence", (meta?.confidence ?: edge.evidence.confidence).coerceIn(0.0, 1.0))
                         .put("lastVerifiedAt", timestamp(meta?.lastVerifiedAtEpochMillis)))
