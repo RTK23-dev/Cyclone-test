@@ -135,6 +135,7 @@ export interface BoardFilters {
   stale: boolean;
   blocked: boolean;
   danger: boolean;
+  unmappedDoors?: boolean;
 }
 
 export interface InspectorDoor {
@@ -148,7 +149,7 @@ export interface InspectorDoor {
 }
 
 export interface InspectorState {
-  kind: "empty" | "screen";
+  kind: "empty" | "screen" | "edge";
   title: string;
   subtitle: string;
   purpose?: string;
@@ -160,6 +161,12 @@ export interface InspectorState {
   factSlots: Array<{ name: string; displayLabel: string; maskedValue: string; description: string; required: boolean }>;
   doors: InspectorDoor[];
   frameCopy: string;
+  actionHint?: string;
+  fromLabel?: string;
+  toLabel?: string;
+  fromScreenId?: string;
+  toScreenId?: string;
+  dark?: boolean;
 }
 
 const PURPOSE_REGION: Record<string, string> = {
@@ -300,25 +307,39 @@ export function emptyViewModel(place: AtlasPlace, persona: Persona): AtlasViewMo
 }
 
 export function applyBoardFilters(model: AtlasViewModel, filters: BoardFilters): AtlasViewModel {
-  const active = Boolean(filters.stale || filters.blocked || filters.danger);
+  const unmappedDoors = Boolean(filters.unmappedDoors);
+  const active = Boolean(filters.stale || filters.blocked || filters.danger || unmappedDoors);
   if (!active) return model;
+  const darkEdges = model.edges.filter((edge) => !Number.isFinite(edge.confidence) || edge.confidence < DARK_CONFIDENCE);
+  const darkFrom = new Set(darkEdges.map((edge) => edge.fromScreenId));
+  const darkTo = new Set(darkEdges.map((edge) => edge.toScreenId));
   const visible = model.screens.filter((screen) => {
     if (filters.danger && (screen.tone === "danger" || screen.risk.danger)) return true;
     if (filters.blocked && screen.tone === "blocked") return true;
     if (filters.stale && (screen.tone === "stale" || screen.tone === "dark")) return true;
+    if (unmappedDoors && (darkFrom.has(screen.screenId) || darkTo.has(screen.screenId))) return true;
     return false;
   });
   const ids = new Set(visible.map((screen) => screen.screenId));
+  const onlyDarkDoors = unmappedDoors && !filters.stale && !filters.blocked && !filters.danger;
+  const edges = onlyDarkDoors
+    ? darkEdges.filter((edge) => ids.has(edge.fromScreenId) && ids.has(edge.toScreenId))
+    : model.edges.filter((edge) => ids.has(edge.fromScreenId) && ids.has(edge.toScreenId));
   return {
     ...model,
     screens: visible,
-    edges: model.edges.filter((edge) => ids.has(edge.fromScreenId) && ids.has(edge.toScreenId)),
+    edges,
   };
 }
 
 export function resolveSelection(model: AtlasViewModel, screenId: string | null): string | null {
   if (!screenId) return null;
   return model.screens.some((screen) => screen.screenId === screenId) ? screenId : null;
+}
+
+export function resolveEdgeSelection(model: AtlasViewModel, edgeId: string | null): string | null {
+  if (!edgeId) return null;
+  return model.edges.some((edge) => edge.edgeId === edgeId) ? edgeId : null;
 }
 
 export function inspectorState(model: AtlasViewModel, screenId: string | null): InspectorState {
@@ -368,6 +389,40 @@ export function inspectorState(model: AtlasViewModel, screenId: string | null): 
   };
 }
 
+export function inspectorStateForEdge(model: AtlasViewModel, edgeId: string | null): InspectorState {
+  const id = resolveEdgeSelection(model, edgeId);
+  if (!id) {
+    return {
+      kind: "empty",
+      title: "Select a room",
+      subtitle: "Click a screen card to see purpose, masked fact slots, and doors.",
+      factSlots: [],
+      doors: [],
+      frameCopy: "No room selected.",
+    };
+  }
+  const edge = model.edges.find((item) => item.edgeId === id)!;
+  const labelById = new Map(model.screens.map((item) => [item.screenId, item.label]));
+  const fromLabel = labelById.get(edge.fromScreenId) ?? edge.fromScreenId;
+  const toLabel = labelById.get(edge.toScreenId) ?? edge.toScreenId;
+  return {
+    kind: "edge",
+    title: edge.actionHint,
+    subtitle: `${fromLabel} → ${toLabel}`,
+    actionHint: edge.actionHint,
+    fromLabel,
+    toLabel,
+    fromScreenId: edge.fromScreenId,
+    toScreenId: edge.toScreenId,
+    confidence: edge.confidence,
+    lastVerifiedAt: edge.lastVerifiedAt,
+    dark: !Number.isFinite(edge.confidence) || edge.confidence < DARK_CONFIDENCE,
+    factSlots: [],
+    doors: [],
+    frameCopy: "Door proof · English action from the phone atlas.",
+  };
+}
+
 export function statusLabel(status: MapStatus | ScreenTone): string {
   switch (status) {
     case "unmapped":
@@ -395,6 +450,51 @@ export function formatCoverage(coverage: AtlasCoverage): string {
 
 export function isLeafPurpose(purpose: string): boolean {
   return LEAF_PURPOSES.has(purpose);
+}
+
+const PURPOSE_GLYPH: Record<string, string> = {
+  login: "LG",
+  signup: "SU",
+  inbox: "IN",
+  compose: "CO",
+  payment: "PY",
+  checkout: "CK",
+  search: "SR",
+  settings: "ST",
+  thread: "TH",
+  message: "MS",
+  identity: "ID",
+  "account-switcher": "AC",
+  "add-account": "AA",
+  feed: "FD",
+  "dm-list": "DM",
+  thread_dm: "TD",
+};
+
+export function purposeGlyph(purpose: string): string {
+  const key = purpose.trim().toLowerCase();
+  if (PURPOSE_GLYPH[key]) return PURPOSE_GLYPH[key];
+  const parts = key.split(/[-_\s]+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+  const compact = key.replace(/[^a-z0-9]/g, "");
+  return (compact.slice(0, 2) || "·").toUpperCase();
+}
+
+export function capabilityGlyph(name: string): string {
+  const parts = name.split(/[_-]+/).filter(Boolean);
+  if (!parts.length) return "";
+  if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
+  return parts.map((part) => part[0] ?? "").join("").slice(0, 4).toUpperCase();
+}
+
+export function cardGlyphs(purpose: string, capabilities: string[] = []): string[] {
+  const glyphs = [purposeGlyph(purpose)];
+  for (const cap of capabilities) {
+    if (glyphs.length >= 3) break;
+    const glyph = capabilityGlyph(cap);
+    if (glyph && !glyphs.includes(glyph)) glyphs.push(glyph);
+  }
+  return glyphs;
 }
 
 const PLACE_ID_PATTERN = /^(package:[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+|chrome:https?:\/\/[^\s/]+(?::[0-9]{1,5})?)$/;
