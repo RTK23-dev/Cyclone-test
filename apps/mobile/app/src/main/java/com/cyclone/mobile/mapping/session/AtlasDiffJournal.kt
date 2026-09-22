@@ -7,9 +7,26 @@ import java.util.UUID
 
 internal object AtlasStructuralIds {
     private val SAFE = Regex("^[A-Za-z0-9._:-]{1,180}$")
+    private val SCREEN_PREFIXES = listOf("page:", "screen:")
+
     fun valid(value: String): Boolean = SAFE.matches(value)
+
+    fun screen(value: String): Boolean =
+        valid(value) && SCREEN_PREFIXES.any(value::startsWith)
+
+    fun edge(value: String): Boolean =
+        valid(value) && value.startsWith("edge:")
+
     fun require(value: String, label: String) {
-        if (!valid(value)) throw MappingSessionException("INVALID_REQUEST", label + " must be a structural identifier.")
+        if (!valid(value)) {
+            throw MappingSessionException("INVALID_REQUEST", label + " must be a structural identifier.")
+        }
+    }
+
+    fun requireScreen(value: String, label: String) {
+        if (!screen(value)) {
+            throw MappingSessionException("INVALID_REQUEST", label + " must use page:/screen: structural identity.")
+        }
     }
 }
 
@@ -52,16 +69,22 @@ data class AtlasStructuralChange(
         }
         when (entity) {
             AtlasStructuralEntity.PLACE -> {
-                if (fromScreenId != null || layoutX != null) {
-                    throw MappingSessionException("INVALID_REQUEST", "Place diff cannot carry screen/edge geometry.")
+                if (id != "place" || fromScreenId != null || layoutX != null) {
+                    throw MappingSessionException("INVALID_REQUEST", "Place diff uses literal place id and status only.")
                 }
             }
             AtlasStructuralEntity.SCREEN -> {
+                AtlasStructuralIds.requireScreen(id, "screen id")
                 if (fromScreenId != null || mapStatus != null) {
                     throw MappingSessionException("INVALID_REQUEST", "Screen diff carries only id/layout.")
                 }
             }
             AtlasStructuralEntity.EDGE -> {
+                if (!AtlasStructuralIds.edge(id)) {
+                    throw MappingSessionException("INVALID_REQUEST", "Edge diff id must use edge: structural identity.")
+                }
+                fromScreenId?.let { AtlasStructuralIds.requireScreen(it, "fromScreenId") }
+                toScreenId?.let { AtlasStructuralIds.requireScreen(it, "toScreenId") }
                 if (mapStatus != null || layoutX != null) {
                     throw MappingSessionException("INVALID_REQUEST", "Edge diff carries only topology.")
                 }
