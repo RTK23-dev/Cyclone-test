@@ -197,6 +197,8 @@ export interface DesktopDevice {
   provider?: string | null;
   providerInstanceId?: string | null;
   inputOwner?: "AI" | "HUMAN" | string;
+  /** Cyclone Mobile version when the fleet payload includes it. Absent ⇒ not 5.x (fail closed). */
+  mobileVersion?: string;
 }
 
 export interface FleetGroup {
@@ -446,6 +448,11 @@ export interface DesktopRuntimeStatus {
 
 export interface DesktopService {
   readonly mode: "real" | "mock";
+  /** Real HttpDesktopService only. Mock omits this. getBearer is for Authorization; never print it. */
+  readonly glassGateway?: {
+    httpBase: string;
+    getBearer: () => string;
+  };
   listDevices(): Promise<DesktopDevice[]>;
   scanDevices(): Promise<DesktopDevice[]>;
   watchFleet(onChange: (event?: FleetWsEvent) => void): () => void;
