@@ -8,9 +8,24 @@ import org.junit.Test
 
 class GatewayV5ContractAdapterTest {
     @Test
-    fun run1OperationsAreAdvertised() {
-        val expected = setOf("atlas.places", "atlas.get", "secrets.slots", "secrets.request")
+    fun run2OperationsAreAdvertisedAndMappingMutationIsNotLegacyReadonly() {
+        val expected = setOf(
+            "atlas.places",
+            "atlas.get",
+            "atlas.diff",
+            "mapping.start",
+            "mapping.pause",
+            "mapping.stop",
+            "mapping.status",
+            "secrets.slots",
+            "secrets.request",
+        )
         assertTrue(GatewayProtocol.operations.containsAll(expected))
+        assertTrue("atlas.diff" in GatewayProtocol.legacyReadOnlyOperations)
+        assertTrue("mapping.status" in GatewayProtocol.legacyReadOnlyOperations)
+        assertFalse("mapping.start" in GatewayProtocol.legacyReadOnlyOperations)
+        assertFalse("mapping.pause" in GatewayProtocol.legacyReadOnlyOperations)
+        assertFalse("mapping.stop" in GatewayProtocol.legacyReadOnlyOperations)
     }
 
     @Test
