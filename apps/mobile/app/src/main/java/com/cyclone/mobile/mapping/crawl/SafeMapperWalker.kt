@@ -78,7 +78,7 @@ class SafeMapperWalker(
                 "TARGET_SCOPE_MISMATCH",
             )
         ) {
-            return fail(mutation.errorCode.lowercase())
+            return fail(mutation.errorCode?.lowercase() ?: "mutation_error")
         }
 
         val afterMutationSession = session.snapshot()
