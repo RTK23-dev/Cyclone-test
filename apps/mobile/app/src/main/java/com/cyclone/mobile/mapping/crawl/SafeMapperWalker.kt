@@ -1,0 +1,261 @@
+package com.cyclone.mobile.mapping.crawl
+
+/**
+ * Deterministic one-mutation-at-a-time mapping walker.
+ *
+ * This class intentionally has no Android UI, gateway or session implementation of its own.
+ * Authority, observation, GATE, PhoneTool execution, Vault prompting and Atlas persistence are all
+ * injected phone-owned ports so Agent 004 / Agent 006 can provide their final implementations.
+ */
+class SafeMapperWalker(
+    private val session: MappingSessionPort,
+    private val observations: MappingObservationPort,
+    private val atlas: MappingAtlasPort,
+    private val safety: MappingSafetyPort,
+    private val mutations: MappingMutationPort,
+    private val secrets: MappingSecretsPort,
+) {
+    private val attemptsByDoor = linkedMapOf<String, Int>()
+    private val unchangedOnFingerprint = linkedSetOf<String>()
+
+    fun step(nowMs: Long): MappingStepResult {
+        val beforeSession = session.snapshot()
+        authorityResult(beforeSession)?.let { return it }
+        budgetResult(beforeSession, nowMs)?.let { return it }
+
+        val before = observations.freshObservation(beforeSession)
+            ?: return fail("observation_missing")
+        validateObservation(beforeSession, before)?.let { return it }
+
+        secrets.detect(before)?.let { wall ->
+            session.pauseNeedsSecret(wall.reason)
+            secrets.request(wall)
+            return MappingStepResult.Paused(PauseReason.NEEDS_SECRET)
+        }
+
+        val fromNode = StructuralRoomClassifier.nodeKey(before)
+        session.reportCurrentNode(fromNode)
+        val hint = atlas.hint(beforeSession.placeId, MAPPING_PERSONA, before)
+
+        val door = chooseSafeDoor(beforeSession, before, hint, fromNode)
+            ?: return completePartial(beforeSession, "no_safe_unexplored_doors")
+
+        // Human/companion/control-revision changes that happen while deciding must win before input.
+        val preMutationSession = session.snapshot()
+        authorityResult(preMutationSession)?.let { return it }
+        if (!sameBinding(beforeSession, preMutationSession)) {
+            session.pauseHumanControl("mapping_authority_changed")
+            return MappingStepResult.Paused(PauseReason.HUMAN_CONTROL)
+        }
+
+        val action = MappingAction(
+            observationId = before.observationId,
+            elementId = door.elementId,
+            doorKey = door.key,
+            kind = door.kind,
+        )
+        attemptsByDoor[door.key] = (attemptsByDoor[door.key] ?: 0) + 1
+
+        // Exactly one screen-changing mutation occurs in a step.
+        val mutation = mutations.execute(preMutationSession, action)
+
+        // Authority is checked again before any crawler continuation. If the human/companion took
+        // over while the action was settling, the crawler stops immediately.
+        val afterMutationSession = session.snapshot()
+        authorityResult(afterMutationSession)?.let { return it }
+        if (!sameBinding(preMutationSession, afterMutationSession)) {
+            session.pauseHumanControl("mapping_authority_changed_after_mutation")
+            return MappingStepResult.Paused(PauseReason.HUMAN_CONTROL)
+        }
+
+        // Eyes beat the map: every screen-changing attempt is followed by a new observation before
+        // another decision can ever be made.
+        val after = observations.freshObservation(afterMutationSession)
+            ?: return fail("after_observation_missing")
+        validateObservation(afterMutationSession, after)?.let { return it }
+        if (after.observationId == before.observationId) {
+            return fail("after_observation_not_fresh")
+        }
+
+        val toNode = StructuralRoomClassifier.nodeKey(after)
+        val progressed = mutation.performed &&
+            mutation.verifiedByExecutor &&
+            StructuralProgressVerifier.changed(before, after)
+
+        if (progressed) {
+            atlas.recordVerified(
+                beforeSession.placeId,
+                MAPPING_PERSONA,
+                VerifiedStructure(
+                    fromNodeKey = fromNode,
+                    toNodeKey = toNode,
+                    doorKey = door.key,
+                    doorKind = door.kind,
+                    beforeStructuralFingerprint = before.structuralFingerprint,
+                    afterStructuralFingerprint = after.structuralFingerprint,
+                ),
+            )
+            session.reportCurrentNode(toNode)
+            session.recordVerifiedProgress(newScreen = fromNode != toNode ||
+                before.structuralFingerprint != after.structuralFingerprint)
+
+            // If the verified landing is a credential wall, pause immediately before any further
+            // mutation. The walker only passes metadata to the Run-1 Secrets Card seam.
+            secrets.detect(after)?.let { wall ->
+                session.pauseNeedsSecret(wall.reason)
+                secrets.request(wall)
+                return MappingStepResult.Paused(PauseReason.NEEDS_SECRET)
+            }
+
+            val postProgress = session.snapshot()
+            budgetResult(postProgress, nowMs)?.let { return it }
+            return MappingStepResult.Progress(action, fromNode, toNode)
+        }
+
+        unchangedOnFingerprint += unchangedKey(before, door)
+        session.recordNoProgress(door.key)
+
+        val postNoProgress = session.snapshot()
+        budgetResult(postNoProgress, nowMs)?.let { return it }
+
+        val reason = mutation.errorCode ?: "unchanged_or_unverified"
+        return MappingStepResult.NoProgress(action, reason)
+    }
+
+    private fun chooseSafeDoor(
+        snapshot: MappingSessionSnapshot,
+        observation: MappingObservation,
+        hint: MappingAtlasHint,
+        nodeKey: String,
+    ): MappingDoor? {
+        val budget = snapshot.budget
+        val candidates = StructuralDoorPolicy.rank(observation.doors)
+            .filter { it.enabled && it.visible }
+            .filter { it.observationId == observation.observationId }
+            .filter { it.kind != MappingDoorKind.CONTENT_ROW && it.kind != MappingDoorKind.UNKNOWN }
+            .filterNot { it.key in hint.knownDoorKeys || it.key in hint.darkDoorKeys }
+            .filter { (attemptsByDoor[it.key] ?: 0) < budget.maxAttemptsPerDoor }
+            .filterNot { unchangedKey(observation, it) in unchangedOnFingerprint }
+
+        for (door in candidates) {
+            val danger = safety.classify(observation, door)
+            if (danger == MappingDanger.NONE) return door
+
+            // Safety boundaries are structural information, not permission to cross them.
+            session.markDanger(door.key, danger)
+            atlas.markDanger(snapshot.placeId, MAPPING_PERSONA, nodeKey, door.key, danger)
+        }
+        return null
+    }
+
+    private fun validateObservation(
+        snapshot: MappingSessionSnapshot,
+        observation: MappingObservation,
+    ): MappingStepResult? {
+        if (!observation.fresh) return fail("stale_observation")
+        if (observation.sessionId != snapshot.sessionId) return fail("session_mismatch")
+        if (observation.displayId != snapshot.displayId) return fail("display_mismatch")
+        if (observation.observationId.isBlank()) return fail("observation_id_missing")
+        if (observation.fingerprint.isBlank() || observation.structuralFingerprint.isBlank()) {
+            return fail("observation_fingerprint_missing")
+        }
+        return null
+    }
+
+    private fun authorityResult(snapshot: MappingSessionSnapshot): MappingStepResult? = when (snapshot.authority) {
+        MappingAuthority.OWNED -> null
+        MappingAuthority.HUMAN_CONTROL,
+        MappingAuthority.COMPANION_CONTROL -> {
+            session.pauseHumanControl(snapshot.authority.name.lowercase())
+            MappingStepResult.Paused(PauseReason.HUMAN_CONTROL)
+        }
+        MappingAuthority.SESSION_MISSING -> fail("session_required")
+        MappingAuthority.DISPLAY_MISMATCH -> fail("display_mismatch")
+        MappingAuthority.PLANE_CHANGED -> fail("plane_changed")
+        MappingAuthority.STALE_CONTROL_REVISION -> fail("stale_control_revision")
+    }
+
+    private fun budgetResult(snapshot: MappingSessionSnapshot, nowMs: Long): MappingStepResult? {
+        val budget = snapshot.budget
+        val reason = when {
+            snapshot.newScreens >= budget.maxNewScreens -> "budget_max_new_screens"
+            nowMs - snapshot.startedAtMs >= budget.maxElapsedMs -> "budget_max_elapsed"
+            snapshot.consecutiveNonProgress >= budget.maxConsecutiveNonProgress ->
+                "budget_max_consecutive_non_progress"
+            else -> null
+        } ?: return null
+        return completePartial(snapshot, reason)
+    }
+
+    private fun completePartial(snapshot: MappingSessionSnapshot, reason: String): MappingStepResult {
+        atlas.markPartial(snapshot.placeId, MAPPING_PERSONA, reason)
+        session.completePartial(reason)
+        return MappingStepResult.CompletedPartial(reason)
+    }
+
+    private fun fail(reason: String): MappingStepResult.Failed {
+        session.fail(reason)
+        return MappingStepResult.Failed(reason)
+    }
+
+    private fun sameBinding(a: MappingSessionSnapshot, b: MappingSessionSnapshot): Boolean =
+        a.jobId == b.jobId &&
+            a.placeId == b.placeId &&
+            a.sessionId == b.sessionId &&
+            a.displayId == b.displayId &&
+            a.plane == b.plane &&
+            a.controlRevision == b.controlRevision
+
+    private fun unchangedKey(observation: MappingObservation, door: MappingDoor): String =
+        "${observation.structuralFingerprint}|${door.key}"
+}
+
+internal object StructuralProgressVerifier {
+    fun changed(before: MappingObservation, after: MappingObservation): Boolean =
+        before.structuralFingerprint != after.structuralFingerprint ||
+            StructuralRoomClassifier.nodeKey(before) != StructuralRoomClassifier.nodeKey(after)
+}
+
+/**
+ * Produces durable structural node identities without copying ordinary control labels/content.
+ */
+internal object StructuralRoomClassifier {
+    fun nodeKey(observation: MappingObservation): String {
+        val purpose = observation.purpose ?: infer(observation.doors)
+        return "room:${purpose.name.lowercase()}"
+    }
+
+    private fun infer(doors: List<MappingDoor>): StructuralScreenPurpose {
+        val kinds = doors.mapTo(linkedSetOf()) { it.kind }
+        return when {
+            MappingDoorKind.SETTINGS in kinds -> StructuralScreenPurpose.SETTINGS
+            MappingDoorKind.SEARCH in kinds -> StructuralScreenPurpose.SEARCH
+            MappingDoorKind.ACCOUNT in kinds -> StructuralScreenPurpose.ACCOUNT
+            MappingDoorKind.NAV_DRAWER in kinds || MappingDoorKind.MENU in kinds ->
+                StructuralScreenPurpose.MENU
+            MappingDoorKind.TAB in kinds -> StructuralScreenPurpose.HOME
+            MappingDoorKind.STRUCTURAL_SAMPLE in kinds || MappingDoorKind.CONTENT_ROW in kinds ->
+                StructuralScreenPurpose.LIST
+            else -> StructuralScreenPurpose.UNKNOWN
+        }
+    }
+}
+
+internal object StructuralDoorPolicy {
+    private val priority = mapOf(
+        MappingDoorKind.TAB to 0,
+        MappingDoorKind.MENU to 1,
+        MappingDoorKind.NAV_DRAWER to 2,
+        MappingDoorKind.SETTINGS to 3,
+        MappingDoorKind.ACCOUNT to 4,
+        MappingDoorKind.SEARCH to 5,
+        MappingDoorKind.STRUCTURAL_SAMPLE to 6,
+        MappingDoorKind.BACK to 7,
+        MappingDoorKind.HOME to 8,
+        MappingDoorKind.CONTENT_ROW to 90,
+        MappingDoorKind.UNKNOWN to 100,
+    )
+
+    fun rank(doors: List<MappingDoor>): List<MappingDoor> =
+        doors.sortedWith(compareBy<MappingDoor> { priority[it.kind] ?: 100 }.thenBy { it.key })
+}
