@@ -80,7 +80,7 @@ class AtlasLegacyImporter(
                 place.key,
                 AtlasScreenMetadata(
                     screenId = pageId,
-                    purpose = AtlasPrivacy.structuralPurpose(screen.purpose, "Learned app screen"),
+                    purpose = AtlasPrivacy.structuralScreenPurpose(screen.purpose, "Learned app screen"),
                     capabilities = semanticCapabilities(actionsByScreen[screen.id].orEmpty()),
                     factSlots = emptyList(),
                     danger = highestDanger(actionsByScreen[screen.id].orEmpty().map { danger(it.risk, it.label) }),
@@ -105,7 +105,7 @@ class AtlasLegacyImporter(
                 place.key,
                 AtlasEdgeMetadata(
                     key = key,
-                    action = action.semanticName,
+                    action = AtlasPrivacy.structuralControlLabel(action.semanticName, "Navigate"),
                     selectorKey = AtlasGraphIds.selectorDigest(action.selectorJson),
                     danger = danger(action.risk, action.label),
                     confidence = transition.confidence.coerceIn(0.0, 1.0),
@@ -149,7 +149,7 @@ class FollowMeAtlasPromoter(
             AtlasGraphIds.encoded("page", screen.id),
             screen.packageName,
             screen.identity,
-            AtlasPrivacy.structuralLabel(screen.title, screen.identity),
+            AtlasPrivacy.structuralScreenLabel(screen.title, "Screen"),
         )
         val evidence = evidence(
             id = "follow-me:screen:" + screen.id + ":" + screen.lastSeenAt,
@@ -166,7 +166,7 @@ class FollowMeAtlasPromoter(
                 val element = ElementNode(
                     AtlasGraphIds.encoded("element", action.id),
                     action.semanticName,
-                    AtlasPrivacy.structuralLabel(action.semanticName, "control"),
+                    AtlasPrivacy.structuralControlLabel(action.semanticName, "Control"),
                 )
                 val selector = SelectorNode(
                     AtlasGraphIds.encoded("selector", action.id),
@@ -196,7 +196,7 @@ class FollowMeAtlasPromoter(
             place.key,
             AtlasScreenMetadata(
                 screenId = pageNode.id,
-                purpose = AtlasPrivacy.structuralPurpose(screen.purpose, "Learned app screen"),
+                purpose = AtlasPrivacy.structuralScreenPurpose(screen.purpose, "Learned app screen"),
                 capabilities = semanticCapabilities(actions),
                 factSlots = existing?.factSlots.orEmpty(),
                 danger = highestDanger(actions.map { danger(it.risk, it.label) }),
@@ -228,7 +228,7 @@ class FollowMeAtlasPromoter(
         val transition = TransitionNode(
             AtlasGraphIds.encoded("transition", fromScreen.id + ":" + action.id + ":" + toScreen.id),
             action.semanticName,
-            AtlasPrivacy.structuralLabel(action.semanticName, "navigate"),
+            AtlasPrivacy.structuralControlLabel(action.semanticName, "Navigate"),
         )
         val selector = SelectorNode(
             AtlasGraphIds.encoded("selector", action.id),
@@ -245,10 +245,10 @@ class FollowMeAtlasPromoter(
         )
         atlas.mutateGraph(key) { graph ->
             if (graph.node(from) == null) {
-                graph.registerNode(PageNode(from, fromScreen.packageName, fromScreen.identity, AtlasPrivacy.structuralLabel(fromScreen.title, fromScreen.identity)))
+                graph.registerNode(PageNode(from, fromScreen.packageName, fromScreen.identity, AtlasPrivacy.structuralScreenLabel(fromScreen.title, "Screen")))
             }
             if (graph.node(to) == null) {
-                graph.registerNode(PageNode(to, toScreen.packageName, toScreen.identity, AtlasPrivacy.structuralLabel(toScreen.title, toScreen.identity)))
+                graph.registerNode(PageNode(to, toScreen.packageName, toScreen.identity, AtlasPrivacy.structuralScreenLabel(toScreen.title, "Screen")))
             }
             graph.registerNode(transition)
             graph.registerNode(selector)
@@ -270,7 +270,7 @@ class FollowMeAtlasPromoter(
             key,
             AtlasEdgeMetadata(
                 key = routeKey,
-                action = action.semanticName,
+                action = AtlasPrivacy.structuralControlLabel(action.semanticName, "Navigate"),
                 selectorKey = AtlasGraphIds.selectorDigest(action.selectorJson),
                 danger = danger(action.risk, action.label),
                 confidence = action.confidence.coerceIn(0.0, 1.0),
@@ -311,8 +311,11 @@ class FollowMeAtlasPromoter(
 private fun semanticCapabilities(actions: List<LearnedAction>): Set<String> =
     actions.asSequence()
         .filter { it.risk == ActionRisk.SAFE }
-        .map { it.semanticName.uppercase().replace(Regex("[^A-Z0-9_]+"), "_").trim('_') }
+        .map { AtlasPrivacy.structuralControlLabel(it.semanticName, "Control") }
+        .filter { it != "Control" }
+        .map { it.uppercase().replace(Regex("[^A-Z0-9_]+"), "_").trim('_') }
         .filter { it.length >= 3 }
+        .distinct()
         .take(24)
         .toCollection(linkedSetOf())
 
