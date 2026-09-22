@@ -488,7 +488,8 @@ class AtlasStore(
         selectorKey = slot.selectorKey?.let {
             if (it.startsWith("sha256:")) it else AtlasGraphIds.selectorDigest(it)
         },
-        purpose = AtlasPrivacy.structuralPurpose(slot.purpose, "Read " + slot.name + " from this screen"),
+        // Fact definitions describe a slot, never the value/content observed in that slot.
+        purpose = "Read " + slot.name.replace('_', ' ') + " from this screen",
     )
 
     private fun sanitizeCapability(value: String): String =
