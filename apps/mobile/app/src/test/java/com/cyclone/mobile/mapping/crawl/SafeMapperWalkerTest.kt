@@ -232,7 +232,7 @@ class SafeMapperWalkerTest {
 
         val node = StructuralRoomClassifier.nodeKey(obs)
 
-        assertTrue(node.startsWith("room:list:"))
+        assertTrue(node.startsWith("screen:list:"))
         assertFalse(node.contains(alice))
         assertFalse(node.contains("content:"))
     }
