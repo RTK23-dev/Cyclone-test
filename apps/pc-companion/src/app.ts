@@ -15,6 +15,7 @@ import { createAskPage } from "./pages/askPage.js";
 import { createFleetPage } from "./pages/fleetPage.js";
 import { createFocusedPhonePage } from "./pages/focusedPhonePage.js";
 import { createHomePage } from "./pages/homePage.js";
+import { createMapsPage } from "./pages/mapsPage.js";
 import { createSettingsPage } from "./pages/settingsPage.js";
 import { createVaultPage } from "./pages/vaultPage.js";
 import { PairingModal } from "./ui/pairingModal.js";
@@ -264,7 +265,7 @@ export class CyclonePcCompanionApp {
       });
     }
     if (!this.currentPage && this.state.route === "maps") {
-      this.currentPage = createMapsPlaceholderPage();
+      this.currentPage = createMapsPage();
     }
     if (!this.currentPage && this.state.route === "vault") {
       this.currentPage = createVaultPage({ devices: this.state.devices });
@@ -353,18 +354,6 @@ export class CyclonePcCompanionApp {
       this.notificationPanel.append(item);
     }
   }
-}
-
-function createMapsPlaceholderPage(): PageHandle {
-  const page = el("section", "page content-page maps-placeholder-page");
-  const header = el("header", "page-header");
-  header.append(
-    el("h1", "page-title", "Maps"),
-    el("p", "page-subtitle", "Primary Glass surface. The board is not on this shell."),
-  );
-  const placeholder = el("div", "maps-placeholder", "Maps board ships next");
-  page.append(header, placeholder);
-  return { element: page, destroy() { /* route-only placeholder; Agent 002 owns the board */ } };
 }
 
 function deviceSignature(device: DesktopDevice): string {

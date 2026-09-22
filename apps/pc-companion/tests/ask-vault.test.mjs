@@ -85,7 +85,9 @@ test("Glass shell brands Ask Maps Vault and keeps ChatGPT", () => {
   assert.match(appSource, /\["chatgpt", .*, "ChatGPT"\]/);
   assert.match(appSource, /createAskPage/);
   assert.match(appSource, /createVaultPage/);
-  assert.match(appSource, /Maps board ships next/);
-  assert.doesNotMatch(appSource, /createMapsPage|atlasClient/);
-  assert.doesNotMatch(appSource, /from "\.\/pages\/mapsPage/);
+  assert.match(appSource, /createMapsPage/);
+  assert.match(appSource, /from "\.\/pages\/mapsPage/);
+  assert.doesNotMatch(appSource, /createMapsPlaceholderPage/);
+  assert.doesNotMatch(appSource, /Maps board ships next/);
+  assert.doesNotMatch(appSource, /atlasClient/);
 });
