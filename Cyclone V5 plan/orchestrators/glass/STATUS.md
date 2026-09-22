@@ -1,38 +1,42 @@
 # Glass orchestrator — STATUS
 
-**Wave:** Run 1 (alpha.1 HUD + alpha.2 Maps look-and-feel)  
-**Integration branch:** `v5/integration` @ `c9f33385` (maps-canvas merged locally; #155 close pending)  
-**Orch session:** 2026-09-22 — glue agents 004/005/006 launched  
-**Code base:** One 1.5.5 live path + Glass HUD; identity bump is Agent 006
+**Wave:** Run 1 **COMPLETE** (alpha.1 HUD + alpha.2 Maps look-and-feel)  
+**Integration branch:** `v5/integration`  
+**Release:** `glass-1.0.0-alpha.1` (companion `1.6.0-alpha.1`)  
+**Orch session:** 2026-09-22  
+**Tests:** `cd apps/pc-companion && npm test` → **156 pass / 0 fail** on the glued tree
 
 ## Board
 
 | ID | Agent | Branch | State | PR | Return |
 |---|---|---|---|---|---|
 | 001 | shell-ask-secret | `v5/glass/shell-ask-secret` | merged | [#153](https://github.com/premiumcentraal-boop/Cyclone/pull/153) | RETURN-001 |
-| 002 | maps-canvas | `v5/glass/maps-canvas` | merged on integration | [#155](https://github.com/premiumcentraal-boop/Cyclone/pull/155) | RETURN-002 |
+| 002 | maps-canvas | `v5/glass/maps-canvas` | merged | [#155](https://github.com/premiumcentraal-boop/Cyclone/pull/155) (local merge `c9f33385`; GH squash blocked on tsconfig) | RETURN-002 |
 | 003 | atlas-client | `v5/glass/atlas-client` | merged | [#154](https://github.com/premiumcentraal-boop/Cyclone/pull/154) | RETURN-003 |
-| 004 | glue-maps | `v5/glass/glue-maps` | issued | | |
-| 005 | glue-copy-adapter | `v5/glass/glue-copy-adapter` | issued | | |
-| 006 | glass-identity | `v5/glass/glass-identity` | issued | | |
+| 004 | glue-maps | `v5/glass/glue-maps` | merged | [#156](https://github.com/premiumcentraal-boop/Cyclone/pull/156) | RETURN-004 |
+| 005 | glue-copy-adapter | `v5/glass/glue-copy-adapter` | merged | [#158](https://github.com/premiumcentraal-boop/Cyclone/pull/158) | RETURN-005 |
+| 006 | glass-identity | `v5/glass/glass-identity` | merged | [#157](https://github.com/premiumcentraal-boop/Cyclone/pull/157) | RETURN-006 |
 
-## Launch
+## Shipped on integration
 
-Worktrees: `/tmp/glass-004`, `/tmp/glass-005`, `/tmp/glass-006` from `v5/integration`.
-
-004 owns `app.ts` Maps mount + ask-vault Maps assertions.  
-005 owns `fleet.ts` needs-secret copy + maps↔atlas adapter. **No `app.ts`.**  
-006 owns version/identity files only. **No `app.ts` / pages / fleet.ts.**
-
-After 004+005+006 merge: orch runs `npm test`, GitHub pre-release `glass-1.0.0-alpha.1`. Do not start mapping cursor.
+- Nav: Phone / Ask / Maps / Vault / Tasks / Connections / ChatGPT. Brand **Cyclone Glass**.
+- Ask: `needs-secret` wait card (not failed). Title **Facebook needs a password**. Send disabled until Mobile Ask transport. Phones < 5.0 get “update the phone.”
+- Maps: Minitap-class board mounted (`createMapsPage()`). Gmail house + Chrome Facebook + unmapped YouTube. Live vs Dummy. Mock atlas for Run 1.
+- Vault: slot booleans only. No PC password input.
+- `atlasClient` + `atlasClientAdapter` (async `atlas.get` → sync `MapsDataSource`). Not auto-mounted; mock remains the visible board until phone 5.0 atlas is live.
+- Window title Cyclone Glass. Installer `productName` still Cyclone One.
+- Live JPEG / handoff / camera / ChatGPT Attach untouched.
 
 ## Contract with Mobile
 
-- [x] Schemas on integration (`protocol/cyclone-atlas-v1.schema.json`, `cyclone-secrets-v1.schema.json`) — #144
+- [x] Schemas on integration — #144
 - [x] `needs-secret` consumer state — #144
-- [ ] Follow Me house as real `atlas.get` — #146 still open; Glass 002 mock + 003 empty-valid
+- [ ] Follow Me house as real `atlas.get` — #146 still open
 - [x] `session_id` rules preserved
+- [x] Glass Ask shows `needs-secret` / waiting-for-card
+- [x] Maps board renders a graph (mock until #146)
+- [x] No secret values in fixtures
 
-## Next
+## Not this cut (do not start)
 
-Wait for 004/005/006 PRs + returns. Merge into `v5/integration`. Combined test. Cut Run 1 pre-release.
+Mapping cursor / `mapping.start` (alpha.3). Encrypted PC fill. Mobile 5.0.0-alpha.N pipe bump (Mobile orch). Windows installer binary (CI unsigned).
