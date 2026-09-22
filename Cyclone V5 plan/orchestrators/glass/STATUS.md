@@ -1,27 +1,30 @@
 # Glass orchestrator — STATUS
 
 **Wave:** Run 1 (alpha.1 HUD + alpha.2 Maps look-and-feel)  
-**Integration branch:** `v5/integration` @ `f47afadea137b5083726090fb36c985537f0e778`  
-**Orch session:** 2026-09-22 — coding launched (3 subagents)  
-**Code base:** One 1.5.5 on Mobile 4.8.0
+**Integration branch:** `v5/integration` @ `c9f33385` (maps-canvas merged locally; #155 close pending)  
+**Orch session:** 2026-09-22 — glue agents 004/005/006 launched  
+**Code base:** One 1.5.5 live path + Glass HUD; identity bump is Agent 006
 
 ## Board
 
 | ID | Agent | Branch | State | PR | Return |
 |---|---|---|---|---|---|
-| 001 | shell-ask-secret | `v5/glass/shell-ask-secret` | issued / in-progress | | |
-| 002 | maps-canvas | `v5/glass/maps-canvas` | issued / in-progress | | |
-| 003 | atlas-client | `v5/glass/atlas-client` | issued / in-progress | | |
+| 001 | shell-ask-secret | `v5/glass/shell-ask-secret` | merged | [#153](https://github.com/premiumcentraal-boop/Cyclone/pull/153) | RETURN-001 |
+| 002 | maps-canvas | `v5/glass/maps-canvas` | merged on integration | [#155](https://github.com/premiumcentraal-boop/Cyclone/pull/155) | RETURN-002 |
+| 003 | atlas-client | `v5/glass/atlas-client` | merged | [#154](https://github.com/premiumcentraal-boop/Cyclone/pull/154) | RETURN-003 |
+| 004 | glue-maps | `v5/glass/glue-maps` | issued | | |
+| 005 | glue-copy-adapter | `v5/glass/glue-copy-adapter` | issued | | |
+| 006 | glass-identity | `v5/glass/glass-identity` | issued | | |
 
 ## Launch
 
-Worktrees: `/tmp/glass-001`, `/tmp/glass-002`, `/tmp/glass-003` from `v5/integration`.
+Worktrees: `/tmp/glass-004`, `/tmp/glass-005`, `/tmp/glass-006` from `v5/integration`.
 
-001 owns `app.ts` + `fleet.ts` + Ask/Vault. Maps route is a placeholder only.  
-002 owns the Minitap canvas; **no `app.ts`**.  
-003 owns `atlasClient`; schemas already on integration (#144). **No `app.ts` / canvas.**
+004 owns `app.ts` Maps mount + ask-vault Maps assertions.  
+005 owns `fleet.ts` needs-secret copy + maps↔atlas adapter. **No `app.ts`.**  
+006 owns version/identity files only. **No `app.ts` / pages / fleet.ts.**
 
-Glue after merge: orch mounts `createMapsPage` and optionally `atlasClient` into Ask/Vault/Maps.
+After 004+005+006 merge: orch runs `npm test`, GitHub pre-release `glass-1.0.0-alpha.1`. Do not start mapping cursor.
 
 ## Contract with Mobile
 
@@ -32,4 +35,4 @@ Glue after merge: orch mounts `createMapsPage` and optionally `atlasClient` into
 
 ## Next
 
-Wait for three PRs + returns. Merge into `v5/integration`. Orch glue commit. Then Run 1 release (Glass 1.0.0-alpha.1 identity). Do not start mapping cursor.
+Wait for 004/005/006 PRs + returns. Merge into `v5/integration`. Combined test. Cut Run 1 pre-release.

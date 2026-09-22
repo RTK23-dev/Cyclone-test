@@ -9,4 +9,10 @@ Wave 1 drafts:
 - [HANDOFF-002-maps-canvas.md](HANDOFF-002-maps-canvas.md)
 - [HANDOFF-003-atlas-client.md](HANDOFF-003-atlas-client.md)
 
+Run 1 glue (issued):
+
+- [HANDOFF-004-glue-maps.md](HANDOFF-004-glue-maps.md)
+- [HANDOFF-005-glue-copy-adapter.md](HANDOFF-005-glue-copy-adapter.md)
+- [HANDOFF-006-glass-identity.md](HANDOFF-006-glass-identity.md)
+
 Template: [`../../TEMPLATES/AGENT-HANDOFF.md`](../../TEMPLATES/AGENT-HANDOFF.md)
