@@ -232,7 +232,7 @@ class SafeMapperWalkerTest {
 
         val node = StructuralRoomClassifier.nodeKey(obs)
 
-        assertEquals("room:list", node)
+        assertTrue(node.startsWith("room:list:"))
         assertFalse(node.contains(alice))
         assertFalse(node.contains("content:"))
     }
@@ -492,12 +492,19 @@ class SafeMapperWalkerTest {
     private class FakeSecrets(private val secretObservations: Set<String>) : MappingSecretsPort {
         val requests = mutableListOf<MappingSecretWall>()
 
-        override fun detect(observation: MappingObservation): MappingSecretWall? =
+        override fun detect(
+            session: MappingSessionSnapshot,
+            observation: MappingObservation,
+        ): MappingSecretWall? =
             if (observation.observationId in secretObservations) {
                 MappingSecretWall(
-                    placeId = "package:com.example",
+                    placeId = session.placeId,
                     slot = "password",
                     reason = "Login required",
+                    elementId = "semantic:${observation.observationId}:password",
+                    observationId = observation.observationId,
+                    sessionId = observation.sessionId,
+                    displayId = observation.displayId,
                 )
             } else {
                 null
