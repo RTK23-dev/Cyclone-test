@@ -23,6 +23,7 @@ const appSource = fs.readFileSync(new URL("../src/app.ts", import.meta.url), "ut
 test("Ask needs-secret fixture is a wait state, not failed", () => {
   const hud = describeAskHud(ASK_NEEDS_SECRET_FIXTURE);
   assert.equal(ASK_NEEDS_SECRET_FIXTURE.state, "needs-secret");
+  assert.equal(ASK_NEEDS_SECRET_FIXTURE.title, "Facebook needs a password");
   assert.equal(hud.state, "needs-secret");
   assert.equal(hud.isFailure, false);
   assert.equal(hud.showsSecretsCard, true);
