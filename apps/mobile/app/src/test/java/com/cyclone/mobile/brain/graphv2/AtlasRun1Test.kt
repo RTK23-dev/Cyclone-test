@@ -125,6 +125,50 @@ class AtlasRun1Test {
     }
 
     @Test
+    fun ordinaryContentLabelsNeverBecomeDurableAtlasStructure() {
+        val dir = Files.createTempDirectory("atlas-content-privacy").toFile()
+        val file = dir.resolve("atlas.json")
+        val store = AtlasStore(file)
+        try {
+            val promoter = FollowMeAtlasPromoter(store)
+            val thread = screen("thread-uuid", 100).copy(
+                identity = "Louella",
+                title = "Louella",
+                purpose = "Chat with Louella about Dinner plans",
+            )
+            val contentRow = action(thread.id).copy(
+                id = "content-row",
+                semanticName = "louella",
+                label = "Dinner plans",
+                selectorJson = "{\"text\":\"Dinner plans\"}",
+            )
+
+            promoter.observeScreen(app(), thread, listOf(contentRow), AtlasPersona.LIVE)
+
+            val snapshot = store.snapshot(key(AtlasPersona.LIVE))!!
+            val page = snapshot.nodes.filterIsInstance<PageNode>().single()
+            val element = snapshot.nodes.filterIsInstance<ElementNode>().single()
+            assertEquals("page", page.identity)
+            assertEquals("Screen", page.displayName)
+            assertEquals("control", element.semanticName)
+            assertEquals("Control", element.displayName)
+            assertEquals("Learned app screen", snapshot.screens.single().purpose)
+
+            val wire = StoreBackedAtlasReadProvider(store)
+                .get(key(AtlasPersona.LIVE).placeId, AtlasPersona.LIVE)
+                .toString()
+            val disk = file.readText()
+            listOf("Louella", "Dinner plans", "Chat with Louella").forEach { content ->
+                assertFalse(wire.contains(content))
+                assertFalse(disk.contains(content))
+            }
+        } finally {
+            store.close()
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun mappingPersonaNeverMutatesLivePersona() {
         withStore { store ->
             val promoter = FollowMeAtlasPromoter(store)
@@ -135,7 +179,7 @@ class AtlasRun1Test {
 
             assertEquals(liveBefore, store.snapshot(key(AtlasPersona.LIVE)))
             assertEquals(1, store.snapshot(key(AtlasPersona.MAPPING))?.screens?.size)
-            assertEquals("dummy-login", (store.snapshot(key(AtlasPersona.MAPPING))!!.nodes.filterIsInstance<PageNode>().single()).identity)
+            assertEquals("Login", (store.snapshot(key(AtlasPersona.MAPPING))!!.nodes.filterIsInstance<PageNode>().single()).identity)
         }
     }
 
@@ -181,7 +225,7 @@ class AtlasRun1Test {
                 doc.keys().asSequence().toSet(),
             )
             assertEquals("live", doc.getString("persona"))
-            assertTrue(doc.getString("mapStatus") in setOf("unmapped", "mapped", "stale", "blocked"))
+            assertEquals("partial", doc.getString("mapStatus"))
             val place = doc.getJSONObject("place")
             assertEquals(setOf("placeId", "kind", "label", "packageName"), place.keys().asSequence().toSet())
             Instant.parse(doc.getString("lastObservedAt"))
