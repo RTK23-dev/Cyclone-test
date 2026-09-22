@@ -1,10 +1,10 @@
 # Glass orchestrator — STATUS
 
-**Wave:** Run 2 **ISSUED** (alpha.2 pipe — live atlas/vault replica)  
-**Integration branch:** `v5/integration` @ `cac928e53c591dc60154bde1586d302833c7f403`  
+**Wave:** Run 3 **ISSUED** (alpha.2 operator table)  
+**Integration branch:** `v5/integration` @ `9c72e393aa6f3a89dfe9c74928dc1c53a8e337ee`  
 **Last release:** `glass-1.0.0-alpha.1` (companion `1.6.0-alpha.1`)  
-**Orch session:** 2026-09-22 — coding launched (3 subagents)  
-**Code base:** One 1.5.5 live path on Mobile 4.8.0; Glass HUD from Run 1
+**Orch session:** 2026-09-22 — Run 3 coding launched (3 subagents)  
+**Code base:** One 1.5.5 live path on Mobile 4.8.0; Glass HUD from Run 1 + honest pipe from Run 2
 
 ## Run 1 (complete)
 
@@ -17,20 +17,36 @@
 | 005 | glue-copy-adapter | [#158](https://github.com/premiumcentraal-boop/Cyclone/pull/158) | merged |
 | 006 | glass-identity | [#157](https://github.com/premiumcentraal-boop/Cyclone/pull/157) | merged |
 
-## Run 2 board
+## Run 2 (complete) — honest live replica
+
+Combined `apps/pc-companion` tests after merge: **190 pass / 0 fail**.
+
+| ID | Agent | PR | State |
+|---|---|---|---|
+| 007 | maps-honest-source | [#161](https://github.com/premiumcentraal-boop/Cyclone/pull/161) | merged `8e2f26bc` |
+| 008 | vault-live-slots | [#159](https://github.com/premiumcentraal-boop/Cyclone/pull/159) | merged `cf05351b` |
+| 009 | glass-runtime-wire | [#160](https://github.com/premiumcentraal-boop/Cyclone/pull/160) | merged `9c72e393` |
+
+Leftover for Run 3: `app.ts` still type-asserts Maps/Vault options; Maps `sessionId` unused in UI; Ask samples always shown; navigate-to-Maps clears `focusedDeviceId`; live `atlas.get` house still blocked on Mobile [#146](https://github.com/premiumcentraal-boop/Cyclone/pull/146).
+
+## Run 3 board
 
 | ID | Agent | Branch | State | PR | Return |
 |---|---|---|---|---|---|
-| 007 | maps-honest-source | `v5/glass/maps-honest-source` | issued / in-progress | | |
-| 008 | vault-live-slots | `v5/glass/vault-live-slots` | issued / in-progress | | |
-| 009 | glass-runtime-wire | `v5/glass/glass-runtime-wire` | issued / in-progress | | |
+| 010 | maps-operator-board | `v5/glass/maps-operator-board` | issued / in-progress | | |
+| 011 | ask-hud-honesty | `v5/glass/ask-hud-honesty` | issued / in-progress | | |
+| 012 | glass-session-bind | `v5/glass/glass-session-bind` | issued / in-progress | | |
 
-Worktrees: `/tmp/glass-007`, `/tmp/glass-008`, `/tmp/glass-009` from `cac928e5`.
+Worktrees: `/tmp/glass-010`, `/tmp/glass-011`, `/tmp/glass-012` from current `v5/integration`.
 
-007 owns Maps page honesty. 008 owns Vault live slots. 009 owns `app.ts` mount + `glassRuntime`. Frozen option names in `agents/run-002/RUN-002-SHARED.md`.
+010 owns Maps inspector / Take control / plane label / dark-doors.  
+011 owns Ask HUD honesty + plane + redacted log download.  
+012 owns `app.ts` mount + `focusedSessionId` (keeps focused phone on Ask/Maps/Vault).
 
-Merge order: **007 + 008 first**, then **009**.
+Frozen option names in `agents/run-003/RUN-003-SHARED.md`.
+
+Merge order: **010 + 011 first**, then **012**.
 
 ## Not this cut
 
-`mapping.start` / cursor / `atlas.diff`. Encrypted PC fill. `ask.start` / Send. Gateway/MCP 5.0 bump. `apps/mobile/**`. ChatGPT Attach. Camera.
+`mapping.start` / cursor / `atlas.diff`. Encrypted PC fill. `ask.start` / Send. Gateway/MCP 5.0 bump. `apps/mobile/**`. ChatGPT Attach. Camera. Glass identity bump / GitHub release.

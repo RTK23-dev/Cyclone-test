@@ -72,11 +72,13 @@ Password, OTP, cookie, token, raw typed secret, unredacted vault field in JSON, 
 
 Coordination note: Mobile 001 publishes the `needs-secret` presentation state and schemas. Glass may mock atlas data for canvas work, but must replace the mock with Mobile 003's phone-owned `atlas.get` before the read-only alpha.2 exit test.
 
-Glass Run 2 (planned) is that consume path: Maps/Vault talk to `atlas.*` / `secrets.*`; a 4.8 phone must not see unlabeled mock Gmail as live. Mobile [#146](https://github.com/premiumcentraal-boop/Cyclone/pull/146) still owns production `atlas.get` data.
+Glass Run 2 (merged) is the consume path: Maps/Vault talk to `atlas.*` / `secrets.*`; a 4.8 phone must not see unlabeled mock Gmail as live. Mobile [#146](https://github.com/premiumcentraal-boop/Cyclone/pull/146) still owns production `atlas.get` data.
+
+Glass Run 3 (this session) does **not** add ops. It labels the existing `session_id` plane on Ask/Maps and deepens the read-only board (edge inspector, Take control → Phone live). Named VD is never rewritten to `default-foreground`.
 
 - [x] Schemas exist on `v5/integration`
 - [x] GATE `NEED_SECRET` + overlay card on phone
 - [x] Glass Ask page shows `needs-secret` / waiting-for-card
 - [ ] `atlas.get` returns a graph Glass can render (even from Follow Me only) — blocked on Mobile #146
-- [ ] Maps board renders **that** graph read-only (Run 1 renders a **mock**; Run 2 wires live + honest empty)
-- [x] No secret values in any fixture or log from the Glass Run 1 PRs
+- [ ] Maps board renders **that** graph read-only (Run 1 renders a **mock**; Run 2 wires live + honest empty; Run 3 operator bar / edge inspector)
+- [x] No secret values in any fixture or log from the Glass Run 1–2 PRs
