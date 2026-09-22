@@ -7,10 +7,10 @@
 **PR:** https://github.com/premiumcentraal-boop/Cyclone/pull/154  
 **Starting integration SHA:** `c8c9e62946fb0028528f30358bb9f246b057baf6`  
 **Implementation SHA:** `25bcfe891c736b1d2b2facb4c1499d6e550f27a2`  
-**Head SHA:** `6f0e5a7d0101248e215ee294dbaca0ad91ce66e7`  
+**Head SHA:** `34c8150ceb73570c609445564aa782f609db07bb`  
 **Commits:**
 - `25bcfe89` feat(glass): add typed atlas/secrets client
-- `6f0e5a7d` docs(v5 glass): return Run 1 Agent 003 atlas-client
+- `34c8150c` docs(v5 glass): return Run 1 Agent 003 atlas-client
 
 Worktree originally checked out `f47afade` tracking `origin/v5/integration`; fast-forwarded one docs commit (`c8c9e629`) before implementation.
 
@@ -46,7 +46,7 @@ Typed Glass client that consumes Mobile-owned V5 schemas (PR #144) without forki
 | https://github.com/premiumcentraal-boop/Cyclone/pull/154 | Agent 003 PR targeting `v5/integration` |
 | `c8c9e62946fb0028528f30358bb9f246b057baf6` | Starting `v5/integration` SHA |
 | `25bcfe891c736b1d2b2facb4c1499d6e550f27a2` | Implementation head before this return |
-| `6f0e5a7d0101248e215ee294dbaca0ad91ce66e7` | Return MD on the same branch |
+| `34c8150ceb73570c609445564aa782f609db07bb` | Return MD on the same branch |
 
 ## Paths touched
 
