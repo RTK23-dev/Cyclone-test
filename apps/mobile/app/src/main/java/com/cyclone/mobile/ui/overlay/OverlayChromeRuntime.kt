@@ -67,6 +67,11 @@ object OverlayChromeRuntime {
 
     fun snapshot(): OverlayChromeSnapshot = synchronized(lock) { machine.snapshot() }
 
+    /** Re-evaluate externally-owned sibling surfaces such as the phone-local Secrets Card. */
+    fun refreshExternalSurface() {
+        synchronized(lock) { controller?.render(machine.snapshot()) }
+    }
+
     fun attach(service: CycloneAccessibilityService) {
         synchronized(lock) {
             if (controller != null && this.service === service) {
@@ -237,6 +242,13 @@ object OverlayChromeRuntime {
 
     fun dispatch(action: OverlayUserAction) {
         val before = snapshot()
+        if (action == OverlayUserAction.ASK_CYCLONE) {
+            val waitingForSecret = WorkspaceTasks.state.value?.interruption?.kind ==
+                TaskInterruptionKind.NEEDS_SECRET
+            if (waitingForSecret && com.cyclone.mobile.secrets.SecretsCardRuntime.reopenWaiting()) {
+                return
+            }
+        }
         if (action == OverlayUserAction.TAKE_CONTROL) {
             WorkspaceTasks.state.value?.takeIf { it.foreground && it.taskId == foregroundTaskId }?.let { task ->
                 commandForegroundTask(task.taskId, if (before.userPaused) "resume" else "handoff")
@@ -591,53 +603,102 @@ object OverlayChromeRuntime {
     private fun handleAgentResult(result: QuickAgentResult, expectedTaskId: String? = foregroundTaskId) {
         if (expectedTaskId != foregroundTaskId) return
         val context = synchronized(lock) { service }
-        foregroundTaskId?.let { id -> WorkspaceTasks.update(id) { task ->
-            if (!task.working && result.classification == "HUMAN_OR_GATE") {
-                task.copy(
-                    resumable = true,
-                    outcome = null,
-                    loginAutofill = result.gateClass == "login",
-                )
-            } else {
-                val nextPhase = when (result.classification) {
-                    "COMPLETE" -> TaskPhase.DONE
-                    "HUMAN_OR_GATE" -> TaskPhase.REVIEW
-                    "CANCELLED" -> TaskPhase.STOPPED
-                    else -> TaskPhase.FAILED
-                }
-                val safeOutcome = when (nextPhase) {
-                    TaskPhase.DONE -> WorkspaceCopy.result(result.message)
-                    TaskPhase.FAILED -> OutcomeStageCopy.terminalFailure(
-                        task.plannedStages,
-                        result.message,
-                        resumable = false,
+        val secretWall = if (result.classification == "HUMAN_OR_GATE") {
+            synchronized(lock) { adaptiveAgent }?.currentSecretWallRequest()
+        } else null
+
+        foregroundTaskId?.let { id ->
+            WorkspaceTasks.update(id) { task ->
+                when {
+                    secretWall != null -> task.copy(
+                        message = "Secure input is required to continue.",
+                        outcome = null,
+                        phase = TaskPhase.REVIEW,
+                        resumable = true,
+                        loginAutofill = false,
+                        interruption = TaskInterruption.needsSecret(),
                     )
-                    TaskPhase.STOPPED -> "The task was stopped."
-                    else -> null
+                    !task.working && result.classification == "HUMAN_OR_GATE" -> task.copy(
+                        resumable = true,
+                        outcome = null,
+                        loginAutofill = result.gateClass == "login",
+                    )
+                    else -> {
+                        val nextPhase = when (result.classification) {
+                            "COMPLETE" -> TaskPhase.DONE
+                            "HUMAN_OR_GATE" -> TaskPhase.REVIEW
+                            "CANCELLED" -> TaskPhase.STOPPED
+                            else -> TaskPhase.FAILED
+                        }
+                        val safeOutcome = when (nextPhase) {
+                            TaskPhase.DONE -> WorkspaceCopy.result(result.message)
+                            TaskPhase.FAILED -> OutcomeStageCopy.terminalFailure(
+                                task.plannedStages,
+                                result.message,
+                                resumable = false,
+                            )
+                            TaskPhase.STOPPED -> "The task was stopped."
+                            else -> null
+                        }
+                        task.copy(
+                            message = safeOutcome ?: result.message,
+                            outcome = safeOutcome,
+                            phase = nextPhase,
+                            resumable = result.classification == "HUMAN_OR_GATE",
+                            loginAutofill = result.gateClass == "login",
+                        )
+                    }
                 }
-                task.copy(
-                    message = safeOutcome ?: result.message,
-                    outcome = safeOutcome,
-                    phase = nextPhase,
-                    resumable = result.classification == "HUMAN_OR_GATE",
-                    loginAutofill = result.gateClass == "login",
-                )
             }
-        } }
+        }
+
         when (result.classification) {
             "HUMAN_OR_GATE" -> {
-                context?.let { AgentTaskNotificationRuntime.waiting(it, result.message) }
                 synchronized(lock) { suspendedTaskId = result.taskId }
-                val gate = result.gateClass?.let { raw ->
-                    runCatching { OverlayGateClass.parse(raw) }.getOrNull()
-                }
-                if (gate != null) {
-                    mutate { it.enterGate(gate, sessionId = result.taskId ?: it.snapshot().sessionId) }
-                } else {
+                if (secretWall != null && context != null) {
+                    val task = foregroundTaskId?.let { id ->
+                        WorkspaceTasks.state.value?.takeIf { it.taskId == id }
+                    }
+                    val expectedRevision = task?.controlRevision
+                    AgentTaskNotificationRuntime.waiting(context, "Secure input is required to continue.")
+                    if (task != null && expectedRevision != null) {
+                        com.cyclone.mobile.secrets.SecretsPhoneFacade.requestForRun(
+                            context = context,
+                            request = secretWall.request,
+                            target = secretWall.target,
+                        ) { resolution ->
+                            if (!resolution.taskMayResume) return@requestForRun
+                            aiScope.launch {
+                                val current = WorkspaceTasks.state.value
+                                if (current?.taskId != task.taskId ||
+                                    current.controlRevision != expectedRevision ||
+                                    current.interruption?.kind != TaskInterruptionKind.NEEDS_SECRET
+                                ) return@launch
+                                resumeForeground(
+                                    id = task.taskId,
+                                    task = current,
+                                    requireResumeCapability = false,
+                                )
+                            }
+                        }
+                    }
                     mutate { machine ->
                         if (machine.state() == OverlayChromeState.WORKING) machine.enterLive()
-                        machine.updateStatus(result.message)
-                        if (!machine.snapshot().userPaused) machine.dispatch(OverlayUserAction.TAKE_CONTROL)
+                        machine.updateStatus("Secure input is required to continue.")
+                    }
+                } else {
+                    context?.let { AgentTaskNotificationRuntime.waiting(it, result.message) }
+                    val gate = result.gateClass?.let { raw ->
+                        runCatching { OverlayGateClass.parse(raw) }.getOrNull()
+                    }
+                    if (gate != null) {
+                        mutate { it.enterGate(gate, sessionId = result.taskId ?: it.snapshot().sessionId) }
+                    } else {
+                        mutate { machine ->
+                            if (machine.state() == OverlayChromeState.WORKING) machine.enterLive()
+                            machine.updateStatus(result.message)
+                            if (!machine.snapshot().userPaused) machine.dispatch(OverlayUserAction.TAKE_CONTROL)
+                        }
                     }
                 }
             }

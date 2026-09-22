@@ -51,6 +51,7 @@ data class UiNodeSnapshot(
     val focusable: Boolean,
     val visibleToUser: Boolean,
     val actions: List<String> = emptyList(),
+    val password: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
@@ -77,6 +78,7 @@ data class UiNodeSnapshot(
         .put("focusable", focusable)
         .put("visibleToUser", visibleToUser)
         .put("actions", JSONArray(actions))
+        .put("password", password)
 }
 
 data class UiWindowSnapshot(

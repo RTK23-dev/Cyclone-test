@@ -75,6 +75,118 @@ object PhoneToolExecutor {
         return executeScoped(context, request)
     }
 
+
+    /**
+     * Internal Vault-only input boundary. This is deliberately not represented by a
+     * PhoneToolRequest or GatewayProtocol operation, so plaintext cannot enter wire args,
+     * result caches, or diagnostics. It reuses the observation-scoped PhoneTypeEngine and
+     * Accessibility ACTION_SET_TEXT path used by phone.type while permitting the
+     * human-authorized Secrets Card to fill a sensitive field exactly once.
+     */
+    internal fun fillVaultSecretOnce(
+        context: Context,
+        target: com.cyclone.mobile.secrets.SecretFillTarget,
+        secret: CharArray,
+    ): com.cyclone.mobile.secrets.SecretFillExecution = synchronized(mutationLock) {
+        fun fail(code: String) = com.cyclone.mobile.secrets.SecretFillExecution(false, false, code)
+
+        if (secret.isEmpty() || secret.size > PhoneTypeEngine.MAX_VALUE_CHARS) {
+            return@synchronized fail("INVALID_SECRET_LENGTH")
+        }
+        val scope = com.cyclone.mobile.runtime.session.ExecutionContext(target.sessionId, target.displayId)
+        val foreground = scope.sessionId == "default-foreground"
+        if (foreground && scope.displayId != 0) return@synchronized fail("DISPLAY_SESSION_MISMATCH")
+        if (!foreground && scope.displayId <= 0) return@synchronized fail("DISPLAY_SESSION_MISMATCH")
+
+        val service = CycloneAccessibilityService.instance
+            ?: return@synchronized fail("ACCESSIBILITY_NOT_CONNECTED")
+        val observation = GatewayObservationStore.current(scope)
+            ?: return@synchronized fail("STALE_OBSERVATION")
+        if (observation.id != target.observationId) {
+            return@synchronized fail("STALE_OBSERVATION")
+        }
+
+        val snapshot = if (foreground) {
+            if (DeviceState.controller != DeviceState.Controller.AGENT) {
+                return@synchronized fail("HUMAN_HAS_CONTROL")
+            }
+            if (DeviceState.requireFreshObservation) {
+                return@synchronized fail("FRESH_OBSERVATION_REQUIRED")
+            }
+            service.observe(markFresh = false)
+        } else {
+            val runtime = com.cyclone.mobile.runtime.background.WorkspaceRuntime
+            val generation = observation.payload.optLong("executionGeneration", -1L)
+            if (generation < 0L) return@synchronized fail("STALE_SESSION")
+            try {
+                runtime.authorizeTouch(scope, generation)
+            } catch (_: Exception) {
+                return@synchronized fail("WORKSPACE_INPUT_NOT_AUTHORIZED")
+            }
+            val observed = try {
+                runtime.observe(scope)
+            } catch (_: Exception) {
+                return@synchronized fail("STALE_SESSION")
+            }
+            if (observed.fingerprint != observation.payload.optString("accessibilityFingerprint")) {
+                return@synchronized fail("STALE_OBSERVATION")
+            }
+            observed
+        }
+
+        if (snapshot.fingerprint != observation.payload.optString("accessibilityFingerprint")) {
+            return@synchronized fail("STALE_OBSERVATION")
+        }
+
+        val catalog = PhoneTypeEngine.catalog(
+            observationId = observation.id,
+            evidenceElements = observation.elements.values.map {
+                PhoneTypeEngine.ObservationElementInput(it.id, it.source, it.role, it.evidence)
+            },
+            snapshot = snapshot,
+        )
+        val element = catalog.elements[target.elementId]
+            ?: return@synchronized fail("STALE_ELEMENT")
+        if (!element.enabled) return@synchronized fail("ACTION_FAILED")
+        if (!element.editable) return@synchronized fail("INVALID_TARGET")
+        val rawNodeId = element.rawNodeId ?: return@synchronized fail("STALE_ELEMENT")
+        val path = element.path ?: return@synchronized fail("STALE_ELEMENT")
+
+        // CharBuffer is a mutable CharSequence view over the lease array. Android
+        // ACTION_SET_TEXT accepts CharSequence, so this path avoids an immutable plaintext String.
+        val leasedValue = java.nio.CharBuffer.wrap(secret)
+        val plan = PhoneTypeEngine.ExecutePlan(
+            elementId = element.elementId,
+            rawNodeId = rawNodeId,
+            path = path,
+            needsFocus = !element.focused,
+            valueLength = secret.size,
+            valueDigest = PhoneTypeEngine.digest(leasedValue),
+        )
+        val live = try {
+            leasedValue.position(0)
+            if (foreground) {
+                com.cyclone.mobile.ui.overlay.OverlayGesturePassthrough.withHostPassthrough {
+                    service.typeEditable(plan, leasedValue, redactObservedText = true)
+                }
+            } else {
+                val session = com.cyclone.mobile.runtime.background.WorkspaceRuntime.requireScope(scope)
+                val targetPackage = session.targetPackage?.takeIf { it.isNotBlank() }
+                    ?: return@synchronized fail("TARGET_PACKAGE_MISSING")
+                service.typeEditableOnDisplay(plan, leasedValue, scope.displayId, targetPackage)
+            }
+        } catch (_: Exception) {
+            return@synchronized fail("FILL_EXCEPTION")
+        } finally {
+            GatewayObservationStore.clear(scope.sessionId)
+        }
+        com.cyclone.mobile.secrets.SecretFillExecution(
+            performed = live.setTextPerformed,
+            verified = live.ok && live.afterStateVerified,
+            errorCode = live.error?.code?.name,
+        )
+    }
+
     private fun executeScoped(context: Context, request: PhoneToolRequest, plane: SessionPlane? = null): PhoneToolResult {
         // Validate before cache lookup AND before observing the human display.
         val resolved = try { plane ?: SessionContract.classify(request.params) }

@@ -124,6 +124,27 @@ class PhoneTypeEngineTest {
     }
 
     @Test
+    fun passwordFlagIsPolicyDeniedEvenWhenLabelsAreNeutral() {
+        val screen = phoneTaskScreen(
+            observationId = "obs-password-flag",
+            focused = true,
+            rawNodeId = "raw-password-flag",
+            resourceId = "com.example:id/input",
+            contentDescription = "Input",
+            role = "textbox",
+            password = true,
+        )
+        val decision = PhoneTypeEngine.decide(
+            authorizedType(screen.taskElementId, secretAttempt),
+            screen.catalog,
+        )
+        assertEquals(
+            PhoneToolErrorCode.POLICY_DENIED,
+            (decision as PhoneTypeEngine.Decision.Reject).deny.code,
+        )
+    }
+
+    @Test
     fun otpFieldIsPolicyDenied() {
         assertSensitiveDenied(
             resourceId = "com.example:id/otp_code",
@@ -205,6 +226,69 @@ class PhoneTypeEngineTest {
     }
 
     @Test
+    fun redactedSecretVerificationRequiresExactInProcessMatchAndExportsNoDigest() {
+        val screen = phoneTaskScreen(observationId = "obs-secret", focused = true, rawNodeId = "raw-secret")
+        val plan = PhoneTypeEngine.ExecutePlan(
+            elementId = screen.taskElementId,
+            rawNodeId = "raw-secret",
+            path = screen.snapshot.nodes.first { it.id == "raw-secret" }.path,
+            needsFocus = false,
+            valueLength = taskValue.length,
+            valueDigest = PhoneTypeEngine.digest(taskValue),
+        )
+        val good = FakeLiveHost.from(screen, initialText = "")
+        val verified = PhoneTypeEngine.perform(plan, taskValue, good, redactObservedText = true)
+        assertTrue(verified.ok)
+        assertTrue(verified.afterStateVerified)
+        assertEquals("<redacted>", verified.textDigest)
+        assertEquals(0, verified.charCount)
+        assertFalse(verified.toPayload().toString().contains(taskValue))
+        assertFalse(verified.toPayload().toString().contains(PhoneTypeEngine.digest(taskValue)))
+
+        val rejected = FakeLiveHost.from(screen, initialText = "", applySetText = false, reportSetText = true)
+        val failed = PhoneTypeEngine.perform(plan, taskValue, rejected, redactObservedText = true)
+        assertFalse(failed.ok)
+        assertFalse(failed.afterStateVerified)
+    }
+
+    @Test
+    fun redactedPasswordVerificationAcceptsMaskedLengthChangeButNotSameLengthNoOp() {
+        val screen = phoneTaskScreen(
+            observationId = "obs-masked-secret",
+            focused = true,
+            rawNodeId = "raw-masked-secret",
+            resourceId = "com.example:id/password",
+            contentDescription = "Password",
+            password = true,
+        )
+        val path = screen.snapshot.nodes.first { it.id == "raw-masked-secret" }.path
+        val plan = PhoneTypeEngine.ExecutePlan(
+            elementId = screen.taskElementId,
+            rawNodeId = "raw-masked-secret",
+            path = path,
+            needsFocus = false,
+            valueLength = taskValue.length,
+            valueDigest = PhoneTypeEngine.digest(taskValue),
+        )
+
+        val masked = FakeLiveHost.from(screen, initialText = "", maskSetText = true)
+        val filled = PhoneTypeEngine.perform(plan, taskValue, masked, redactObservedText = true)
+        assertTrue(filled.ok)
+        assertTrue(filled.afterStateVerified)
+
+        val sameLengthNoOp = FakeLiveHost.from(
+            screen,
+            initialText = "•".repeat(taskValue.length),
+            applySetText = false,
+            reportSetText = true,
+            maskSetText = true,
+        )
+        val failed = PhoneTypeEngine.perform(plan, taskValue, sameLengthNoOp, redactObservedText = true)
+        assertFalse(failed.ok)
+        assertFalse(failed.afterStateVerified)
+    }
+
+    @Test
     fun redactedParamsAndReportsNeverContainTypedPlaintext() {
         val screen = phoneTaskScreen(observationId = "obs-redact", focused = true, rawNodeId = "raw-redact")
         val params = authorizedType(screen.taskElementId, taskValue)
@@ -259,6 +343,7 @@ class PhoneTypeEngineTest {
         role: String = "textbox",
         resourceId: String = "com.cyclone.mobile:id/task_input",
         contentDescription: String = "Task",
+        password: Boolean = false,
     ): PhoneTaskScreen {
         val chrome = node(
             id = "raw-chrome",
@@ -279,6 +364,7 @@ class PhoneTypeEngineTest {
             resourceId = resourceId,
             contentDescription = contentDescription,
             className = if (editable) "android.widget.EditText" else "android.widget.Button",
+            password = password,
             actions = if (editable) listOf("ACTION_SET_TEXT", "ACTION_FOCUS") else listOf("ACTION_CLICK"),
             bounds = UiBounds(16, 80, 360, 128),
         )
@@ -331,6 +417,7 @@ class PhoneTypeEngineTest {
         className: String = "android.view.View",
         actions: List<String> = emptyList(),
         bounds: UiBounds = UiBounds(0, 0, 10, 10),
+        password: Boolean = false,
     ) = UiNodeSnapshot(
         id = id,
         path = path,
@@ -356,6 +443,7 @@ class PhoneTypeEngineTest {
         focusable = true,
         visibleToUser = true,
         actions = actions,
+        password = password,
     )
 
     private data class PhoneTaskScreen(
@@ -369,13 +457,14 @@ class PhoneTypeEngineTest {
         private val pathToRaw: Map<String, String>,
         private val applySetText: Boolean,
         private val reportSetText: Boolean,
+        private val maskSetText: Boolean,
     ) : PhoneTypeEngine.LiveHost {
         override fun resolve(plan: PhoneTypeEngine.ExecutePlan): Any? {
             val raw = pathToRaw[plan.path] ?: plan.rawNodeId
             return nodes[raw]
         }
 
-        override fun view(handle: Any): PhoneTypeEngine.LiveView? {
+        override fun view(handle: Any, redactText: Boolean): PhoneTypeEngine.LiveView? {
             val node = handle as? FakeNode ?: return null
             return PhoneTypeEngine.LiveView(
                 rawNodeId = node.rawId,
@@ -384,8 +473,9 @@ class PhoneTypeEngineTest {
                 focused = node.focused,
                 enabled = node.enabled,
                 textLength = node.text.length,
-                textDigest = PhoneTypeEngine.digest(node.text),
+                textDigest = if (redactText) "<redacted>" else PhoneTypeEngine.digest(node.text),
                 actions = node.actions,
+                password = node.password,
             )
         }
 
@@ -402,11 +492,19 @@ class PhoneTypeEngineTest {
             return true
         }
 
-        override fun setText(handle: Any, value: String): Boolean {
+        override fun setText(handle: Any, value: CharSequence): Boolean {
             val node = handle as FakeNode
             if (!reportSetText && !applySetText) return false
-            if (applySetText) node.text = value
+            if (applySetText) {
+                node.text = if (maskSetText && node.password) "•".repeat(value.length) else value.toString()
+            }
             return reportSetText
+        }
+
+        override fun matchesText(handle: Any, value: CharSequence): Boolean {
+            val node = handle as? FakeNode ?: return false
+            if (node.text.length != value.length) return false
+            return node.text.indices.all { index -> node.text[index] == value[index] }
         }
 
         override fun refresh(handle: Any): Any? = handle as? FakeNode
@@ -421,6 +519,7 @@ class PhoneTypeEngineTest {
                 startFocused: Boolean? = null,
                 applySetText: Boolean = true,
                 reportSetText: Boolean = true,
+                maskSetText: Boolean = false,
             ): FakeLiveHost {
                 val nodes = screen.snapshot.nodes.associate { node ->
                     node.id to FakeNode(
@@ -431,6 +530,7 @@ class PhoneTypeEngineTest {
                         enabled = node.enabled,
                         text = if (node.editable) initialText else node.text,
                         actions = node.actions,
+                        password = node.password,
                     )
                 }.toMutableMap()
                 return FakeLiveHost(
@@ -438,6 +538,7 @@ class PhoneTypeEngineTest {
                     pathToRaw = screen.snapshot.nodes.associate { it.path to it.id },
                     applySetText = applySetText,
                     reportSetText = reportSetText,
+                    maskSetText = maskSetText,
                 )
             }
         }
@@ -451,5 +552,6 @@ class PhoneTypeEngineTest {
         val enabled: Boolean,
         var text: String,
         val actions: List<String>,
+        val password: Boolean,
     )
 }

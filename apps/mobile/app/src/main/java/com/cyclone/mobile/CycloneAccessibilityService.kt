@@ -63,6 +63,9 @@ class CycloneAccessibilityService : AccessibilityService() {
     private var lastAutomationPackage: String? = null
     private var guidedOverlay: GuidedRecorderOverlayController? = null
     private val observationRevisions = java.util.concurrent.ConcurrentHashMap<Int, java.util.concurrent.atomic.AtomicLong>()
+    private val sensitiveEditableHint = Regex(
+        "(?i)(password|passcode|passwd|secret|otp|one.?time|verification.?code|cvv|cvc|card.?number|pin|api.?key|token)"
+    )
 
     /** Window metadata only: this must never traverse semantic children. Overlay chrome is excluded. */
     fun observationSurface(sessionId: String, displayId: Int, scope: String, profileId: Int?): com.cyclone.mobile.agent.ObservationSurface {
@@ -474,7 +477,11 @@ class CycloneAccessibilityService : AccessibilityService() {
         return false
     }
 
-    fun typeEditable(plan: PhoneTypeEngine.ExecutePlan, value: String): PhoneTypeEngine.LiveResult {
+    fun typeEditable(
+        plan: PhoneTypeEngine.ExecutePlan,
+        value: CharSequence,
+        redactObservedText: Boolean = false,
+    ): PhoneTypeEngine.LiveResult {
         if (!agentCanAct()) {
             return PhoneTypeEngine.LiveResult(
                 ok = false,
@@ -483,29 +490,65 @@ class CycloneAccessibilityService : AccessibilityService() {
                 rawNodeId = plan.rawNodeId,
             )
         }
-        return PhoneTypeEngine.perform(plan, value, AccessibilityTypeLive())
+        return PhoneTypeEngine.perform(
+            plan,
+            value,
+            AccessibilityTypeLive(displayId = 0, targetPackage = null),
+            redactObservedText = redactObservedText,
+        )
     }
 
-    private inner class AccessibilityTypeLive : PhoneTypeEngine.LiveHost {
+    /**
+     * Workspace-scoped secure input. Authority is proved by PhoneToolExecutor before entry;
+     * this method only resolves the exact node on [displayId] and performs ACTION_SET_TEXT.
+     */
+    internal fun typeEditableOnDisplay(
+        plan: PhoneTypeEngine.ExecutePlan,
+        value: CharSequence,
+        displayId: Int,
+        targetPackage: String,
+    ): PhoneTypeEngine.LiveResult {
+        if (displayId <= 0 || targetPackage.isBlank()) {
+            return PhoneTypeEngine.LiveResult(
+                ok = false,
+                error = PhoneToolError(PhoneToolErrorCode.INVALID_REQUEST, "Invalid workspace target"),
+                elementId = plan.elementId,
+                rawNodeId = plan.rawNodeId,
+            )
+        }
+        return PhoneTypeEngine.perform(
+            plan,
+            value,
+            AccessibilityTypeLive(displayId = displayId, targetPackage = targetPackage),
+            redactObservedText = true,
+        )
+    }
+
+    private inner class AccessibilityTypeLive(
+        private val displayId: Int,
+        private val targetPackage: String?,
+    ) : PhoneTypeEngine.LiveHost {
 
         override fun resolve(plan: PhoneTypeEngine.ExecutePlan): Any? {
-            val node = nodeAtTaskPath(plan.path) ?: return null
+            val node = nodeAtTaskPath(plan.path, displayId, targetPackage) ?: return null
             return if (node.isEditable) AccessibilityTypeHandle(plan.path, node, plan.rawNodeId) else null
         }
 
-        override fun view(handle: Any): PhoneTypeEngine.LiveView? {
+        override fun view(handle: Any, redactText: Boolean): PhoneTypeEngine.LiveView? {
             val target = handle as? AccessibilityTypeHandle ?: return null
             val node = target.node
-            val text = node.text?.toString().orEmpty()
+            val text = node.text
+            val textLength = text?.length ?: 0
             return PhoneTypeEngine.LiveView(
                 rawNodeId = target.rawNodeId,
                 path = target.path,
                 editable = node.isEditable,
                 focused = node.isFocused,
                 enabled = node.isEnabled,
-                textLength = text.length,
-                textDigest = PhoneTypeEngine.digest(text),
+                textLength = textLength,
+                textDigest = if (redactText) "<redacted>" else PhoneTypeEngine.digest(text ?: ""),
                 actions = accessibilityActionNames(node),
+                password = node.isPassword,
             )
         }
 
@@ -519,7 +562,7 @@ class CycloneAccessibilityService : AccessibilityService() {
             return target.node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         }
 
-        override fun setText(handle: Any, value: String): Boolean {
+        override fun setText(handle: Any, value: CharSequence): Boolean {
             val target = handle as? AccessibilityTypeHandle ?: return false
             val args = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)
@@ -527,9 +570,19 @@ class CycloneAccessibilityService : AccessibilityService() {
             return target.node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         }
 
+        override fun matchesText(handle: Any, value: CharSequence): Boolean {
+            val target = handle as? AccessibilityTypeHandle ?: return false
+            val observed = target.node.text ?: return false
+            if (observed.length != value.length) return false
+            for (index in 0 until value.length) {
+                if (observed[index] != value[index]) return false
+            }
+            return true
+        }
+
         override fun refresh(handle: Any): Any? {
             val target = handle as? AccessibilityTypeHandle ?: return null
-            val node = nodeAtTaskPath(target.path) ?: return null
+            val node = nodeAtTaskPath(target.path, displayId, targetPackage) ?: return null
             return if (node.isEditable) AccessibilityTypeHandle(target.path, node, target.rawNodeId) else null
         }
     }
@@ -695,14 +748,38 @@ class CycloneAccessibilityService : AccessibilityService() {
     private fun liveNodeAtSnapshotPath(snapshotNode: UiNodeSnapshot): AccessibilityNodeInfo? =
         nodeAtTaskPath(snapshotNode.path)?.takeIf { sameNode(snapshotNode, it) }
 
-    private fun nodeAtTaskPath(path: String): AccessibilityNodeInfo? {
+    private fun nodeAtTaskPath(
+        path: String,
+        displayId: Int = 0,
+        targetPackage: String? = null,
+    ): AccessibilityNodeInfo? {
         val parsed = TaskSurfaceWindows.parseNodePath(path) ?: return null
-        val primary = preferredForegroundRoot() ?: return null
-        val root = if (parsed.windowId == null || parsed.windowId == primary.windowId) primary else {
-            val window = windowsOnAllDisplays.get(0).orEmpty().firstOrNull { it.id == parsed.windowId } ?: return null
+        val root = if (displayId == 0) {
+            val primary = preferredForegroundRoot() ?: return null
+            if (parsed.windowId == null || parsed.windowId == primary.windowId) {
+                primary
+            } else {
+                val window = windowsOnAllDisplays.get(0).orEmpty()
+                    .firstOrNull { it.id == parsed.windowId } ?: return null
+                val candidate = window.root ?: return null
+                if (!TaskSurfaceWindows.includeSibling(
+                        window.type,
+                        candidate.packageName?.toString().orEmpty(),
+                        primary.packageName?.toString().orEmpty(),
+                    )
+                ) return null
+                candidate
+            }
+        } else {
+            val packageName = targetPackage ?: return null
+            val windows = windowsOnAllDisplays.get(displayId).orEmpty()
+            val window = parsed.windowId?.let { id -> windows.firstOrNull { it.id == id } }
+                ?: windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+                    .sortedByDescending { it.layer }
+                    .firstOrNull { it.root?.packageName?.toString() == packageName }
+                ?: return null
             val candidate = window.root ?: return null
-            if (!TaskSurfaceWindows.includeSibling(window.type, candidate.packageName?.toString().orEmpty(),
-                    primary.packageName?.toString().orEmpty())) return null
+            if (candidate.packageName?.toString() != packageName) return null
             candidate
         }
         var node = root
@@ -728,14 +805,22 @@ class CycloneAccessibilityService : AccessibilityService() {
             val childRect = Rect().also { child.getBoundsInScreen(it) }
             childIds += stableNodeId("$path/$i", child, UiBounds(childRect.left, childRect.top, childRect.right, childRect.bottom))
         }
+        val password = node.isPassword
+        val sensitive = isSensitiveEditable(node)
+        val safeText = if (sensitive) "" else node.text?.toString().orEmpty()
+        val safeDescription = if (sensitive) "" else node.contentDescription?.toString().orEmpty()
         out += UiNodeSnapshot(
             id = id, path = path, parentId = parentId, childIds = childIds, depth = depth, windowId = node.windowId,
-            className = node.className?.toString().orEmpty(), role = inferRole(node, parentClassName), text = node.text?.toString().orEmpty(),
-            contentDescription = node.contentDescription?.toString().orEmpty(), resourceId = node.viewIdResourceName.orEmpty(), bounds = bounds,
+            className = node.className?.toString().orEmpty(),
+            role = inferRole(node, parentClassName, safeText, safeDescription),
+            text = safeText,
+            contentDescription = safeDescription,
+            resourceId = node.viewIdResourceName.orEmpty(), bounds = bounds,
             clickable = node.isClickable, longClickable = node.isLongClickable, editable = node.isEditable, scrollable = node.isScrollable,
             enabled = node.isEnabled, selected = node.isSelected, checked = node.isChecked, checkable = node.isCheckable,
             focused = node.isFocused, focusable = node.isFocusable, visibleToUser = node.isVisibleToUser,
             actions = accessibilityActionNames(node),
+            password = password,
         )
         val selfClass = node.className?.toString().orEmpty()
         for (i in 0 until node.childCount) node.getChild(i)?.let { collectNode(it, "$path/$i", id, depth + 1, out, selfClass) }
@@ -759,8 +844,8 @@ class CycloneAccessibilityService : AccessibilityService() {
 
     private fun automationSelector(node: AccessibilityNodeInfo): AutomationSelector = AutomationSelector(
         resourceId = node.viewIdResourceName?.takeIf { it.isNotBlank() },
-        text = node.text?.toString()?.takeIf { it.isNotBlank() },
-        contentDescription = node.contentDescription?.toString()?.takeIf { it.isNotBlank() },
+        text = if (isSensitiveEditable(node)) null else node.text?.toString()?.takeIf { it.isNotBlank() },
+        contentDescription = if (isSensitiveEditable(node)) null else node.contentDescription?.toString()?.takeIf { it.isNotBlank() },
         role = inferRole(node, ""),
         className = node.className?.toString()?.takeIf { it.isNotBlank() },
         requireClickable = node.isClickable.takeIf { it },
@@ -774,7 +859,12 @@ class CycloneAccessibilityService : AccessibilityService() {
         return sha256(raw).take(16)
     }
 
-    private fun inferRole(node: AccessibilityNodeInfo, parentClassName: String): String {
+    private fun inferRole(
+        node: AccessibilityNodeInfo,
+        parentClassName: String,
+        safeText: String = if (isSensitiveEditable(node)) "" else node.text?.toString().orEmpty(),
+        safeDescription: String = if (isSensitiveEditable(node)) "" else node.contentDescription?.toString().orEmpty(),
+    ): String {
         return AccessibilityRoles.inferRole(
             className = node.className?.toString().orEmpty(),
             clickable = node.isClickable,
@@ -782,12 +872,24 @@ class CycloneAccessibilityService : AccessibilityService() {
             checkable = node.isCheckable,
             scrollable = node.isScrollable,
             selected = node.isSelected,
-            text = node.text?.toString().orEmpty(),
-            contentDescription = node.contentDescription?.toString().orEmpty(),
+            text = safeText,
+            contentDescription = safeDescription,
             resourceId = node.viewIdResourceName.orEmpty(),
             parentClassName = parentClassName,
             actions = accessibilityActionNames(node),
         )
+    }
+
+    private fun isSensitiveEditable(node: AccessibilityNodeInfo): Boolean {
+        if (node.isPassword) return true
+        if (!node.isEditable) return false
+        val hints = listOf(
+            node.viewIdResourceName.orEmpty(),
+            node.contentDescription?.toString().orEmpty(),
+            node.hintText?.toString().orEmpty(),
+            node.className?.toString().orEmpty(),
+        ).joinToString(" ")
+        return sensitiveEditableHint.containsMatchIn(hints)
     }
 
     private fun screenFingerprint(packageName: String?, nodes: List<UiNodeSnapshot>): String {
