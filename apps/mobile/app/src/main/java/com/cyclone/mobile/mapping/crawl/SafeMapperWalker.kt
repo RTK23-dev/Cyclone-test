@@ -244,16 +244,17 @@ internal object StructuralRoomClassifier {
 
     private fun infer(doors: List<MappingDoor>): StructuralScreenPurpose {
         val kinds = doors.mapTo(linkedSetOf()) { it.kind }
-        return when {
-            MappingDoorKind.SETTINGS in kinds -> StructuralScreenPurpose.SETTINGS
-            MappingDoorKind.SEARCH in kinds -> StructuralScreenPurpose.SEARCH
-            MappingDoorKind.ACCOUNT in kinds -> StructuralScreenPurpose.ACCOUNT
-            MappingDoorKind.NAV_DRAWER in kinds || MappingDoorKind.MENU in kinds ->
-                StructuralScreenPurpose.MENU
-            MappingDoorKind.TAB in kinds -> StructuralScreenPurpose.HOME
-            MappingDoorKind.STRUCTURAL_SAMPLE in kinds || MappingDoorKind.CONTENT_ROW in kinds ->
-                StructuralScreenPurpose.LIST
-            else -> StructuralScreenPurpose.UNKNOWN
+        // A Settings/Search/Menu *door* describes a destination, not the room we are currently in.
+        // Inferring the current room from destination labels caused unchanged screens to look like
+        // progress when the candidate list changed. Only list-shape evidence is safe enough here;
+        // richer purpose classification belongs in the fresh-observation projection.
+        return if (
+            MappingDoorKind.STRUCTURAL_SAMPLE in kinds ||
+            MappingDoorKind.CONTENT_ROW in kinds
+        ) {
+            StructuralScreenPurpose.LIST
+        } else {
+            StructuralScreenPurpose.UNKNOWN
         }
     }
 }
