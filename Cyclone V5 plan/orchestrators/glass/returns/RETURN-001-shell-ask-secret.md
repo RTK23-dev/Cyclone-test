@@ -6,9 +6,10 @@
 **Branch:** `v5/glass/shell-ask-secret`  
 **PR:** https://github.com/premiumcentraal-boop/Cyclone/pull/153  
 **Starting integration SHA:** `c8c9e62946fb0028528f30358bb9f246b057baf6`  
-**Head SHA:** `b3743687662986417a685e377c41a2e88063fb56`  
+**Head SHA:** `25f5f3d3497ee129a90a880e90d7f88d37430e7f`  
 **Commits:**
-- `b3743687` feat(glass): add Ask, Maps, Vault shell and needs-secret wait
+- `b3743687662986417a685e377c41a2e88063fb56` feat(glass): add Ask, Maps, Vault shell and needs-secret wait
+- `25f5f3d3497ee129a90a880e90d7f88d37430e7f` docs(glass): record Agent 001 shell-ask-secret return
 
 ## Done
 
@@ -28,7 +29,8 @@
 |---|---|
 | https://github.com/premiumcentraal-boop/Cyclone/pull/153 | Agent 001 PR targeting `v5/integration` |
 | `c8c9e62946fb0028528f30358bb9f246b057baf6` | Starting `v5/integration` SHA |
-| `b3743687662986417a685e377c41a2e88063fb56` | Implementation head |
+| `b3743687662986417a685e377c41a2e88063fb56` | Implementation |
+| `25f5f3d3497ee129a90a880e90d7f88d37430e7f` | Return MD |
 
 ## Paths touched
 
