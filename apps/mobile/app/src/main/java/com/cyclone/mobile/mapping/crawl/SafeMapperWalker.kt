@@ -27,7 +27,7 @@ class SafeMapperWalker(
             ?: return fail("observation_missing")
         validateObservation(beforeSession, before)?.let { return it }
 
-        secrets.detect(before)?.let { wall ->
+        secrets.detect(beforeSession, before)?.let { wall ->
             session.pauseNeedsSecret(wall.reason)
             secrets.request(wall)
             return MappingStepResult.Paused(PauseReason.NEEDS_SECRET)
@@ -61,6 +61,19 @@ class SafeMapperWalker(
 
         // Authority is checked again before any crawler continuation. If the human/companion took
         // over while the action was settling, the crawler stops immediately.
+        if (mutation.errorCode == "HUMAN_HAS_CONTROL") {
+            session.pauseHumanControl("executor_human_has_control")
+            return MappingStepResult.Paused(PauseReason.HUMAN_CONTROL)
+        }
+        if (mutation.errorCode in setOf(
+                "FRESH_OBSERVATION_REQUIRED",
+                "WORKSPACE_SCOPE_CONFLICT",
+                "TARGET_SCOPE_MISMATCH",
+            )
+        ) {
+            return fail(mutation.errorCode.lowercase())
+        }
+
         val afterMutationSession = session.snapshot()
         authorityResult(afterMutationSession)?.let { return it }
         if (!sameBinding(preMutationSession, afterMutationSession)) {
@@ -101,7 +114,7 @@ class SafeMapperWalker(
 
             // If the verified landing is a credential wall, pause immediately before any further
             // mutation. The walker only passes metadata to the Run-1 Secrets Card seam.
-            secrets.detect(after)?.let { wall ->
+            secrets.detect(afterMutationSession, after)?.let { wall ->
                 session.pauseNeedsSecret(wall.reason)
                 secrets.request(wall)
                 return MappingStepResult.Paused(PauseReason.NEEDS_SECRET)
@@ -222,7 +235,11 @@ internal object StructuralProgressVerifier {
 internal object StructuralRoomClassifier {
     fun nodeKey(observation: MappingObservation): String {
         val purpose = observation.purpose ?: infer(observation.doors)
-        return "room:${purpose.name.lowercase()}"
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(observation.structuralFingerprint.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+            .take(16)
+        return "room:${purpose.name.lowercase()}:$digest"
     }
 
     private fun infer(doors: List<MappingDoor>): StructuralScreenPurpose {
