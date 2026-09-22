@@ -191,6 +191,10 @@ data class MappingSecretWall(
     val placeId: String,
     val slot: String,
     val reason: String,
+    val elementId: String,
+    val observationId: String,
+    val sessionId: String,
+    val displayId: Int,
 )
 
 /**
@@ -198,7 +202,7 @@ data class MappingSecretWall(
  * plaintext or secret-bearing value is representable here.
  */
 interface MappingSecretsPort {
-    fun detect(observation: MappingObservation): MappingSecretWall?
+    fun detect(session: MappingSessionSnapshot, observation: MappingObservation): MappingSecretWall?
     fun request(wall: MappingSecretWall)
 }
 
