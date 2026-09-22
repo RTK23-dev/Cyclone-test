@@ -26,6 +26,9 @@ data class MappingSessionSnapshot(
     val displayId: Int,
     val plane: String,
     val controlRevision: Long,
+    val workspaceId: String? = null,
+    val workspaceGeneration: Long? = null,
+    val executionGeneration: Long? = null,
     val startedAtMs: Long,
     val budget: MappingBudget,
     val authority: MappingAuthority = MappingAuthority.OWNED,
@@ -104,6 +107,7 @@ data class MappingDoor(
     val observationId: String,
     val key: String,
     val kind: MappingDoorKind,
+    val regionKey: String? = null,
     val enabled: Boolean = true,
     val visible: Boolean = true,
 )
@@ -154,6 +158,11 @@ enum class MappingDanger {
  * invent a second payment/send/delete/grant classifier.
  */
 interface MappingSafetyPort {
+    /**
+     * Production wiring must re-resolve [MappingDoor.elementId] against the exact current
+     * observation and call the existing GateClassifier/grounded policy. Never infer safety from
+     * the durable door key alone.
+     */
     fun classify(observation: MappingObservation, door: MappingDoor): MappingDanger
 }
 
