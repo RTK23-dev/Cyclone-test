@@ -16,6 +16,9 @@
     "src/video/livePhoneController.ts",
     "src/video/webcodecsH264Decoder.ts",
     "src/services/types.ts",
-    "src/services/mockDesktopService.ts"
+    "src/services/mockDesktopService.ts",
+    "src/services/atlasClient.ts",
+    "src/services/atlasTypes.ts",
+    "src/services/secretGuards.ts"
   ]
 }
