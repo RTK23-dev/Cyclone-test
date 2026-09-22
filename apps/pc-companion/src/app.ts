@@ -14,8 +14,9 @@ import {
   readDeviceMobileVersion,
   resolveGlassSessionId,
   type GlassRuntime,
+  type GlassSessionPlane,
 } from "./services/glassRuntime.js";
-import { isSessionFabricEvent } from "./core/sessionTiles.js";
+import { DEFAULT_FOREGROUND_SESSION_ID, isSessionFabricEvent } from "./core/sessionTiles.js";
 import { createChatgptAttachPage } from "./pages/chatgptAttachPage.js";
 import { createConnectionsPage } from "./pages/connectionsPage.js";
 import { createAutomationsPage } from "./pages/automationsPage.js";
@@ -252,6 +253,9 @@ export class CyclonePcCompanionApp {
           () => this.backToFleet(),
           () => this.navigate("settings"),
           (target) => this.openPairing(target),
+          (sessionId) => {
+            this.state = reduceCompanionState(this.state, { type: "focus_session", sessionId });
+          },
         );
       } else {
         this.state = reduceCompanionState(this.state, { type: "back_to_fleet" });
@@ -267,20 +271,25 @@ export class CyclonePcCompanionApp {
       );
     }
     if (!this.currentPage && this.state.route === "ask") {
-      const { version } = this.glassContext();
+      const { version, sessionId, sessionPlane, demo } = this.glassContext();
       this.currentPage = createAskPage({
         devices: this.state.devices,
         mobileVersion: version ?? undefined,
         onOpenControl: () => this.navigate("fleet"),
-      });
+        sessionId,
+        sessionPlane,
+        previewSnapshots: demo,
+      } as import("./pages/askPage.js").AskPageOptions);
     }
     if (!this.currentPage && this.state.route === "maps") {
-      const { version, sessionId, demo, loadSource } = this.glassContext();
+      const { version, sessionId, sessionPlane, demo, loadSource } = this.glassContext();
       this.currentPage = createMapsPage({
         phoneVersion: version,
         loadSource,
         demo,
         sessionId,
+        sessionPlane,
+        onOpenControl: () => this.navigate("fleet"),
       } as import("./pages/mapsPage.js").MapsPageOptions);
     }
     if (!this.currentPage && this.state.route === "vault") {
@@ -291,7 +300,7 @@ export class CyclonePcCompanionApp {
         loadSlots,
         onRequestSlot,
         previewSlots: demo,
-      } as import("./pages/vaultPage.js").VaultPageOptions);
+      });
     }
     if (!this.currentPage && this.state.route === "automations") {
       this.currentPage = createAutomationsPage(this.state.devices, (device) => {
@@ -335,6 +344,7 @@ export class CyclonePcCompanionApp {
     device: DesktopDevice | undefined;
     version: string | null;
     sessionId: string;
+    sessionPlane: GlassSessionPlane;
     demo: boolean;
     runtime: GlassRuntime | null;
     loadSource: (() => Promise<import("./maps/mockAtlas.js").MapsDataSource>) | undefined;
@@ -343,7 +353,8 @@ export class CyclonePcCompanionApp {
   } {
     const device = selectGlassDevice(this.state.devices, this.state.focusedDeviceId);
     const version = device ? (readDeviceMobileVersion(device) ?? null) : null;
-    const sessionId = resolveGlassSessionId();
+    const sessionId = resolveGlassSessionId(this.state.focusedSessionId);
+    const sessionPlane: GlassSessionPlane = sessionId !== DEFAULT_FOREGROUND_SESSION_ID ? "session_kernel_vd" : "foreground";
     const demo = this.service.mode === "mock";
     const gateway = this.service.glassGateway;
     const httpBase = String(gateway?.httpBase ?? "").trim();
@@ -363,6 +374,7 @@ export class CyclonePcCompanionApp {
       device,
       version,
       sessionId,
+      sessionPlane,
       demo,
       runtime,
       loadSource: live && runtime ? () => loadMapsSourceBoth(runtime) : undefined,

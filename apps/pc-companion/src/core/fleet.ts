@@ -33,11 +33,13 @@ export interface CompanionState {
   route: AppRoute;
   devices: DesktopDevice[];
   focusedDeviceId: string | null;
+  focusedSessionId: string | null;
 }
 
 export type CompanionAction =
   | { type: "devices_updated"; devices: DesktopDevice[] }
   | { type: "focus_device"; deviceId: string }
+  | { type: "focus_session"; sessionId: string | null }
   | { type: "back_to_fleet" }
   | { type: "navigate"; route: Exclude<AppRoute, "focused"> };
 
@@ -121,8 +123,10 @@ export const ASK_SAMPLE_SNAPSHOTS: Record<AskRunState, GlassAskSnapshot> = {
 };
 
 export function initialCompanionState(devices: DesktopDevice[] = []): CompanionState {
-  return { route: "home", devices, focusedDeviceId: null };
+  return { route: "home", devices, focusedDeviceId: null, focusedSessionId: null };
 }
+
+const GLASS_KEEP_FOCUS_ROUTES: ReadonlySet<Exclude<AppRoute, "focused">> = new Set(["ask", "maps", "vault"]);
 
 export function reduceCompanionState(state: CompanionState, action: CompanionAction): CompanionState {
   switch (action.type) {
@@ -131,16 +135,23 @@ export function reduceCompanionState(state: CompanionState, action: CompanionAct
       return {
         ...state,
         devices: [...action.devices],
-        ...(focusedStillExists ? {} : { route: "fleet" as const, focusedDeviceId: null }),
+        ...(focusedStillExists ? {} : { route: "fleet" as const, focusedDeviceId: null, focusedSessionId: null }),
       };
     }
     case "focus_device":
       if (!state.devices.some((device) => device.id === action.deviceId)) return state;
       return { ...state, route: "focused", focusedDeviceId: action.deviceId };
+    case "focus_session": {
+      const trimmed = String(action.sessionId ?? "").trim();
+      return { ...state, focusedSessionId: trimmed ? trimmed : null };
+    }
     case "back_to_fleet":
-      return { ...state, route: "fleet", focusedDeviceId: null };
+      return { ...state, route: "fleet", focusedDeviceId: null, focusedSessionId: null };
     case "navigate":
-      return { ...state, route: action.route, focusedDeviceId: null };
+      if (GLASS_KEEP_FOCUS_ROUTES.has(action.route)) {
+        return { ...state, route: action.route };
+      }
+      return { ...state, route: action.route, focusedDeviceId: null, focusedSessionId: null };
   }
 }
 
