@@ -222,17 +222,32 @@ object AtlasPrivacy {
     private val otpLike = Regex("""\b\d{6,8}\b""")
 
     /**
-     * Atlas labels should describe structure, not carry captured user facts. This deliberately
-     * favors a generic fallback over retaining a string that resembles an email/token/OTP.
+     * General metadata sanitizer for app labels, host labels and fact-slot descriptions. It removes
+     * obvious captured values but is intentionally not sufficient for screen/control structure.
      */
     fun structuralLabel(raw: String, fallback: String): String {
         val trimmed = raw.trim().take(160)
         if (trimmed.isBlank()) return fallback
-        if (email.containsMatchIn(trimmed) || longSecretishToken.containsMatchIn(trimmed) || otpLike.matches(trimmed)) {
-            return fallback
-        }
+        if (containsCapturedValue(trimmed)) return fallback
         return trimmed
     }
+
+    /**
+     * Screens may be titled with a person, thread subject, order title, email subject, etc. Atlas
+     * therefore keeps only a coarse structural category from a frozen UI vocabulary.
+     */
+    fun structuralScreenLabel(raw: String, fallback: String = "Screen"): String =
+        coarseStructure(raw, fallback)
+
+    fun structuralScreenPurpose(raw: String, fallback: String = "Learned app screen"): String =
+        coarseStructure(raw, fallback)
+
+    /**
+     * Controls can also be content rows ("Louella", "Dinner plans"). Store only structural actions
+     * such as Search/Menu/Compose/Settings; content rows collapse to a generic control/navigation.
+     */
+    fun structuralControlLabel(raw: String, fallback: String = "Control"): String =
+        coarseStructure(raw, fallback)
 
     fun structuralPurpose(raw: String, fallback: String = "Learned app screen"): String {
         val clean = structuralLabel(raw, fallback)
@@ -246,20 +261,20 @@ object AtlasPrivacy {
             displayName = structuralLabel(node.displayName, "Activity"),
         )
         is PageNode -> node.copy(
-            identity = structuralIdentity(node.identity, "page"),
-            displayName = structuralLabel(node.displayName, "Screen"),
+            identity = structuralIdentity(structuralScreenLabel(node.identity, "page"), "page"),
+            displayName = structuralScreenLabel(node.displayName, "Screen"),
         )
         is ElementNode -> node.copy(
-            semanticName = structuralIdentity(node.semanticName, "control"),
-            displayName = structuralLabel(node.displayName, "Control"),
+            semanticName = structuralIdentity(structuralControlLabel(node.semanticName, "control"), "control"),
+            displayName = structuralControlLabel(node.displayName, "Control"),
         )
         is SelectorNode -> node.copy(
             selectorKey = if (node.selectorKey.startsWith("sha256:")) node.selectorKey else selectorDigest(node.selectorKey),
-            displayName = structuralLabel(node.displayName, "Semantic selector"),
+            displayName = "Semantic selector",
         )
         is TransitionNode -> node.copy(
-            actionName = structuralIdentity(node.actionName, "navigate"),
-            displayName = structuralLabel(node.displayName, "Navigate"),
+            actionName = structuralIdentity(structuralControlLabel(node.actionName, "navigate"), "navigate"),
+            displayName = structuralControlLabel(node.displayName, "Navigate"),
         )
         is RoutineNode -> node.copy(
             routineId = structuralIdentity(node.routineId, "routine"),
@@ -271,6 +286,24 @@ object AtlasPrivacy {
         )
     }
 
+    private fun coarseStructure(raw: String, fallback: String): String {
+        val trimmed = raw.trim().take(160)
+        if (trimmed.isBlank() || containsCapturedValue(trimmed)) return fallback
+        val normalized = trimmed
+            .lowercase()
+            .replace('_', ' ')
+            .replace('-', ' ')
+            .replace(Regex("\\s+"), " ")
+        return STRUCTURAL_TERMS.firstOrNull { (pattern, _) -> pattern.containsMatchIn(normalized) }
+            ?.second
+            ?: fallback
+    }
+
+    private fun containsCapturedValue(value: String): Boolean =
+        email.containsMatchIn(value) ||
+            longSecretishToken.containsMatchIn(value) ||
+            otpLike.matches(value)
+
     private fun structuralIdentity(raw: String, fallback: String): String {
         val safe = structuralLabel(raw, fallback)
         return safe.replace(Regex("[^A-Za-z0-9._:/=_-]+"), "_")
@@ -279,4 +312,40 @@ object AtlasPrivacy {
     }
 
     private fun selectorDigest(raw: String): String = AtlasGraphIds.selectorDigest(raw)
+
+    private val STRUCTURAL_TERMS = listOf(
+        Regex("""\baccount(?:s| switcher)?\b""") to "Account",
+        Regex("""\b(sign in|log in|login|authentication|auth)\b""") to "Login",
+        Regex("""\b(sign up|signup|register|registration)\b""") to "Signup",
+        Regex("""\bhome\b""") to "Home",
+        Regex("""\binbox\b""") to "Inbox",
+        Regex("""\b(outbox|sent|drafts?)\b""") to "Mail",
+        Regex("""\b(compose|new message|write message)\b""") to "Compose",
+        Regex("""\b(search|find)\b""") to "Search",
+        Regex("""\b(menu|navigation|nav|drawer|more options)\b""") to "Menu",
+        Regex("""\b(settings?|preferences?)\b""") to "Settings",
+        Regex("""\b(profile|profiles)\b""") to "Profile",
+        Regex("""\b(messages?|direct messages?|dms?|chat list|chats?)\b""") to "Messages",
+        Regex("""\b(thread|conversation)\b""") to "Conversation",
+        Regex("""\b(notifications?|alerts?)\b""") to "Notifications",
+        Regex("""\b(feed|timeline)\b""") to "Feed",
+        Regex("""\b(explore|discover)\b""") to "Explore",
+        Regex("""\b(orders?|order history|purchases?)\b""") to "Orders",
+        Regex("""\b(cart|basket)\b""") to "Cart",
+        Regex("""\b(checkout|payment)\b""") to "Checkout",
+        Regex("""\b(library|downloads?|saved|favorites?|bookmarks?)\b""") to "Library",
+        Regex("""\b(help|support)\b""") to "Help",
+        Regex("""\b(security|privacy)\b""") to "Security",
+        Regex("""\b(permissions?)\b""") to "Permissions",
+        Regex("""\b(about|info|information)\b""") to "About",
+        Regex("""\b(back|close|cancel|dismiss)\b""") to "Back",
+        Regex("""\b(next|continue|proceed)\b""") to "Continue",
+        Regex("""\b(save|done|confirm|submit)\b""") to "Confirm",
+        Regex("""\b(send|post|publish)\b""") to "Send",
+        Regex("""\b(delete|remove|erase)\b""") to "Delete",
+        Regex("""\b(log out|logout|sign out)\b""") to "Logout",
+        Regex("""\b(tab|tabs)\b""") to "Tab",
+        Regex("""\b(dialog|modal|sheet)\b""") to "Dialog",
+        Regex("""\b(form|field|textbox|input)\b""") to "Form",
+    )
 }
