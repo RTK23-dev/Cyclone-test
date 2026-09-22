@@ -11,10 +11,12 @@ import { isSessionFabricEvent } from "./core/sessionTiles.js";
 import { createChatgptAttachPage } from "./pages/chatgptAttachPage.js";
 import { createConnectionsPage } from "./pages/connectionsPage.js";
 import { createAutomationsPage } from "./pages/automationsPage.js";
+import { createAskPage } from "./pages/askPage.js";
 import { createFleetPage } from "./pages/fleetPage.js";
 import { createFocusedPhonePage } from "./pages/focusedPhonePage.js";
 import { createHomePage } from "./pages/homePage.js";
 import { createSettingsPage } from "./pages/settingsPage.js";
+import { createVaultPage } from "./pages/vaultPage.js";
 import { PairingModal } from "./ui/pairingModal.js";
 import { button, el } from "./ui/dom.js";
 
@@ -85,13 +87,16 @@ export class CyclonePcCompanionApp {
     const shell = el("div", "app-shell");
     const topbar = el("header", "app-topbar");
     const brand = el("div", "brand");
-    brand.append(el("div", "cyclone-mark"), el("div", "brand-name", "Cyclone One"));
+    brand.append(el("div", "cyclone-mark"), el("div", "brand-name", "Cyclone Glass"));
     const nav = el("nav", "primary-nav");
-    nav.setAttribute("aria-label", "Cyclone PC Companion");
+    nav.setAttribute("aria-label", "Cyclone Glass");
 
     const entries: Array<[Exclude<AppRoute, "focused">, string, string]> = [
       ["home", "⌂", "Home"],
       ["fleet", "▣", "Control"],
+      ["ask", "?", "Ask"],
+      ["maps", "▦", "Maps"],
+      ["vault", "◉", "Vault"],
       ["automations", "↻", "Tasks"],
       ["connections", "◇", "Connections"],
       ["chatgpt", "✦", "ChatGPT"],
@@ -135,7 +140,7 @@ export class CyclonePcCompanionApp {
       el("div", "profile-panel-heading", "Workspace"),
       connectionItem,
       settingsItem,
-      el("div", "profile-version", `Cyclone PC Companion · v${__CYCLONE_PC_VERSION__}`),
+      el("div", "profile-version", `Cyclone Glass · v${__CYCLONE_PC_VERSION__}`),
     );
     profile.append(profileButton, profilePanel);
     actions.append(this.topbarStatus, notifications, profile);
@@ -252,6 +257,18 @@ export class CyclonePcCompanionApp {
         () => this.navigate("chatgpt"),
       );
     }
+    if (!this.currentPage && this.state.route === "ask") {
+      this.currentPage = createAskPage({
+        devices: this.state.devices,
+        onOpenControl: () => this.navigate("fleet"),
+      });
+    }
+    if (!this.currentPage && this.state.route === "maps") {
+      this.currentPage = createMapsPlaceholderPage();
+    }
+    if (!this.currentPage && this.state.route === "vault") {
+      this.currentPage = createVaultPage({ devices: this.state.devices });
+    }
     if (!this.currentPage && this.state.route === "automations") {
       this.currentPage = createAutomationsPage(this.state.devices, (device) => {
         if (device) this.focusDevice(device); else this.navigate("fleet");
@@ -336,6 +353,18 @@ export class CyclonePcCompanionApp {
       this.notificationPanel.append(item);
     }
   }
+}
+
+function createMapsPlaceholderPage(): PageHandle {
+  const page = el("section", "page content-page maps-placeholder-page");
+  const header = el("header", "page-header");
+  header.append(
+    el("h1", "page-title", "Maps"),
+    el("p", "page-subtitle", "Primary Glass surface. The board is not on this shell."),
+  );
+  const placeholder = el("div", "maps-placeholder", "Maps board ships next");
+  page.append(header, placeholder);
+  return { element: page, destroy() { /* route-only placeholder; Agent 002 owns the board */ } };
 }
 
 function deviceSignature(device: DesktopDevice): string {

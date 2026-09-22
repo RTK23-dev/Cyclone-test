@@ -1,0 +1,54 @@
+.vault-source-note,
+.vault-privacy {
+  margin: 0;
+  color: #a5a1b5;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.vault-slot-list {
+  display: grid;
+  gap: 10px;
+}
+
+.vault-slot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(21, 22, 31, .96), rgba(12, 13, 19, .96));
+}
+
+.vault-slot-label {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.vault-slot-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 740;
+  letter-spacing: .02em;
+}
+
+.vault-slot-set {
+  background: rgba(85, 217, 138, .14);
+  color: #9fe7c0;
+}
+
+.vault-slot-missing {
+  background: rgba(240, 180, 90, .16);
+  color: #f0b45a;
+}
+
+.vault-empty {
+  padding: 28px 16px;
+  border: 1px dashed rgba(255, 255, 255, .12);
+  border-radius: 16px;
+  color: #a5a1b5;
+  text-align: center;
+}
