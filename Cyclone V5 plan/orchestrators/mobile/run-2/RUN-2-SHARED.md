@@ -3,24 +3,27 @@
 **Product:** Cyclone Mobile 5.0  
 **Run:** 2 — mapping session + safe mapper + canonical places  
 **Milestone target:** mobile side of alpha.3, while preserving the alpha.2 Atlas/Glass contract  
-**State:** DRAFTED — DO NOT START until Run 1 is closed in `mobile/STATUS.md`
+**State:** ISSUED — CODING MAY START NOW
 
 This file is mandatory for all three Run-2 implementation agents.
 
-## 0. Hard start gate
+## 0. Start now / merge later gate
 
-Do not create implementation commits from the current draft line.
+Run 2 is intentionally parallel with the final Agent-003 closeout.
 
-Run 2 becomes **issued** only when all of the following are true on `v5/integration`:
+All three Run-2 agents may code immediately from the single **RUN2_START_BASE_SHA** recorded in `mobile/STATUS.md`.
+
+The gate applies at **merge/final-validation time**, not coding-start time:
 
 1. PR #144 (protocol / needs-secret) is merged.
 2. PR #145 (Vault / Secrets Card) is merged.
-3. PR #146 (durable Atlas / Follow Me) is corrected, has its required return, passes final CI on the combined base, and is merged.
-4. The orchestrator records a single **RUN1_CLOSEOUT_SHA** in `Cyclone V5 plan/orchestrators/mobile/STATUS.md`.
-5. The Atlas wire status includes truthful `partial` coverage.
-6. A real Follow Me Atlas is reachable through Android `atlas.get`; the empty Agent-001 fallback is no longer the production path once Atlas initializes.
+3. PR #146 (durable Atlas / Follow Me) must be corrected, have its required return, pass final CI, and merge before any Run-2 implementation PR is accepted into `v5/integration`.
+4. After #146 merges, the orchestrator records **RUN1_CLOSEOUT_SHA**.
+5. Every Run-2 implementation branch must rebase/merge-forward onto that exact closeout SHA before final review.
+6. Final CI is required again on the rebased combined head.
+7. Temporary compile seams/stubs are allowed only when they are narrow, explicitly marked, and removed/rebased before merge.
 
-Each Run-2 branch must be cut from exactly that recorded closeout SHA.
+Do **not** stop coding merely because #146 is still open. Keep path ownership clean and treat the final closeout rebase as the integration checkpoint.
 
 ## 1. Run-2 goal
 
@@ -166,7 +169,7 @@ Agent 006 must not create a second PlaceCatalog or Atlas store.
 
 ## 6. Dependency / merge order
 
-Coding can begin in parallel **after the Run-1 closeout SHA exists**, using narrow interfaces.
+Coding begins in parallel immediately from the recorded RUN2_START_BASE_SHA, using narrow interfaces.
 
 Final integration order:
 
