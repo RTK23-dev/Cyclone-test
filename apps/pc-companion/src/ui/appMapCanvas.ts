@@ -1,4 +1,5 @@
 import type { AtlasScreen, AtlasViewModel } from "../maps/atlasViewModel.js";
+import { cardGlyphs } from "../maps/atlasViewModel.js";
 import { el } from "./dom.js";
 
 export const CARD_WIDTH = 200;
@@ -25,6 +26,7 @@ export interface ViewportSize {
 
 export interface AppMapCanvasOptions {
   onSelectScreen?: (screenId: string | null) => void;
+  onSelectEdge?: (edgeId: string | null) => void;
 }
 
 export interface AppMapCanvasHandle {
@@ -32,9 +34,11 @@ export interface AppMapCanvasHandle {
   destroy(): void;
   setViewModel(model: AtlasViewModel, options?: { fit?: boolean }): void;
   setSelectedScreenId(screenId: string | null): void;
+  setSelectedEdgeId(edgeId: string | null): void;
   fitAll(): CanvasTransform;
   getTransform(): CanvasTransform;
   getSelectedScreenId(): string | null;
+  getSelectedEdgeId(): string | null;
 }
 
 export function clampScale(scale: number): number {
@@ -211,6 +215,7 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
 
   let model: AtlasViewModel | null = null;
   let selectedScreenId: string | null = null;
+  let selectedEdgeId: string | null = null;
   let transform: CanvasTransform = { x: 0, y: 0, scale: 1 };
   let dragging = false;
   let moved = false;
@@ -241,13 +246,39 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
     return transform;
   };
 
-  const select = (screenId: string | null): void => {
-    selectedScreenId = screenId;
+  const paintSelection = (): void => {
     for (const card of world.querySelectorAll(".map-card")) {
       const button = card as HTMLElement;
-      button.classList.toggle("selected", button.getAttribute("data-screen-id") === screenId);
+      button.classList.toggle("selected", button.getAttribute("data-screen-id") === selectedScreenId);
     }
+    for (const path of world.querySelectorAll(".map-edge")) {
+      const node = path as HTMLElement;
+      node.classList.toggle("selected", node.getAttribute("data-edge-id") === selectedEdgeId);
+    }
+  };
+
+  const select = (screenId: string | null): void => {
+    selectedScreenId = screenId;
+    if (screenId != null) selectedEdgeId = null;
+    paintSelection();
     options.onSelectScreen?.(screenId);
+    if (screenId != null) options.onSelectEdge?.(null);
+  };
+
+  const selectEdge = (edgeId: string | null): void => {
+    selectedEdgeId = edgeId;
+    if (edgeId != null) selectedScreenId = null;
+    paintSelection();
+    options.onSelectEdge?.(edgeId);
+    if (edgeId != null) options.onSelectScreen?.(null);
+  };
+
+  const clearSelection = (): void => {
+    selectedScreenId = null;
+    selectedEdgeId = null;
+    paintSelection();
+    options.onSelectScreen?.(null);
+    options.onSelectEdge?.(null);
   };
 
   const hideHint = (): void => {
@@ -305,7 +336,8 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
       const end = cardAnchor(to, from);
       const path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", edgePath(start.x - bounds.x, start.y - bounds.y, end.x - bounds.x, end.y - bounds.y));
-      path.setAttribute("class", `map-edge${edge.risk.danger ? " danger" : ""}`);
+      path.setAttribute("class", `map-edge${edge.risk.danger ? " danger" : ""}${edge.edgeId === selectedEdgeId ? " selected" : ""}`);
+      path.setAttribute("data-edge-id", edge.edgeId);
       const opacity = 0.28 + 0.72 * (Number.isFinite(edge.confidence) ? edge.confidence : 0);
       path.setAttribute("stroke-opacity", String(Math.max(0.2, Math.min(1, opacity))));
       path.style.pointerEvents = "stroke";
@@ -319,12 +351,19 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
         showHint(edge.actionHint, event.clientX, event.clientY);
       });
       path.addEventListener("pointerleave", hideHint);
+      path.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+      });
+      path.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectEdge(edge.edgeId);
+      });
       svg.append(path);
     }
     world.append(svg);
 
     for (const screen of screens) {
-      world.append(renderCard(screen, screen.screenId === selectedScreenId, (id, event) => {
+      world.append(renderCard(screen, screen.screenId === selectedScreenId, model.capabilities, (id, event) => {
         event.stopPropagation();
         select(id);
       }));
@@ -334,7 +373,7 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement | null;
-    if (target?.closest(".map-card, .map-empty-action, .map-canvas-toolbar")) return;
+    if (target?.closest(".map-card, .map-edge, .map-empty-action, .map-canvas-toolbar")) return;
     dragging = true;
     moved = false;
     lastX = event.clientX;
@@ -361,7 +400,8 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
     viewport.releasePointerCapture?.(event.pointerId);
     if (!moved) {
       const target = event.target as HTMLElement | null;
-      if (!target?.closest(".map-card")) select(null);
+      if (target?.closest(".map-card, .map-edge")) return;
+      clearSelection();
     }
   };
 
@@ -409,12 +449,21 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
       if (selectedScreenId && !next.screens.some((screen) => screen.screenId === selectedScreenId)) {
         selectedScreenId = null;
       }
+      if (selectedEdgeId && !next.edges.some((edge) => edge.edgeId === selectedEdgeId)) {
+        selectedEdgeId = null;
+      }
       renderWorld();
       if (settings?.fit) fitAll();
       applyTransform();
     },
     setSelectedScreenId(screenId): void {
       selectedScreenId = screenId;
+      if (screenId != null) selectedEdgeId = null;
+      renderWorld();
+    },
+    setSelectedEdgeId(edgeId): void {
+      selectedEdgeId = edgeId;
+      if (edgeId != null) selectedScreenId = null;
       renderWorld();
     },
     fitAll,
@@ -423,6 +472,9 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
     },
     getSelectedScreenId(): string | null {
       return selectedScreenId;
+    },
+    getSelectedEdgeId(): string | null {
+      return selectedEdgeId;
     },
   };
 }
@@ -444,6 +496,7 @@ function worldBounds(screens: AtlasScreen[]): { x: number; y: number; width: num
 function renderCard(
   screen: AtlasScreen,
   selected: boolean,
+  capabilities: string[],
   onSelect: (screenId: string, event: Event) => void,
 ): HTMLElement {
   const card = el("button", `map-card tone-${screen.tone}${selected ? " selected" : ""}`) as HTMLButtonElement;
@@ -460,6 +513,16 @@ function renderCard(
     el("div", "map-card-title", screen.label),
     el("div", "map-card-purpose", screen.purpose),
   );
+  const glyphs = cardGlyphs(screen.purpose, capabilities);
+  if (glyphs.length) {
+    const row = el("div", "map-card-glyphs");
+    for (const glyph of glyphs) {
+      const mark = el("span", "map-glyph", glyph);
+      mark.setAttribute("aria-hidden", "true");
+      row.append(mark);
+    }
+    card.append(row);
+  }
   if (screen.landmarks.length) {
     const marks = el("div", "map-card-landmarks");
     for (const landmark of screen.landmarks.slice(0, 3)) marks.append(el("span", "map-chip", landmark));

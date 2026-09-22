@@ -4,9 +4,16 @@ import {
   phoneSupportsGlassAtlas,
 } from "../core/fleet.js";
 import {
+  DEFAULT_FOREGROUND_SESSION_ID,
+  FOREGROUND_PLANE_LABEL,
+  VD_PLANE_LABEL,
+} from "../core/sessionTiles.js";
+import {
   applyBoardFilters,
   formatCoverage,
   inspectorState,
+  inspectorStateForEdge,
+  resolveEdgeSelection,
   resolveSelection,
   statusLabel,
   toViewModel,
@@ -47,9 +54,12 @@ export interface MapsPageOptions {
   phoneVersion?: string | null;
   demo?: boolean;
   sessionId?: string;
+  sessionPlane?: "foreground" | "session_kernel_vd";
+  onOpenControl?: () => void;
 }
 
 const ALPHA_HINT = "phone alpha.3";
+const TAKE_CONTROL_HINT = "Phone live handoff, not mapping pause.";
 
 type BoardPhase = "update-phone" | "loading" | "ready" | "empty" | "error";
 
@@ -114,11 +124,12 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
   let persona: Persona = "live";
   let placeId = phase === "ready" ? defaultPlaceId(source, persona) : "";
   let selectedScreenId: string | null = null;
+  let selectedEdgeId: string | null = null;
   let viewMode: "screens" | "capabilities" = "screens";
   let railQuery = "";
   let mappedOnly = false;
   let kindFilter: "all" | PlaceKind = "all";
-  const filters: BoardFilters = { stale: false, blocked: false, danger: false };
+  const filters: BoardFilters = { stale: false, blocked: false, danger: false, unmappedDoors: false };
 
   const banner = el("aside", "glass-compat-banner");
   banner.hidden = true;
@@ -138,6 +149,18 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
     { id: "capabilities", label: "Capabilities" },
   ]);
   const coverage = el("div", "maps-coverage");
+  const sessionPlane = el("div", "maps-session-plane");
+  sessionPlane.setAttribute("aria-label", "Session plane");
+  const planeLabel = options.sessionPlane === "session_kernel_vd" ? VD_PLANE_LABEL : FOREGROUND_PLANE_LABEL;
+  const sessionIdDisplay = displaySessionId(options.sessionId);
+  sessionPlane.textContent = `${planeLabel} · session_id ${sessionIdDisplay}`;
+  const takeControl = button("Take control", "button secondary compact maps-take-control");
+  takeControl.disabled = typeof options.onOpenControl !== "function";
+  takeControl.title = TAKE_CONTROL_HINT;
+  takeControl.addEventListener("click", () => {
+    if (typeof options.onOpenControl !== "function") return;
+    options.onOpenControl();
+  });
   const start = button("Start mapping", "button primary compact maps-start");
   start.disabled = true;
   start.title = ALPHA_HINT;
@@ -145,10 +168,11 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
   const filterStale = chip("Stale", "stale");
   const filterBlocked = chip("Blocked", "blocked");
   const filterDanger = chip("Danger", "danger");
+  const filterDark = chip("Dark doors", "unmapped");
   const filtersWrap = el("div", "maps-filters");
-  filtersWrap.append(filterStale, filterBlocked, filterDanger, start);
+  filtersWrap.append(filterStale, filterBlocked, filterDanger, filterDark, takeControl, start);
 
-  top.append(heading, personaSeg.root, viewSeg.root, coverage, el("div", "maps-top-spacer"), filtersWrap);
+  top.append(heading, sessionPlane, personaSeg.root, viewSeg.root, coverage, el("div", "maps-top-spacer"), filtersWrap);
 
   const body = el("div", "maps-body");
   const rail = el("aside", "maps-rail");
@@ -172,6 +196,12 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
   const canvas: AppMapCanvasHandle = createAppMapCanvas({
     onSelectScreen(screenId) {
       selectedScreenId = screenId;
+      if (screenId != null) selectedEdgeId = null;
+      renderInspector();
+    },
+    onSelectEdge(edgeId) {
+      selectedEdgeId = edgeId;
+      if (edgeId != null) selectedScreenId = null;
       renderInspector();
     },
   });
@@ -306,6 +336,7 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
       ...summaries.map((item) => placeRow(item, item.place.placeId === placeId, () => {
         placeId = item.place.placeId;
         selectedScreenId = null;
+        selectedEdgeId = null;
         renderAll(true);
       })),
     );
@@ -335,7 +366,9 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
       return;
     }
     const model = loadModel();
-    const state = inspectorState(model, selectedScreenId);
+    const state = selectedEdgeId
+      ? inspectorStateForEdge(model, selectedEdgeId)
+      : inspectorState(model, selectedScreenId);
     setChildren(inspectorBody, ...inspectorNodes(state));
   };
 
@@ -375,6 +408,8 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
     syncPlace();
     const model = loadModel();
     selectedScreenId = resolveSelection(model, selectedScreenId);
+    selectedEdgeId = resolveEdgeSelection(model, selectedEdgeId);
+    if (selectedEdgeId) selectedScreenId = null;
     placeTitle.textContent = model.place.label;
     coverage.textContent = formatCoverage(model.coverage);
     personaSeg.set(persona);
@@ -382,7 +417,8 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
     canvas.element.hidden = viewMode !== "screens";
     capabilities.hidden = viewMode === "screens";
     canvas.setViewModel(model, { fit: viewMode === "screens" && fit });
-    canvas.setSelectedScreenId(selectedScreenId);
+    if (selectedEdgeId) canvas.setSelectedEdgeId(selectedEdgeId);
+    else canvas.setSelectedScreenId(selectedScreenId);
     if (viewMode === "capabilities") renderCapabilities(model);
     renderRail();
     renderInspector();
@@ -393,6 +429,7 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
     if (next !== "live" && next !== "mapping") return;
     persona = next;
     selectedScreenId = null;
+    selectedEdgeId = null;
     renderAll(true);
   });
   viewSeg.root.addEventListener("click", (event) => {
@@ -414,6 +451,11 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
   filterDanger.addEventListener("click", () => {
     filters.danger = !filters.danger;
     filterDanger.classList.toggle("active", filters.danger);
+    renderAll(false);
+  });
+  filterDark.addEventListener("click", () => {
+    filters.unmappedDoors = !filters.unmappedDoors;
+    filterDark.classList.toggle("active", Boolean(filters.unmappedDoors));
     renderAll(false);
   });
   mappedChip.addEventListener("click", () => {
@@ -504,6 +546,24 @@ function inspectorNodes(state: InspectorState): HTMLElement[] {
       el("p", "maps-muted", state.subtitle),
     ];
   }
+  if (state.kind === "edge") {
+    const nodes: HTMLElement[] = [
+      el("div", "maps-inspector-title", state.title),
+      el("div", "maps-inspector-sub", state.subtitle),
+      el("div", "maps-block-label", "From"),
+      el("div", "maps-purpose", state.fromLabel ?? ""),
+      el("div", "maps-block-label", "To"),
+      el("div", "maps-purpose", state.toLabel ?? ""),
+    ];
+    const proof = el("div", "maps-muted");
+    const pct = state.confidence != null ? `${Math.round(state.confidence * 100)}% confidence` : "confidence unknown";
+    proof.textContent = `${pct} · last verified ${state.lastVerifiedAt ?? "never"}`;
+    nodes.push(proof);
+    const actions = el("div", "maps-actions");
+    actions.append(disabledAction("Pin"), disabledAction("Remap this room"), disabledAction("Never"));
+    nodes.push(actions);
+    return nodes;
+  }
   const nodes: HTMLElement[] = [
     el("div", "maps-inspector-title", state.title),
     el("div", "maps-inspector-sub", state.subtitle),
@@ -577,4 +637,9 @@ function segment(name: string, items: Array<{ id: string; label: string }>): { r
   };
 }
 
-export { inspectorState, toViewModel, applyBoardFilters };
+export { inspectorState, inspectorStateForEdge, toViewModel, applyBoardFilters };
+
+function displaySessionId(sessionId?: string): string {
+  const trimmed = (sessionId ?? "").trim();
+  return trimmed || DEFAULT_FOREGROUND_SESSION_ID;
+}
