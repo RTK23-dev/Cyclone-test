@@ -81,4 +81,5 @@ Glass Run 3 (this session) does **not** add ops. It labels the existing `session
 - [x] Glass Ask page shows `needs-secret` / waiting-for-card
 - [ ] `atlas.get` returns a graph Glass can render (even from Follow Me only) — blocked on Mobile #146
 - [ ] Maps board renders **that** graph read-only (Run 1 renders a **mock**; Run 2 wires live + honest empty; Run 3 operator bar / edge inspector)
-- [x] No secret values in any fixture or log from the Glass Run 1–2 PRs
+- [x] No secret values in any fixture or log from the Glass Run 1–3 PRs
+- [x] Ask/Maps declare session plane (`default-foreground` or named VD; never rewritten) — Glass Run 3

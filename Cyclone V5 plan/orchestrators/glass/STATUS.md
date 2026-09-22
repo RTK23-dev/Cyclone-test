@@ -1,10 +1,10 @@
 # Glass orchestrator — STATUS
 
-**Wave:** Run 3 **ISSUED** (alpha.2 operator table)  
-**Integration branch:** `v5/integration` @ `9c72e393aa6f3a89dfe9c74928dc1c53a8e337ee`  
+**Wave:** Run 3 **COMPLETE** (alpha.2 operator table)  
+**Integration branch:** `v5/integration` @ `5ec5957b` (plus orch glue on top)  
 **Last release:** `glass-1.0.0-alpha.1` (companion `1.6.0-alpha.1`)  
-**Orch session:** 2026-09-22 — Run 3 coding launched (3 subagents)  
-**Code base:** One 1.5.5 live path on Mobile 4.8.0; Glass HUD from Run 1 + honest pipe from Run 2
+**Orch session:** 2026-09-22 — Run 3 merged; combined companion tests **218 pass / 0 fail**  
+**Code base:** One 1.5.5 live path on Mobile 4.8.0; Glass HUD Run 1 + honest pipe Run 2 + operator table Run 3
 
 ## Run 1 (complete)
 
@@ -19,34 +19,27 @@
 
 ## Run 2 (complete) — honest live replica
 
-Combined `apps/pc-companion` tests after merge: **190 pass / 0 fail**.
+| ID | Agent | PR | State |
+|---|---|---|---|
+| 007 | maps-honest-source | [#161](https://github.com/premiumcentraal-boop/Cyclone/pull/161) | merged |
+| 008 | vault-live-slots | [#159](https://github.com/premiumcentraal-boop/Cyclone/pull/159) | merged |
+| 009 | glass-runtime-wire | [#160](https://github.com/premiumcentraal-boop/Cyclone/pull/160) | merged |
+
+## Run 3 (complete) — operator table
+
+Combined `apps/pc-companion` tests after merge + type-assert cleanup: **218 pass / 0 fail**. `tsc --noEmit` clean.
 
 | ID | Agent | PR | State |
 |---|---|---|---|
-| 007 | maps-honest-source | [#161](https://github.com/premiumcentraal-boop/Cyclone/pull/161) | merged `8e2f26bc` |
-| 008 | vault-live-slots | [#159](https://github.com/premiumcentraal-boop/Cyclone/pull/159) | merged `cf05351b` |
-| 009 | glass-runtime-wire | [#160](https://github.com/premiumcentraal-boop/Cyclone/pull/160) | merged `9c72e393` |
+| 010 | maps-operator-board | [#164](https://github.com/premiumcentraal-boop/Cyclone/pull/164) | merged `1eb5a4d8` |
+| 011 | ask-hud-honesty | [#163](https://github.com/premiumcentraal-boop/Cyclone/pull/163) | merged `ac63e757` |
+| 012 | glass-session-bind | [#162](https://github.com/premiumcentraal-boop/Cyclone/pull/162) | merged `5ec5957b` |
 
-Leftover for Run 3: `app.ts` still type-asserts Maps/Vault options; Maps `sessionId` unused in UI; Ask samples always shown; navigate-to-Maps clears `focusedDeviceId`; live `atlas.get` house still blocked on Mobile [#146](https://github.com/premiumcentraal-boop/Cyclone/pull/146).
+010: session plane on Maps, Take control → Phone, edge inspector (English doors), Dark doors filter, capability glyphs. Start mapping still disabled.  
+011: Ask samples only when preview/omitted version; 5.x without preview is empty honest HUD; redacted HUD log download; Send off.  
+012: `focusedSessionId`; Ask/Maps/Vault keep the focused phone; named VD from Phone tiles; mock-only `previewSnapshots`.
 
-## Run 3 board
+## Still blocked / not this cut
 
-| ID | Agent | Branch | State | PR | Return |
-|---|---|---|---|---|---|
-| 010 | maps-operator-board | `v5/glass/maps-operator-board` | issued / in-progress | | |
-| 011 | ask-hud-honesty | `v5/glass/ask-hud-honesty` | issued / in-progress | | |
-| 012 | glass-session-bind | `v5/glass/glass-session-bind` | issued / in-progress | | |
-
-Worktrees: `/tmp/glass-010`, `/tmp/glass-011`, `/tmp/glass-012` from current `v5/integration`.
-
-010 owns Maps inspector / Take control / plane label / dark-doors.  
-011 owns Ask HUD honesty + plane + redacted log download.  
-012 owns `app.ts` mount + `focusedSessionId` (keeps focused phone on Ask/Maps/Vault).
-
-Frozen option names in `agents/run-003/RUN-003-SHARED.md`.
-
-Merge order: **010 + 011 first**, then **012**.
-
-## Not this cut
-
-`mapping.start` / cursor / `atlas.diff`. Encrypted PC fill. `ask.start` / Send. Gateway/MCP 5.0 bump. `apps/mobile/**`. ChatGPT Attach. Camera. Glass identity bump / GitHub release.
+Live Gmail house on the board still needs Mobile [#146](https://github.com/premiumcentraal-boop/Cyclone/pull/146) (`atlas.get` Follow Me).  
+`mapping.start` / cursor / `atlas.diff` (alpha.3). Encrypted PC fill. `ask.start` / Send. Gateway/MCP 5.0 bump. Glass identity / GitHub prerelease (still `1.6.0-alpha.1` / `glass-1.0.0-alpha.1`). Pixel UNVERIFIED.

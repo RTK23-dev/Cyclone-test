@@ -279,7 +279,7 @@ export class CyclonePcCompanionApp {
         sessionId,
         sessionPlane,
         previewSnapshots: demo,
-      } as import("./pages/askPage.js").AskPageOptions);
+      });
     }
     if (!this.currentPage && this.state.route === "maps") {
       const { version, sessionId, sessionPlane, demo, loadSource } = this.glassContext();
@@ -290,7 +290,7 @@ export class CyclonePcCompanionApp {
         sessionId,
         sessionPlane,
         onOpenControl: () => this.navigate("fleet"),
-      } as import("./pages/mapsPage.js").MapsPageOptions);
+      });
     }
     if (!this.currentPage && this.state.route === "vault") {
       const { version, demo, loadSlots, onRequestSlot } = this.glassContext();
