@@ -104,7 +104,7 @@ class MappingSessionController(
     @Synchronized
     override fun reportCurrentNode(mappingJobId: String, currentAtlasNodeId: String?): MappingJob {
         val current = requireMutation(mappingJobId)
-        currentAtlasNodeId?.let { AtlasStructuralIds.require(it, "currentAtlasNodeId") }
+        currentAtlasNodeId?.let { AtlasStructuralIds.requireScreen(it, "currentAtlasNodeId") }
         return replace(current.copy(
             currentAtlasNodeId = currentAtlasNodeId,
             updatedAtEpochMs = clock.nowEpochMs(),
