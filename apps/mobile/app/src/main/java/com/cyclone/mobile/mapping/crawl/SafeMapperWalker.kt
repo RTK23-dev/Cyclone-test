@@ -42,7 +42,7 @@ class SafeMapperWalker(
             val blocked = selection.blocked.lastOrNull()
             if (blocked != null) {
                 session.markDanger(blocked.first.key, blocked.second)
-                return MappingStepResult.Paused(PauseReason.DANGER)
+                return completePartial(beforeSession, "no_safe_unexplored_doors")
             }
             return completePartial(beforeSession, "no_safe_unexplored_doors")
         }
