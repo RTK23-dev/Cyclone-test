@@ -236,6 +236,17 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         } }
     }
 
+    /**
+     * Safe Agent-002 integration seam. Returns only slot metadata plus an observation-scoped
+     * element target; no credential value is read or placed into agent/model context.
+     */
+    fun currentSecretWallRequest(): com.cyclone.mobile.secrets.SecretWallRequest? {
+        val session = activeLocalSession ?: return null
+        if (!session.context.pendingLoginAutofill) return null
+        val page = session.context.bridge.currentPage() ?: return null
+        return com.cyclone.mobile.secrets.SecretWallDetector.passwordForLogin(page)
+    }
+
     fun authorizeAutofill(): Boolean {
         val session = activeLocalSession ?: return false
         session.context.pendingAutofill = true

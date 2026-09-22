@@ -15,6 +15,10 @@ FORBIDDEN_SECRET_KEYS = frozenset({
     "password", "passcode", "passwd", "pin", "otp", "token", "secret", "api_key",
     "authorization", "cookie", "cvv", "credential", "typed_text", "typed_value",
 })
+FORBIDDEN_SECRET_TOKENS = frozenset({
+    "password", "passcode", "passwd", "pin", "otp", "token", "secret", "apikey",
+    "authorization", "cookie", "cvv", "credential", "credentials", "typedtext", "typedvalue",
+})
 INLINE_SECRET = re.compile(
     r"(?i)(password|passcode|passwd|pin|otp|token|secret|api[_-]?key|authorization|cookie|cvv|credential|typed[_-]?(?:text|value))\s*[:=]"
 )
@@ -24,14 +28,27 @@ SLOT = re.compile(r"^[A-Za-z][A-Za-z0-9._-]{0,63}$")
 REASON = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._/-]{0,119}$")
 
 
+def _normalized_key(value: str) -> str:
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", value).lower().replace("-", "_").replace(" ", "_")
+
+
+def _secret_name(value: str) -> bool:
+    normalized = _normalized_key(value)
+    compact = normalized.replace("_", "")
+    return (
+        normalized in FORBIDDEN_SECRET_KEYS
+        or compact in FORBIDDEN_SECRET_TOKENS
+        or any(part in FORBIDDEN_SECRET_TOKENS for part in normalized.split("_"))
+    )
+
+
 def reject_secret_payload(value: Any, path: str = "$") -> None:
     """Fail closed before a secret-bearing payload can be logged or forwarded."""
     if isinstance(value, dict):
         for key, nested in value.items():
             key_text = str(key)
-            normalized = key_text.lower()
             child = f"{path}.{key_text}"
-            if normalized in FORBIDDEN_SECRET_KEYS:
+            if _secret_name(key_text):
                 raise DesktopRuntimeError(
                     RuntimeErrorCode.INVALID_REQUEST,
                     "Secret-bearing request payload rejected.",
@@ -47,6 +64,74 @@ def reject_secret_payload(value: Any, path: str = "$") -> None:
             RuntimeErrorCode.INVALID_REQUEST,
             "Secret-bearing request payload rejected.",
         )
+
+
+def _validate_slot_presence_response(value: dict[str, Any], args: dict[str, Any]) -> None:
+    if set(value) != {"placeId", "persona", "slots"}:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android secrets.slots result is malformed.")
+    if value.get("placeId") != args.get("placeId") or value.get("persona") != args.get("persona"):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android secrets.slots identity mismatch.")
+    slots = value.get("slots")
+    if not isinstance(slots, dict):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android secrets.slots presence map is malformed.")
+    for slot, present in slots.items():
+        if not isinstance(slot, str) or SLOT.fullmatch(slot) is None or type(present) is not bool:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Secret slot presence must be boolean metadata only.")
+
+
+def _validate_secret_request_ack(value: dict[str, Any], args: dict[str, Any]) -> None:
+    reject_secret_payload(value)
+    if set(value) != {"state", "request"} or value.get("state") != "needs-secret":
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android secrets.request acknowledgement is malformed.")
+    request = value.get("request")
+    if not isinstance(request, dict) or request != args:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android secrets.request metadata mismatch.")
+
+
+def _reject_atlas_secret_fact_slots(value: Any) -> None:
+    if not isinstance(value, dict):
+        return
+    screens = value.get("screens")
+    if not isinstance(screens, list):
+        return
+    for screen in screens:
+        if not isinstance(screen, dict):
+            continue
+        slots = screen.get("factSlots")
+        if not isinstance(slots, list):
+            continue
+        for slot in slots:
+            if not isinstance(slot, dict):
+                continue
+            name = slot.get("name")
+            if isinstance(name, str) and _secret_name(name):
+                raise DesktopRuntimeError(
+                    RuntimeErrorCode.PROTOCOL_MISMATCH,
+                    "Android Atlas result attempted to expose a secret fact slot.",
+                )
+
+
+def validate_android_response(op: str, value: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
+    """Keep a phone bug from turning into PC/model secret context."""
+    if op == "secrets.slots":
+        _validate_slot_presence_response(value, args)
+        return value
+    if op == "secrets.request":
+        _validate_secret_request_ack(value, args)
+        return value
+    reject_secret_payload(value)
+    if op == "atlas.places":
+        if set(value) != {"places"} or not isinstance(value.get("places"), list):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android atlas.places result is malformed.")
+        for summary in value["places"]:
+            if not isinstance(summary, dict):
+                raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android Atlas place summary is malformed.")
+            _reject_atlas_secret_fact_slots(summary)
+        return value
+    if op == "atlas.get":
+        _reject_atlas_secret_fact_slots(value)
+        return value
+    raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
 
 
 class V5ContractService:
@@ -153,7 +238,7 @@ class V5ContractService:
             value = session.bridge().request(op, args, request_id=f"v5-{secrets.token_urlsafe(18)}")
             if not isinstance(value, dict):
                 raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android V5 result must be an object.")
-            return value
+            return validate_android_response(op, value, args)
         except BridgeOperationError as exc:
             mapping = {
                 "AUTH_REJECTED": RuntimeErrorCode.AUTH_REJECTED,

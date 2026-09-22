@@ -9,7 +9,7 @@
   ],
   "$defs": {
     "persona": { "enum": ["live", "mapping"] },
-    "mapStatus": { "enum": ["unmapped", "mapped", "stale", "blocked"] },
+    "mapStatus": { "enum": ["unmapped", "partial", "mapped", "stale", "blocked"] },
     "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
     "timestamp": {
       "oneOf": [

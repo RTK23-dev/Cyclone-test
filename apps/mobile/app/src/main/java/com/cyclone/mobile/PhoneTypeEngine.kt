@@ -81,14 +81,16 @@ object PhoneTypeEngine {
         val textLength: Int,
         val textDigest: String,
         val actions: List<String>,
+        val password: Boolean = false,
     )
 
     interface LiveHost {
         fun resolve(plan: ExecutePlan): Any?
-        fun view(handle: Any): LiveView?
+        fun view(handle: Any, redactText: Boolean = false): LiveView?
         fun focus(handle: Any): Boolean
         fun click(handle: Any): Boolean
-        fun setText(handle: Any, value: String): Boolean
+        fun setText(handle: Any, value: CharSequence): Boolean
+        fun matchesText(handle: Any, value: CharSequence): Boolean = false
         fun refresh(handle: Any): Any?
     }
 
@@ -150,7 +152,7 @@ object PhoneTypeEngine {
                 focused = if (evidence.has("focused")) evidence.optBoolean("focused") else snap?.focused == true,
                 focusable = if (evidence.has("focusable")) evidence.optBoolean("focusable") else snap?.focusable == true,
                 enabled = if (evidence.has("enabled")) evidence.optBoolean("enabled") else snap?.enabled != false,
-                password = evidence.optBoolean("password", false),
+                password = if (evidence.has("password")) evidence.optBoolean("password") else snap?.password == true,
                 actions = actions,
             )
         }
@@ -223,13 +225,18 @@ object PhoneTypeEngine {
         )
     }
 
-    fun perform(plan: ExecutePlan, value: String, host: LiveHost): LiveResult {
+    fun perform(
+        plan: ExecutePlan,
+        value: CharSequence,
+        host: LiveHost,
+        redactObservedText: Boolean = false,
+    ): LiveResult {
         if (digest(value) != plan.valueDigest || value.length != plan.valueLength) {
             return fail(plan, PhoneToolErrorCode.INTERNAL_ERROR, "Type plan does not match the authorized value")
         }
         var handle = host.resolve(plan)
             ?: return fail(plan, PhoneToolErrorCode.STALE_ELEMENT, "Live editable node could not be resolved")
-        var view = host.view(handle)
+        var view = host.view(handle, redactObservedText)
             ?: return fail(plan, PhoneToolErrorCode.STALE_ELEMENT, "Live editable node has no current view")
         if (!view.editable) {
             return fail(plan, PhoneToolErrorCode.INVALID_REQUEST, "Target is not an editable field")
@@ -242,14 +249,14 @@ object PhoneTypeEngine {
         if (!view.focused) {
             focusRecovered = host.focus(handle)
             handle = host.refresh(handle) ?: handle
-            view = host.view(handle) ?: view
+            view = host.view(handle, redactObservedText) ?: view
             if (!view.focused) {
                 if (host.click(handle)) {
                     focusRecovered = true
                     handle = host.refresh(handle) ?: handle
                     host.focus(handle)
                     handle = host.refresh(handle) ?: handle
-                    view = host.view(handle) ?: view
+                    view = host.view(handle, redactObservedText) ?: view
                 }
             } else {
                 focusRecovered = true
@@ -260,12 +267,21 @@ object PhoneTypeEngine {
         val beforeLength = view.textLength
         val set = host.setText(handle, value)
         val afterHandle = host.refresh(handle) ?: handle
-        val after = host.view(afterHandle)
+        val after = host.view(afterHandle, redactObservedText)
         val stillEditableFocused = after != null && after.editable && after.focused
         val digestMatches = after != null && after.textDigest == plan.valueDigest && after.textLength == plan.valueLength
         val textChanged = after != null && (after.textDigest != beforeDigest || after.textLength != beforeLength)
         val unchangedAsLabel = after != null && after.textDigest == beforeDigest && after.textLength == beforeLength
-        val verified = stillEditableFocused && (digestMatches || textChanged || unchangedAsLabel)
+        val exactRedactedMatch = redactObservedText && after != null && host.matchesText(afterHandle, value)
+        val maskedPasswordFilled = redactObservedText &&
+            after?.password == true &&
+            beforeLength != after.textLength &&
+            after.textLength == value.length
+        val verified = stillEditableFocused && if (redactObservedText) {
+            exactRedactedMatch || maskedPasswordFilled
+        } else {
+            digestMatches || textChanged || unchangedAsLabel
+        }
         if (!set) {
             return LiveResult(
                 ok = false,
@@ -300,8 +316,8 @@ object PhoneTypeEngine {
             focusRecovered = focusRecovered,
             setTextPerformed = true,
             afterStateVerified = true,
-            charCount = plan.valueLength,
-            textDigest = plan.valueDigest,
+            charCount = if (redactObservedText) 0 else plan.valueLength,
+            textDigest = if (redactObservedText) REDACTED else plan.valueDigest,
             elementId = plan.elementId,
             rawNodeId = plan.rawNodeId,
         )
@@ -328,9 +344,15 @@ object PhoneTypeEngine {
         return null
     }
 
-    fun digest(value: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }.take(16)
+    fun digest(value: CharSequence): String {
+        val encoded = Charsets.UTF_8.encode(java.nio.CharBuffer.wrap(value))
+        val bytes = ByteArray(encoded.remaining()).also(encoded::get)
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+            digest.joinToString("") { "%02x".format(it) }.take(16)
+        } finally {
+            bytes.fill(0)
+        }
     }
 
     fun duplicateSignature(tool: String, params: JSONObject): String {
@@ -406,7 +428,7 @@ object PhoneTypeEngine {
         focused = node.focused,
         focusable = node.focusable,
         enabled = node.enabled,
-        password = false,
+        password = node.password,
         actions = node.actions,
     )
 

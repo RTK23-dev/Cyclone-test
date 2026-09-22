@@ -89,6 +89,65 @@ def test_forwards_all_run1_ops_to_phone_authority(service):
     ]
 
 
+def test_android_response_is_rejected_before_secret_can_enter_pc_context(service):
+    svc, bridge = service
+
+    def secret_result(op, args, request_id=None):
+        bridge.calls.append((op, dict(args), request_id))
+        if op == "atlas.get":
+            return {
+                "place": {
+                    "placeId": args["placeId"],
+                    "kind": "package",
+                    "label": "Example",
+                    "packageName": "com.example.app",
+                },
+                "persona": args["persona"],
+                "mapStatus": "mapped",
+                "screens": [{"screenId": "login", "factSlots": [{"name": "password"}]}],
+                "edges": [],
+                "capabilities": [],
+                "confidence": 1.0,
+                "lastObservedAt": None,
+                "lastVerifiedAt": None,
+            }
+        raise AssertionError(op)
+
+    bridge.request = secret_result
+    with pytest.raises(DesktopRuntimeError):
+        svc.atlas_get("phone-1", "package:com.example.app", "live")
+
+
+def test_secret_slot_presence_accepts_secret_slot_names_only_as_booleans(service):
+    svc, bridge = service
+
+    def slots_result(op, args, request_id=None):
+        bridge.calls.append((op, dict(args), request_id))
+        if op == "secrets.slots":
+            return {
+                "placeId": args["placeId"],
+                "persona": args["persona"],
+                "slots": {"password": True, "otp": False},
+            }
+        raise AssertionError(op)
+
+    bridge.request = slots_result
+    result = svc.secret_slots("phone-1", "package:com.example.app", "live")
+    assert result["slots"] == {"password": True, "otp": False}
+
+    def bad_slots_result(op, args, request_id=None):
+        bridge.calls.append((op, dict(args), request_id))
+        return {
+            "placeId": args["placeId"],
+            "persona": args["persona"],
+            "slots": {"password": 1},
+        }
+
+    bridge.request = bad_slots_result
+    with pytest.raises(DesktopRuntimeError):
+        svc.secret_slots("phone-1", "package:com.example.app", "live")
+
+
 def test_secret_payload_is_rejected_not_stripped_or_forwarded(service):
     svc, bridge = service
     with pytest.raises(DesktopRuntimeError):
@@ -131,6 +190,26 @@ def test_valid_empty_atlas_document_validates():
     Draft202012Validator(_schema("cyclone-atlas-v1.schema.json")).validate(document)
 
 
+def test_partial_atlas_document_validates():
+    document = {
+        "place": {
+            "placeId": "package:com.example.app",
+            "kind": "package",
+            "label": "Example",
+            "packageName": "com.example.app",
+        },
+        "persona": "live",
+        "mapStatus": "partial",
+        "screens": [],
+        "edges": [],
+        "capabilities": [],
+        "confidence": 0.5,
+        "lastObservedAt": None,
+        "lastVerifiedAt": None,
+    }
+    Draft202012Validator(_schema("cyclone-atlas-v1.schema.json")).validate(document)
+
+
 def test_valid_slot_presence_validates_and_value_field_is_rejected():
     validator = Draft202012Validator(_schema("cyclone-secrets-v1.schema.json"))
     validator.validate({
@@ -138,11 +217,12 @@ def test_valid_slot_presence_validates_and_value_field_is_rejected():
         "persona": "live",
         "slots": {"username": True, "password": True, "otp": False},
     })
-    with pytest.raises(Exception):
-        validator.validate({
-            "placeId": "package:com.example.app",
-            "persona": "live",
-            "slot": "password",
-            "reason": "Login required",
-            "password": "must-never-cross",
-        })
+    for forbidden_field in ("password", "value"):
+        with pytest.raises(Exception):
+            validator.validate({
+                "placeId": "package:com.example.app",
+                "persona": "live",
+                "slot": "password",
+                "reason": "Login required",
+                forbidden_field: True,
+            })

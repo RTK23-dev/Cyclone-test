@@ -175,6 +175,37 @@ class WorkspaceTaskService : Service() {
             return
         }
         val id = sessionId ?: return
+        val secretWall = if (result.classification == "HUMAN_OR_GATE") {
+            agent?.currentSecretWallRequest()
+        } else null
+
+        // A secret fill is an agent-authorized mutation on the exact existing workspace. Do not
+        // revoke the workspace lease here: the suspended agent is idle and the one-shot card fill
+        // is the only permitted mutation until verification succeeds.
+        if (secretWall != null) {
+            update {
+                it.copy(
+                    phase = TaskPhase.REVIEW,
+                    message = "Secure input is required to continue.",
+                    outcome = null,
+                    resumable = true,
+                    loginAutofill = false,
+                    interruption = TaskInterruption.needsSecret(),
+                )
+            }
+            val blocked = current ?: return
+            val expectedRevision = blocked.controlRevision
+            com.cyclone.mobile.secrets.SecretsPhoneFacade.requestForRun(
+                context = applicationContext,
+                request = secretWall.request,
+                target = secretWall.target,
+            ) { resolution ->
+                if (!resolution.taskMayResume) return@requestForRun
+                resumeAfterSecret(blocked.taskId, expectedRevision)
+            }
+            return
+        }
+
         // Even verified completion retains its exact app page until Open or Stop.
         withContext(Dispatchers.IO) { WorkspaceRuntime.pause(id, WorkspaceState.BACKGROUND_NEEDS_HANDOFF) }
         update {
@@ -189,11 +220,13 @@ class WorkspaceTaskService : Service() {
                         steps = it.steps + "Checked the result",
                     )
                 }
-                result.classification == "HUMAN_OR_GATE" -> it.copy(phase = TaskPhase.REVIEW,
+                result.classification == "HUMAN_OR_GATE" -> it.copy(
+                    phase = TaskPhase.REVIEW,
                     message = if (result.gateClass == "login")
                         "This screen needs your sign-in. Take Over, Autofill, or tap I'm Done when finished."
                     else "Review the prepared page in ${it.app} before continuing.",
-                    loginAutofill = result.gateClass == "login")
+                    loginAutofill = result.gateClass == "login",
+                )
                 else -> {
                     val safeFailure = OutcomeStageCopy.terminalFailure(it.plannedStages, result.message, resumable = false)
                     it.copy(
@@ -203,6 +236,65 @@ class WorkspaceTaskService : Service() {
                         outcome = safeFailure,
                     )
                 }
+            }
+        }
+    }
+
+    private fun resumeAfterSecret(expectedTaskId: String, expectedRevision: Long) {
+        if (switching || stopped) return
+        val blocked = current ?: return
+        if (blocked.taskId != expectedTaskId ||
+            blocked.controlRevision != expectedRevision ||
+            blocked.interruption?.kind != TaskInterruptionKind.NEEDS_SECRET
+        ) return
+
+        switching = true
+        val previousRun = running
+        running = scope.launch {
+            try {
+                previousRun?.join()
+                if (stopped) return@launch
+                val id = sessionId ?: error("Missing workspace session")
+                val currentTask = current ?: error("Task unavailable")
+                check(currentTask.taskId == expectedTaskId && currentTask.controlRevision == expectedRevision) {
+                    "STALE_SECRET_RESUME"
+                }
+                check(WorkspaceRuntime.ownsInput(id)) { "Workspace input authority changed" }
+                val exact = ExecutionContext(id, currentTask.displayId ?: error("Missing task display"))
+                val fresh = withContext(Dispatchers.IO) {
+                    com.cyclone.mobile.gateway.GatewayObservationAdapter.capture(
+                        applicationContext,
+                        currentTask.identityJson(),
+                    )
+                }
+                check(fresh.execution == exact && fresh.id.isNotBlank()) {
+                    "Fresh session evidence is required"
+                }
+                update {
+                    it.copy(
+                        phase = TaskPhase.WORKING,
+                        message = "Continuing from the current page",
+                        outcome = null,
+                        interruption = null,
+                        loginAutofill = false,
+                        glassStepKind = GlassStepKind.FAST_PATH,
+                    )
+                }
+                switching = false
+                finishTask(agent?.resume { text -> progress(text) } ?: error("Task unavailable"))
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                val id = sessionId
+                if (id != null) withContext(Dispatchers.IO) { runCatching { WorkspaceRuntime.pause(id) } }
+                update {
+                    it.copy(
+                        phase = TaskPhase.PAUSED,
+                        message = "Couldn't continue after secure input. Your task is paused safely.",
+                    )
+                }
+            } finally {
+                switching = false
             }
         }
     }

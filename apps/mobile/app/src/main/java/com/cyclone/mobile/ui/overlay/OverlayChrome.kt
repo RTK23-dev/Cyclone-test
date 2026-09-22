@@ -159,12 +159,14 @@ fun OverlayChrome(
     aiSettings: OverlayAiSettings = OverlayAiSettings(),
     onAiSettingsChanged: (OverlayAiSettings) -> Unit = {},
     idleVisualState: OverlayIdleVisualState = OverlayIdleVisualState(),
+    secretCardState: com.cyclone.mobile.secrets.SecretsCardUiState? = null,
     onIdleTap: () -> Unit = {},
     onIdleSemanticActivate: () -> Unit = { onAction(OverlayUserAction.ASK_CYCLONE) },
     modifier: Modifier = Modifier,
 ) {
     com.cyclone.mobile.ui.v32.CycloneSignatureTheme {
         val presentation = when {
+            secretCardState?.visible == true -> "secret"
             snapshot.state == OverlayChromeState.IDLE -> "idle"
             snapshot.launcherCollapsed -> "launcher"
             snapshot.state == OverlayChromeState.GATE -> "gate"
@@ -179,6 +181,7 @@ fun OverlayChrome(
             label = "Cyclone chat drawer",
         ) { mode ->
             when (mode) {
+                "secret" -> com.cyclone.mobile.secrets.SecretsCardOverlay(secretCardState!!)
                 "idle" -> if (snapshot.idleChipVisible) {
                     IdleActivationHotspot(
                         state = idleVisualState,
