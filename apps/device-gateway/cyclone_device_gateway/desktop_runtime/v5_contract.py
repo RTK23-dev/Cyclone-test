@@ -8,9 +8,29 @@ from ..cyclone_bridge.client import BridgeDisconnectedError, BridgeOperationErro
 from .fleet import DeviceFleetManager, DeviceSession
 from .models import DesktopRuntimeError, RuntimeErrorCode
 
-V5_CONTRACT_PROTOCOL = "cyclone.v5.run1.contract.v1"
-V5_OPS = frozenset({"atlas.places", "atlas.get", "secrets.slots", "secrets.request"})
+V5_CONTRACT_PROTOCOL = "cyclone.v5.run2.contract.v1"
+V5_OPS = frozenset({
+    "atlas.places",
+    "atlas.get",
+    "atlas.diff",
+    "mapping.start",
+    "mapping.pause",
+    "mapping.stop",
+    "mapping.status",
+    "secrets.slots",
+    "secrets.request",
+})
 PERSONAS = frozenset({"live", "mapping"})
+MAPPING_STATES = frozenset({
+    "idle",
+    "running",
+    "paused",
+    "needs-secret",
+    "human-control",
+    "completed",
+    "stopped",
+    "failed",
+})
 FORBIDDEN_SECRET_KEYS = frozenset({
     "password", "passcode", "passwd", "pin", "otp", "token", "secret", "api_key",
     "authorization", "cookie", "cvv", "credential", "typed_text", "typed_value",
@@ -26,6 +46,36 @@ PACKAGE_PLACE = re.compile(r"^package:[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0
 CHROME_PLACE = re.compile(r"^chrome:https?://[^\s/]+(?::[0-9]{1,5})?$")
 SLOT = re.compile(r"^[A-Za-z][A-Za-z0-9._-]{0,63}$")
 REASON = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._/-]{0,119}$")
+JOB_ID = re.compile(r"^[A-Za-z0-9_-]{8,120}$")
+WORKSPACE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+CURSOR = re.compile(r"^c1:[a-f0-9]{20}:[0-9]+$")
+STRUCTURAL_ID = re.compile(r"^[A-Za-z0-9._:-]{1,180}$")
+MAPPING_JOB_KEYS = frozenset({
+    "mappingJobId", "placeId", "persona", "state", "sessionId", "displayId", "plane",
+    "controlRevision", "executionGeneration", "budget", "currentAtlasNodeId", "progress",
+    "atlasStatus", "danger", "boundary", "startedAtEpochMs", "updatedAtEpochMs", "failureCode",
+})
+BUDGET_KEYS = frozenset({
+    "maxNewScreens",
+    "maxElapsedMs",
+    "maxConsecutiveNonProgress",
+    "maxAttemptsPerDoor",
+})
+PROGRESS_KEYS = frozenset({
+    "newScreens",
+    "verifiedMutations",
+    "consecutiveNonProgress",
+    "attemptedDoors",
+    "remainingDarkRegions",
+})
+PLANE_KEYS = frozenset({
+    "kind",
+    "sessionId",
+    "displayId",
+    "workspaceId",
+    "workspaceGeneration",
+    "label",
+})
 
 
 def _normalized_key(value: str) -> str:
@@ -64,6 +114,79 @@ def reject_secret_payload(value: Any, path: str = "$") -> None:
             RuntimeErrorCode.INVALID_REQUEST,
             "Secret-bearing request payload rejected.",
         )
+
+
+def _is_int(value: Any, *, minimum: int = 0) -> bool:
+    return type(value) is int and value >= minimum
+
+
+def _validate_place_persona(args: dict[str, Any]) -> None:
+    place_id = args.get("placeId")
+    persona = args.get("persona")
+    if not isinstance(place_id, str) or (
+        PACKAGE_PLACE.fullmatch(place_id) is None and CHROME_PLACE.fullmatch(place_id) is None
+    ):
+        raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Invalid placeId.")
+    if persona not in PERSONAS:
+        raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "persona must be live or mapping.")
+
+
+def _validate_mapping_plane(args: dict[str, Any], *, allow_execution_generation: bool) -> None:
+    session_id = args.get("sessionId")
+    display_id = args.get("displayId")
+    if not isinstance(session_id, str) or not session_id.strip() or len(session_id) > 160:
+        raise DesktopRuntimeError(RuntimeErrorCode.SESSION_REQUIRED, "sessionId is required for mapping.")
+    if not _is_int(display_id):
+        raise DesktopRuntimeError(
+            RuntimeErrorCode.SESSION_DISPLAY_MISMATCH,
+            "displayId is required and must be a non-negative integer.",
+        )
+
+    workspace_id = args.get("workspaceId")
+    workspace_generation = args.get("workspaceGeneration")
+    has_workspace = workspace_id is not None or workspace_generation is not None
+    if has_workspace:
+        if session_id != "default-foreground" or display_id != 0:
+            raise DesktopRuntimeError(
+                RuntimeErrorCode.SESSION_DISPLAY_MISMATCH,
+                "Layer-2 mapping requires default-foreground/display 0.",
+            )
+        if not isinstance(workspace_id, str) or WORKSPACE_ID.fullmatch(workspace_id) is None:
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Invalid workspaceId.")
+        if not _is_int(workspace_generation):
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "workspaceGeneration is required.")
+    elif session_id == "default-foreground":
+        if display_id != 0:
+            raise DesktopRuntimeError(
+                RuntimeErrorCode.SESSION_DISPLAY_MISMATCH,
+                "default-foreground mapping must use display 0.",
+            )
+    elif display_id <= 0:
+        raise DesktopRuntimeError(
+            RuntimeErrorCode.SESSION_DISPLAY_MISMATCH,
+            "Named mapping sessions require a nonzero displayId.",
+        )
+
+    if "executionGeneration" in args:
+        if not allow_execution_generation:
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "executionGeneration is not accepted here.")
+        if not _is_int(args.get("executionGeneration")):
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "executionGeneration must be non-negative.")
+
+
+def _validate_budget(value: Any) -> None:
+    if not isinstance(value, dict) or set(value) != BUDGET_KEYS:
+        raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Mapping budget has an invalid shape.")
+    limits = {
+        "maxNewScreens": (1, 500),
+        "maxElapsedMs": (1_000, 7_200_000),
+        "maxConsecutiveNonProgress": (1, 100),
+        "maxAttemptsPerDoor": (1, 20),
+    }
+    for key, (low, high) in limits.items():
+        item = value.get(key)
+        if not _is_int(item, minimum=low) or item > high:
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, f"{key} is outside its allowed range.")
 
 
 def _validate_slot_presence_response(value: dict[str, Any], args: dict[str, Any]) -> None:
@@ -111,14 +234,106 @@ def _reject_atlas_secret_fact_slots(value: Any) -> None:
                 )
 
 
+def _validate_atlas_diff(value: dict[str, Any], args: dict[str, Any]) -> None:
+    expected = {"placeId", "persona", "since", "cursor", "resyncRequired", "changes"}
+    if set(value) != expected:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android atlas.diff result is malformed.")
+    if value.get("placeId") != args.get("placeId") or value.get("persona") != args.get("persona"):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android atlas.diff identity mismatch.")
+    expected_since = args.get("since")
+    if value.get("since") != expected_since:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android atlas.diff cursor echo mismatch.")
+    cursor = value.get("cursor")
+    if not isinstance(cursor, str) or CURSOR.fullmatch(cursor) is None:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android atlas.diff cursor is malformed.")
+    if type(value.get("resyncRequired")) is not bool or not isinstance(value.get("changes"), list):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android atlas.diff metadata is malformed.")
+    if value["resyncRequired"] and value["changes"]:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Resync-required diff must not fabricate changes.")
+
+    allowed_base = {"cursor", "entity", "change", "id"}
+    for change in value["changes"]:
+        if not isinstance(change, dict):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff change must be an object.")
+        if not allowed_base.issubset(change):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff change is incomplete.")
+        if not set(change).issubset(allowed_base | {"mapStatus", "fromScreenId", "toScreenId", "layout"}):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff change exposed an unknown field.")
+        if not isinstance(change["cursor"], str) or CURSOR.fullmatch(change["cursor"]) is None:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff change cursor is malformed.")
+        if change.get("entity") not in {"place", "screen", "edge"} or change.get("change") not in {"upsert", "remove"}:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff change type is invalid.")
+        if not isinstance(change.get("id"), str) or STRUCTURAL_ID.fullmatch(change["id"]) is None:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff structural id is invalid.")
+        if "mapStatus" in change and change["mapStatus"] not in {"unmapped", "partial", "mapped", "stale", "blocked"}:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff mapStatus is invalid.")
+        endpoints = ("fromScreenId" in change, "toScreenId" in change)
+        if endpoints[0] != endpoints[1]:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff edge topology is incomplete.")
+        for key in ("fromScreenId", "toScreenId"):
+            if key in change and (
+                not isinstance(change[key], str) or STRUCTURAL_ID.fullmatch(change[key]) is None
+            ):
+                raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff topology id is invalid.")
+        if "layout" in change:
+            layout = change["layout"]
+            if not isinstance(layout, dict) or set(layout) != {"x", "y"}:
+                raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff layout is malformed.")
+            if type(layout["x"]) not in (int, float) or type(layout["y"]) not in (int, float):
+                raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Atlas diff layout must be numeric.")
+
+
+def _validate_mapping_response(value: dict[str, Any], args: dict[str, Any]) -> None:
+    if set(value) != MAPPING_JOB_KEYS:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping result is malformed.")
+    if value.get("state") not in MAPPING_STATES:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping state is invalid.")
+    if value.get("sessionId") != args.get("sessionId") or value.get("displayId") != args.get("displayId"):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping plane identity mismatch.")
+    plane = value.get("plane")
+    if not isinstance(plane, dict) or set(plane) != PLANE_KEYS:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping plane is malformed.")
+    if plane.get("sessionId") != value.get("sessionId") or plane.get("displayId") != value.get("displayId"):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping plane disagrees with result identity.")
+    if value["state"] == "idle":
+        if value.get("mappingJobId") is not None:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Idle mapping status must not invent a job.")
+    else:
+        if not isinstance(value.get("mappingJobId"), str) or JOB_ID.fullmatch(value["mappingJobId"]) is None:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mappingJobId is malformed.")
+        if not isinstance(value.get("placeId"), str) or (
+            PACKAGE_PLACE.fullmatch(value["placeId"]) is None and CHROME_PLACE.fullmatch(value["placeId"]) is None
+        ):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping placeId is malformed.")
+        if value.get("persona") not in PERSONAS:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping persona is invalid.")
+        if not _is_int(value.get("controlRevision")):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping controlRevision is invalid.")
+
+    budget = value.get("budget")
+    if budget is not None:
+        _validate_budget(budget)
+    progress = value.get("progress")
+    if not isinstance(progress, dict) or set(progress) != PROGRESS_KEYS:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping progress is malformed.")
+    if not all(_is_int(progress.get(key)) for key in PROGRESS_KEYS):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping progress counters are invalid.")
+    node_id = value.get("currentAtlasNodeId")
+    if node_id is not None and (not isinstance(node_id, str) or STRUCTURAL_ID.fullmatch(node_id) is None):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping node id is invalid.")
+    if value.get("atlasStatus") not in {None, "partial", "mapped"}:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping atlasStatus is invalid.")
+
+
 def validate_android_response(op: str, value: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
-    """Keep a phone bug from turning into PC/model secret context."""
+    """Keep a phone bug from turning into PC/model secret or mapping authority."""
     if op == "secrets.slots":
         _validate_slot_presence_response(value, args)
         return value
     if op == "secrets.request":
         _validate_secret_request_ack(value, args)
         return value
+
     reject_secret_payload(value)
     if op == "atlas.places":
         if set(value) != {"places"} or not isinstance(value.get("places"), list):
@@ -131,14 +346,20 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
     if op == "atlas.get":
         _reject_atlas_secret_fact_slots(value)
         return value
+    if op == "atlas.diff":
+        _validate_atlas_diff(value, args)
+        return value
+    if op in {"mapping.start", "mapping.pause", "mapping.stop", "mapping.status"}:
+        _validate_mapping_response(value, args)
+        return value
     raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
 
 
 class V5ContractService:
-    """Constrained PC bridge for Run-1 Atlas/Vault metadata operations.
+    """Constrained PC bridge for Atlas/Vault/mapping metadata operations.
 
-    This service creates no PC-side Atlas or Vault truth. Every successful result comes from the
-    authenticated Android Gateway.
+    This service creates no PC-side Atlas, diff journal, mapping state, or Vault truth. Every
+    successful result comes from the authenticated Android Gateway.
     """
 
     PROTOCOL = V5_CONTRACT_PROTOCOL
@@ -151,12 +372,25 @@ class V5ContractService:
 
     def atlas_get(self, device_id: str, place_id: str, persona: str) -> dict[str, Any]:
         args = {"placeId": place_id, "persona": persona}
-        self._validate_place_persona(args)
+        _validate_place_persona(args)
         return self._call(device_id, "atlas.get", args)
+
+    def atlas_diff(
+        self,
+        device_id: str,
+        place_id: str,
+        persona: str,
+        since: str | None = None,
+    ) -> dict[str, Any]:
+        args: dict[str, Any] = {"placeId": place_id, "persona": persona, "since": since}
+        _validate_place_persona(args)
+        if since is not None and (not isinstance(since, str) or not since or len(since) > 128):
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "since must be a bounded phone-issued cursor.")
+        return self._call(device_id, "atlas.diff", args)
 
     def secret_slots(self, device_id: str, place_id: str, persona: str) -> dict[str, Any]:
         args = {"placeId": place_id, "persona": persona}
-        self._validate_place_persona(args)
+        _validate_place_persona(args)
         return self._call(device_id, "secrets.slots", args)
 
     def secret_request(
@@ -178,7 +412,7 @@ class V5ContractService:
         if extra:
             args.update(extra)
         reject_secret_payload(args)
-        self._validate_place_persona(args)
+        _validate_place_persona(args)
         if set(args) != {"placeId", "persona", "slot", "reason"}:
             raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Unexpected secrets.request field.")
         if not isinstance(slot, str) or SLOT.fullmatch(slot) is None:
@@ -188,11 +422,12 @@ class V5ContractService:
         return self._call(device_id, "secrets.request", args)
 
     def forward(self, device_id: str, op: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Typed forwarding seam used by tests/consumers. No generic Android op passthrough."""
+        """Typed forwarding seam. There is no generic Android-op passthrough or PC mapping truth."""
         if op not in V5_OPS:
             raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
         args = dict(payload or {})
         reject_secret_payload(args)
+
         if op == "atlas.places":
             if args:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.places takes no arguments.")
@@ -201,29 +436,61 @@ class V5ContractService:
             if set(args) != {"placeId", "persona"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.get requires placeId/persona only.")
             return self.atlas_get(device_id, str(args["placeId"]), str(args["persona"]))
+        if op == "atlas.diff":
+            if set(args) != {"placeId", "persona", "since"}:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.diff requires placeId/persona/since.")
+            return self.atlas_diff(device_id, str(args["placeId"]), str(args["persona"]), args.get("since"))
         if op == "secrets.slots":
             if set(args) != {"placeId", "persona"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "secrets.slots requires placeId/persona only.")
             return self.secret_slots(device_id, str(args["placeId"]), str(args["persona"]))
-        if set(args) != {"placeId", "persona", "slot", "reason"}:
-            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "secrets.request requires safe metadata only.")
-        return self.secret_request(
-            device_id,
-            place_id=str(args["placeId"]),
-            persona=str(args["persona"]),
-            slot=str(args["slot"]),
-            reason=str(args["reason"]),
-        )
+        if op == "secrets.request":
+            if set(args) != {"placeId", "persona", "slot", "reason"}:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "secrets.request requires safe metadata only.")
+            return self.secret_request(
+                device_id,
+                place_id=str(args["placeId"]),
+                persona=str(args["persona"]),
+                slot=str(args["slot"]),
+                reason=str(args["reason"]),
+            )
 
-    def _validate_place_persona(self, args: dict[str, Any]) -> None:
-        place_id = args.get("placeId")
-        persona = args.get("persona")
-        if not isinstance(place_id, str) or (
-            PACKAGE_PLACE.fullmatch(place_id) is None and CHROME_PLACE.fullmatch(place_id) is None
-        ):
-            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Invalid placeId.")
-        if persona not in PERSONAS:
-            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "persona must be live or mapping.")
+        if op == "mapping.start":
+            allowed = {
+                "placeId", "persona", "sessionId", "displayId", "workspaceId", "workspaceGeneration",
+                "executionGeneration", "budget", "resumeJobId",
+            }
+            if not set(args).issubset(allowed):
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "mapping.start has an unexpected field.")
+            _validate_mapping_plane(args, allow_execution_generation=True)
+            resume_job_id = args.get("resumeJobId")
+            if resume_job_id is not None:
+                if not isinstance(resume_job_id, str) or JOB_ID.fullmatch(resume_job_id) is None:
+                    raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "resumeJobId is invalid.")
+                if any(key in args for key in ("placeId", "persona", "budget")):
+                    raise DesktopRuntimeError(
+                        RuntimeErrorCode.INVALID_REQUEST,
+                        "mapping.start resume accepts resumeJobId plus plane identity only.",
+                    )
+            else:
+                _validate_place_persona(args)
+                if "budget" in args:
+                    _validate_budget(args["budget"])
+            return self._call(device_id, op, args)
+
+        allowed_command = {"mappingJobId", "sessionId", "displayId", "workspaceId", "workspaceGeneration"}
+        if not set(args).issubset(allowed_command):
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, f"{op} has an unexpected field.")
+        _validate_mapping_plane(args, allow_execution_generation=False)
+        if op in {"mapping.pause", "mapping.stop"}:
+            mapping_job_id = args.get("mappingJobId")
+            if not isinstance(mapping_job_id, str) or JOB_ID.fullmatch(mapping_job_id) is None:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "mappingJobId is required.")
+        elif "mappingJobId" in args:
+            mapping_job_id = args["mappingJobId"]
+            if not isinstance(mapping_job_id, str) or JOB_ID.fullmatch(mapping_job_id) is None:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "mappingJobId is invalid.")
+        return self._call(device_id, op, args)
 
     def _paired(self, device_id: str) -> DeviceSession:
         session = self.fleet.get(device_id)
@@ -245,6 +512,13 @@ class V5ContractService:
                 "PROTOCOL_MISMATCH": RuntimeErrorCode.PROTOCOL_MISMATCH,
                 "INVALID_REQUEST": RuntimeErrorCode.INVALID_REQUEST,
                 "SECRET_PAYLOAD_REJECTED": RuntimeErrorCode.INVALID_REQUEST,
+                "SESSION_REQUIRED": RuntimeErrorCode.SESSION_REQUIRED,
+                "SESSION_DISPLAY_MISMATCH": RuntimeErrorCode.SESSION_DISPLAY_MISMATCH,
+                "HUMAN_HAS_CONTROL": RuntimeErrorCode.HUMAN_HAS_CONTROL,
+                "STALE_CONTROL_REVISION": RuntimeErrorCode.STALE_CONTROL_REVISION,
+                "MAPPING_PLANE_BUSY": RuntimeErrorCode.MAPPING_PLANE_BUSY,
+                "MAPPING_JOB_NOT_FOUND": RuntimeErrorCode.MAPPING_JOB_NOT_FOUND,
+                "MAPPING_INVALID_STATE": RuntimeErrorCode.MAPPING_INVALID_STATE,
             }
             raise DesktopRuntimeError(
                 mapping.get(exc.code, RuntimeErrorCode.CAPABILITY_UNAVAILABLE),
