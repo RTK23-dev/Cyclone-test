@@ -78,7 +78,7 @@ export const GLASS_VAULT_FIXTURE_SLOTS: readonly GlassVaultSlot[] = [
 
 export const ASK_NEEDS_SECRET_FIXTURE: GlassAskSnapshot = {
   state: "needs-secret",
-  title: "Checking Facebook login status",
+  title: "Facebook needs a password",
   slotLabel: "Facebook password",
   supportingCopy: "Secure input is required to continue.",
   sessionId: "default-foreground",
