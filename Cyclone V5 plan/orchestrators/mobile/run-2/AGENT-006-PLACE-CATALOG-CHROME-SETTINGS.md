@@ -1,7 +1,7 @@
 # RUN 2 — AGENT 006 — PLACE CATALOG + CHROME + SETTINGS
 
 **Read first:** `RUN-2-SHARED.md`  
-**Branch when issued:** `v5/mobile/place-catalog-chrome-settings`  
+**Branch (issued now):** `v5/mobile/place-catalog-chrome-settings`  
 **PR target:** `v5/integration`
 
 You own canonical **Place resolution** and the Run-1 Settings mounting closeout. You do not own the mapper walker.

@@ -1,7 +1,7 @@
 # RUN 2 — AGENT 005 — SAFE MAPPER WALKER
 
 **Read first:** `RUN-2-SHARED.md`  
-**Branch when issued:** `v5/mobile/mapper-walker-safety`  
+**Branch (issued now):** `v5/mobile/mapper-walker-safety`  
 **PR target:** `v5/integration`
 
 You own the Android **mapping decision/walk engine**, not the gateway control plane.

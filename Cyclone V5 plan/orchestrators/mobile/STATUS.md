@@ -1,6 +1,6 @@
 # Mobile orchestrator — STATUS
 
-**Wave:** Run 1 closeout; Run 2 drafted, **not issued**  
+**Wave:** Run 1 closeout in parallel with **Run 2 issued**  
 **Integration branch:** `v5/integration@7e5ece6ff17d78a1a42135bc7cbad5bf397e13f3`  
 **Plan source:** `main@d2ec2ca5a397f82fdaf90c72c93e3168f89b47dd`  
 **Original code base:** `release/cyclone-mobile-v4.8.0@97f81cb692893896b500f2372068fb1cd67d85ed`
@@ -51,17 +51,19 @@ Run-1 Vault architecture is accepted and merged. The phone card currently uses C
 - [ ] Glass read-only Maps board consumes the real phone graph — Glass-owned exit test.
 - [ ] Run-1 orchestrator return written — waits for #146.
 
-## Run 2 — drafted only
+## Run 2 — issued now
 
 Files: `orchestrators/mobile/run-2/`
 
-| ID | Agent | Planned branch | State |
-|---|---|---|---|
-| 004 | mapping-session-protocol | `v5/mobile/mapping-session-protocol` | **drafted — blocked on Run-1 closeout** |
-| 005 | mapper-walker-safety | `v5/mobile/mapper-walker-safety` | **drafted — blocked on Run-1 closeout** |
-| 006 | place-catalog-chrome-settings | `v5/mobile/place-catalog-chrome-settings` | **drafted — blocked on Run-1 closeout** |
+**RUN2_START_BASE_SHA:** `71c1e4b2e020d8355e6bdba69243b91c813df7c0`
 
-**Do not create/issue Run-2 implementation branches until this file records a `RUN1_CLOSEOUT_SHA` after #146 merges.**
+| ID | Agent | Branch | State |
+|---|---|---|---|
+| 004 | mapping-session-protocol | `v5/mobile/mapping-session-protocol` | **issued — code now** |
+| 005 | mapper-walker-safety | `v5/mobile/mapper-walker-safety` | **issued — code now; use narrow 004/006 seams as needed** |
+| 006 | place-catalog-chrome-settings | `v5/mobile/place-catalog-chrome-settings` | **issued — code now** |
+
+Run-2 coding is allowed before Run-1 closes. The hard gate is now: **no Run-2 merge before #146 merges, RUN1_CLOSEOUT_SHA is recorded, each Run-2 branch rebases/merges-forward onto it, and final CI passes again.**
 
 Planned final integration order:
 

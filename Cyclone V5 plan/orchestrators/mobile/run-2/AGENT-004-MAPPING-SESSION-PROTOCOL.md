@@ -1,7 +1,7 @@
 # RUN 2 — AGENT 004 — MAPPING SESSION + PROTOCOL
 
 **Read first:** `RUN-2-SHARED.md`  
-**Branch when issued:** `v5/mobile/mapping-session-protocol`  
+**Branch (issued now):** `v5/mobile/mapping-session-protocol`  
 **PR target:** `v5/integration`
 
 You own the Run-2 **mapping control plane**. You do not own the crawler policy.
