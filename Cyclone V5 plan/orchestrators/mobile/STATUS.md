@@ -1,5 +1,27 @@
 # Mobile orchestrator — STATUS
 
+## Current state (2026-09-23) — alpha.3 dev1 in PR
+
+**Published developer prerelease:** [`v5.0.0-alpha.2.dev3`](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.2.dev3) — Mobile `5.0.0-alpha.2.dev3` (versionCode 143) + Glass `1.6.0-alpha.2`, source `a896b5da`. Mobile + Glass CI passed; physical phone / Glass acceptance **waived by the owner, not passed**. Signed with the historical development key, which is exposed in repository history (**security debt**; rotation work parked in #168).
+
+**Integration:** #169 merged into `v5/integration` (`df306096`) so integration equals the released source plus its release automation. #167 closed as superseded (its commits are in #169).
+
+**Next candidate:** `5.0.0-alpha.3.dev1` (versionCode 144) + Glass `1.6.0-alpha.3` on `claude/cyclone-v5-handoff-review-9qrs40` — one-button mapping. Plan: [`SESSION-PLAN-alpha3-mapper.md`](SESSION-PLAN-alpha3-mapper.md).
+
+| Capability | State |
+|---|---|
+| Vault + Secrets Card, `needs-secret` on login walls (password slot) | implemented, CI-tested, device-unproven |
+| Durable Atlas, Follow Me → Atlas, `atlas.places/get/diff` | implemented, CI-tested, device-unproven |
+| Canonical Places + Chrome origin privacy, Settings mounts | implemented, CI-tested, device-unproven |
+| **Autonomous mapping** (driver, backtracking, mapping-persona Atlas port, notification Stop, secret pause/resume) | **new in alpha.3.dev1**, JVM-tested against a fake app with the real walker/controller/journal/AtlasStore; device-unproven |
+| Phone App Maps: Map an app / Pause / Resume / Stop / rooms / structural report | **new in alpha.3.dev1** |
+| Glass Maps: Start/Pause/Stop, live cursor, cards appear from `atlas.diff` | **new in alpha.3.dev1** (Glass side) |
+| Ask reads the Atlas (compiler, People memory, capabilities) | not started — next build |
+| Glass Ask (`ask.start`, live HUD mirror) | not started — next build |
+| Chrome-origin mapping, VD-plane mapping, dummy sign-up, freshness | not started |
+
+Physical Pixel 8 status stays **UNVERIFIED** for every row until a named pass exists.
+
 ## Alpha.2 exit candidate in validation
 
 The `codex/v5-alpha2-exit` branch carries the `5.0.0-alpha.2.dev2` candidate (Android versionCode **142**) based on `v5/integration@7462e40578e3dea3c548439b09452546f993d283`. It adds canonical native and observed Chrome-origin Places, binds live/mapping secret walls to the proven Place, redacts Chrome address-bar URLs from Gateway evidence, and mounts App Maps and Vault in root Settings. The Glass version contract now follows V5 metadata. Publication remains disabled.
