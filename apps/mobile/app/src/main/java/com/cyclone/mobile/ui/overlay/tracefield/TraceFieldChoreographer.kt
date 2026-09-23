@@ -229,7 +229,8 @@ class TraceFieldChoreographer(
         val frozen = reduceMotion || phase == TracePhase.GATE ||
             (phase == TracePhase.VERIFY && t2 >= VERIFY_PULL_S)
         val scrambling = now < scrambleUntil
-        if (!frozen) glyphClock += dt * if (scrambling) 4.0 else 1.0
+        // Unfocused digits turn over slowly (35 % speed); attention brings them up to full speed.
+        if (!frozen) glyphClock += dt * (if (scrambling) 4.0 else 1.0) * (0.35 + 0.65 * focus)
         if (!frozen) flowTime += dt
 
         // Think: no single spot to look at, so the glow wanders wide on incommensurate periods

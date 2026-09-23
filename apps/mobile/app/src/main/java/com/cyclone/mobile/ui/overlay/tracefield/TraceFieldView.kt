@@ -91,8 +91,9 @@ internal class TraceFieldView(
 
     private fun buildShader() {
         try {
-            val cellW = (9f * density).roundToInt().coerceAtLeast(8)
-            val cellH = (12f * density).roundToInt().coerceAtLeast(10)
+            // alpha.7: half the alpha.6 size (4.5 x 6 dp cells) so the digits read as texture, not text.
+            val cellW = (4.5f * density).roundToInt().coerceAtLeast(6)
+            val cellH = (6f * density).roundToInt().coerceAtLeast(8)
             val bitmap = buildAtlas(cellW, cellH)
             val runtime = RuntimeShader(TraceFieldShader.SOURCE)
             runtime.setInputShader("atlas", linear(BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)))
@@ -127,18 +128,18 @@ internal class TraceFieldView(
             color = android.graphics.Color.WHITE
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
-            // 8.5dp type gives ~6dp cap height: readable only when you look for it.
-            textSize = 8.5f * density
+            // 4.25dp type (~3dp cap height): fine grain you notice, not text you read.
+            textSize = 4.25f * density
         }
         val metrics = text.fontMetrics
         val baseline = cellH / 2f - (metrics.ascent + metrics.descent) / 2f
         val halo = Paint(text).apply {
             style = Paint.Style.FILL_AND_STROKE
-            strokeWidth = 0.9f * density
+            strokeWidth = 0.5f * density
             strokeJoin = Paint.Join.ROUND
         }
         val soft = Paint(text).apply {
-            maskFilter = android.graphics.BlurMaskFilter(0.9f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            maskFilter = android.graphics.BlurMaskFilter(0.5f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
         }
         val y = ceil(baseline)
         glyphs.forEachIndexed { index, glyph ->
