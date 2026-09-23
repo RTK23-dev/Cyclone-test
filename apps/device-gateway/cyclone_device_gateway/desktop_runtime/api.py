@@ -27,6 +27,7 @@ from .models import DESKTOP_PROTOCOL_VERSION, DesktopRuntimeError, RuntimeErrorC
 from .pairing import PairingCoordinator
 from .readiness import enrich_device_public
 from .layer2 import Layer2WorkspaceService
+from ..glass import LaunchCodes, create_glass_router, resolve_glass_dist
 from .sessions import ExecutionSessionService
 from .trust_v33 import PCTrustCoordinator
 from .video import StreamMessage, VideoFleetLimiter, VideoStreamController
@@ -758,6 +759,9 @@ def create_desktop_app(settings: Settings | None = None, runtime: DesktopRuntime
     app.include_router(create_desktop_router(desktop, settings.token))
     app.include_router(create_stream_router(desktop, settings.token))
     app.include_router(create_cloud_control_router(desktop, settings.token))
+    # Cyclone Glass: static web app + launch-code session. Same origin, so no new CORS origins.
+    app.state.glass_codes = LaunchCodes()
+    app.include_router(create_glass_router(settings.token, app.state.glass_codes, resolve_glass_dist()))
     app.add_event_handler("startup", desktop.start)
     app.add_event_handler("shutdown", desktop.stop)
     return app

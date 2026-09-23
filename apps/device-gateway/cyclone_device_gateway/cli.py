@@ -37,6 +37,9 @@ def build_parser() -> argparse.ArgumentParser:
     vmos.add_argument("--json", action="store_true", dest="json_output")
 
     subcommands.add_parser("serve", help="Run the loopback PC Device Gateway and Desktop V1 fleet runtime")
+    glass = subcommands.add_parser("glass", help="Open Cyclone Glass in the browser (starts the local gateway if needed)")
+    glass.add_argument("--no-browser", action="store_true", help="Do not open a browser window")
+    glass.add_argument("--print-url", action="store_true", help="Print the one-time launch link instead of the plain address")
     return parser
 
 
@@ -99,14 +102,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "transport":
         return _run_transport(args)
 
+    if args.command == "glass":
+        from .glass.launcher import run_glass
+
+        return run_glass(open_browser=not args.no_browser, print_url=args.print_url)
+
     settings = Settings.from_env()
+    app = build_serve_app(settings)
+    uvicorn.run(app, host=settings.host, port=settings.port)
+    return 0
+
+
+def build_serve_app(settings: Settings):
+    """The full loopback gateway: desktop runtime, V5 contract, Glass hosting and transport onboarding."""
     app = create_desktop_app(settings)
     # Part B transport onboarding is attached only to Cyclone One's authenticated loopback API.
     # The router itself is allowlisted and exposes no generic adb/shell command surface.
     app.include_router(create_transport_router(app.state.desktop_runtime, settings.token))
     attach_to_app(app)
-    uvicorn.run(app, host=settings.host, port=settings.port)
-    return 0
+    return app
 
 
 if __name__ == "__main__":
