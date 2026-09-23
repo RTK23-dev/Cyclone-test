@@ -93,7 +93,6 @@ data class TaskRunInformation(
 }
 
 object OutcomeStageCopy {
-    private val LOGIN = Regex("\\b(log\\s*in|login|sign\\s*in|signin|logged\\s*in|signed\\s*in)\\b", RegexOption.IGNORE_CASE)
     private val SEARCH = Regex("\\b(search|find|look\\s*up|look\\s*for)\\b", RegexOption.IGNORE_CASE)
 
     fun completedPhrase(objective: String): String = when {
@@ -121,12 +120,13 @@ object OutcomeStageCopy {
             stage.websiteOrigin.orEmpty().contains("facebook") ||
                 stage.destinationLabel.contains("Facebook", ignoreCase = true)
         }
-        val login = LOGIN.containsMatchIn(goal)
+        // Only an explicit sign-in ask becomes a sign-in title; "my logged in email" is not one.
+        val login = com.cyclone.mobile.agent.plan.DestinationAuthority.asksAboutLogin(goal)
         if (gmail && facebook && login) return "Sign in to Facebook using your Gmail address"
         if (stages.size >= 2) return stages.joinToString(" → ") { it.destinationLabel }
         return stages.singleOrNull()?.let { stage ->
             when {
-                LOGIN.containsMatchIn(goal) -> "Checking ${stage.destinationLabel} login status"
+                login -> "Checking ${stage.destinationLabel} login status"
                 SEARCH.containsMatchIn(goal) -> "Searching ${stage.destinationLabel}"
                 else -> stage.objective.replaceFirstChar { it.uppercase() }
             }
