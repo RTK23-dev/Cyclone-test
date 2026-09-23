@@ -4,7 +4,7 @@
 
 The `codex/v5-alpha2-exit` branch carries the `5.0.0-alpha.2.dev2` candidate (Android versionCode **142**) based on `v5/integration@7462e40578e3dea3c548439b09452546f993d283`. It adds canonical native and observed Chrome-origin Places, binds live/mapping secret walls to the proven Place, redacts Chrome address-bar URLs from Gateway evidence, and mounts App Maps and Vault in root Settings. The Glass version contract now follows V5 metadata. Publication remains disabled.
 
-Local validation and remote CI are in progress. A named Pixel 8 is connected, but physical acceptance and the real Follow Me → Glass demonstration remain **UNVERIFIED** until an exact, update-compatible signed candidate is installed and tested. See [physical acceptance return](returns/RETURN-V5-ALPHA2-PHYSICAL.md). The frozen `alpha.2.dev1` release branch is unchanged.
+The first dev2 source (`8fc2fde326ff11441fae037f6179f2e89d76e933`) passed Mobile CI #1115/#1116 and PC/Glass CI #565. Its protected signing run #5 failed before signing because all five Android secrets are absent from `mobile-release-approval`. The signing workflow now has a follow-up correction for its Android SDK bootstrap, API-33 coverage and lineage export; this correction needs CI on a new exact source SHA before another signing attempt. The Pixel 8 was identified in a prior connected environment with the 4.8.0 installation, but there is no signed dev2 candidate or named physical acceptance record. Follow Me → real Glass demonstration remains **UNVERIFIED**. See [physical acceptance return](returns/RETURN-V5-ALPHA2-PHYSICAL.md). The frozen `alpha.2.dev1` release branch is unchanged.
 
 ## Prior validated checkpoint
 
