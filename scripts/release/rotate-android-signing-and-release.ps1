@@ -1,9 +1,9 @@
 param(
     [string]$Repo = "premiumcentraal-boop/Cyclone",
     [string]$Environment = "mobile-release-approval",
-    [string]$Version = "5.0.0-alpha.2.dev2",
-    [string]$BuildRunId = "35858293602",
-    [string]$ExpectedSourceSha = "1a47ca1fc2aa167b4321f408c386f924887ac388",
+    [string]$Version = "",
+    [string]$BuildRunId = "",
+    [string]$ExpectedSourceSha = "",
     [string]$PixelSerial = "",
     [string]$LegacyRef = "origin/release/cyclone-mobile-v3.9.0"
 )
@@ -141,9 +141,10 @@ $newKeystore = Join-Path $secureDir "cyclone-android-rotated-2026.p12"
 $lineage = Join-Path $secureDir "cyclone-signing-lineage.bin"
 $passwordBackup = Join-Path $secureDir "cyclone-android-rotated-2026-password.dpapi.txt"
 
-if (Test-Path $newKeystore) { throw "Refusing to overwrite existing rotated key: $newKeystore" }
-if (Test-Path $lineage) { throw "Refusing to overwrite existing signing lineage: $lineage" }
-if (Test-Path $passwordBackup) { throw "Refusing to overwrite existing password backup: $passwordBackup" }
+$existing = @($newKeystore, $lineage, $passwordBackup) | Where-Object { Test-Path $_ }
+if ($existing.Count -ne 0 -and $existing.Count -ne 3) {
+    throw "Incomplete rotation state in $secureDir. Preserve it and recover from a secure backup; no key will be overwritten."
+}
 
 $env:CYCLONE_OLD_STORE_PASSWORD = $oldStorePassword
 $env:CYCLONE_OLD_KEY_PASSWORD = $oldKeyPassword
@@ -182,44 +183,68 @@ try {
         Write-Host "Installed Pixel signer also matches $publishedDigest. No phone app data was changed."
     }
 
-    $newStorePassword = New-RandomPassword
-    $newKeyPassword = $newStorePassword
     $newAlias = "cyclone-rotated-2026"
+    if ($existing.Count -eq 3) {
+        Write-Host "Resuming with the existing protected V5 key and lineage; no new key will be generated."
+        $protectedPassword = Get-Content -Raw -Path $passwordBackup | ConvertTo-SecureString
+        $passwordBstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($protectedPassword)
+        try {
+            $newStorePassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordBstr)
+        }
+        finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordBstr) }
+    }
+    else {
+        $newStorePassword = New-RandomPassword
+    }
+    $newKeyPassword = $newStorePassword
     $env:CYCLONE_NEW_STORE_PASSWORD = $newStorePassword
     $env:CYCLONE_NEW_KEY_PASSWORD = $newKeyPassword
-    Write-Host "Generating a new private Android signing key..."
-    & $keytool -genkeypair `
-        -keystore $newKeystore `
-        -storetype PKCS12 `
-        -storepass:env CYCLONE_NEW_STORE_PASSWORD `
-        -keypass:env CYCLONE_NEW_KEY_PASSWORD `
-        -alias $newAlias `
-        -keyalg RSA `
-        -keysize 4096 `
-        -validity 10000 `
-        -dname "CN=Cyclone Mobile, OU=Release, O=Cyclone, C=NL"
-    if ($LASTEXITCODE -ne 0) { throw "keytool failed to generate the rotated signing key." }
-    # Windows DPAPI encrypts the local password backup to this user account.
-    $newStorePassword | ConvertTo-SecureString -AsPlainText -Force |
-        ConvertFrom-SecureString | Set-Content -Path $passwordBackup -NoNewline
+    if ($existing.Count -eq 0) {
+        Write-Host "Generating a new private Android signing key..."
+        & $keytool -genkeypair `
+            -keystore $newKeystore `
+            -storetype PKCS12 `
+            -storepass:env CYCLONE_NEW_STORE_PASSWORD `
+            -keypass:env CYCLONE_NEW_KEY_PASSWORD `
+            -alias $newAlias `
+            -keyalg RSA `
+            -keysize 4096 `
+            -validity 10000 `
+            -dname "CN=Cyclone Mobile, OU=Release, O=Cyclone, C=NL"
+        if ($LASTEXITCODE -ne 0) { throw "keytool failed to generate the rotated signing key." }
+        # Windows DPAPI encrypts the local password backup to this user account.
+        $newStorePassword | ConvertTo-SecureString -AsPlainText -Force |
+            ConvertFrom-SecureString | Set-Content -Path $passwordBackup -NoNewline
 
-    Write-Host "Creating Android proof-of-rotation lineage..."
-    & $apksigner rotate `
-        --out $lineage `
-        --old-signer `
-        --ks $oldKeystore `
-        --ks-key-alias $oldAlias `
-        --ks-pass env:CYCLONE_OLD_STORE_PASSWORD `
-        --key-pass env:CYCLONE_OLD_KEY_PASSWORD `
-        --new-signer `
-        --ks $newKeystore `
-        --ks-key-alias $newAlias `
-        --ks-pass env:CYCLONE_NEW_STORE_PASSWORD `
-        --key-pass env:CYCLONE_NEW_KEY_PASSWORD
-    if ($LASTEXITCODE -ne 0) { throw "apksigner rotate failed." }
+        Write-Host "Creating Android proof-of-rotation lineage..."
+        & $apksigner rotate `
+            --out $lineage `
+            --old-signer `
+            --ks $oldKeystore `
+            --ks-key-alias $oldAlias `
+            --ks-pass env:CYCLONE_OLD_STORE_PASSWORD `
+            --key-pass env:CYCLONE_OLD_KEY_PASSWORD `
+            --new-signer `
+            --ks $newKeystore `
+            --ks-key-alias $newAlias `
+            --ks-pass env:CYCLONE_NEW_STORE_PASSWORD `
+            --key-pass env:CYCLONE_NEW_KEY_PASSWORD
+        if ($LASTEXITCODE -ne 0) { throw "apksigner rotate failed." }
+    }
 
-    & $apksigner lineage --in $lineage --print-certs -v
-    if ($LASTEXITCODE -ne 0) { throw "Generated signing lineage did not validate." }
+    $newKeyInfo = (& $keytool -list -v -alias $newAlias -keystore $newKeystore `
+        -storepass:env CYCLONE_NEW_STORE_PASSWORD) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "The saved rotated keystore or password is invalid." }
+    $newDigestMatch = [regex]::Match($newKeyInfo, 'SHA256:\s*([0-9a-fA-F:]+)')
+    if (-not $newDigestMatch.Success) { throw "Cannot read rotated signing certificate fingerprint." }
+    $newDigest = $newDigestMatch.Groups[1].Value.Replace(':','').ToLowerInvariant()
+    $lineageInfo = (& $apksigner lineage --in $lineage --print-certs -v) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "The saved signing lineage is invalid." }
+    $flatLineage = $lineageInfo.Replace(':','').Replace(' ','').ToLowerInvariant()
+    if (-not $flatLineage.Contains($publishedDigest) -or -not $flatLineage.Contains($newDigest)) {
+        throw "Saved lineage does not include both the published 4.8.0 signer and the rotated key."
+    }
+    Write-Host "Verified existing lineage from $publishedDigest to $newDigest."
 
     $newKeystoreB64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($newKeystore))
     $lineageB64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($lineage))
