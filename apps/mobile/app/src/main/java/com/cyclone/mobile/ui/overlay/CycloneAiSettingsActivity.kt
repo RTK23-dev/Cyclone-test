@@ -54,6 +54,9 @@ import com.cyclone.mobile.ai.model.ModelQualificationRunner
 import com.cyclone.mobile.ui.v32.CycloneOpenRouterCatalog
 import com.cyclone.mobile.ui.v32.CycloneReasoningSelector
 import com.cyclone.mobile.ui.v32.CycloneV32Theme
+import com.cyclone.mobile.ui.overlay.tracefield.TraceFieldMode
+import com.cyclone.mobile.ui.overlay.tracefield.TraceFieldPrefs
+import com.cyclone.mobile.ui.overlay.tracefield.TraceFieldRuntime
 import kotlinx.coroutines.launch
 
 /** Full AI configuration intentionally lives in the Cyclone app, never in the floating composer. */
@@ -195,6 +198,8 @@ private fun AiSettingsContent(context: Context, onBack: () -> Unit) {
             }
         }
 
+        item { SettingsCard { WorkingIndicatorSettings(context) } }
+
         item {
             SettingsCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -229,6 +234,52 @@ private fun AiSettingsContent(context: Context, onBack: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun ColumnScope.WorkingIndicatorSettings(context: Context) {
+    var mode by remember { mutableStateOf(TraceFieldPrefs.mode(context)) }
+    var previewMessage by remember { mutableStateOf<String?>(null) }
+    Text("Working indicator", fontWeight = FontWeight.Bold)
+    Text(
+        "Trace Field shows tiny digits under a soft lens that follows what Cyclone is looking at and tapping. It never covers your screen and is hidden from Cyclone's own screenshots.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(
+            TraceFieldMode.FIELD to "Trace Field",
+            TraceFieldMode.EDGE to "Edge only",
+            TraceFieldMode.OFF to "Off",
+        ).forEach { (option, label) ->
+            FilterChip(
+                selected = mode == option,
+                onClick = {
+                    TraceFieldPrefs.setMode(context, option)
+                    mode = option
+                    previewMessage = null
+                },
+                label = { Text(label) },
+            )
+        }
+    }
+    OutlinedButton(
+        enabled = mode != TraceFieldMode.OFF,
+        onClick = {
+            previewMessage = if (TraceFieldRuntime.preview()) {
+                "Playing preview over this screen."
+            } else {
+                "Turn on Cyclone's accessibility service to preview."
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text("Preview") }
+    previewMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+    Text(
+        "Battery Saver switches Trace Field to Edge only. Remove animations shows a still field.",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

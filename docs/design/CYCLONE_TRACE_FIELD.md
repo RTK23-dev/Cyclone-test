@@ -1,6 +1,7 @@
 # Cyclone Trace Field — a working-state overlay
 
-Status: **concept / research** (nothing is implemented yet). Target: Cyclone mobile 4.x, API 33+.
+Status: **shipped in Mobile 5.0.0-alpha.5.dev1** (developer alpha, not verified on a physical device). API 33+.
+See [§10](#10-what-shipped-in-500-alpha5dev1) for what the alpha implements and what is deferred.
 
 > The phone looks the way it always does, until you look closely. Then you see that Cyclone is reading it.
 
@@ -247,3 +248,22 @@ with a single line under the Aurora pill: *"That was Cyclone reading your screen
 4. **Meaningful digits and adaptive luminance.**
 5. **Polish pass:** haptics, finale, settings, reduced motion, thermal fallback, device perf
    evidence under `docs/evidence/`.
+
+## 10. What shipped in 5.0.0-alpha.5.dev1
+
+Code: `apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/tracefield/`.
+
+| Piece | File | Notes |
+|---|---|---|
+| Choreographer (pure state machine) | `TraceFieldChoreographer.kt` | Wake, Observe scan, Think breathing, Target lens-morph, Act ripple/flow, Verify freeze, Recover scramble, Gate freeze + warm tint, Handoff fade, Done rain, Stop fade, background edge filament. Reduce-motion and Edge-only modes. |
+| Presence and capture policy | `TraceFieldPolicy.kt` | Task and chrome state are mapped to transitions. The window is never `FLAG_SECURE`. `TraceFieldCaptureGate` hides the field before any full-display capture. |
+| AGSL shader | `TraceFieldShader.kt` | Glyph atlas sampled 1:1, column rhythm, sparse cells, far depth layer at 24 %, perimeter filament. Compile-checked and rendered offline with Skia's SkSL compiler. |
+| Window + view | `TraceFieldRuntime.kt`, `TraceFieldView.kt` | `TYPE_ACCESSIBILITY_OVERLAY`, not touchable, INVISIBLE whenever there is nothing to draw. It stops redrawing while frozen. It turns itself off if the shader fails. |
+| Signals | `CycloneAccessibilityService` | `observe()` → Observe(fingerprint); `click()` → Target(node bounds, node path) + Act; coordinate tap/long-press/swipe, `scroll()` and typing → Act; a failed click → Recover. Foreground display only. |
+| Capture gating | `CycloneAccessibilityService.takeScreenshot`, `LiveVisionRuntime.capture` | Full-display screenshots wait for a frame without the field (120 ms failsafe). Live MediaProjection frames are accepted only if they were captured after the hide. The `takeScreenshotOfWindow` path already excludes overlays. |
+| Setting | AI settings → Working indicator | Trace Field / Edge only / Off, plus **Preview**. Battery Saver forces Edge only. |
+
+Deferred from the concept: luminance-adaptive blending (§4.4), haptic ticks, custom Cyclone glyph
+strokes, per-node exclusion rects (only the Aurora pill area is excluded), and the long-press
+"what do these digits mean" tooltip. Physical Pixel 8 frame-time and battery measurements are
+still UNVERIFIED.
