@@ -411,6 +411,10 @@ internal object GatewayDispatcher {
             GatewayV5MappingAdapter.dispatch(context, request.op, request.args)
         "ask.start", "ask.status" -> GatewayV5AskAdapter.dispatch(request.op, request.args)
         "apps.list" -> GatewayV5AppsAdapter.dispatch(request.op, request.args)
+        "runs.list", "runs.get" -> {
+            com.cyclone.mobile.ai.AgentTraceRuntime.initialize(context)
+            GatewayV5RunsAdapter.dispatch(request.op, request.args)
+        }
         else -> throw GatewayProtocolException(
             "PROTOCOL_MISMATCH",
             "Unsupported gateway operation: ${request.op}",

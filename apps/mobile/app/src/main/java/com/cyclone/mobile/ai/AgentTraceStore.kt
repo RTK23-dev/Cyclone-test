@@ -41,6 +41,9 @@ object AgentTraceRuntime {
     lateinit var store: AgentTraceStore
         private set
 
+    /** True once the trace database is open; readers (Glass `runs.*`) check this instead of touching [store]. */
+    fun isReady(): Boolean = initialized
+
     @Synchronized
     fun initialize(context: Context) {
         if (initialized) return

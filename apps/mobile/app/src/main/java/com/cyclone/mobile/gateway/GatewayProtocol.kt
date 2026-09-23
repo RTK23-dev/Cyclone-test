@@ -62,6 +62,8 @@ internal object GatewayProtocol {
         "secrets.slots",
         "ask.status",
         "apps.list",
+        "runs.list",
+        "runs.get",
         "brain.recall",
         "teach.status",
         "debug.snapshot",
@@ -120,6 +122,8 @@ internal object GatewayProtocol {
         "ask.start",
         "ask.status",
         "apps.list",
+        "runs.list",
+        "runs.get",
     )
 
     fun parse(line: String): GatewayRequest {
