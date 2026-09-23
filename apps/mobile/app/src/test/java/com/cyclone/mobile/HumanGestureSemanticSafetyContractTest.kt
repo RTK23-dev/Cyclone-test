@@ -165,7 +165,7 @@ class HumanGestureSemanticSafetyContractTest {
             File("src/main/java/$relative"),
             File("apps/mobile/app/src/main/java/$relative"),
         )
-        return candidates.firstOrNull(File::isFile)?.readText()
+        return candidates.firstOrNull(File::isFile)?.readText()?.replace("\r\n", "\n")
             ?: error("Production source not found for $relative from ${File(".").absolutePath}")
     }
 }

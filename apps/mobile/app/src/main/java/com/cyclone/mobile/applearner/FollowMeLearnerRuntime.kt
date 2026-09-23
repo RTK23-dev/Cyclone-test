@@ -1,5 +1,7 @@
 package com.cyclone.mobile.applearner
 
+import com.cyclone.mobile.places.PlaceResolver
+
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Rect
@@ -340,7 +342,7 @@ object FollowMeLearnerRuntime {
         // Promote the same stable Follow Me observation into the durable V5 Atlas immediately.
         // The legacy App Graph remains the source for its own 4.8 behavior; Atlas receives only
         // semantic structure and hashed selector metadata through FollowMeAtlasPromoter.
-        store.getApp(packageName)?.let { learnedApp ->
+        store.getApp(packageName)?.takeUnless { PlaceResolver.isChromePackage(packageName) }?.let { learnedApp ->
             val learnedActions = store.listActions(packageName).filter { it.screenId == screen.id }
             runCatching {
                 AtlasRuntime.followMe.observeScreen(
@@ -387,7 +389,8 @@ object FollowMeLearnerRuntime {
                 ))
                 val fromScreen = store.graph(packageName)?.screens?.firstOrNull { it.id == previousScreen }
                 val learnedApp = store.getApp(packageName)
-                if (fromScreen != null && learnedApp != null) {
+                if (fromScreen != null && learnedApp != null &&
+                    !PlaceResolver.isChromePackage(packageName)) {
                     runCatching {
                         AtlasRuntime.followMe.demonstrateTransition(
                             app = learnedApp,

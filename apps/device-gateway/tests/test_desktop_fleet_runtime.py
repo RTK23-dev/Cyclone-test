@@ -79,8 +79,9 @@ class FakeDeviceADB:
 
 
 class FakeBridge:
-    def __init__(self, credentials=None):
+    def __init__(self, credentials=None, app_version=None):
         self.credentials = list(credentials or ["A" * 43, "B" * 43, "C" * 43])
+        self.app_version = app_version
         self.challenge = 0
         self.calls = []
         self.qr_approved = False
@@ -101,7 +102,10 @@ class FakeBridge:
     def request(self, op, args=None, request_id=None):
         self.calls.append((op, args or {}))
         if op == "bridge.status":
-            return {"gatewayEnabled": True, "socketListening": True, "accessibilityConnected": True}
+            status = {"gatewayEnabled": True, "socketListening": True, "accessibilityConnected": True}
+            if self.app_version is not None:
+                status["appVersion"] = self.app_version
+            return status
         if op == "pair.revoke":
             return {"revoked": True}
         if op == "manual.execute":
@@ -259,8 +263,61 @@ def test_paired_health_refresh_sends_authenticated_phone_heartbeat():
     assert [op for op, _ in bridges[session.device_id].calls].count("bridge.status") == 1
 
 
+def test_real_fleet_exposes_only_authenticated_mobile_version_and_rechecks_it(tmp_path):
+    fleet, _, _ = make_fleet([ADBDevice("VERSION-PIXEL", "device", "Pixel_8")])
+    fleet.refresh_once()
+    session = fleet.get(deterministic_device_id("VERSION-PIXEL"))
+    bridge = FakeBridge(app_version="5.0.0-alpha.2.dev2")
+    session.bridge = lambda token=None, auto_forward=False: bridge
+    settings = Settings("pc-secret", None, "adb", tmp_path)
+    runtime = DesktopRuntime(settings, fleet=fleet)
+    with TestClient(create_desktop_app(settings, runtime)) as client:
+        headers = {"Authorization": "Bearer pc-secret"}
+
+        def public_device():
+            response = client.get("/v1/fleet", headers=headers)
+            assert response.status_code == 200
+            return response.json()["devices"][0]
+
+        # A connected phone without authenticated bridge status cannot be assumed V5.
+        assert "mobileVersion" not in public_device()
+        fleet.remember_credential(session, "H" * 43)
+        fleet.refresh_once()
+        assert public_device()["mobileVersion"] == "5.0.0-alpha.2.dev2"
+
+        bridge.app_version = "4.8.0"
+        fleet.refresh_once()
+        assert public_device()["mobileVersion"] == "4.8.0"
+
+        # Unexpected or missing phone status must not retain a stale V5 claim.
+        bridge.app_version = "5-not-a-version"
+        fleet.refresh_once()
+        assert "mobileVersion" not in public_device()
+        bridge.app_version = None
+        fleet.refresh_once()
+        assert "mobileVersion" not in public_device()
+
+        bridge.app_version = "5.0.0-alpha.2.dev2"
+        fleet.refresh_once()
+        assert public_device()["mobileVersion"] == "5.0.0-alpha.2.dev2"
+        original_request = bridge.request
+
+        def offline(*args, **kwargs):
+            raise BridgeDisconnectedError("simulated offline phone")
+
+        bridge.request = offline
+        fleet.refresh_once()
+        assert "mobileVersion" not in public_device()
+        bridge.request = original_request
+        fleet.refresh_once()
+        assert public_device()["mobileVersion"] == "5.0.0-alpha.2.dev2"
+        fleet.remember_credential(session, None)
+        assert "mobileVersion" not in public_device()
+
+
 def test_pairing_timeout_replay_attempt_limit_and_token_rotation():
     fleet, session, bridge = paired_session_for_services()
+    bridge.app_version = "5.0.0-alpha.2.dev2"
     session.credential = None
     pairing = PairingCoordinator(fleet)
     pairing.POST_PAIR_HEALTH_DELAY_SECONDS = 0
@@ -284,6 +341,7 @@ def test_pairing_timeout_replay_attempt_limit_and_token_rotation():
     first = pairing.complete(session.device_id, begin["pairingId"], "NOVA")
     first_token = session.credential
     assert first["paired"] is True and first["gatewayHealthy"] is True and "credential" not in first
+    assert first["device"]["mobileVersion"] == "5.0.0-alpha.2.dev2"
     assert [op for op, _ in bridge.calls].count("bridge.status") >= 2
     with pytest.raises(DesktopRuntimeError) as err:
         pairing.complete(session.device_id, begin["pairingId"], "NOVA")

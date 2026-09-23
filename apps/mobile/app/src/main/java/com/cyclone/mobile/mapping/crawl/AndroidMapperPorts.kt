@@ -4,10 +4,13 @@ import android.content.Context
 import com.cyclone.mobile.PhoneToolExecutor
 import com.cyclone.mobile.PhoneToolRequest
 import com.cyclone.mobile.ai.LoginAutofillPolicy
+import com.cyclone.mobile.agent.tools.ObservationProjections
+import com.cyclone.mobile.brain.graphv2.AtlasPersona
 import com.cyclone.mobile.gateway.GatewayObservationAdapter
 import com.cyclone.mobile.gateway.GatewayObservationStore
 import com.cyclone.mobile.policy.GateClass
 import com.cyclone.mobile.policy.GateClassifier
+import com.cyclone.mobile.places.PlaceResolver
 import com.cyclone.mobile.secrets.SecretFillTarget
 import com.cyclone.mobile.secrets.SecretPersona
 import com.cyclone.mobile.secrets.SecretRequestMetadata
@@ -40,7 +43,7 @@ class GatewayMappingObservationPort(
                     session.workspaceGeneration?.let { put("workspaceGeneration", it) }
                     session.executionGeneration?.let { put("executionGeneration", it) }
                 }
-            val captured = GatewayObservationAdapter.capture(appContext, args)
+            val captured = GatewayObservationAdapter.capture(appContext, args, AtlasPersona.MAPPING)
             val raw = captured.elements.values.map { element ->
                 RawMappingElement(
                     elementId = element.id,
@@ -165,6 +168,8 @@ class Run1MappingSecretsPort(
     ): MappingSecretWall? {
         val current = GatewayObservationStore.current(observation.sessionId) ?: return null
         if (current.id != observation.observationId || current.execution.displayId != observation.displayId) return null
+        val page = ObservationProjections.pageCard(current, "", current.generation, actionable = true)
+        if (!PlaceResolver.matchesCurrent(page, session.placeId)) return null
         if (!LoginAutofillPolicy.isLoginWall(current.page)) return null
 
         val password = current.elements.values.firstOrNull { element ->

@@ -5,13 +5,18 @@ import android.content.res.Configuration
 import com.cyclone.mobile.AccessibilityRoles
 import com.cyclone.mobile.CycloneAccessibilityService
 import com.cyclone.mobile.applearner.AppLearnerRuntime
+import com.cyclone.mobile.applearner.graphv2.AtlasRuntime
 import com.cyclone.mobile.applearner.PageAwarenessRuntime
 import com.cyclone.mobile.applearner.PageContext
 import com.cyclone.mobile.applearner.PageControl
 import com.cyclone.mobile.brain.AdaptiveBrainRuntime
+import com.cyclone.mobile.brain.graphv2.AtlasPersona
 import com.cyclone.mobile.fastpath.FastPathTree
+import com.cyclone.mobile.mapping.session.MappingPlaneRequest
+import com.cyclone.mobile.mapping.session.MappingSessionRuntime
 import com.cyclone.mobile.observability.pagecontext.PageContextSummary
 import com.cyclone.mobile.observability.pagecontext.PageTextExtractor
+import com.cyclone.mobile.places.PlaceResolver
 import com.cyclone.mobile.runtime.session.ExecutionContext
 import com.cyclone.mobile.runtime.session.ExecutionRequestScope
 import com.cyclone.mobile.runtime.session.ExecutionSession
@@ -80,7 +85,11 @@ internal object GatewayObservationAdapter {
     // user-entered text (including passwords/OTPs) or a stable brute-forceable digest.
     private val editableStateSalt = UUID.randomUUID().toString()
 
-    fun capture(context: Context, args: JSONObject = JSONObject()): GatewayObservation {
+    fun capture(
+        context: Context,
+        args: JSONObject = JSONObject(),
+        catalogPersona: AtlasPersona = AtlasPersona.LIVE,
+    ): GatewayObservation {
         val merged = ExecutionRequestScope.merge(args, args.optJSONObject("params") ?: JSONObject())
         if (args.has("workspaceId") && !merged.has("workspaceId")) merged.put("workspaceId", args.get("workspaceId"))
         if (args.has("workspaceGeneration") && !merged.has("workspaceGeneration")) {
@@ -129,6 +138,10 @@ internal object GatewayObservationAdapter {
         }
         if (!background) com.cyclone.mobile.DeviceState.markObserved()
         val snapshot = captured.semantic
+        // Reduce the trusted browser address-bar value before sanitizing/exporting observation.
+        // Full URLs (including paths and queries) never enter PageCard, Atlas or diagnostics here.
+        val resolvedPlace = PlaceResolver.resolveObservedSnapshot(snapshot)
+        val observedBrowserOrigin = resolvedPlace?.origin
         val captureStart = captured.startMs
         val captureEnd = captured.endMs
         if (snapshot.screenWidth != captured.surface.width || snapshot.screenHeight != captured.surface.height ||
@@ -302,6 +315,11 @@ internal object GatewayObservationAdapter {
             windows = windows.length(),
             nextHopHints = nextHopHints,
         )
+        if (observedBrowserOrigin != null) {
+            boundedPageEvidence.put("browserOrigin", observedBrowserOrigin)
+                .put("browserOriginSource", "chrome-address-bar")
+                .put("browserOriginObservationId", observationId)
+        }
         boundedPageEvidence.put("captureStartMonotonicMs", captureStart)
             .put("legacyFreshnessShadow", JSONObject().put("matches", learned.controls.map { it.key } == page.controls.map { it.key })
                 .put("currentControls", page.controls.size).put("learnedControls", learned.controls.size))
@@ -371,6 +389,25 @@ internal object GatewayObservationAdapter {
             throw captureChanged()
         }
         payload = SessionContract.attach(payload, plane)
+        resolvedPlace?.let { place ->
+            // Session status, rather than caller JSON, decides which Atlas persona receives a
+            // catalog entry. An internal mapping capture without an active job stays unresolved.
+            val activeMapping = runCatching {
+                MappingSessionRuntime.controller(context).statusForPlane(
+                    MappingPlaneRequest(plane.sessionId, plane.displayId,
+                        plane.workspaceId, plane.workspaceGeneration),
+                )
+            }
+            val job = activeMapping.getOrNull()
+            val persona = when {
+                activeMapping.isFailure -> null
+                job != null && !job.state.terminal -> runCatching { AtlasPersona.fromWire(job.persona) }.getOrNull()
+                job != null -> null
+                catalogPersona == AtlasPersona.LIVE -> AtlasPersona.LIVE
+                else -> null
+            }
+            persona?.let { runCatching { AtlasRuntime.catalog.recordObserved(place, it) } }
+        }
         elements.values.forEach { it.evidence.put("sessionId", execution.sessionId).put("displayId", execution.displayId) }
         return GatewayObservationStore.replace(GatewayObservation(observationId, snapshot.timestampMs, page, payload, elements, execution))
     }
