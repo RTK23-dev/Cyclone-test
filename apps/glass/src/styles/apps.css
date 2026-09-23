@@ -1,0 +1,155 @@
+/* Apps table and the single-app header. */
+.app-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.app-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 2.2fr) 150px 120px minmax(160px, 1.6fr) 150px 110px 24px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--text);
+}
+
+.app-row:first-child {
+  border-top: none;
+}
+
+a.app-row:hover {
+  background: var(--surface-hover);
+}
+
+.app-row-head {
+  background: var(--surface-muted);
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.app-row > span {
+  min-width: 0;
+}
+
+.col-app {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.col-status,
+.col-mapped {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.col-size,
+.col-version,
+.col-when {
+  font-size: var(--text-sm);
+}
+
+.col-go {
+  color: var(--text-faint);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.app-avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.app-avatar.web {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+}
+
+.app-avatar.lg {
+  width: 48px;
+  height: 48px;
+  font-size: var(--text-xl);
+  border-radius: var(--radius-lg);
+}
+
+.app-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.app-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-sub {
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table-note {
+  font-size: var(--text-sm);
+  margin-top: var(--space-2);
+}
+
+.app-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.app-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.app-title-row .app-names {
+  flex: 1;
+}
+
+.app-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.mapping-controls {
+  display: flex;
+  gap: var(--space-2);
+}
+
+@media (max-width: 1100px) {
+  .app-row {
+    grid-template-columns: minmax(200px, 2fr) 140px minmax(120px, 1fr) 24px;
+  }
+
+  .app-row .col-version,
+  .app-row .col-size,
+  .app-row .col-when {
+    display: none;
+  }
+}

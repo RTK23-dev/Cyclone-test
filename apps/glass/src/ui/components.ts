@@ -81,3 +81,64 @@ export function keyValue(rows: Array<[string, string | Node]>): HTMLElement {
   }
   return list;
 }
+
+export interface SegmentItem<T extends string> {
+  id: T;
+  label: string;
+  count?: number;
+}
+
+/** Single-choice filter bar (like Minitap's Android / iOS switcher). */
+export function segmented<T extends string>(
+  items: Array<SegmentItem<T>>,
+  active: T,
+  onChange: (id: T) => void,
+): { element: HTMLElement; set(id: T, counts?: Partial<Record<T, number>>): void } {
+  const element = el("div", "segmented");
+  element.setAttribute("role", "tablist");
+  const buttons = new Map<T, HTMLButtonElement>();
+  for (const item of items) {
+    const node = button("", "segment");
+    node.setAttribute("role", "tab");
+    node.dataset.id = item.id;
+    node.addEventListener("click", () => onChange(item.id));
+    buttons.set(item.id, node);
+    element.append(node);
+  }
+  const set = (id: T, counts: Partial<Record<T, number>> = {}): void => {
+    for (const item of items) {
+      const node = buttons.get(item.id)!;
+      const count = counts[item.id] ?? item.count;
+      node.replaceChildren(el("span", undefined, item.label));
+      if (count != null) node.append(el("span", "segment-count", String(count)));
+      node.classList.toggle("active", item.id === id);
+      node.setAttribute("aria-selected", String(item.id === id));
+    }
+  };
+  set(active);
+  return { element, set };
+}
+
+export function searchInput(placeholder: string, onInput: (value: string) => void): HTMLLabelElement {
+  const wrap = el("label", "search");
+  wrap.append(icon("search"));
+  const input = el("input", "search-input");
+  input.type = "search";
+  input.placeholder = placeholder;
+  input.setAttribute("aria-label", placeholder);
+  input.addEventListener("input", () => onInput(input.value));
+  wrap.append(input);
+  return wrap;
+}
+
+export function statTile(label: string, value: string, tone: Tone = "neutral"): HTMLElement {
+  const tile = el("div", `stat stat-${tone}`);
+  tile.append(el("div", "stat-value", value), el("div", "stat-label", label));
+  return tile;
+}
+
+export function errorState(title: string, error: { code?: string; message: string }, onRetry?: () => void): HTMLElement {
+  const retry = onRetry ? actionButton("Try again", { icon: "refresh" }) : undefined;
+  retry?.addEventListener("click", onRetry!);
+  return emptyState({ icon: "alert", tone: "danger", title, body: error.message, action: retry });
+}

@@ -16,8 +16,9 @@ function start({ devices = [READY], hash = "#/apps", fail = null } = {}) {
     token: "t",
     fetch: async (url) => {
       if (fail) return new Response(JSON.stringify(fail.body ?? {}), { status: fail.status });
-      assert.equal(url, "/v1/fleet");
-      return new Response(JSON.stringify({ devices }), { status: 200 });
+      if (url === "/v1/fleet") return new Response(JSON.stringify({ devices }), { status: 200 });
+      if (/^\/v1\/devices\/d[12]\/apps$/.test(url)) return new Response(JSON.stringify({ apps: [], truncated: false }), { status: 200 });
+      return new Response(JSON.stringify({ detail: { code: "NOT_FOUND", message: url } }), { status: 404 });
     },
   });
   const app = new GlassApp({

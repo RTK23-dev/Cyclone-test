@@ -1,0 +1,106 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { installMiniDom } from "./helpers/mini-dom.mjs";
+import { fakeGateway, flush, json, READY_DEVICE } from "./helpers/fakeGateway.mjs";
+import { catalogStats, filterApps, parseAppCatalog, sortApps, statusLabel, versionLabel } from "../.test-dist/services/apps.js";
+import { createAppsPage } from "../.test-dist/pages/appsPage.js";
+import { GatewayClient } from "../.test-dist/services/gateway.js";
+import { parseDevice } from "../.test-dist/services/devices.js";
+
+export const GMAIL = {
+  placeId: "package:com.google.android.gm",
+  kind: "package",
+  label: "Gmail",
+  packageName: "com.google.android.gm",
+  origin: null,
+  installed: true,
+  installedVersion: { versionName: "2026.09.01", versionCode: 900 },
+  mapStatus: "mapped",
+  rooms: 6,
+  doors: 11,
+  lastVerifiedAt: Date.now() - 5 * 60_000,
+  needsRemap: true,
+  personas: [{ persona: "mapping", mapStatus: "mapped", rooms: 6, doors: 11, lastVerifiedAt: null }],
+  mappedVersions: [{ versionName: "2026.08.01", versionCode: 880, doors: 9 }],
+};
+const CLOCK = { ...GMAIL, placeId: "package:com.example.clock", label: "Clock", packageName: "com.example.clock", mapStatus: "unmapped", rooms: 0, doors: 0, needsRemap: false, personas: [], mappedVersions: [], installedVersion: { versionName: "8.1", versionCode: 81 } };
+const FACEBOOK = { ...CLOCK, placeId: "chrome:https://www.facebook.com", kind: "chrome-origin", label: "www.facebook.com", packageName: null, origin: "https://www.facebook.com", installed: null, installedVersion: null, mapStatus: "partial", rooms: 3, doors: 2 };
+
+test("catalog parsing drops rows it cannot trust and keeps versions", () => {
+  const catalog = parseAppCatalog({ apps: [GMAIL, { placeId: "file:///x" }, null, CLOCK], truncated: false });
+  assert.deepEqual(catalog.apps.map((a) => a.label), ["Gmail", "Clock"]);
+  assert.equal(versionLabel(catalog.apps[0].installedVersion), "2026.09.01");
+  assert.equal(versionLabel({ versionName: null, versionCode: 42 }), "build 42");
+  assert.equal(statusLabel(catalog.apps[0]), "Needs remap");
+  assert.equal(statusLabel(catalog.apps[1]), "Not mapped");
+});
+
+test("filters, sort and stats describe the phone honestly", () => {
+  const apps = parseAppCatalog({ apps: [CLOCK, FACEBOOK, GMAIL], truncated: false }).apps;
+  assert.deepEqual(sortApps(apps).map((a) => a.label), ["Gmail", "www.facebook.com", "Clock"], "mapped first, most rooms first");
+  assert.deepEqual(filterApps(apps, "needs-remap", "").map((a) => a.label), ["Gmail"]);
+  assert.deepEqual(filterApps(apps, "unmapped", "").map((a) => a.label), ["Clock"]);
+  assert.deepEqual(filterApps(apps, "web", "").map((a) => a.label), ["www.facebook.com"]);
+  assert.deepEqual(filterApps(apps, "all", "google").map((a) => a.label), ["Gmail"]);
+  assert.deepEqual(catalogStats(apps), { total: 3, mapped: 2, needsRemap: 1, rooms: 9 });
+});
+
+function context(fetch, device = READY_DEVICE) {
+  const client = new GatewayClient({ token: "t", fetch });
+  const devices = [parseDevice(device)];
+  return { client, version: "1.0.0-alpha.1", devices, device: devices[0], devicesError: null, navigate() {}, selectDevice() {}, refreshDevices: async () => {} };
+}
+
+test("Apps page lists the phone's apps with status, versions and links into each map", async () => {
+  installMiniDom();
+  const gateway = fakeGateway({ "GET /v1/devices/d1/apps": () => ({ apps: [CLOCK, GMAIL, FACEBOOK], truncated: false }) });
+  const page = createAppsPage(context(gateway.fetch), { name: "apps" });
+  await flush();
+  const rows = page.element.querySelectorAll("a.app-row");
+  assert.equal(rows.length, 3);
+  assert.equal(rows[0].dataset.placeId, "package:com.google.android.gm");
+  assert.equal(rows[0].getAttribute("href") ?? rows[0].href, "#/apps/package%3Acom.google.android.gm/map");
+  assert.match(rows[0].textContent, /Needs remap/);
+  assert.match(rows[0].textContent, /2026\.08\.01/);
+  assert.match(rows[0].textContent, /6 rooms · 11 doors/);
+  assert.match(rows[1].textContent, /Web · https:\/\/www\.facebook\.com/);
+  assert.match(page.element.querySelector(".stats").textContent, /Needs remap/);
+  assert.equal(gateway.calls[0].auth, "Bearer t");
+
+  const segments = page.element.querySelectorAll(".segment");
+  segments.find((s) => s.dataset.id === "unmapped").click();
+  assert.equal(page.element.querySelectorAll("a.app-row").length, 1);
+  assert.match(page.element.querySelector("a.app-row").textContent, /Clock/);
+  page.destroy();
+});
+
+test("an older phone without apps.list is told to update, other errors can retry", async () => {
+  installMiniDom();
+  let fail = true;
+  const gateway = fakeGateway({
+    "GET /v1/devices/d1/apps": () =>
+      fail ? json({ detail: { code: "PROTOCOL_MISMATCH", message: "Unsupported gateway operation: apps.list" } }, 502) : { apps: [CLOCK], truncated: false },
+  });
+  let page = createAppsPage(context(gateway.fetch), { name: "apps" });
+  await flush();
+  assert.match(page.element.textContent, /Update Cyclone on the phone/);
+  assert.match(page.element.textContent, /5\.0\.0-alpha\.7/);
+
+  const other = fakeGateway({ "GET /v1/devices/d1/apps": () => (fail ? json({ detail: { code: "DEVICE_DISCONNECTED", message: "Phone went away." } }, 503) : { apps: [CLOCK], truncated: false }) });
+  page = createAppsPage(context(other.fetch), { name: "apps" });
+  await flush();
+  assert.match(page.element.textContent, /Phone went away/);
+  fail = false;
+  page.element.querySelector(".empty-state .btn").click();
+  await flush();
+  assert.equal(page.element.querySelectorAll("a.app-row").length, 1);
+});
+
+test("Apps page does not call the phone when the device gate says no", async () => {
+  installMiniDom();
+  const gateway = fakeGateway({});
+  const page = createAppsPage(context(gateway.fetch, { ...READY_DEVICE, mobileVersion: "4.8.0" }), { name: "apps" });
+  await flush();
+  assert.match(page.element.textContent, /Update Cyclone on the phone/);
+  assert.equal(gateway.calls.length, 0);
+});
