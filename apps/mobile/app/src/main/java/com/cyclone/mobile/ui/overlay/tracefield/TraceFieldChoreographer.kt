@@ -65,6 +65,10 @@ data class TraceFrame(
     val edge: Float,
     val edgeHead: Float,
     val seed: Float,
+    /** 0 = diffuse ambient aurora (thinking, opening apps), 1 = sharp attention on one target. */
+    val focus: Float = 0f,
+    /** Seconds of ambient flow; frozen with the field (GATE, reduce motion). */
+    val flowTime: Float = 0f,
 )
 
 /**
@@ -101,6 +105,8 @@ class TraceFieldChoreographer(
     private var anchorY = ly
 
     private var intensity = 0f
+    private var focus = 0f
+    private var flowTime = 0.0
     private var edge = 0f
     private var warmth = 0f
     private var backgroundActive = false
@@ -224,13 +230,18 @@ class TraceFieldChoreographer(
             (phase == TracePhase.VERIFY && t2 >= VERIFY_PULL_S)
         val scrambling = now < scrambleUntil
         if (!frozen) glyphClock += dt * if (scrambling) 4.0 else 1.0
+        if (!frozen) flowTime += dt
 
-        // Think: breathing lens with a small Lissajous drift around the anchor.
+        // Think: no single spot to look at, so the glow wanders wide on incommensurate periods
+        // (never visibly repeating) while the ambient aurora carries the motion.
         var breathe = 1f
         if (phase == TracePhase.THINK && !reduceMotion) {
             breathe = 1f + 0.08f * sin(2.0 * PI * t2 / 2.4).toFloat()
-            tx = anchorX + dp(20f) * sin(2.0 * PI * t2 * 3.0 / 11.0).toFloat()
-            ty = anchorY + dp(20f) * sin(2.0 * PI * t2 * 2.0 / 11.0 + PI / 4).toFloat()
+            val amp = smoothstep01((t2 / THINK_DRIFT_RAMP_S).toFloat())
+            val cx = anchorX + (width / 2f - anchorX) * 0.5f * amp
+            val cy = anchorY + (height * 0.45f - anchorY) * 0.5f * amp
+            tx = cx + amp * width * (0.2f * sin(2.0 * PI * t2 / 19.0).toFloat() + 0.07f * sin(2.0 * PI * t2 / 7.3 + 1.1).toFloat())
+            ty = cy + amp * height * (0.12f * sin(2.0 * PI * t2 / 23.0 + 0.6).toFloat() + 0.04f * sin(2.0 * PI * t2 / 8.9).toFloat())
         }
 
         val lensTarget = when (phase) {
@@ -249,6 +260,9 @@ class TraceFieldChoreographer(
             else -> 0.14
         }
         val snap = reduceMotion
+        val focusTarget = focusFor(phase)
+        // Focus arrives quickly and lets go slowly: attention snaps in, then relaxes back into the aurora.
+        focus = approach(focus, focusTarget, dt, if (focusTarget > focus) 0.12 else 0.6, snap)
         intensity = approach(intensity, lensTarget, dt, fadeTau, snap)
         edge = approach(edge, edgeTarget, dt, 0.3, snap)
         warmth = approach(warmth, warmTarget, dt, 0.18, snap)
@@ -278,7 +292,8 @@ class TraceFieldChoreographer(
 
         val visible = intensity > VISIBLE_EPS || edge > VISIBLE_EPS || lensTarget > 0f || edgeTarget > 0f
         val lensSettled = abs(lx - tx) < 0.5f && abs(ly - ty) < 0.5f && abs(lhw - thw) < 0.5f &&
-            abs(intensity - lensTarget) < 0.002f && abs(warmth - warmTarget) < 0.002f
+            abs(intensity - lensTarget) < 0.002f && abs(warmth - warmTarget) < 0.002f &&
+            abs(focus - focusTarget) < 0.002f
         val animating = visible && !(phase == TracePhase.GATE && lensSettled && edge < VISIBLE_EPS) &&
             !(reduceMotion && lensSettled && edge < VISIBLE_EPS)
 
@@ -303,6 +318,8 @@ class TraceFieldChoreographer(
             scramble = if (scrambling) 1f else 0f,
             glyphClock = glyphClock.toFloat(),
             warmth = warmth,
+            focus = focus,
+            flowTime = flowTime.toFloat(),
             edge = edge,
             edgeHead = edgeHead,
             seed = seed,
@@ -347,6 +364,14 @@ class TraceFieldChoreographer(
 
     private fun dp(value: Float): Float = value * density
 
+    private fun focusFor(phase: TracePhase): Float = when (phase) {
+        TracePhase.TARGET, TracePhase.ACT, TracePhase.VERIFY -> 1f
+        TracePhase.RECOVER -> 0.8f
+        TracePhase.OBSERVE -> 0.6f
+        TracePhase.GATE -> 0.5f
+        else -> 0.12f
+    }
+
     companion object {
         const val LENS_RADIUS_DP = 96f
         const val WAKE_S = 0.45
@@ -363,6 +388,12 @@ class TraceFieldChoreographer(
         const val OBSERVE_DEBOUNCE_S = 0.25
         const val LENS_TAU_S = 0.11
         const val VISIBLE_EPS = 0.003f
+        const val THINK_DRIFT_RAMP_S = 3.0
+
+        private fun smoothstep01(x: Float): Float {
+            val c = x.coerceIn(0f, 1f)
+            return c * c * (3f - 2f * c)
+        }
 
         fun seedOf(text: String): Float = ((text.hashCode().toLong() and 0x7fffffff) % 997L).toFloat()
 

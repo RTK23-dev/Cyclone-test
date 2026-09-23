@@ -213,3 +213,54 @@ class TraceFieldChoreographerTest {
         assertEquals(TraceFieldMode.FIELD, TraceFieldMode.parse("matrix"))
     }
 }
+
+class TraceFieldFocusTest {
+    private val w = 1080f
+    private val h = 2400f
+
+    private fun TraceFieldChoreographer.run(from: Double, to: Double): TraceFrame {
+        var t = from
+        var last = frame(t)
+        while (t < to) { t += 1.0 / 120.0; last = frame(t) }
+        return last
+    }
+
+    @Test fun thinkingIsDiffuseAndFocusSharpensOnTarget() {
+        val m = TraceFieldChoreographer(w, h, 2.625f)
+        m.onEvent(TraceEvent.Wake(w / 2, h), 0.0)
+        val thinking = m.run(0.0, 2.0)
+        assertTrue("diffuse while thinking", thinking.focus < 0.2f)
+        m.onEvent(TraceEvent.Target(100f, 400f, 980f, 540f, "n"), 2.0)
+        val focused = m.run(2.0, 2.6)
+        assertTrue("focus arrives quickly", focused.focus > 0.95f)
+        val relaxing = m.run(2.6, 5.4) // TARGET holds 3 s, then THINK
+        assertEquals(TracePhase.THINK, relaxing.phase)
+        val relaxed = m.run(5.4, 8.0)
+        assertTrue("focus lets go back into the aurora", relaxed.focus < 0.2f)
+    }
+
+    @Test fun thinkingWandersWideInsteadOfSittingStill() {
+        val m = TraceFieldChoreographer(w, h, 2.625f)
+        m.onEvent(TraceEvent.Wake(w / 2, h), 0.0)
+        var minX = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var t = 0.0
+        while (t < 40.0) {
+            t += 1.0 / 30.0
+            val f = m.frame(t)
+            if (t > 5.0) { minX = minOf(minX, f.lensX); maxX = maxOf(maxX, f.lensX) }
+        }
+        assertTrue("glow travels across the screen (${maxX - minX}px)", maxX - minX > w * 0.3f)
+    }
+
+    @Test fun ambientFlowRunsWhileWorkingAndFreezesAtGate() {
+        val m = TraceFieldChoreographer(w, h, 2.625f)
+        m.onEvent(TraceEvent.Wake(w / 2, h), 0.0)
+        val a = m.run(0.0, 2.0)
+        assertTrue(a.flowTime > 1.9f)
+        m.onEvent(TraceEvent.Gate, 2.0)
+        val b = m.run(2.0, 3.0)
+        val c = m.run(3.0, 4.0)
+        assertEquals(b.flowTime, c.flowTime, 0.0001f)
+    }
+}

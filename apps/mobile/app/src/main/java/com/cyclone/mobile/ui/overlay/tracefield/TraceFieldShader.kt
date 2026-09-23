@@ -37,6 +37,8 @@ uniform float edge;
 uniform float edgeHead;
 uniform float warmth;
 uniform float opacity;
+uniform float focus;
+uniform float flowTime;
 uniform float4 excl;
 layout(color) uniform half4 tint;
 layout(color) uniform half4 hot;
@@ -81,6 +83,35 @@ bool cellAt(float2 xy, float2 size, float layer, float shift, float colGate,
     return true;
 }
 
+// Seed-free hash: the aurora must not jump when a new page fingerprint reseeds the digits.
+float n21(float2 p) {
+    p = fract(p * float2(233.34, 851.73));
+    p += dot(p, p + 23.45);
+    return fract(p.x * p.y);
+}
+
+float vnoise(float2 p) {
+    float2 i = floor(p);
+    float2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = n21(i);
+    float b = n21(i + float2(1.0, 0.0));
+    float c = n21(i + float2(0.0, 1.0));
+    float d = n21(i + float2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+// Domain-warped noise shaped into slow curtains, like an aurora or a tide line.
+float aurora(float2 p, float t) {
+    float2 uv = p / res.y;
+    float2 w = float2(vnoise(uv * 1.3 + float2(t * 0.04, -t * 0.03)),
+                      vnoise(uv * 1.3 + float2(-t * 0.03, t * 0.05) + 7.1));
+    float n = 0.6 * vnoise(uv * float2(1.6, 3.2) + w * 1.8 + float2(0.0, t * 0.06))
+            + 0.4 * vnoise(uv * float2(3.1, 6.0) + w * 1.2 - float2(t * 0.05, 0.0));
+    float curtain = 0.5 + 0.5 * sin(uv.y * 5.0 + n * 4.0 - t * 0.25);
+    return smoothstep(0.42, 0.82, n) * (0.5 + 0.5 * curtain);
+}
+
 float3 iridescent(float2 xy) {
     float hue = fract(xy.y / res.y * 0.8 + xy.x / res.x * 0.3 + clock * 0.15);
     return 0.55 + 0.45 * cos(6.28318 * (hue + float3(0.0, 0.33, 0.67)));
@@ -99,78 +130,96 @@ half4 main(float2 xy) {
         fade = 1.0 - smoothstep(0.55, 1.0, rain);
     }
 
-    float d = sdRoundRect(q - lens.xy, lens.zw, lensCorner);
-    float m = 1.0 - smoothstep(0.0, lensSoft, d);
-    m = m * m;
-    if (ripple.w > 0.0) {
-        float ring = abs(length(xy - ripple.xy) - ripple.z);
-        m = max(m, (1.0 - smoothstep(0.0, cell.y * 1.3, ring)) * ripple.w);
-    }
-    if (scan.y > 0.0) {
-        float band = 1.0 - smoothstep(0.0, cell.y * 2.2, abs(xy.y - scan.x));
-        m = max(m, band * scan.y);
-    }
-    m *= intensity * fade;
+    // Edge filament zone (cheap). It hugs one column per side, so it must not lose that column to thinning.
+    float de = min(min(xy.x, res.x - xy.x), min(xy.y, res.y - xy.y));
+    bool edgeZone = edge > 0.0 && de < cell.x * 1.25;
+    float colGate = edgeZone ? 0.0 : 0.3;
 
-    float e = 0.0;
-    if (edge > 0.0) {
-        float dl = xy.x;
-        float dr = res.x - xy.x;
-        float dt = xy.y;
-        float db = res.y - xy.y;
-        float de = min(min(dl, dr), min(dt, db));
-        if (de < cell.x * 1.25) {
-            float perimeter = 2.0 * (res.x + res.y);
-            float s = 0.0;
-            if (de == dt) { s = xy.x; }
-            else if (de == dr) { s = res.x + xy.y; }
-            else if (de == db) { s = res.x + res.y + (res.x - xy.x); }
-            else { s = 2.0 * res.x + res.y + (res.y - xy.y); }
-            float behind = mod(edgeHead * perimeter - s + perimeter, perimeter);
-            float tail = res.y * 0.4;
-            if (behind < tail) {
-                e = (1.0 - behind / tail) * (1.0 - smoothstep(cell.x * 0.35, cell.x * 1.25, de)) * edge * 0.85;
-            }
-        }
-    }
-
-    float mask = max(m, e);
-    if (mask < 0.004) return half4(0.0);
-
-    // The edge filament hugs one column per side, so it must not lose that column to thinning.
-    float colGate = e > m ? 0.0 : 0.3;
-    float twinkle = 0.45 + 0.55 * h21(floor(q / cell) + floor(clock * 2.0));
-
+    // Glyphs first: most pixels are not inside a digit, and they leave here before any field maths.
     float2 local; float g; float gPrev; float age;
     float core = 0.0;
     float halo = 0.0;
     float ghost = 0.0;
     float coreR = 0.0;
     float coreB = 0.0;
-    if (cellAt(q, cell, 0.0, flow, colGate, local, g, gPrev, age)) {
+    bool hasCell = cellAt(q, cell, 0.0, flow, colGate, local, g, gPrev, age);
+    if (hasCell) {
         core = atlasA(g, local, 0.0);
         halo = atlasA(g, local, 1.0);
-        coreR = core;
-        coreB = core;
-        if (style < 0.5) {
-            // Obsidian: a 1.5 px red/blue split only on the lens rim, like real glass.
-            float rim = smoothstep(-lensSoft * 0.1, lensSoft * 0.15, d) * (1.0 - smoothstep(lensSoft * 0.15, lensSoft * 0.6, d));
-            if (rim > 0.01) {
-                coreR = mix(core, atlasA(g, local + float2(1.5, 0.0), 0.0), rim);
-                coreB = mix(core, atlasA(g, local - float2(1.5, 0.0), 0.0), rim);
-            }
-        } else if (style < 1.5) {
-            // Forge: the previous digit lingers as a cooling afterglow.
-            ghost = atlasA(gPrev, local, 0.0) * 0.4 * (1.0 - smoothstep(0.0, 0.3, age));
-        }
     }
     float far = 0.0;
     float2 localF; float gF; float gPrevF; float ageF;
+    bool chameleon = style > 1.5 && style < 2.5;
     if (cellAt(q + float2(cell.x * 0.37, cell.y * 0.21), cell * 0.72, 1.0, flow * 0.6, colGate, localF, gF, gPrevF, ageF)) {
         // Chameleon uses the blurred row: real depth of field.
-        far = atlasA(gF, localF, (style > 1.5 && style < 2.5) ? 2.0 : 0.0) * ((style > 1.5 && style < 2.5) ? 0.4 : 0.24);
+        far = atlasA(gF, localF, chameleon ? 2.0 : 0.0) * (chameleon ? 0.4 : 0.24);
+    }
+    if (hasCell && style > 0.5 && style < 1.5) {
+        // Forge: the previous digit lingers as a cooling afterglow.
+        ghost = atlasA(gPrev, local, 0.0) * 0.4 * (1.0 - smoothstep(0.0, 0.3, age));
+    }
+    if (core + halo + far + ghost < 0.002) return half4(0.0);
+
+    // Sharp attention: the rounded-rect lens that morphs onto the target.
+    float d = sdRoundRect(q - lens.xy, lens.zw, lensCorner);
+    float lensCoreMask = 1.0 - smoothstep(0.0, lensSoft, d);
+    lensCoreMask *= lensCoreMask;
+    // Two broad gradients so the field never reads as a cut-out: a natural oval around the lens
+    // and a soft vertical band that reaches about half the screen height.
+    float2 rel = (q - lens.xy) / (lens.zw + float2(res.x * 0.3, res.y * 0.16));
+    float oval = exp(-2.2 * dot(rel, rel));
+    float vy = (q.y - lens.y) / (res.y * 0.3);
+    float band = exp(-1.6 * vy * vy);
+    float2 relWide = (q - lens.xy) / (lens.zw + float2(res.x * 0.45, res.y * 0.26));
+    float ovalWide = exp(-1.8 * dot(relWide, relWide));
+    float focused = max(lensCoreMask, max(oval * 0.38, band * 0.13));
+    float diffuse = max(ovalWide * 0.26, band * 0.1);
+    float m = mix(diffuse, focused, focus);
+
+    // Ambient aurora: flowing, never-repeating curtains across the whole screen. Low when
+    // Cyclone is focused, the main motion while it thinks, opens apps or clicks through the UI tree.
+    float amb = aurora(q, flowTime);
+    m = max(m, (0.05 + 0.34 * amb) * (1.0 - 0.55 * focus));
+
+    if (ripple.w > 0.0) {
+        float ring = abs(length(xy - ripple.xy) - ripple.z);
+        m = max(m, (1.0 - smoothstep(0.0, cell.y * 1.3, ring)) * ripple.w);
+    }
+    if (scan.y > 0.0) {
+        float scanBand = 1.0 - smoothstep(0.0, cell.y * 2.2, abs(xy.y - scan.x));
+        m = max(m, scanBand * scan.y);
+    }
+    m *= intensity * fade;
+
+    float e = 0.0;
+    if (edgeZone) {
+        float perimeter = 2.0 * (res.x + res.y);
+        float s = 0.0;
+        if (de == xy.y) { s = xy.x; }
+        else if (de == res.x - xy.x) { s = res.x + xy.y; }
+        else if (de == res.y - xy.y) { s = res.x + res.y + (res.x - xy.x); }
+        else { s = 2.0 * res.x + res.y + (res.y - xy.y); }
+        float behind = mod(edgeHead * perimeter - s + perimeter, perimeter);
+        float tail = res.y * 0.4;
+        if (behind < tail) {
+            e = (1.0 - behind / tail) * (1.0 - smoothstep(cell.x * 0.35, cell.x * 1.25, de)) * edge * 0.85;
+        }
     }
 
+    float mask = max(m, e);
+    if (mask < 0.004) return half4(0.0);
+
+    float twinkle = 0.45 + 0.55 * h21(floor(q / cell) + floor(clock * 2.0));
+    coreR = core;
+    coreB = core;
+    if (hasCell && style < 0.5) {
+        // Obsidian: a 1.5 px red/blue split only on the lens rim, like real glass.
+        float rim = focus * smoothstep(-lensSoft * 0.1, lensSoft * 0.15, d) * (1.0 - smoothstep(lensSoft * 0.15, lensSoft * 0.6, d));
+        if (rim > 0.01) {
+            coreR = mix(core, atlasA(g, local + float2(1.5, 0.0), 0.0), rim);
+            coreB = mix(core, atlasA(g, local - float2(1.5, 0.0), 0.0), rim);
+        }
+    }
     float light = 0.0;
     float mid = 0.0;
     if (backdropOn > 0.5) {
@@ -182,7 +231,7 @@ half4 main(float2 xy) {
         mid = smoothstep(0.2, 0.45, lum) * (1.0 - light);
     }
 
-    float lensCore = 1.0 - smoothstep(0.0, lensSoft * 0.9, max(d, 0.0) + lensSoft * 0.25);
+    float lensCore = (0.35 + 0.65 * focus) * (1.0 - smoothstep(0.0, lensSoft * 0.9, max(d, 0.0) + lensSoft * 0.25));
     // Over mid-tone content (photos, video) the core runs whiter so it never greys into the image.
     float3 glow = float3(mix(tint.rgb, hot.rgb, half(max(lensCore * 0.7, mid * 0.8))));
     float3 inkRgb = float3(ink.rgb);
