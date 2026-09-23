@@ -1,13 +1,129 @@
-/** Phone: live view and control. Checkpoint F adds the live view, take control and Ask. */
+/**
+ * Phone: watch the phone live, take control from the PC, give it back, and give Cyclone a goal.
+ * Every tap goes to the phone's PhoneToolExecutor through the gateway; GATE and PHONE_LOCKED still apply.
+ */
 import type { GlassContext } from "../app.js";
-import { el } from "../ui/dom.js";
-import { emptyState, pageHeader } from "../ui/components.js";
+import { sendControl, type ControlBody } from "../services/control.js";
+import { FOREGROUND_SESSION_ID, phoneClient } from "../services/phone.js";
+import { el, setChildren } from "../ui/dom.js";
+import { actionButton, chip, pageHeader } from "../ui/components.js";
+import { createLiveView, type LiveView, type LiveViewOptions } from "../ui/liveView.js";
+import { createAskPanel, type AskPanelDeps } from "./askPanel.js";
 import { deviceGate } from "./deviceGate.js";
 import type { GlassPage } from "./page.js";
 
-export function createPhonePage(ctx: GlassContext): GlassPage {
+export interface PhonePageDeps {
+  origin?: string;
+  fetch?: typeof fetch;
+  rendererFactory?: LiveViewOptions["rendererFactory"];
+  askTimer?: Pick<AskPanelDeps, "setTimer" | "clearTimer">;
+}
+
+type Owner = "AI" | "HUMAN";
+
+export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): GlassPage {
   const element = el("div", "page page-phone");
   element.append(pageHeader("Phone", "Watch the phone, take control, or give Cyclone a goal."));
-  element.append(deviceGate(ctx) ?? emptyState({ icon: "phone", title: "Live view is not available yet" }));
-  return { element, destroy() {} };
+  const gate = deviceGate(ctx);
+  if (gate || !ctx.device) {
+    element.append(gate ?? el("div"));
+    return { element, destroy() {} };
+  }
+  const device = ctx.device;
+  let owner: Owner = "AI";
+
+  const note = el("p", "control-note");
+  note.setAttribute("role", "status");
+  const run = async (body: ControlBody): Promise<boolean> => {
+    try {
+      const result = await sendControl(ctx.client, device.id, body);
+      if (result.inputOwner) owner = result.inputOwner;
+      if (!result.ok) note.textContent = controlCopy(result.verification);
+      else note.textContent = "";
+      return result.ok;
+    } catch (error) {
+      note.textContent = error instanceof Error ? error.message : String(error);
+      return false;
+    }
+  };
+
+  const live: LiveView = createLiveView({
+    client: ctx.client,
+    deviceId: device.id,
+    origin: deps.origin ?? globalThis.location?.origin ?? "http://127.0.0.1:8765",
+    rendererFactory: deps.rendererFactory,
+    onGesture: (gesture) => {
+      if (gesture.type === "tap") void run({ kind: "tap", x: gesture.x, y: gesture.y });
+      else void run({ kind: "swipe", x1: gesture.x, y1: gesture.y, x2: gesture.x2 ?? gesture.x, y2: gesture.y2 ?? gesture.y, duration_ms: gesture.durationMs ?? 300 });
+    },
+  });
+
+  const ownerChip = el("span", "owner-chip");
+  const controls = el("div", "phone-controls");
+  const keys = el("div", "phone-keys");
+  const back = actionButton("Back", { icon: "back" });
+  const home = actionButton("Home", { icon: "phone" });
+  const wake = actionButton("Wake", { icon: "refresh", variant: "ghost" });
+  back.addEventListener("click", () => void run({ kind: "back" }));
+  home.addEventListener("click", () => void run({ kind: "home" }));
+  wake.addEventListener("click", () => void run({ kind: "wake" }));
+  keys.append(back, home, wake);
+
+  const render = (): void => {
+    const human = owner === "HUMAN";
+    setChildren(ownerChip, chip(human ? "You have control" : "Cyclone has control", human ? "warning" : "success"));
+    const toggle = actionButton(human ? "Give back to Cyclone" : "Take control", { icon: "hand", variant: human ? "secondary" : "primary" });
+    toggle.addEventListener("click", () => void (human ? giveBack() : takeControl()));
+    setChildren(controls, toggle);
+    live.setInteractive(human);
+    for (const key of [back, home]) key.disabled = !human;
+  };
+
+  const takeControl = async (): Promise<void> => {
+    if (await run({ kind: "take_human", sessionId: FOREGROUND_SESSION_ID })) {
+      owner = "HUMAN";
+      live.setProfile("focus");
+    }
+    render();
+  };
+
+  const giveBack = async (): Promise<void> => {
+    if (await run({ kind: "yield_ai", sessionId: FOREGROUND_SESSION_ID })) {
+      owner = "AI";
+      live.setProfile("thumbnail");
+    }
+    render();
+  };
+
+  const ask = createAskPanel({ phone: phoneClient(ctx, device.id, deps.fetch), ...deps.askTimer });
+
+  const stage = el("section", "phone-stage");
+  const bar = el("div", "phone-bar");
+  bar.append(ownerChip, controls);
+  stage.append(bar, live.element, keys, note);
+  const side = el("div", "phone-side");
+  side.append(ask.element);
+  const layout = el("div", "phone-layout");
+  layout.append(stage, side);
+  element.append(layout);
+  render();
+
+  return {
+    element,
+    destroy() {
+      live.destroy();
+      ask.destroy();
+    },
+  };
+}
+
+export function controlCopy(code: string): string {
+  switch (code) {
+    case "PHONE_LOCKED":
+      return "The phone is locked. Unlock it on the phone; Glass never unlocks it for you.";
+    case "HUMAN_HAS_CONTROL":
+      return "Someone else has control of this phone right now.";
+    default:
+      return `The phone did not accept that (${code}).`;
+  }
 }

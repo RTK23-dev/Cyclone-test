@@ -4,6 +4,7 @@ import "./styles/components.css";
 import "./styles/shell.css";
 import "./styles/apps.css";
 import "./styles/board.css";
+import "./styles/phone.css";
 import { GlassApp } from "./app.js";
 import { establishSession, forgetSession } from "./core/session.js";
 import { GatewayClient } from "./services/gateway.js";

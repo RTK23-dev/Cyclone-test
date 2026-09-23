@@ -1,0 +1,143 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { installMiniDom } from "./helpers/mini-dom.mjs";
+import { fakeGateway, flush, json, READY_DEVICE } from "./helpers/fakeGateway.mjs";
+import { createPhonePage } from "../.test-dist/pages/phonePage.js";
+import { mapPointerGesture } from "../.test-dist/core/coordinates.js";
+import { GatewayClient } from "../.test-dist/services/gateway.js";
+import { parseDevice } from "../.test-dist/services/devices.js";
+
+const IDLE = { taskId: null, state: "idle", title: "", app: "", currentMilestone: null, milestones: [], supportingCopy: null, outcomeCopy: null };
+
+function phone({ locked = false, askError = null } = {}) {
+  const state = { owner: "AI", ask: { ...IDLE } };
+  const gateway = fakeGateway({
+    "POST /v1/devices/d1/control": ({ body }) => {
+      if (locked && body.kind !== "yield_ai") return json({ detail: { code: "PHONE_LOCKED", message: "locked" } }, 409);
+      if (body.kind === "take_human") state.owner = "HUMAN";
+      if (body.kind === "yield_ai") state.owner = "AI";
+      return { ok: true, status: "android-result", inputOwner: state.owner };
+    },
+    "POST /v1/devices/d1/ask/start": ({ body }) => {
+      if (askError) return json({ detail: { code: askError, message: askError } }, 409);
+      state.ask = { ...IDLE, taskId: "t1", state: "working", title: "Gmail → Facebook", app: "Facebook", milestones: [{ label: "Finding the dm of Louella", state: "active" }] };
+      return { accepted: true, goal: body.goal };
+    },
+    "POST /v1/devices/d1/ask/status": () => state.ask,
+  });
+  return { state, gateway };
+}
+
+function open(fake) {
+  installMiniDom();
+  const renderers = [];
+  const timers = [];
+  const client = new GatewayClient({ token: "tok", fetch: fake.gateway.fetch });
+  const devices = [parseDevice(READY_DEVICE)];
+  const ctx = { client, version: "1.0.0-alpha.1", devices, device: devices[0], devicesError: null, navigate() {}, selectDevice() {}, refreshDevices: async () => {} };
+  const page = createPhonePage(ctx, {
+    origin: "http://127.0.0.1:8765",
+    fetch: fake.gateway.fetch,
+    rendererFactory: (input) => {
+      const renderer = { input, stopped: false, start() {}, stop() { renderer.stopped = true; } };
+      renderers.push(renderer);
+      return renderer;
+    },
+    askTimer: { setTimer: (fn) => timers.push(fn), clearTimer: () => (timers.length = 0) },
+  });
+  return { page, renderers, timers, controls: () => fake.gateway.calls.filter((c) => c.path.endsWith("/control")).map((c) => c.body) };
+}
+
+test("watching uses the thumbnail stream and never takes the phone from Cyclone", async () => {
+  const fake = phone();
+  const { page, renderers, controls } = open(fake);
+  await flush();
+  assert.equal(renderers.length, 1);
+  assert.equal(renderers[0].input.streamUrl, "ws://127.0.0.1:8765/v1/devices/d1/video?profile=thumbnail");
+  assert.deepEqual(renderers[0].input.streamProtocols, ["cyclone-token.tok"]);
+  assert.deepEqual(controls(), []);
+  assert.match(page.element.textContent, /Cyclone has control/);
+  assert.equal(page.element.querySelector(".live-view").classList.contains("interactive"), false);
+  page.destroy();
+  assert.equal(renderers[0].stopped, true);
+});
+
+test("Take control switches to the focus stream; taps reach the phone; Give back returns it", async () => {
+  const fake = phone();
+  const { page, renderers, controls } = open(fake);
+  await flush();
+  page.element.querySelector(".phone-controls .btn").click();
+  await flush();
+  assert.deepEqual(controls()[0], { kind: "take_human", sessionId: "default-foreground" });
+  assert.match(page.element.textContent, /You have control/);
+  assert.equal(renderers.at(-1).input.profile, "focus");
+  const view = page.element.querySelector(".live-view");
+  assert.equal(view.classList.contains("interactive"), true);
+
+  const canvas = view.querySelector(".live-canvas");
+  canvas.width = 1080;
+  canvas.height = 2340;
+  canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 108, height: 234 });
+  view.dispatchEvent({ type: "pointerdown", button: 0, clientX: 54, clientY: 117, timeStamp: 0 });
+  view.dispatchEvent({ type: "pointerup", button: 0, clientX: 54, clientY: 117, timeStamp: 50 });
+  await flush();
+  assert.deepEqual(controls()[1], { kind: "tap", x: 0.5, y: 0.5 });
+
+  page.element.querySelector(".phone-controls .btn").click();
+  await flush();
+  assert.deepEqual(controls()[2], { kind: "yield_ai", sessionId: "default-foreground" });
+  assert.equal(renderers.at(-1).input.profile, "thumbnail");
+  assert.match(page.element.textContent, /Cyclone has control/);
+  page.destroy();
+});
+
+test("a locked phone is explained and never stolen", async () => {
+  const fake = phone({ locked: true });
+  const { page } = open(fake);
+  await flush();
+  page.element.querySelector(".phone-controls .btn").click();
+  await flush();
+  assert.match(page.element.querySelector(".control-note").textContent, /locked/);
+  assert.match(page.element.textContent, /Cyclone has control/);
+  page.destroy();
+});
+
+test("Ask sends the sentence unchanged and mirrors the phone's run", async () => {
+  const fake = phone();
+  const { page, timers } = open(fake);
+  await flush();
+  const goal = "open Gmail, check my current logged in email, then go to facebook and find the dm of Louella";
+  page.element.querySelector(".ask-input").value = goal;
+  page.element.querySelector(".ask-form").dispatchEvent({ type: "submit" });
+  await flush();
+  const start = fake.gateway.calls.find((c) => c.path.endsWith("/ask/start"));
+  assert.equal(start.body.goal, goal);
+  assert.equal(start.body.sessionId, "default-foreground");
+  assert.match(page.element.querySelector(".ask-hud").textContent, /Finding the dm of Louella/);
+
+  fake.state.ask = { ...fake.state.ask, state: "done", outcomeCopy: "Opened Louella's conversation.", milestones: [{ label: "Finding the dm of Louella", state: "done" }] };
+  for (const fn of timers.splice(0)) fn();
+  await flush();
+  assert.match(page.element.querySelector(".ask-hud").textContent, /Opened Louella's conversation/);
+  assert.equal(timers.length, 0, "polling stops when the run is done");
+  page.destroy();
+});
+
+test("Ask refusals are named in plain words", async () => {
+  const fake = phone({ askError: "ASK_BUSY" });
+  const { page } = open(fake);
+  await flush();
+  page.element.querySelector(".ask-input").value = "open clock";
+  page.element.querySelector(".ask-form").dispatchEvent({ type: "submit" });
+  await flush();
+  assert.match(page.element.querySelector(".ask-note").textContent, /already running a task/);
+  page.destroy();
+});
+
+test("pointer mapping turns a drag into a swipe and ignores letterbox clicks", () => {
+  const rect = { left: 0, top: 0, width: 100, height: 200 };
+  assert.deepEqual(mapPointerGesture({ clientX: 50, clientY: 150, startedAtMs: 0 }, { clientX: 50, clientY: 50, endedAtMs: 300 }, rect, 1080, 2160, 0), {
+    type: "swipe", x1: 0.5, y1: 0.75, x2: 0.5, y2: 0.25, durationMs: 300,
+  });
+  assert.equal(mapPointerGesture({ clientX: 5, clientY: 5, startedAtMs: 0 }, { clientX: 5, clientY: 5, endedAtMs: 1 }, { left: 0, top: 0, width: 300, height: 200 }, 1080, 2160, 0), null);
+});
