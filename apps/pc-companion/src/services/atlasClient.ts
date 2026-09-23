@@ -9,12 +9,18 @@
  *   secrets.slots     GET  /v1/devices/{device_id}/secrets/slots?placeId=&persona=
  *   secrets.request   POST /v1/devices/{device_id}/secrets/request
  *                     body is frozen to { placeId, persona, slot, reason }
+ *   atlas.diff        GET  /v1/devices/{device_id}/atlas/diff?placeId=&persona=&since=
+ *   mapping.start     POST /v1/devices/{device_id}/mapping/start   (local operator act)
+ *   mapping.pause     POST /v1/devices/{device_id}/mapping/pause
+ *   mapping.stop      POST /v1/devices/{device_id}/mapping/stop
+ *   mapping.status    POST /v1/devices/{device_id}/mapping/status
  *
  * session_id is required on every scoped call. Sent as `session_id` query and
  * `X-Cyclone-Session-Id` header. Never placed on the secrets.request JSON body
  * (gateway rejects unexpected fields). Never defaulted to display 0 / default-foreground.
  *
- * This client does not implement mapping.start.
+ * Mapping is commanded, never performed, here: the phone owns the job and walks the app. Glass
+ * starts only `persona=mapping` passes on the foreground plane (display 0) in this cut.
  */
 
 import type {
@@ -94,6 +100,51 @@ export interface AtlasClientOptions {
   fetch?: typeof fetch;
 }
 
+export type MappingState =
+  | "idle"
+  | "running"
+  | "paused"
+  | "needs-secret"
+  | "human-control"
+  | "completed"
+  | "stopped"
+  | "failed";
+
+/** The part of a phone mapping job Glass shows. Structural ids and counts only. */
+export interface MappingJobView {
+  mappingJobId: string | null;
+  placeId: PlaceId | null;
+  state: MappingState;
+  currentAtlasNodeId: string | null;
+  newScreens: number;
+  verifiedMutations: number;
+  failureCode: string | null;
+  atlasStatus: string | null;
+}
+
+export interface AtlasDiffChange {
+  cursor: string;
+  entity: "place" | "screen" | "edge";
+  change: "upsert" | "remove";
+  id: string;
+}
+
+export interface AtlasDiffView {
+  cursor: string;
+  resyncRequired: boolean;
+  changes: AtlasDiffChange[];
+}
+
+/** Mirrors the phone's quick pass: small enough to watch, large enough to show a house. */
+export const GLASS_MAPPING_BUDGET = Object.freeze({
+  maxNewScreens: 12,
+  maxElapsedMs: 180_000,
+  maxConsecutiveNonProgress: 6,
+  maxAttemptsPerDoor: 2,
+});
+
+export const MAPPING_TERMINAL_STATES: ReadonlySet<MappingState> = new Set(["idle", "completed", "stopped", "failed"]);
+
 export interface AtlasClient {
   readonly usingDemoGraph: boolean;
   places(): Promise<PlaceCatalog>;
@@ -105,6 +156,12 @@ export interface AtlasClient {
     slot: string,
     reason: string,
   ): Promise<SecretsRequestResult>;
+  atlasDiff(placeId: PlaceId, persona: Persona, since: string | null): Promise<AtlasDiffView>;
+  mappingStart(placeId: PlaceId): Promise<MappingJobView>;
+  mappingResume(mappingJobId: string): Promise<MappingJobView>;
+  mappingPause(mappingJobId: string): Promise<MappingJobView>;
+  mappingStop(mappingJobId: string): Promise<MappingJobView>;
+  mappingStatus(mappingJobId?: string | null): Promise<MappingJobView>;
 }
 
 /**
@@ -246,7 +303,141 @@ export function createAtlasClient(options: AtlasClientOptions): AtlasClient {
       });
       return parseSecretsRequestResult(payload);
     },
+    async atlasDiff(placeId: PlaceId, persona: Persona, since: string | null): Promise<AtlasDiffView> {
+      assertPlacePersona(placeId, persona);
+      requireRealPhone();
+      const sinceQuery = since ? `&since=${encodeURIComponent(since)}` : "";
+      const payload = await requestJson(
+        `/v1/devices/{device_id}/atlas/diff?placeId=${encodeURIComponent(placeId)}&persona=${encodeURIComponent(persona)}${sinceQuery}`,
+      );
+      return parseAtlasDiff(payload);
+    },
+    async mappingStart(placeId: PlaceId): Promise<MappingJobView> {
+      assertPlacePersona(placeId, "mapping");
+      if (!placeId.startsWith("package:")) {
+        throw new AtlasClientError("PLACE_NOT_LAUNCHABLE", "Glass maps installed apps in this alpha; websites come later.");
+      }
+      requireRealPhone();
+      return mappingCall("start", { placeId, persona: "mapping", budget: { ...GLASS_MAPPING_BUDGET } });
+    },
+    async mappingResume(mappingJobId: string): Promise<MappingJobView> {
+      requireRealPhone();
+      // The phone accepts only the job id plus plane identity when resuming.
+      return mappingCall("start", { resumeJobId: jobId(mappingJobId) });
+    },
+    async mappingPause(mappingJobId: string): Promise<MappingJobView> {
+      requireRealPhone();
+      return mappingCall("pause", { mappingJobId: jobId(mappingJobId) });
+    },
+    async mappingStop(mappingJobId: string): Promise<MappingJobView> {
+      requireRealPhone();
+      return mappingCall("stop", { mappingJobId: jobId(mappingJobId) });
+    },
+    async mappingStatus(mappingJobId?: string | null): Promise<MappingJobView> {
+      requireRealPhone();
+      return mappingCall("status", mappingJobId ? { mappingJobId: jobId(mappingJobId) } : {});
+    },
   };
+
+  function requireRealPhone(): void {
+    if (useDemoGraph) {
+      throw new AtlasClientError("DEMO_MODE", "Mapping needs a connected Mobile 5 phone.");
+    }
+  }
+
+  /** Foreground plane only: Glass never guesses a named workspace display. */
+  async function mappingCall(op: "start" | "pause" | "stop" | "status", fields: Record<string, unknown>): Promise<MappingJobView> {
+    const body = { ...fields, sessionId: sessionId(), displayId: 0 };
+    if (body.sessionId !== FOREGROUND_SESSION_ID) {
+      throw new AtlasClientError(
+        "SESSION_DISPLAY_MISMATCH",
+        "Glass starts mapping on the phone's main screen (default-foreground) in this alpha.",
+      );
+    }
+    assertNoSecretValues(body);
+    const payload = await requestJson(`/v1/devices/{device_id}/mapping/${op}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return parseMappingJob(payload);
+  }
+}
+
+const FOREGROUND_SESSION_ID = "default-foreground";
+const JOB_ID_RE = /^[A-Za-z0-9_-]{8,120}$/;
+const SCREEN_ID_RE = /^(?:page|screen):[A-Za-z0-9._:-]{1,173}$/;
+const CURSOR_RE = /^c1:[a-f0-9]{20}:[0-9]+$/;
+const MAPPING_STATES = new Set<MappingState>([
+  "idle", "running", "paused", "needs-secret", "human-control", "completed", "stopped", "failed",
+]);
+
+function jobId(value: string): string {
+  if (!JOB_ID_RE.test(String(value ?? ""))) {
+    throw new AtlasClientError("INVALID_REQUEST", "mappingJobId is malformed.");
+  }
+  return value;
+}
+
+function countOf(value: unknown): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : 0;
+}
+
+export function parseMappingJob(payload: unknown): MappingJobView {
+  assertObject(payload, "mapping");
+  assertNoSecretValues(payload);
+  const record = payload as Record<string, unknown>;
+  const state = record.state;
+  if (typeof state !== "string" || !MAPPING_STATES.has(state as MappingState)) {
+    throw new AtlasClientError("PROTOCOL_MISMATCH", "Android mapping state is invalid.");
+  }
+  const id = record.mappingJobId;
+  if (id !== null && (typeof id !== "string" || !JOB_ID_RE.test(id))) {
+    throw new AtlasClientError("PROTOCOL_MISMATCH", "Android mappingJobId is malformed.");
+  }
+  const placeId = record.placeId == null ? null : parsePlaceId(record.placeId);
+  const node = record.currentAtlasNodeId;
+  if (node != null && (typeof node !== "string" || !SCREEN_ID_RE.test(node))) {
+    throw new AtlasClientError("PROTOCOL_MISMATCH", "Android mapping node id must be page:/screen:.");
+  }
+  const progress = (record.progress && typeof record.progress === "object" ? record.progress : {}) as Record<string, unknown>;
+  const failure = record.failureCode;
+  const atlasStatus = record.atlasStatus;
+  return {
+    mappingJobId: (id as string | null) ?? null,
+    placeId,
+    state: state as MappingState,
+    currentAtlasNodeId: (node as string | null | undefined) ?? null,
+    newScreens: countOf(progress.newScreens),
+    verifiedMutations: countOf(progress.verifiedMutations),
+    failureCode: typeof failure === "string" && /^[A-Z0-9_]{1,80}$/.test(failure) ? failure : null,
+    atlasStatus: typeof atlasStatus === "string" && MAP_STATUSES.has(atlasStatus as MapStatus) ? atlasStatus : null,
+  };
+}
+
+export function parseAtlasDiff(payload: unknown): AtlasDiffView {
+  assertObject(payload, "atlas.diff");
+  assertNoSecretValues(payload);
+  const record = payload as Record<string, unknown>;
+  if (typeof record.cursor !== "string" || !CURSOR_RE.test(record.cursor)) {
+    throw new AtlasClientError("PROTOCOL_MISMATCH", "Android atlas.diff cursor is malformed.");
+  }
+  if (typeof record.resyncRequired !== "boolean" || !Array.isArray(record.changes)) {
+    throw new AtlasClientError("PROTOCOL_MISMATCH", "Android atlas.diff metadata is malformed.");
+  }
+  const changes = record.changes.map((item): AtlasDiffChange => {
+    assertObject(item, "atlas.diff change");
+    const change = item as Record<string, unknown>;
+    if (
+      (change.entity !== "place" && change.entity !== "screen" && change.entity !== "edge") ||
+      (change.change !== "upsert" && change.change !== "remove") ||
+      typeof change.id !== "string" ||
+      typeof change.cursor !== "string"
+    ) {
+      throw new AtlasClientError("PROTOCOL_MISMATCH", "Atlas diff change is malformed.");
+    }
+    return { cursor: change.cursor, entity: change.entity, change: change.change, id: change.id };
+  });
+  return { cursor: record.cursor, resyncRequired: record.resyncRequired, changes };
 }
 
 export function parsePlaceCatalog(payload: unknown): PlaceCatalog {

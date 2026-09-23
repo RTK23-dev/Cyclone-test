@@ -392,3 +392,40 @@ def test_run2_diff_rejects_non_structural_android_payload(service):
     bridge.request = bad_diff
     with pytest.raises(DesktopRuntimeError):
         svc.atlas_diff("phone-1", "package:com.example.app", "mapping", None)
+
+
+GLASS_BUDGET = {
+    "maxNewScreens": 12,
+    "maxElapsedMs": 180000,
+    "maxConsecutiveNonProgress": 6,
+    "maxAttemptsPerDoor": 2,
+}
+
+
+def test_alpha3_glass_start_resume_pause_bodies_are_forwarded_unchanged(service):
+    """The exact bodies Glass Maps sends (atlasClient.mappingCall) must pass the PC contract."""
+    svc, bridge = service
+    plane = {"sessionId": "default-foreground", "displayId": 0}
+
+    svc.forward("phone-1", "mapping.start", {
+        "placeId": "package:com.example.app", "persona": "mapping", "budget": dict(GLASS_BUDGET), **plane,
+    })
+    svc.forward("phone-1", "mapping.start", {"resumeJobId": "map-phone-0001", **plane})
+    svc.forward("phone-1", "mapping.pause", {"mappingJobId": "map-phone-0001", **plane})
+    svc.forward("phone-1", "mapping.stop", {"mappingJobId": "map-phone-0001", **plane})
+    svc.forward("phone-1", "mapping.status", dict(plane))
+
+    ops = [call[0] for call in bridge.calls]
+    assert ops == ["mapping.start", "mapping.start", "mapping.pause", "mapping.stop", "mapping.status"]
+    assert bridge.calls[0][1]["budget"] == GLASS_BUDGET
+    assert bridge.calls[1][1] == {"resumeJobId": "map-phone-0001", **plane}
+
+
+def test_alpha3_glass_resume_cannot_smuggle_a_new_place(service):
+    svc, bridge = service
+    with pytest.raises(DesktopRuntimeError):
+        svc.forward("phone-1", "mapping.start", {
+            "resumeJobId": "map-phone-0001", "placeId": "package:com.other.app",
+            "sessionId": "default-foreground", "displayId": 0,
+        })
+    assert bridge.calls == []

@@ -21,6 +21,17 @@ class V5SettingsMountTest {
         assertFalse(maps.contains("Start Mapping · coming soon"))
     }
 
+    @Test fun appMapsStartsStopsAndReportsThroughTheMappingRuntime() {
+        val maps = source("ui/v32/AppMapsSettings.kt")
+        assertTrue(maps.contains("MappingDriverRuntime.startForPackage(context, packageName)"))
+        assertTrue(maps.contains("MappingDriverRuntime.stop(context, run.jobId)"))
+        assertTrue(maps.contains("MappingDriverRuntime.pause(context, run.jobId)"))
+        assertTrue(maps.contains("MappingDriverRuntime.resume(context, run.jobId)"))
+        assertTrue(maps.contains("MappingDriverRuntime.report(context)"))
+        // Mapping never claims to run on a live map, and never shows raw values.
+        assertFalse(maps.contains("persona = \"live\""))
+    }
+
     @Test fun vaultSettingsLoadsSlotMetadataOnly() {
         val panel = source("secrets/VaultSettingsSection.kt")
         assertTrue(panel.contains("SecretsVaultRuntime.allSlots(context)"))

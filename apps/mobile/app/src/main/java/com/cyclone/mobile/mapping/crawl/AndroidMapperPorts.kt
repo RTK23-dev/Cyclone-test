@@ -59,6 +59,7 @@ class GatewayMappingObservationPort(
                     visible = element.evidence.optBoolean("visibleToUser", true),
                 )
             }
+            val page = ObservationProjections.pageCard(captured, "", captured.generation, actionable = true)
             MappingStructuralProjection.project(
                 observationId = captured.id,
                 sessionId = captured.execution.sessionId,
@@ -66,8 +67,54 @@ class GatewayMappingObservationPort(
                 rawFingerprint = captured.payload.optString("accessibilityFingerprint")
                     .ifBlank { captured.id },
                 elements = raw,
-            )
+            ).copy(inPlace = PlaceResolver.matchesCurrent(page, session.placeId))
         }.getOrNull()
+}
+
+/**
+ * Backtracking and entry navigation through the sole mutation authority. `phone.back` and
+ * `phone.open_app` keep PhoneToolExecutor's session checks, overlay yield and settle.
+ */
+class PhoneToolMappingNavigationPort(
+    context: Context,
+) : MappingNavigationPort {
+    private val appContext = context.applicationContext
+    private val sequence = AtomicLong(0)
+
+    override fun back(session: MappingSessionSnapshot): MappingMutationResult =
+        run(session, "phone.back", JSONObject())
+
+    override fun openPlace(session: MappingSessionSnapshot, resetToEntry: Boolean): MappingMutationResult {
+        val packageName = session.placeId.removePrefix("package:")
+        if (!session.placeId.startsWith("package:") || packageName.isBlank()) {
+            return MappingMutationResult(false, false, "PLACE_NOT_LAUNCHABLE")
+        }
+        return run(
+            session,
+            "phone.open_app",
+            JSONObject().put("package", packageName).put("clearTask", resetToEntry),
+        )
+    }
+
+    private fun run(session: MappingSessionSnapshot, tool: String, params: JSONObject): MappingMutationResult {
+        params.put("sessionId", session.sessionId).put("displayId", session.displayId)
+        session.workspaceId?.let { params.put("workspaceId", it) }
+        session.workspaceGeneration?.let { params.put("workspaceGeneration", it) }
+        session.executionGeneration?.let { params.put("executionGeneration", it) }
+        val result = PhoneToolExecutor.execute(
+            appContext,
+            PhoneToolRequest(
+                commandId = "mapping-nav-${session.jobId}-${sequence.incrementAndGet()}",
+                tool = tool,
+                params = params,
+            ),
+        )
+        return MappingMutationResult(
+            performed = result.ok,
+            verifiedByExecutor = result.ok,
+            errorCode = result.error?.code?.name,
+        )
+    }
 }
 
 /**

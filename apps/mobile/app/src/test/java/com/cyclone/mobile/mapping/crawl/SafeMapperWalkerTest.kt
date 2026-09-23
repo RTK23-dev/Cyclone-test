@@ -198,7 +198,8 @@ class SafeMapperWalkerTest {
         val second = h.walker.step(nowMs = 1_200)
 
         assertTrue(first is MappingStepResult.NoProgress)
-        assertTrue(second is MappingStepResult.CompletedPartial)
+        // A dead-end room hands control back to the driver instead of ending the whole job.
+        assertTrue(second is MappingStepResult.RoomExhausted)
         assertEquals(1, h.mutations.actions.size)
         assertEquals("menu", h.mutations.actions.single().doorKey)
     }
@@ -319,6 +320,41 @@ class SafeMapperWalkerTest {
         assertEquals(0, h.mutations.actions.size)
     }
 
+    @Test
+    fun outsidePlaceBeforeStepNeverTaps() {
+        val h = Harness(
+            observations = listOf(
+                observation("obs-1", "foreign", doors = listOf(door("obs-1", "menu", MappingDoorKind.MENU)))
+                    .copy(inPlace = false),
+            ),
+        )
+
+        val result = h.walker.step(nowMs = 1_100)
+
+        assertTrue(result is MappingStepResult.LeftPlace)
+        assertEquals(0, h.mutations.actions.size)
+        assertTrue(h.atlas.verified.isEmpty())
+    }
+
+    @Test
+    fun doorThatLeavesPlaceIsNotRecordedOrRetried() {
+        val h = Harness(
+            observations = listOf(
+                observation("obs-1", "a", doors = listOf(door("obs-1", "share", MappingDoorKind.MENU))),
+                observation("obs-2", "browser").copy(inPlace = false),
+                observation("obs-3", "a", doors = listOf(door("obs-3", "share", MappingDoorKind.MENU))),
+            ),
+        )
+
+        val first = h.walker.step(nowMs = 1_100)
+        val second = h.walker.step(nowMs = 1_200)
+
+        assertEquals(MappingStepResult.LeftPlace("door_left_place"), first)
+        assertTrue(h.atlas.verified.isEmpty())
+        assertTrue(second is MappingStepResult.RoomExhausted)
+        assertEquals(1, h.mutations.actions.size)
+    }
+
     private fun assertDangerNeverMutates(danger: MappingDanger) {
         val h = Harness(
             observations = listOf(
@@ -330,9 +366,10 @@ class SafeMapperWalkerTest {
 
         val result = h.walker.step(nowMs = 1_100)
 
-        assertTrue(result is MappingStepResult.CompletedPartial)
+        assertTrue(result is MappingStepResult.RoomExhausted)
         assertEquals(0, h.mutations.actions.size)
         assertEquals(danger, h.session.dangers.single().second)
+        assertEquals(null, h.session.partialReason)
     }
 
     private fun observation(

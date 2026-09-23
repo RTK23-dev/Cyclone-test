@@ -370,6 +370,20 @@
   box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.5), 0 12px 32px rgba(109, 58, 211, 0.28);
 }
 
+/* The room the phone is walking right now. */
+.map-card.mapping-cursor {
+  border-color: rgba(94, 234, 212, 0.9);
+  animation: map-cursor-pulse 1.2s ease-in-out infinite;
+}
+@keyframes map-cursor-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(94, 234, 212, 0.55); }
+  50% { box-shadow: 0 0 0 8px rgba(94, 234, 212, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-card.mapping-cursor { animation: none; box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.6); }
+}
+.maps-mapping-status { font-size: 12px; opacity: 0.85; white-space: nowrap; }
+.maps-mapping-status.needs-secret { color: rgb(255, 196, 120); opacity: 1; }
 .map-card.tone-stale { border-color: rgba(230, 184, 92, 0.45); }
 .map-card.tone-blocked { border-color: rgba(255, 117, 143, 0.55); }
 .map-card.tone-danger { border-color: rgba(255, 90, 110, 0.7); background: linear-gradient(180deg, #24151b, #161018); }

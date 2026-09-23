@@ -153,10 +153,7 @@ class StoreBackedAtlasReadProvider(
     private fun timestamp(epochMillis: Long?): Any =
         epochMillis?.let { Instant.ofEpochMilli(it).toString() } ?: JSONObject.NULL
 
-    private fun stableEdgeId(key: GraphEdgeKey): String =
-        "edge:" + AtlasGraphIds.selectorDigest(
-            key.from.value + "|" + key.type.name + "|" + key.to.value,
-        ).removePrefix("sha256:")
+    private fun stableEdgeId(key: GraphEdgeKey): String = AtlasGraphIds.wireEdgeId(key)
 
     private fun wireCapability(value: String): String {
         val clean = value.replace(Regex("[^A-Za-z0-9._-]+"), "_").trim('_', '-', '.').take(80)

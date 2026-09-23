@@ -35,6 +35,8 @@ export interface AppMapCanvasHandle {
   setViewModel(model: AtlasViewModel, options?: { fit?: boolean }): void;
   setSelectedScreenId(screenId: string | null): void;
   setSelectedEdgeId(edgeId: string | null): void;
+  /** The room the phone is standing in during a mapping pass (pulses). Null clears it. */
+  setCursorScreenId(screenId: string | null): void;
   fitAll(): CanvasTransform;
   getTransform(): CanvasTransform;
   getSelectedScreenId(): string | null;
@@ -246,10 +248,13 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
     return transform;
   };
 
+  let cursorScreenId: string | null = null;
+
   const paintSelection = (): void => {
     for (const card of world.querySelectorAll(".map-card")) {
       const button = card as HTMLElement;
       button.classList.toggle("selected", button.getAttribute("data-screen-id") === selectedScreenId);
+      button.classList.toggle("mapping-cursor", cursorScreenId != null && button.getAttribute("data-screen-id") === cursorScreenId);
     }
     for (const path of world.querySelectorAll(".map-edge")) {
       const node = path as HTMLElement;
@@ -363,10 +368,13 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
     world.append(svg);
 
     for (const screen of screens) {
-      world.append(renderCard(screen, screen.screenId === selectedScreenId, model.capabilities, (id, event) => {
+      const card = renderCard(screen, screen.screenId === selectedScreenId, model.capabilities, (id, event) => {
         event.stopPropagation();
         select(id);
-      }));
+      });
+      // A redraw during a live crawl must keep the pulse on the room the phone is in.
+      if (cursorScreenId != null && screen.screenId === cursorScreenId) card.classList.add("mapping-cursor");
+      world.append(card);
     }
   };
 
@@ -465,6 +473,11 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
       selectedEdgeId = edgeId;
       if (edgeId != null) selectedScreenId = null;
       renderWorld();
+    },
+    setCursorScreenId(screenId): void {
+      if (cursorScreenId === screenId) return;
+      cursorScreenId = screenId;
+      paintSelection();
     },
     fitAll,
     getTransform(): CanvasTransform {

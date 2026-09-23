@@ -20,7 +20,7 @@ export { loadMapsDataSourceFromClient, toMapsDocument };
 
 export const MAPS_EMPTY_ATLAS_TITLE = "No atlas from this phone yet";
 export const MAPS_EMPTY_ATLAS_COPY =
-  "This phone has not sent places to Glass. Start mapping stays on the phone in alpha.3.";
+  "This phone has not sent places to Glass yet. Map an app on the phone (Settings → App Maps) and the board fills in live.";
 export const MAPS_LOADING_TITLE = "Loading atlas";
 export const MAPS_LOADING_COPY = "Asking the phone for places.";
 export const MAPS_DEMO_LABEL = "(demo)";

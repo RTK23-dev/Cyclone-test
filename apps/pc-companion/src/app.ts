@@ -282,13 +282,14 @@ export class CyclonePcCompanionApp {
       });
     }
     if (!this.currentPage && this.state.route === "maps") {
-      const { version, sessionId, sessionPlane, demo, loadSource } = this.glassContext();
+      const { version, sessionId, sessionPlane, demo, loadSource, mapping } = this.glassContext();
       this.currentPage = createMapsPage({
         phoneVersion: version,
         loadSource,
         demo,
         sessionId,
         sessionPlane,
+        mapping,
         onOpenControl: () => this.navigate("fleet"),
       });
     }
@@ -350,6 +351,7 @@ export class CyclonePcCompanionApp {
     loadSource: (() => Promise<import("./maps/mockAtlas.js").MapsDataSource>) | undefined;
     loadSlots: (() => Promise<import("./core/fleet.js").GlassVaultSlot[]>) | undefined;
     onRequestSlot: ((slotId: string) => void) | undefined;
+    mapping: import("./maps/mappingWatcher.js").MappingOps | undefined;
   } {
     const device = selectGlassDevice(this.state.devices, this.state.focusedDeviceId);
     const version = device ? (readDeviceMobileVersion(device) ?? null) : null;
@@ -378,6 +380,8 @@ export class CyclonePcCompanionApp {
       demo,
       runtime,
       loadSource: live && runtime ? () => loadMapsSourceBoth(runtime) : undefined,
+      // Mapping is a local operator act on this PC's paired phone; the phone walks the app.
+      mapping: live && runtime ? runtime.atlas : undefined,
       loadSlots: live && runtime ? () => loadVaultSlotsLive(runtime) : undefined,
       onRequestSlot: live && runtime ? (slotId) => requestVaultSlot(runtime, slotId) : undefined,
     };

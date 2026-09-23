@@ -300,18 +300,98 @@ test("secrets.request maps needs-secret to waiting and does not put session_id i
   assert.match(calls[0].url, /\/v1\/devices\/phone-1\/secrets\/request/);
 });
 
-test("client has no mapping.start", () => {
-  const { atlas } = client();
-  assert.equal("mappingStart" in atlas, false);
-  assert.equal("mapping.start" in atlas, false);
-  assert.equal(typeof atlas.places, "function");
-  assert.equal(typeof atlas.get, "function");
-  assert.equal(typeof atlas.secretsSlots, "function");
-  assert.equal(typeof atlas.secretsRequest, "function");
+const JOB = {
+  mappingJobId: "map-0123456789abcdef",
+  placeId: PLACE,
+  persona: "mapping",
+  state: "running",
+  sessionId: "default-foreground",
+  displayId: 0,
+  plane: { kind: "foreground", sessionId: "default-foreground", displayId: 0 },
+  controlRevision: 1,
+  executionGeneration: null,
+  budget: { maxNewScreens: 12, maxElapsedMs: 180000, maxConsecutiveNonProgress: 6, maxAttemptsPerDoor: 2 },
+  currentAtlasNodeId: "screen:settings:0123456789abcdef",
+  progress: { newScreens: 3, verifiedMutations: 4, consecutiveNonProgress: 0, attemptedDoors: 4, remainingDarkRegions: 0 },
+  atlasStatus: null,
+  danger: null,
+  boundary: null,
+  startedAtEpochMs: 1,
+  updatedAtEpochMs: 2,
+  failureCode: null,
+};
+
+function foregroundClient(body) {
+  return client({ getSessionId: () => "default-foreground", body });
+}
+
+test("mapping.start commands a mapping-persona pass on the foreground plane", async () => {
+  const { atlas, calls } = foregroundClient(JOB);
+  const job = await atlas.mappingStart(PLACE);
+  assert.equal(job.state, "running");
+  assert.equal(job.currentAtlasNodeId, "screen:settings:0123456789abcdef");
+  assert.equal(job.newScreens, 3);
+  assert.match(calls[0].url, /\/v1\/devices\/phone-1\/mapping\/start/);
+  const body = JSON.parse(calls[0].init.body);
+  assert.deepEqual(body, {
+    placeId: PLACE,
+    persona: "mapping",
+    budget: { maxNewScreens: 12, maxElapsedMs: 180000, maxConsecutiveNonProgress: 6, maxAttemptsPerDoor: 2 },
+    sessionId: "default-foreground",
+    displayId: 0,
+  });
 });
 
-test("source files do not mention mapping.start as an implemented op", () => {
-  const source = readFileSync(fileURLToPath(new URL("../src/services/atlasClient.ts", import.meta.url)), "utf8");
-  assert.match(source, /does not implement mapping\.start/);
-  assert.doesNotMatch(source, /mappingStart\s*\(/);
+test("mapping resume sends only the job id and plane identity", async () => {
+  const { atlas, calls } = foregroundClient(JOB);
+  await atlas.mappingResume(JOB.mappingJobId);
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    resumeJobId: JOB.mappingJobId,
+    sessionId: "default-foreground",
+    displayId: 0,
+  });
+});
+
+test("Glass never guesses a named workspace display for mapping", async () => {
+  const { atlas, calls } = client({ body: JOB });
+  await assert.rejects(() => atlas.mappingStart(PLACE), (error) => error.code === "SESSION_DISPLAY_MISMATCH");
+  assert.equal(calls.length, 0);
+});
+
+test("websites and demo mode cannot start mapping", async () => {
+  const { atlas } = foregroundClient(JOB);
+  await assert.rejects(() => atlas.mappingStart(CHROME), (error) => error.code === "PLACE_NOT_LAUNCHABLE");
+  const demo = client({ getSessionId: () => "default-foreground", useDemoGraph: true }).atlas;
+  await assert.rejects(() => demo.mappingStart(PLACE), (error) => error.code === "DEMO_MODE");
+});
+
+test("mapping status rejects malformed jobs and secret-shaped payloads", async () => {
+  await assert.rejects(
+    () => foregroundClient({ ...JOB, state: "walking" }).atlas.mappingStatus(JOB.mappingJobId),
+    (error) => error.code === "PROTOCOL_MISMATCH",
+  );
+  await assert.rejects(
+    () => foregroundClient({ ...JOB, currentAtlasNodeId: "Louella's inbox" }).atlas.mappingStatus(JOB.mappingJobId),
+    (error) => error.code === "PROTOCOL_MISMATCH",
+  );
+  await assert.rejects(
+    () => foregroundClient({ ...JOB, password: "hunter2" }).atlas.mappingStatus(JOB.mappingJobId),
+    (error) => error.code === SECRET_PAYLOAD_REJECTED,
+  );
+});
+
+test("atlas.diff passes the phone cursor and parses structural changes", async () => {
+  const { atlas, calls } = foregroundClient({
+    placeId: PLACE,
+    persona: "mapping",
+    since: "c1:0123456789abcdef0123:1",
+    cursor: "c1:0123456789abcdef0123:2",
+    resyncRequired: false,
+    changes: [{ cursor: "c1:0123456789abcdef0123:2", entity: "screen", change: "upsert", id: "screen:list:0123456789abcdef", layout: { x: 0, y: 0 } }],
+  });
+  const diff = await atlas.atlasDiff(PLACE, "mapping", "c1:0123456789abcdef0123:1");
+  assert.match(calls[0].url, /atlas\/diff\?placeId=package%3Acom\.example\.app&persona=mapping&since=c1%3A/);
+  assert.equal(diff.cursor, "c1:0123456789abcdef0123:2");
+  assert.equal(diff.changes.length, 1);
+  assert.equal(diff.changes[0].entity, "screen");
 });

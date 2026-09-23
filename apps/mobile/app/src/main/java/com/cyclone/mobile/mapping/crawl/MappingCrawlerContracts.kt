@@ -73,6 +73,8 @@ data class MappingObservation(
     val fresh: Boolean,
     val purpose: StructuralScreenPurpose? = null,
     val doors: List<MappingDoor> = emptyList(),
+    /** False when the current foreground package/origin is not the job's place. */
+    val inPlace: Boolean = true,
 )
 
 enum class StructuralScreenPurpose {
@@ -229,6 +231,25 @@ sealed class MappingStepResult {
     data class Failed(
         val reason: String,
     ) : MappingStepResult()
+
+    /** Every safe door in the current room is known, dark or dangerous. The job stays running. */
+    data class RoomExhausted(
+        val nodeKey: String,
+    ) : MappingStepResult()
+
+    /** The phone is no longer showing the job's place. The job stays running. */
+    data class LeftPlace(
+        val reason: String,
+    ) : MappingStepResult()
+}
+
+/**
+ * Non-exploring navigation used only by the driver to backtrack or return to the place entry.
+ * Implementations go through PhoneToolExecutor like every other mutation.
+ */
+interface MappingNavigationPort {
+    fun back(session: MappingSessionSnapshot): MappingMutationResult
+    fun openPlace(session: MappingSessionSnapshot, resetToEntry: Boolean): MappingMutationResult
 }
 
 enum class PauseReason {

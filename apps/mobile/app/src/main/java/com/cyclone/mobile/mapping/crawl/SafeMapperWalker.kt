@@ -26,6 +26,8 @@ class SafeMapperWalker(
         val before = observations.freshObservation(beforeSession)
             ?: return fail("observation_missing")
         validateObservation(beforeSession, before)?.let { return it }
+        // Never classify or tap a foreign app/site as part of this place. The driver recovers.
+        if (!before.inPlace) return MappingStepResult.LeftPlace("before_observation_outside_place")
 
         secrets.detect(beforeSession, before)?.let { wall ->
             session.pauseNeedsSecret(wall.reason)
@@ -41,8 +43,10 @@ class SafeMapperWalker(
         selection.blocked.forEach { (blockedDoor, danger) ->
             session.markDanger(blockedDoor.key, danger)
         }
+        // A dead-end room is not the end of the job: the driver decides whether to backtrack,
+        // reset to the place entry, or finish.
         val door = selection.door
-            ?: return completePartial(beforeSession, "no_safe_unexplored_doors")
+            ?: return MappingStepResult.RoomExhausted(fromNode)
 
         // Human/companion/control-revision changes that happen while deciding must win before input.
         val preMutationSession = session.snapshot()
@@ -92,6 +96,13 @@ class SafeMapperWalker(
         validateObservation(afterMutationSession, after)?.let { return it }
         if (after.observationId == before.observationId) {
             return fail("after_observation_not_fresh")
+        }
+        if (!after.inPlace) {
+            // The door led out of the place (browser, share sheet, another app). Not a room, and
+            // never a door worth retrying in this job.
+            unchangedOnFingerprint += unchangedKey(before, door)
+            session.recordNoProgress(door.key)
+            return MappingStepResult.LeftPlace("door_left_place")
         }
 
         val toNode = StructuralRoomClassifier.nodeKey(after)

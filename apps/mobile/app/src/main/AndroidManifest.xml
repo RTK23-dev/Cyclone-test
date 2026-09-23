@@ -79,6 +79,14 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-requested isolated app task with visible pause, stop and human handoff controls" />
         </service>
+        <service
+            android:name=".mapping.run.MappingNotificationService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-started app mapping with a visible stop control" />
+        </service>
         <activity android:name=".capture.LiveCaptureConsentActivity" android:exported="false" />
         <service
             android:name=".capture.LiveCaptureService"
