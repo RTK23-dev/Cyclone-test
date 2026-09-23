@@ -44,31 +44,48 @@ class GatewayMappingObservationPort(
                     session.executionGeneration?.let { put("executionGeneration", it) }
                 }
             val captured = GatewayObservationAdapter.capture(appContext, args, AtlasPersona.MAPPING)
-            val raw = captured.elements.values.map { element ->
-                RawMappingElement(
-                    elementId = element.id,
-                    label = element.label,
-                    semanticName = element.semanticName,
-                    role = element.role,
-                    resourceId = element.evidence.optString("resourceId"),
-                    className = element.evidence.optString("class"),
-                    path = element.evidence.optString("path"),
-                    clickable = element.evidence.optBoolean("clickable"),
-                    editable = element.evidence.optBoolean("editable"),
-                    enabled = element.evidence.optBoolean("enabled", true),
-                    visible = element.evidence.optBoolean("visibleToUser", true),
-                )
-            }
             val page = ObservationProjections.pageCard(captured, "", captured.generation, actionable = true)
-            MappingStructuralProjection.project(
-                observationId = captured.id,
-                sessionId = captured.execution.sessionId,
-                displayId = captured.execution.displayId,
-                rawFingerprint = captured.payload.optString("accessibilityFingerprint")
-                    .ifBlank { captured.id },
-                elements = raw,
-            ).copy(inPlace = PlaceResolver.matchesCurrent(page, session.placeId))
+            MappingStructuralProjection.fromGateway(captured)
+                .copy(inPlace = PlaceResolver.matchesCurrent(page, session.placeId))
         }.getOrNull()
+}
+
+/**
+ * The structural room key of what is on screen now, as the mapper would record it. Ask uses it to
+ * say "you are here" on the Atlas sketch. No labels or values leave this function.
+ */
+internal object CurrentRoom {
+    fun key(sessionId: String): String? = runCatching {
+        val current = GatewayObservationStore.current(sessionId) ?: return null
+        StructuralRoomClassifier.nodeKey(MappingStructuralProjection.fromGateway(current))
+    }.getOrNull()
+}
+
+internal fun MappingStructuralProjection.fromGateway(
+    captured: com.cyclone.mobile.gateway.GatewayObservation,
+): MappingObservation {
+    val raw = captured.elements.values.map { element ->
+        RawMappingElement(
+            elementId = element.id,
+            label = element.label,
+            semanticName = element.semanticName,
+            role = element.role,
+            resourceId = element.evidence.optString("resourceId"),
+            className = element.evidence.optString("class"),
+            path = element.evidence.optString("path"),
+            clickable = element.evidence.optBoolean("clickable"),
+            editable = element.evidence.optBoolean("editable"),
+            enabled = element.evidence.optBoolean("enabled", true),
+            visible = element.evidence.optBoolean("visibleToUser", true),
+        )
+    }
+    return project(
+        observationId = captured.id,
+        sessionId = captured.execution.sessionId,
+        displayId = captured.execution.displayId,
+        rawFingerprint = captured.payload.optString("accessibilityFingerprint").ifBlank { captured.id },
+        elements = raw,
+    )
 }
 
 /**
