@@ -34,6 +34,7 @@ object AtlasRuntime {
             store = AtlasStore(File(root, "cyclone_atlas_v1.json"))
             provider = StoreBackedAtlasReadProvider(store)
             AtlasGatewayV5Integration.install(provider)
+            com.cyclone.mobile.gateway.GatewayV5AppsAdapter.install(context, store)
             catalog = PlaceCatalog(store)
             retriever = AtlasRetriever(store)
             followMe = FollowMeAtlasPromoter(store)

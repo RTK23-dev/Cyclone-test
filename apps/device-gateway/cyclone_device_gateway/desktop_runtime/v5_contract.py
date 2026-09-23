@@ -21,6 +21,7 @@ V5_OPS = frozenset({
     "secrets.request",
     "ask.start",
     "ask.status",
+    "apps.list",
 })
 ASK_STATES = frozenset({"idle", "working", "action-needed", "needs-secret", "done", "failed"})
 ASK_MILESTONE_STATES = frozenset({"pending", "active", "done", "action-needed", "failed"})
@@ -386,6 +387,60 @@ def _validate_ask_response(op: str, value: dict[str, Any]) -> None:
             raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android ask.status milestone is malformed.")
 
 
+APP_KEYS = frozenset({
+    "placeId", "kind", "label", "packageName", "origin", "installed", "installedVersion", "mapStatus", "rooms",
+    "doors", "lastVerifiedAt", "needsRemap", "personas", "mappedVersions",
+})
+APP_KINDS = frozenset({"package", "chrome-origin"})
+MAP_STATUSES = frozenset({"unmapped", "partial", "mapped", "stale"})
+MAX_APPS = 600
+
+
+def _validate_version(value: Any, *, extra: frozenset[str] = frozenset()) -> None:
+    if not isinstance(value, dict) or not {"versionName", "versionCode"} <= set(value) <= {"versionName", "versionCode"} | extra:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app version is malformed.")
+    if value["versionName"] is not None and not isinstance(value["versionName"], str):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app versionName is malformed.")
+    if value["versionCode"] is not None and not _is_int(value["versionCode"]):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app versionCode is malformed.")
+
+
+def _validate_apps_list(value: dict[str, Any]) -> None:
+    """apps.list carries package facts and map counts only: no screens, doors, selectors or user content."""
+    if set(value) != {"apps", "truncated"} or not isinstance(value.get("apps"), list) or not isinstance(value.get("truncated"), bool):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android apps.list result is malformed.")
+    if len(value["apps"]) > MAX_APPS:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android apps.list returned too many apps.")
+    for app in value["apps"]:
+        if not isinstance(app, dict) or set(app) != APP_KEYS:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app entry is malformed.")
+        place_id = app["placeId"]
+        if not isinstance(place_id, str) or not place_id.startswith(("package:", "chrome:")) or len(place_id) > 512:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app placeId is malformed.")
+        if app["kind"] not in APP_KINDS or app["mapStatus"] not in MAP_STATUSES:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app kind or status is unknown.")
+        if not isinstance(app["label"], str) or not app["label"] or len(app["label"]) > 80:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app label is malformed.")
+        if not _is_int(app["rooms"]) or not _is_int(app["doors"]) or not isinstance(app["needsRemap"], bool):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app counts are malformed.")
+        if app["installed"] is not None and not isinstance(app["installed"], bool):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app installed flag is malformed.")
+        if app["installedVersion"] is not None:
+            _validate_version(app["installedVersion"])
+        if not isinstance(app["mappedVersions"], list) or not isinstance(app["personas"], list):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app versions are malformed.")
+        for version in app["mappedVersions"]:
+            _validate_version(version, extra=frozenset({"doors"}))
+        for persona in app["personas"]:
+            if (
+                not isinstance(persona, dict)
+                or set(persona) != {"persona", "mapStatus", "rooms", "doors", "lastVerifiedAt"}
+                or persona["persona"] not in {"live", "mapping"}
+                or persona["mapStatus"] not in MAP_STATUSES
+            ):
+                raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app persona is malformed.")
+
+
 def validate_android_response(op: str, value: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
     """Keep a phone bug from turning into PC/model secret or mapping authority."""
     if op == "secrets.slots":
@@ -416,6 +471,9 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
     if op in {"ask.start", "ask.status"}:
         _validate_ask_response(op, value)
         return value
+    if op == "apps.list":
+        _validate_apps_list(value)
+        return value
     raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
 
 
@@ -433,6 +491,9 @@ class V5ContractService:
 
     def atlas_places(self, device_id: str) -> dict[str, Any]:
         return self._call(device_id, "atlas.places", {})
+
+    def apps_list(self, device_id: str) -> dict[str, Any]:
+        return self._call(device_id, "apps.list", {})
 
     def atlas_get(self, device_id: str, place_id: str, persona: str) -> dict[str, Any]:
         args = {"placeId": place_id, "persona": persona}
@@ -496,6 +557,10 @@ class V5ContractService:
             if args:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.places takes no arguments.")
             return self.atlas_places(device_id)
+        if op == "apps.list":
+            if args:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "apps.list takes no arguments.")
+            return self.apps_list(device_id)
         if op == "atlas.get":
             if set(args) != {"placeId", "persona"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.get requires placeId/persona only.")

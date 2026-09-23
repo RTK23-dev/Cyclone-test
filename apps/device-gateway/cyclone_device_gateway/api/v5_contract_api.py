@@ -20,6 +20,10 @@ def create_v5_contract_router(runtime: Any, token: str) -> APIRouter:
     def atlas_places(device_id: str):
         return _call(lambda: service.atlas_places(device_id))
 
+    @router.get("/v1/devices/{device_id}/apps", dependencies=[Depends(auth)])
+    def apps_list(device_id: str):
+        return _call(lambda: service.apps_list(device_id))
+
     @router.get("/v1/devices/{device_id}/atlas", dependencies=[Depends(auth)])
     def atlas_get(
         device_id: str,

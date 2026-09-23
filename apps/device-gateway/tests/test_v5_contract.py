@@ -515,3 +515,71 @@ def test_alpha4_malformed_phone_ask_status_is_rejected():
     with pytest.raises(DesktopRuntimeError) as caught:
         svc.forward("phone-1", "ask.status", dict(FOREGROUND))
     assert str(caught.value.code) == "PROTOCOL_MISMATCH"
+
+
+GMAIL_APP = {
+    "placeId": "package:com.google.android.gm",
+    "kind": "package",
+    "label": "Gmail",
+    "packageName": "com.google.android.gm",
+    "origin": None,
+    "installed": True,
+    "installedVersion": {"versionName": "2026.09.01", "versionCode": 900},
+    "mapStatus": "mapped",
+    "rooms": 6,
+    "doors": 11,
+    "lastVerifiedAt": 1000,
+    "needsRemap": True,
+    "personas": [{"persona": "mapping", "mapStatus": "mapped", "rooms": 6, "doors": 11, "lastVerifiedAt": 1000}],
+    "mappedVersions": [{"versionName": "2026.08.01", "versionCode": 880, "doors": 9}],
+}
+
+
+class AppsBridge(FakeBridge):
+    def __init__(self, result):
+        super().__init__()
+        self.result = result
+
+    def request(self, op, args, request_id=None):
+        if op == "apps.list":
+            self.calls.append((op, dict(args), request_id))
+            return self.result
+        return super().request(op, args, request_id)
+
+
+def test_glass_alpha1_apps_list_is_the_phone_catalog():
+    bridge = AppsBridge({"apps": [GMAIL_APP], "truncated": False})
+    svc = V5ContractService(FakeFleet(bridge))
+    assert svc.forward("phone-1", "apps.list", {}) == {"apps": [GMAIL_APP], "truncated": False}
+    assert bridge.calls[0][:2] == ("apps.list", {})
+    with pytest.raises(DesktopRuntimeError) as error:
+        svc.forward("phone-1", "apps.list", {"all": True})
+    assert error.value.code == "INVALID_REQUEST"
+    assert len(bridge.calls) == 1
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"apps": [GMAIL_APP]},
+        {"apps": [{**GMAIL_APP, "screens": []}], "truncated": False},
+        {"apps": [{**GMAIL_APP, "placeId": "file:///sdcard"}], "truncated": False},
+        {"apps": [{**GMAIL_APP, "mapStatus": "walking"}], "truncated": False},
+        {"apps": [{**GMAIL_APP, "installedVersion": {"versionName": "1", "versionCode": "x"}}], "truncated": False},
+        {"apps": [{**GMAIL_APP, "mappedVersions": [{"versionName": "1", "versionCode": 1, "selector": "x"}]}], "truncated": False},
+        {"apps": [{**GMAIL_APP, "personas": [{"persona": "you", "mapStatus": "mapped", "rooms": 1, "doors": 1, "lastVerifiedAt": None}]}], "truncated": False},
+        {"apps": [{**GMAIL_APP, "label": "x" * 81}], "truncated": False},
+    ],
+)
+def test_glass_alpha1_malformed_phone_catalog_is_rejected(bad):
+    svc = V5ContractService(FakeFleet(AppsBridge(bad)))
+    with pytest.raises(DesktopRuntimeError) as error:
+        svc.forward("phone-1", "apps.list", {})
+    assert error.value.code == "PROTOCOL_MISMATCH"
+
+
+def test_glass_alpha1_apps_list_is_an_allowed_bridge_op():
+    from cyclone_device_gateway.cyclone_bridge.protocol import ALLOWED_OPS, UNAUTHENTICATED_OPS
+
+    assert "apps.list" in ALLOWED_OPS
+    assert "apps.list" not in UNAUTHENTICATED_OPS
