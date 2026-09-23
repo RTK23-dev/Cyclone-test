@@ -188,6 +188,8 @@ internal class TraceFieldView(
             runtime.setFloatUniform("edge", frame.edge)
             runtime.setFloatUniform("edgeHead", frame.edgeHead)
             runtime.setFloatUniform("warmth", frame.warmth)
+            runtime.setFloatUniform("focus", frame.focus)
+            runtime.setFloatUniform("flowTime", frame.flowTime)
             val left = (width - exclusionWidth) / 2f
             runtime.setFloatUniform("excl", left, height - exclusionHeight, left + exclusionWidth, height.toFloat())
             canvas.drawPaint(paint)
