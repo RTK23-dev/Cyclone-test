@@ -14,6 +14,8 @@
  *   mapping.pause     POST /v1/devices/{device_id}/mapping/pause
  *   mapping.stop      POST /v1/devices/{device_id}/mapping/stop
  *   mapping.status    POST /v1/devices/{device_id}/mapping/status
+ *   ask.start         POST /v1/devices/{device_id}/ask/start      (goal text only; phone runs it)
+ *   ask.status        POST /v1/devices/{device_id}/ask/status
  *
  * session_id is required on every scoped call. Sent as `session_id` query and
  * `X-Cyclone-Session-Id` header. Never placed on the secrets.request JSON body
@@ -143,6 +145,23 @@ export const GLASS_MAPPING_BUDGET = Object.freeze({
   maxAttemptsPerDoor: 2,
 });
 
+export type AskStatusState = "idle" | "working" | "action-needed" | "needs-secret" | "done" | "failed";
+export type AskMilestoneState = "pending" | "active" | "done" | "action-needed" | "failed";
+
+/** The phone's own presentation snapshot of its current Ask run, mirrored on Glass. */
+export interface AskStatusView {
+  taskId: string | null;
+  state: AskStatusState;
+  title: string;
+  app: string;
+  currentMilestone: string | null;
+  milestones: Array<{ label: string; state: AskMilestoneState }>;
+  supportingCopy: string | null;
+  outcomeCopy: string | null;
+}
+
+export const ASK_MAX_GOAL = 2000;
+
 export const MAPPING_TERMINAL_STATES: ReadonlySet<MappingState> = new Set(["idle", "completed", "stopped", "failed"]);
 
 export interface AtlasClient {
@@ -162,6 +181,8 @@ export interface AtlasClient {
   mappingPause(mappingJobId: string): Promise<MappingJobView>;
   mappingStop(mappingJobId: string): Promise<MappingJobView>;
   mappingStatus(mappingJobId?: string | null): Promise<MappingJobView>;
+  askStart(goal: string): Promise<void>;
+  askStatus(): Promise<AskStatusView>;
 }
 
 /**
@@ -337,7 +358,44 @@ export function createAtlasClient(options: AtlasClientOptions): AtlasClient {
       requireRealPhone();
       return mappingCall("status", mappingJobId ? { mappingJobId: jobId(mappingJobId) } : {});
     },
+    async askStart(goal: string): Promise<void> {
+      requireRealPhone();
+      const text = String(goal ?? "").trim();
+      if (!text || text.length > ASK_MAX_GOAL) {
+        throw new AtlasClientError("INVALID_REQUEST", "Type a goal of up to 2000 characters.");
+      }
+      const body = { goal: text, ...foregroundPlane() };
+      // Secrets are never typed into a goal; the phone's Secrets Card asks for them.
+      assertNoSecretValues(body);
+      const payload = await requestJson(`/v1/devices/{device_id}/ask/start`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      assertObject(payload, "ask.start");
+      if ((payload as Record<string, unknown>).accepted !== true) {
+        throw new AtlasClientError("PROTOCOL_MISMATCH", "Android ask.start acknowledgement is malformed.");
+      }
+    },
+    async askStatus(): Promise<AskStatusView> {
+      requireRealPhone();
+      const payload = await requestJson(`/v1/devices/{device_id}/ask/status`, {
+        method: "POST",
+        body: JSON.stringify(foregroundPlane()),
+      });
+      return parseAskStatus(payload);
+    },
   };
+
+  function foregroundPlane(): { sessionId: string; displayId: number } {
+    const sid = sessionId();
+    if (sid !== FOREGROUND_SESSION_ID) {
+      throw new AtlasClientError(
+        "SESSION_DISPLAY_MISMATCH",
+        "Ask from Glass runs on the phone's main screen (default-foreground) in this alpha.",
+      );
+    }
+    return { sessionId: sid, displayId: 0 };
+  }
 
   function requireRealPhone(): void {
     if (useDemoGraph) {
@@ -411,6 +469,44 @@ export function parseMappingJob(payload: unknown): MappingJobView {
     verifiedMutations: countOf(progress.verifiedMutations),
     failureCode: typeof failure === "string" && /^[A-Z0-9_]{1,80}$/.test(failure) ? failure : null,
     atlasStatus: typeof atlasStatus === "string" && MAP_STATUSES.has(atlasStatus as MapStatus) ? atlasStatus : null,
+  };
+}
+
+const ASK_STATES = new Set<AskStatusState>(["idle", "working", "action-needed", "needs-secret", "done", "failed"]);
+const ASK_MILESTONE_STATES = new Set<AskMilestoneState>(["pending", "active", "done", "action-needed", "failed"]);
+
+function optionalText(value: unknown, max: number): string | null {
+  return typeof value === "string" && value.trim() ? value.slice(0, max) : null;
+}
+
+export function parseAskStatus(payload: unknown): AskStatusView {
+  assertObject(payload, "ask.status");
+  assertNoSecretValues(payload);
+  const record = payload as Record<string, unknown>;
+  const state = record.state;
+  if (typeof state !== "string" || !ASK_STATES.has(state as AskStatusState)) {
+    throw new AtlasClientError("PROTOCOL_MISMATCH", "Android ask.status state is invalid.");
+  }
+  if (!Array.isArray(record.milestones)) {
+    throw new AtlasClientError("PROTOCOL_MISMATCH", "Android ask.status milestones are malformed.");
+  }
+  const milestones = record.milestones.slice(0, 8).map((item) => {
+    assertObject(item, "ask.status milestone");
+    const milestone = item as Record<string, unknown>;
+    if (typeof milestone.label !== "string" || !ASK_MILESTONE_STATES.has(milestone.state as AskMilestoneState)) {
+      throw new AtlasClientError("PROTOCOL_MISMATCH", "Android ask.status milestone is malformed.");
+    }
+    return { label: milestone.label.slice(0, 90), state: milestone.state as AskMilestoneState };
+  });
+  return {
+    taskId: optionalText(record.taskId, 120),
+    state: state as AskStatusState,
+    title: optionalText(record.title, 200) ?? "",
+    app: optionalText(record.app, 80) ?? "",
+    currentMilestone: optionalText(record.currentMilestone, 120),
+    milestones,
+    supportingCopy: optionalText(record.supportingCopy, 240),
+    outcomeCopy: optionalText(record.outcomeCopy, 600),
   };
 }
 

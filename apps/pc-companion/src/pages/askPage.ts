@@ -12,6 +12,7 @@ import {
   FOREGROUND_PLANE_LABEL,
   VD_PLANE_LABEL,
 } from "../core/sessionTiles.js";
+import { SECRET_PAYLOAD_REJECTED, type AskStatusView } from "../services/atlasClient.js";
 import type { DesktopDevice } from "../services/types.js";
 import { button, el } from "../ui/dom.js";
 import { createSecretsCard } from "../ui/secretsCard.js";
@@ -34,6 +35,51 @@ export interface AskPageOptions {
   sessionId?: string;
   sessionPlane?: "foreground" | "session_kernel_vd";
   onOpenControl?: () => void;
+  /** Real phone Ask. Absent in demo / no phone: Send stays off and says why. */
+  ask?: AskOps;
+  /** Test seam for the status poll timer. */
+  askTimer?: { set(fn: () => void, ms: number): unknown; clear(handle: unknown): void };
+}
+
+export interface AskOps {
+  askStart(goal: string): Promise<void>;
+  askStatus(): Promise<AskStatusView>;
+}
+
+const LIVE_SEND_COPY = "Sends your sentence to the phone. The phone runs it; Glass mirrors the same progress.";
+const ASK_POLL_MS = 1_000;
+
+/** Phone snapshot → the HUD's shape. `idle` is no run. */
+export function askSnapshotFromStatus(status: AskStatusView, sessionId: string): GlassAskSnapshot | null {
+  if (status.state === "idle") return null;
+  return {
+    state: status.state,
+    title: status.title || status.currentMilestone || "Phone task",
+    supportingCopy: status.state === "done" || status.state === "failed"
+      ? (status.outcomeCopy ?? status.supportingCopy ?? undefined)
+      : (status.supportingCopy ?? undefined),
+    slotLabel: status.state === "needs-secret" ? "password" : undefined,
+    sessionId,
+    milestones: status.milestones.map((milestone) => ({ label: milestone.label, state: milestone.state })),
+  };
+}
+
+function askErrorCopy(code: string): string {
+  switch (code) {
+    case "ASK_BUSY":
+      return "The phone is already running a task. Wait for it or stop it on the phone.";
+    case "HUMAN_HAS_CONTROL":
+      return "You have control of the phone. Give it back to Cyclone, then send.";
+    case "OVERLAY_UNAVAILABLE":
+      return "Turn on Cyclone's accessibility service on the phone, then send.";
+    case "INVALID_REQUEST":
+    case SECRET_PAYLOAD_REJECTED:
+      return "Keep passwords out of the goal. Cyclone asks for them on the phone.";
+    case "SESSION_DISPLAY_MISMATCH":
+      return "Ask from Glass runs on the phone's main screen. Switch to the Foreground plane.";
+    default:
+      return `The phone didn't accept the goal${code ? ` (${code})` : ""}.`;
+  }
 }
 
 const SAMPLE_DEFAULT_COPY = "Sample snapshot (no phone required)";
@@ -169,9 +215,72 @@ export function createAskPage(options: AskPageOptions = {}): AskPageHandle {
     hud.replaceChildren(renderAskHud(snapshot, displaySessionId, planeLabel));
   };
 
+  const askOps = options.ask && atlasReady && plane === "foreground" ? options.ask : undefined;
+  let pollHandle: unknown = null;
+  let polling = false;
+  let destroyed = false;
+  const setTimer = options.askTimer?.set ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
+  const clearTimer = options.askTimer?.clear ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+
+  const schedulePoll = (): void => {
+    if (!askOps || destroyed || pollHandle != null) return;
+    pollHandle = setTimer(() => {
+      pollHandle = null;
+      void poll();
+    }, ASK_POLL_MS);
+  };
+
+  async function poll(): Promise<void> {
+    if (!askOps || destroyed || polling) return;
+    polling = true;
+    let keepGoing = false;
+    try {
+      const status = await askOps.askStatus();
+      if (destroyed) return;
+      snapshot = askSnapshotFromStatus(status, displaySessionId);
+      keepGoing = status.state === "working" || status.state === "action-needed" || status.state === "needs-secret";
+      paintHud();
+    } catch {
+      keepGoing = true;
+    } finally {
+      polling = false;
+      if (keepGoing) schedulePoll();
+    }
+  }
+
+  if (askOps) {
+    send.disabled = false;
+    formStatus.textContent = LIVE_SEND_COPY;
+    textarea.placeholder = "e.g. open Gmail, check my email, then find Louella's message on Facebook";
+  }
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    formStatus.textContent = "Glass does not execute this goal on the PC. Ask lives on the phone.";
+    if (!askOps) {
+      formStatus.textContent = "Glass does not execute this goal on the PC. Ask lives on the phone.";
+      return;
+    }
+    const goal = textarea.value.trim();
+    if (!goal) {
+      formStatus.textContent = "Type a goal first.";
+      return;
+    }
+    send.disabled = true;
+    formStatus.textContent = "Sending to the phone…";
+    void askOps.askStart(goal)
+      .then(() => {
+        if (destroyed) return;
+        textarea.value = "";
+        formStatus.textContent = LIVE_SEND_COPY;
+        void poll();
+      })
+      .catch((error: unknown) => {
+        const code = (error as { code?: unknown })?.code;
+        formStatus.textContent = askErrorCopy(typeof code === "string" ? code : "");
+      })
+      .finally(() => {
+        send.disabled = false;
+      });
   });
 
   demoSelect?.addEventListener("change", () => {
@@ -181,10 +290,16 @@ export function createAskPage(options: AskPageOptions = {}): AskPageHandle {
   });
 
   paintHud();
+  // Follow a run started on the phone as well as one sent from here.
+  if (askOps) void poll();
 
   return {
     element: page,
-    destroy: () => undefined,
+    destroy: () => {
+      destroyed = true;
+      if (pollHandle != null) clearTimer(pollHandle);
+      pollHandle = null;
+    },
   };
 }
 

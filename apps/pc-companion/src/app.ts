@@ -271,7 +271,7 @@ export class CyclonePcCompanionApp {
       );
     }
     if (!this.currentPage && this.state.route === "ask") {
-      const { version, sessionId, sessionPlane, demo } = this.glassContext();
+      const { version, sessionId, sessionPlane, demo, mapping, runtime } = this.glassContext();
       this.currentPage = createAskPage({
         devices: this.state.devices,
         mobileVersion: version ?? undefined,
@@ -279,6 +279,8 @@ export class CyclonePcCompanionApp {
         sessionId,
         sessionPlane,
         previewSnapshots: demo,
+        // The same local, paired gateway client that commands mapping also sends Ask goals.
+        ask: mapping && runtime ? runtime.atlas : undefined,
       });
     }
     if (!this.currentPage && this.state.route === "maps") {

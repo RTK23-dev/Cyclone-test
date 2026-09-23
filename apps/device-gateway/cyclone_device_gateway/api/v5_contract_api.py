@@ -53,6 +53,15 @@ def create_v5_contract_router(runtime: Any, token: str) -> APIRouter:
     def mapping_status(device_id: str, body: dict[str, Any]):
         return _call(lambda: service.forward(device_id, "mapping.status", body))
 
+    @router.post("/v1/devices/{device_id}/ask/start", dependencies=[Depends(auth)])
+    def ask_start(device_id: str, body: dict[str, Any]):
+        # Goal text only; secret-bearing payloads are rejected before forwarding or logging.
+        return _call(lambda: service.forward(device_id, "ask.start", body))
+
+    @router.post("/v1/devices/{device_id}/ask/status", dependencies=[Depends(auth)])
+    def ask_status(device_id: str, body: dict[str, Any]):
+        return _call(lambda: service.forward(device_id, "ask.status", body))
+
     @router.get("/v1/devices/{device_id}/secrets/slots", dependencies=[Depends(auth)])
     def secret_slots(
         device_id: str,
@@ -84,6 +93,8 @@ def _call(fn):
             RuntimeErrorCode.MAPPING_PLANE_BUSY.value: 409,
             RuntimeErrorCode.MAPPING_JOB_NOT_FOUND.value: 404,
             RuntimeErrorCode.MAPPING_INVALID_STATE.value: 409,
+            RuntimeErrorCode.ASK_BUSY.value: 409,
+            RuntimeErrorCode.OVERLAY_UNAVAILABLE.value: 503,
             RuntimeErrorCode.AUTH_REJECTED.value: 403,
             RuntimeErrorCode.PAIRING_REQUIRED.value: 401,
             RuntimeErrorCode.DEVICE_DISCONNECTED.value: 503,
