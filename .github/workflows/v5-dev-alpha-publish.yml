@@ -31,7 +31,19 @@ jobs:
               jq -e --arg sha "$SOURCE_SHA" --arg repo "$GITHUB_REPOSITORY" '.head_sha == $sha and .head_repository.full_name == $repo and .event == "push" and .conclusion == "success" and .head_branch == "release/cyclone-mobile-v5.0.0-alpha.2.dev3"' >/dev/null
           done
           gh run download "$MOBILE_RUN" --repo "$GITHUB_REPOSITORY" --name Cyclone-Android-5.0.0-alpha.2.dev3 --dir candidate
-          gh run download "$GLASS_RUN" --repo "$GITHUB_REPOSITORY" --name "cyclone-pc-companion-$SOURCE_SHA" --dir glass
+          gh run download "$GLASS_RUN" --repo "$GITHUB_REPOSITORY" --name "cyclone-pc-companion-$SOURCE_SHA" --dir glass-download
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+          root = Path('glass-download')
+          print('Glass artifact files:', [str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()])
+          Path('glass').mkdir()
+          for name in ['Cyclone-PC-Companion-1.6.0-alpha.2-Setup.exe', 'release-provenance.json', 'installer-acceptance.json', 'source-sha.txt', 'THIRD_PARTY_NOTICES', 'SHA256SUMS.txt']:
+              matches = list(root.rglob(name))
+              if len(matches) != 1:
+                  raise SystemExit(f'Expected exactly one {name}, got {len(matches)}')
+              shutil.copyfile(matches[0], Path('glass') / name)
+          PY
           test "$(tr -d '\r\n' < candidate/source-sha.txt)" = "$SOURCE_SHA"
           test "$(tr -d '\r\n' < candidate/run-id.txt)" = "$MOBILE_RUN"
           test "$(tr -d '\r\n' < candidate/signing-state.txt)" = UNSIGNED_VERIFIED_CANDIDATE
