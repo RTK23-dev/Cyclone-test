@@ -1,5 +1,5 @@
-# Cyclone V5 Mobile alpha.2 development candidate: canonical Places and Settings integration.
-# Publication remains disabled pending CI and named physical-device acceptance.
+# Cyclone V5 alpha.2 dev3 paired Mobile and Glass candidate.
+# Exact release-branch CI, protected signing and named physical acceptance are required.
 schema = 1
 product_version = "5.0.0-alpha.2.dev3"
 channel = "development"
