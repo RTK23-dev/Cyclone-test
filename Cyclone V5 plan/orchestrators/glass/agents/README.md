@@ -3,12 +3,30 @@
 Orchestrator writes `HANDOFF-00N-<slug>.md` here.  
 Agents do not edit these files. Agents write to [`../returns/`](../returns/).
 
-## Wave 1 — issued
+Wave 1 drafts:
 
-- [HANDOFF-001-shell-ask-secret.md](HANDOFF-001-shell-ask-secret.md) — issued; waits for `v5/integration`
-- [HANDOFF-002-maps-canvas.md](HANDOFF-002-maps-canvas.md) — issued; standalone mock canvas, no `app.ts` fight
-- [HANDOFF-003-atlas-client.md](HANDOFF-003-atlas-client.md) — issued but execution waits for 001 nav + Mobile 001 schemas
+- [HANDOFF-001-shell-ask-secret.md](HANDOFF-001-shell-ask-secret.md)
+- [HANDOFF-002-maps-canvas.md](HANDOFF-002-maps-canvas.md)
+- [HANDOFF-003-atlas-client.md](HANDOFF-003-atlas-client.md)
 
-Current blocker is tracked in GitHub issue **#137 `v5-orch-sync`**. Do not branch product code from stale `main` or directly from the 4.8 release branch.
+Run 1 glue (done):
+
+- [HANDOFF-004-glue-maps.md](HANDOFF-004-glue-maps.md)
+- [HANDOFF-005-glue-copy-adapter.md](HANDOFF-005-glue-copy-adapter.md)
+- [HANDOFF-006-glass-identity.md](HANDOFF-006-glass-identity.md)
+
+Run 2 (done):
+
+- [run-002/RUN-002-SHARED.md](run-002/RUN-002-SHARED.md)
+- [HANDOFF-007-maps-honest-source.md](HANDOFF-007-maps-honest-source.md)
+- [HANDOFF-008-vault-live-slots.md](HANDOFF-008-vault-live-slots.md)
+- [HANDOFF-009-glass-runtime-wire.md](HANDOFF-009-glass-runtime-wire.md)
+
+Run 3 (issued):
+
+- [run-003/RUN-003-SHARED.md](run-003/RUN-003-SHARED.md)
+- [HANDOFF-010-maps-operator-board.md](HANDOFF-010-maps-operator-board.md)
+- [HANDOFF-011-ask-hud-honesty.md](HANDOFF-011-ask-hud-honesty.md)
+- [HANDOFF-012-glass-session-bind.md](HANDOFF-012-glass-session-bind.md)
 
 Template: [`../../TEMPLATES/AGENT-HANDOFF.md`](../../TEMPLATES/AGENT-HANDOFF.md)

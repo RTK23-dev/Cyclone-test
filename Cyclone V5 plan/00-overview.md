@@ -9,10 +9,11 @@ The map is a memory. The live run still looks. If the map is wrong, the eyes win
 ## Control loop
 
 ```text
-                    ┌──────────── Cyclone Glass 1.0 (PC) ────────────┐
-                    │  Live phone   Ask   App Maps   Vault (slots)   │
-                    │  keyboard → encrypted fill   canvas   HUD      │
-                    └───────────────┬────────────────────────────────┘
+                    ┌──────── Cyclone Glass 1.0 (PC browser, local) ────────┐
+                    │  Apps · Map · Scenarios · Versions · Runs (autopsy)    │
+                    │  Knowledge · Phone (live, take control, Ask)           │
+                    │  no agent, no model calls — the developer's eyes       │
+                    └───────────────┬────────────────────────────────────────┘
                                     │ gateway 5.0  (no passwords in traces)
                     ┌───────────────▼────────────────────────────────┐
                     │              Cyclone Mobile 5.0                 │
@@ -25,7 +26,9 @@ The map is a memory. The live run still looks. If the map is wrong, the eyes win
 **App Maps** = one button on the phone *or* on Glass.  
 **Secrets card** = the only way secrets enter. Same card on both. Storage only on the phone.  
 **Ask** = the user’s sentence + atlas whispers + live eyes. Not a macro replay.  
-**Glass Maps** = the operator table: a **full Minitap-class canvas** of the atlas so you can look at every mapped place and *feel* the house.
+**Glass Maps** = the operator table: a **full Minitap-class canvas** of the atlas so you can look at every mapped place and *feel* the house.  
+**Glass Runs** = open any run and see step by step what Cyclone saw, decided and did — and the **cause of death** when it failed.  
+**Why maps**: with a mapped route Cyclone knows which room it is in and which door leads to the end result, so it decides almost instantly instead of thinking in the dark.
 
 ## The Louella run (why this generation exists)
 
@@ -55,7 +58,7 @@ Glass shows the same HUD and the canvas ghost. You can take the mouse at any mom
 | Seed of the atlas | Follow Me, `AppGraphEngine`, Graph v2, `AppGraphRetriever` | Promote from learned traces to **the** map |
 | Secret hygiene | `SkillSecrets` strip-on-persist | Not a vault — replace with a real one |
 | Ask HUD | Overlay / Ask task panel | Same projection on phone **and** Glass |
-| PC glass | One: JPEG live, handoff, session tiles, MCP, camera | Become Glass: Maps + Ask + Secrets **on top**, fleet stays |
+| PC | One: JPEG live, handoff, session tiles, MCP, camera | **Glass is a new local web app** (`apps/glass`). One stays One. Glass reuses One's live/handoff path through the gateway |
 | Pipe | device-gateway loopback, pairing, `session_id` | New ops: atlas, mapping, secret-lease. No secret **values** on the wire |
 
 Gateway at 4.1.0 while mobile is 4.8.0 is already drift. V5 **bumps the pipe in lockstep** or Glass will lie.
@@ -73,7 +76,7 @@ Same as V4. Glass must label them. Mapping and Ask declare which plane they use.
 | Who | Job |
 |---|---|
 | Phone | Atlas source of truth, vault, mapper process, Ask loop, GATE, overlay |
-| Glass | Operator look-and-feel: full Maps board, Ask composer, secrets keyboard, live JPEG |
+| Glass | Developer dashboard in the browser: apps + versions, Maps and Scenarios boards, run inspector, knowledge, live phone + control. No intelligence |
 | Gateway | Pipe. Replica for 60fps pan. Never a second PhoneToolExecutor |
 
 The **phone canvas** is a list + small graph + Start. The **Glass canvas** is the Minitap-class board. If the operator cannot pan the whole Gmail house on a monitor, Glass V1 is not done.
