@@ -44,7 +44,7 @@ runs:
         [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" && "$GITHUB_SHA" == "$SOURCE_SHA" ]] || { echo 'Release checkout does not match CI source SHA' >&2; exit 1; }
         gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" |
           jq -e --arg sha "$SOURCE_SHA" --arg branch "$RELEASE_BRANCH" --arg repo "$GITHUB_REPOSITORY" \
-          '.name == "Cyclone PC Companion CI" and .event == "push" and .head_branch == $branch and .head_sha == $sha and .head_repository.full_name == $repo and .status == "completed" and .conclusion == "success"' >/dev/null
+          '.name == "Cyclone PC Companion CI" and .path == ".github/workflows/pc-companion-ci.yml" and .event == "push" and .head_branch == $branch and .head_sha == $sha and .head_repository.full_name == $repo and .status == "completed" and .conclusion == "success"' >/dev/null
     - name: Download exact-CI Glass artifact
       shell: bash
       env:
