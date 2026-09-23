@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.5 dev1 paired Mobile and Glass developer candidate: the Trace Field working indicator.
-# Owner-requested developer alpha: exact release-branch CI, legacy dev signer, physical acceptance waived.
+# Owner-requested developer alpha: exact release-branch CI, legacy dev signer, physical acceptance waived. Now ready release.
 schema = 1
 product_version = "5.0.0-alpha.5.dev1"
 channel = "development"
