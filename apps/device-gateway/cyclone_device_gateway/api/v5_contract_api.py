@@ -24,6 +24,18 @@ def create_v5_contract_router(runtime: Any, token: str) -> APIRouter:
     def apps_list(device_id: str):
         return _call(lambda: service.apps_list(device_id))
 
+    @router.get("/v1/devices/{device_id}/runs", dependencies=[Depends(auth)])
+    def runs_list(
+        device_id: str,
+        limit: int = Query(default=50, ge=1, le=200),
+        filter: Literal["all", "failed", "completed", "stopped"] = Query(default="all"),
+    ):
+        return _call(lambda: service.runs_list(device_id, limit, filter))
+
+    @router.get("/v1/devices/{device_id}/runs/{run_id}", dependencies=[Depends(auth)])
+    def runs_get(device_id: str, run_id: str):
+        return _call(lambda: service.runs_get(device_id, run_id))
+
     @router.get("/v1/devices/{device_id}/atlas", dependencies=[Depends(auth)])
     def atlas_get(
         device_id: str,
@@ -96,6 +108,7 @@ def _call(fn):
             RuntimeErrorCode.STALE_CONTROL_REVISION.value: 409,
             RuntimeErrorCode.MAPPING_PLANE_BUSY.value: 409,
             RuntimeErrorCode.MAPPING_JOB_NOT_FOUND.value: 404,
+            RuntimeErrorCode.RUN_NOT_FOUND.value: 404,
             RuntimeErrorCode.MAPPING_INVALID_STATE.value: 409,
             RuntimeErrorCode.ASK_BUSY.value: 409,
             RuntimeErrorCode.OVERLAY_UNAVAILABLE.value: 503,

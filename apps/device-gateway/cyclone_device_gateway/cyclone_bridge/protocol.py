@@ -16,6 +16,7 @@ ALLOWED_OPS = {
     "secrets.slots", "secrets.request",
     "ask.start", "ask.status",
     "apps.list",
+    "runs.list", "runs.get",
 }
 UNAUTHENTICATED_OPS = {
     "trust.negotiate", "trust.begin", "trust.complete", "trust.session.begin", "trust.session.complete",

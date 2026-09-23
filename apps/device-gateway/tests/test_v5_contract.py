@@ -583,3 +583,107 @@ def test_glass_alpha1_apps_list_is_an_allowed_bridge_op():
 
     assert "apps.list" in ALLOWED_OPS
     assert "apps.list" not in UNAUTHENTICATED_OPS
+
+
+RUN_SUMMARY = {
+    "runId": "ai-run-1",
+    "goal": "find the dm of Louella",
+    "model": "model-x",
+    "status": "failed",
+    "startedAt": 1000,
+    "endedAt": 5000,
+    "durationMs": 4000,
+    "decisions": 3,
+    "stepCount": 2,
+    "metrics": {"toolCalls": 2, "toolFailures": 0, "verificationFailures": 0, "recoveries": 0, "visionChecks": 0, "verifiedActions": 1},
+    "cause": {"kind": "needs-secret", "stepIndex": 1, "headline": "Stopped at a login wall", "detail": "Facebook wants a password", "fix": "Set the password slot."},
+}
+RUN_STEP = {
+    "index": 1,
+    "startedAt": 2000,
+    "endedAt": 4000,
+    "title": "Opening the selected control: Messages",
+    "action": "click:Messages",
+    "pageId": "bbbbbbbbbbbbbbbb",
+    "outcome": "failed",
+    "verification": None,
+    "recovery": None,
+    "vision": False,
+    "eventsTruncated": False,
+    "events": [{"at": 2000, "kind": "GATE_SUSPEND", "text": "Facebook wants a password", "code": "gate.need_secret", "ok": None, "detail": None}],
+}
+RUN_DETAIL = {**RUN_SUMMARY, "result": "Waiting for a password", "stepsTruncated": False, "steps": [RUN_STEP]}
+
+
+class RunsBridge(FakeBridge):
+    def __init__(self, listing=None, detail=None, error=None):
+        super().__init__()
+        self.listing = listing if listing is not None else {"runs": [RUN_SUMMARY]}
+        self.detail = detail if detail is not None else RUN_DETAIL
+        self.error = error
+
+    def request(self, op, args, request_id=None):
+        if op in {"runs.list", "runs.get"}:
+            self.calls.append((op, dict(args), request_id))
+            if self.error:
+                raise self.error
+            return self.listing if op == "runs.list" else self.detail
+        return super().request(op, args, request_id)
+
+
+def test_glass_alpha2_runs_are_the_phone_trace():
+    bridge = RunsBridge()
+    svc = V5ContractService(FakeFleet(bridge))
+    assert svc.runs_list("phone-1", 20, "failed") == {"runs": [RUN_SUMMARY]}
+    assert bridge.calls[0][:2] == ("runs.list", {"limit": 20, "filter": "failed"})
+    assert svc.forward("phone-1", "runs.get", {"runId": "ai-run-1"}) == RUN_DETAIL
+    assert bridge.calls[1][:2] == ("runs.get", {"runId": "ai-run-1"})
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda s: s.runs_list("phone-1", 0, "all"),
+        lambda s: s.runs_list("phone-1", 20, "everything"),
+        lambda s: s.runs_get("phone-1", "../../etc/passwd"),
+        lambda s: s.forward("phone-1", "runs.get", {"runId": "ai-run-1", "extra": 1}),
+        lambda s: s.forward("phone-1", "runs.list", {"sql": "x"}),
+    ],
+)
+def test_glass_alpha2_bad_run_requests_never_reach_the_phone(call):
+    bridge = RunsBridge()
+    with pytest.raises(DesktopRuntimeError) as error:
+        call(V5ContractService(FakeFleet(bridge)))
+    assert error.value.code == "INVALID_REQUEST"
+    assert bridge.calls == []
+
+
+@pytest.mark.parametrize(
+    "listing, detail",
+    [
+        ({"runs": [{**RUN_SUMMARY, "status": "exploded"}]}, None),
+        ({"runs": [{**RUN_SUMMARY, "screenshot": "base64"}]}, None),
+        ({"runs": [{**RUN_SUMMARY, "cause": {**RUN_SUMMARY["cause"], "kind": "Bad Kind!"}}]}, None),
+        (None, {**RUN_DETAIL, "runId": "ai-other"}),
+        (None, {**RUN_DETAIL, "steps": [{**RUN_STEP, "outcome": "great"}]}),
+        (None, {**RUN_DETAIL, "steps": [{**RUN_STEP, "events": [{**RUN_STEP["events"][0], "text": "x" * 361}]}]}),
+        (None, {**RUN_DETAIL, "steps": [{**RUN_STEP, "events": [{**RUN_STEP["events"][0], "text": "password: hunter2"}]}]}),
+    ],
+)
+def test_glass_alpha2_malformed_phone_runs_are_rejected(listing, detail):
+    svc = V5ContractService(FakeFleet(RunsBridge(listing=listing, detail=detail)))
+    with pytest.raises(DesktopRuntimeError) as error:
+        if listing is not None:
+            svc.runs_list("phone-1")
+        else:
+            svc.runs_get("phone-1", "ai-run-1")
+    assert error.value.code in {"PROTOCOL_MISMATCH", "INVALID_REQUEST"}
+
+
+def test_glass_alpha2_run_not_found_is_named():
+    from cyclone_device_gateway.cyclone_bridge.client import BridgeOperationError
+
+    svc = V5ContractService(FakeFleet(RunsBridge(error=BridgeOperationError("RUN_NOT_FOUND"))))
+    with pytest.raises(DesktopRuntimeError) as error:
+        svc.runs_get("phone-1", "ai-missing")
+    assert error.value.code == "RUN_NOT_FOUND"

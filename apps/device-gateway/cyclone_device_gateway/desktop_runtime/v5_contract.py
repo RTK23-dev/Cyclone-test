@@ -22,6 +22,8 @@ V5_OPS = frozenset({
     "ask.start",
     "ask.status",
     "apps.list",
+    "runs.list",
+    "runs.get",
 })
 ASK_STATES = frozenset({"idle", "working", "action-needed", "needs-secret", "done", "failed"})
 ASK_MILESTONE_STATES = frozenset({"pending", "active", "done", "action-needed", "failed"})
@@ -441,6 +443,101 @@ def _validate_apps_list(value: dict[str, Any]) -> None:
                 raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app persona is malformed.")
 
 
+RUN_ID = re.compile(r"^[A-Za-z0-9_-]{4,120}$")
+RUN_STATUSES = frozenset({"running", "suspended", "completed", "failed", "cancelled"})
+RUN_FILTERS = frozenset({"all", "failed", "completed", "stopped"})
+RUN_SUMMARY_KEYS = frozenset({
+    "runId", "goal", "model", "status", "startedAt", "endedAt", "durationMs", "decisions", "stepCount", "metrics", "cause",
+})
+RUN_DETAIL_KEYS = RUN_SUMMARY_KEYS | {"result", "stepsTruncated", "steps"}
+RUN_CAUSE_KEYS = frozenset({"kind", "stepIndex", "headline", "detail", "fix"})
+RUN_STEP_KEYS = frozenset({
+    "index", "startedAt", "endedAt", "title", "action", "pageId", "outcome", "verification", "recovery", "vision",
+    "eventsTruncated", "events",
+})
+RUN_EVENT_KEYS = frozenset({"at", "kind", "text", "code", "ok", "detail"})
+STEP_OUTCOMES = frozenset({"ok", "failed", "unverified", "recovered", "info"})
+MAX_RUNS = 200
+MAX_RUN_STEPS = 200
+MAX_STEP_EVENTS = 40
+
+
+def _bad_run(message: str) -> DesktopRuntimeError:
+    return DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, f"Android run {message} is malformed.")
+
+
+def _short_text(value: Any, limit: int, *, nullable: bool = False) -> bool:
+    if value is None:
+        return nullable
+    return isinstance(value, str) and len(value) <= limit
+
+
+def _validate_run_summary(run: Any, keys: frozenset[str]) -> None:
+    if not isinstance(run, dict) or set(run) != keys:
+        raise _bad_run("summary")
+    if not isinstance(run["runId"], str) or not RUN_ID.match(run["runId"]) or run["status"] not in RUN_STATUSES:
+        raise _bad_run("identity")
+    if not _short_text(run["goal"], 500) or not _short_text(run["model"], 120):
+        raise _bad_run("text")
+    for key in ("startedAt", "durationMs", "decisions", "stepCount"):
+        if not _is_int(run[key]):
+            raise _bad_run(key)
+    if run["endedAt"] is not None and not _is_int(run["endedAt"]):
+        raise _bad_run("endedAt")
+    metrics = run["metrics"]
+    if not isinstance(metrics, dict) or not all(isinstance(k, str) and _is_int(v) for k, v in metrics.items()) or len(metrics) > 12:
+        raise _bad_run("metrics")
+    cause = run["cause"]
+    if cause is not None:
+        if not isinstance(cause, dict) or set(cause) != RUN_CAUSE_KEYS:
+            raise _bad_run("cause")
+        if not isinstance(cause["kind"], str) or not re.fullmatch(r"[a-z][a-z-]{1,40}", cause["kind"]):
+            raise _bad_run("cause kind")
+        if cause["stepIndex"] is not None and not _is_int(cause["stepIndex"]):
+            raise _bad_run("cause step")
+        if not all(_short_text(cause[key], 400) for key in ("headline", "detail", "fix")):
+            raise _bad_run("cause text")
+
+
+def _validate_runs_list(value: dict[str, Any]) -> None:
+    if set(value) != {"runs"} or not isinstance(value["runs"], list) or len(value["runs"]) > MAX_RUNS:
+        raise _bad_run("list")
+    for run in value["runs"]:
+        _validate_run_summary(run, RUN_SUMMARY_KEYS)
+
+
+def _validate_run_detail(value: dict[str, Any], args: dict[str, Any]) -> None:
+    _validate_run_summary(value, RUN_DETAIL_KEYS)
+    if value["runId"] != args.get("runId"):
+        raise _bad_run("id mismatch")
+    if not _short_text(value["result"], 1500) or not isinstance(value["stepsTruncated"], bool):
+        raise _bad_run("result")
+    steps = value["steps"]
+    if not isinstance(steps, list) or len(steps) > MAX_RUN_STEPS:
+        raise _bad_run("steps")
+    for step in steps:
+        if not isinstance(step, dict) or set(step) != RUN_STEP_KEYS or step["outcome"] not in STEP_OUTCOMES:
+            raise _bad_run("step")
+        if not all(_is_int(step[key]) for key in ("index", "startedAt", "endedAt")) or not isinstance(step["vision"], bool):
+            raise _bad_run("step numbers")
+        if not _short_text(step["title"], 200) or not all(
+            _short_text(step[key], 120, nullable=True) for key in ("action", "pageId", "verification", "recovery")
+        ):
+            raise _bad_run("step text")
+        events = step["events"]
+        if not isinstance(events, list) or len(events) > MAX_STEP_EVENTS or not isinstance(step["eventsTruncated"], bool):
+            raise _bad_run("step events")
+        for event in events:
+            if not isinstance(event, dict) or set(event) != RUN_EVENT_KEYS or not _is_int(event["at"]):
+                raise _bad_run("event")
+            if not _short_text(event["kind"], 40) or not _short_text(event["text"], 360):
+                raise _bad_run("event text")
+            if not _short_text(event["code"], 120, nullable=True) or not _short_text(event["detail"], 600, nullable=True):
+                raise _bad_run("event detail")
+            if event["ok"] is not None and not isinstance(event["ok"], bool):
+                raise _bad_run("event ok")
+
+
 def validate_android_response(op: str, value: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
     """Keep a phone bug from turning into PC/model secret or mapping authority."""
     if op == "secrets.slots":
@@ -474,6 +571,12 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
     if op == "apps.list":
         _validate_apps_list(value)
         return value
+    if op == "runs.list":
+        _validate_runs_list(value)
+        return value
+    if op == "runs.get":
+        _validate_run_detail(value, args)
+        return value
     raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
 
 
@@ -494,6 +597,16 @@ class V5ContractService:
 
     def apps_list(self, device_id: str) -> dict[str, Any]:
         return self._call(device_id, "apps.list", {})
+
+    def runs_list(self, device_id: str, limit: int = 50, run_filter: str = "all") -> dict[str, Any]:
+        if not _is_int(limit, minimum=1) or limit > MAX_RUNS or run_filter not in RUN_FILTERS:
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.list takes limit 1..200 and a known filter.")
+        return self._call(device_id, "runs.list", {"limit": limit, "filter": run_filter})
+
+    def runs_get(self, device_id: str, run_id: str) -> dict[str, Any]:
+        if not isinstance(run_id, str) or not RUN_ID.match(run_id):
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runId is malformed.")
+        return self._call(device_id, "runs.get", {"runId": run_id})
 
     def atlas_get(self, device_id: str, place_id: str, persona: str) -> dict[str, Any]:
         args = {"placeId": place_id, "persona": persona}
@@ -561,6 +674,14 @@ class V5ContractService:
             if args:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "apps.list takes no arguments.")
             return self.apps_list(device_id)
+        if op == "runs.list":
+            if not set(args) <= {"limit", "filter"}:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.list takes limit and filter only.")
+            return self.runs_list(device_id, args.get("limit", 50), args.get("filter", "all"))
+        if op == "runs.get":
+            if set(args) != {"runId"}:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.get takes runId only.")
+            return self.runs_get(device_id, args["runId"])
         if op == "atlas.get":
             if set(args) != {"placeId", "persona"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.get requires placeId/persona only.")
@@ -661,6 +782,7 @@ class V5ContractService:
                 "STALE_CONTROL_REVISION": RuntimeErrorCode.STALE_CONTROL_REVISION,
                 "MAPPING_PLANE_BUSY": RuntimeErrorCode.MAPPING_PLANE_BUSY,
                 "MAPPING_JOB_NOT_FOUND": RuntimeErrorCode.MAPPING_JOB_NOT_FOUND,
+                "RUN_NOT_FOUND": RuntimeErrorCode.RUN_NOT_FOUND,
                 "MAPPING_INVALID_STATE": RuntimeErrorCode.MAPPING_INVALID_STATE,
                 "ASK_BUSY": RuntimeErrorCode.ASK_BUSY,
                 "OVERLAY_UNAVAILABLE": RuntimeErrorCode.OVERLAY_UNAVAILABLE,
