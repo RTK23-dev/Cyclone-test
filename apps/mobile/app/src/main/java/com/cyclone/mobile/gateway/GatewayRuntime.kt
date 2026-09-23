@@ -407,6 +407,8 @@ internal object GatewayDispatcher {
         "skill.compile", "skill.run", "skill.match" -> dispatchSkill(context, request)
         "atlas.places", "atlas.get", "secrets.slots", "secrets.request" ->
             GatewayV5ContractAdapter.dispatch(request.op, request.args)
+        "atlas.diff", "mapping.start", "mapping.pause", "mapping.stop", "mapping.status" ->
+            GatewayV5MappingAdapter.dispatch(context, request.op, request.args)
         else -> throw GatewayProtocolException(
             "PROTOCOL_MISMATCH",
             "Unsupported gateway operation: ${request.op}",

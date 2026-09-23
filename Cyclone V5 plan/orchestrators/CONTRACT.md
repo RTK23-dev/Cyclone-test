@@ -83,3 +83,154 @@ Glass Run 3 (this session) does **not** add ops. It labels the existing `session
 - [ ] Maps board renders **that** graph read-only (Run 1 renders a **mock**; Run 2 wires live + honest empty; Run 3 operator bar / edge inspector)
 - [x] No secret values in any fixture or log from the Glass Run 1–3 PRs
 - [x] Ask/Maps declare session plane (`default-foreground` or named VD; never rewritten) — Glass Run 3
+
+## Run 2 mapping/session wire contract
+
+Run-2 JSON uses the existing Gateway camel-case execution identity: `sessionId`, `displayId`,
+optional `workspaceId` + `workspaceGeneration`, and (for named virtual-display acquisition)
+`executionGeneration`. The conceptual `session_id` law above remains the same requirement: mapping
+never invents a default session when identity is absent.
+
+### `atlas.diff`
+
+Request:
+
+```json
+{
+  "placeId": "package:com.example.app",
+  "persona": "mapping",
+  "since": null
+}
+```
+
+`since: null` is the bootstrap after a client has recovered full truth with `atlas.get`; Android
+returns a phone-issued cursor and no fabricated history. Every non-null `since` must be a cursor
+previously issued for the same Place/persona stream.
+
+Response:
+
+```json
+{
+  "placeId": "package:com.example.app",
+  "persona": "mapping",
+  "since": null,
+  "cursor": "c1:<phone-epoch>:<monotonic-sequence>",
+  "resyncRequired": false,
+  "changes": []
+}
+```
+
+Each change contains exactly `cursor`, `entity` (`place|screen|edge`), `change`
+(`upsert|remove`) and structural `id`, plus only the relevant structural fields:
+`mapStatus`, `layout {x,y}`, or `fromScreenId/toScreenId`. There are no labels, text, values,
+raw observations, accessibility trees, screenshots, paths, selectors or dynamic content in a diff.
+Unknown/expired/wrong-epoch cursors return `resyncRequired:true` and an empty `changes`; clients
+recover with `atlas.get`.
+
+### `mapping.start`
+
+New job request:
+
+```json
+{
+  "placeId": "package:com.example.app",
+  "persona": "mapping",
+  "sessionId": "default-foreground",
+  "displayId": 0,
+  "budget": {
+    "maxNewScreens": 40,
+    "maxElapsedMs": 600000,
+    "maxConsecutiveNonProgress": 6,
+    "maxAttemptsPerDoor": 3
+  }
+}
+```
+
+`budget` is optional; omission uses the bounded phone defaults above. A Layer-2 request additionally
+carries `workspaceId` and `workspaceGeneration`. A named virtual-display request uses a nonzero
+`displayId` and must carry the current `executionGeneration`.
+
+Resume/unpause uses the same operation with no Place/persona/budget rewrite:
+
+```json
+{
+  "resumeJobId": "map-...",
+  "sessionId": "default-foreground",
+  "displayId": 0
+}
+```
+
+Resume re-acquires the existing phone authority and must remain on the original plane.
+
+### `mapping.pause`, `mapping.stop`, `mapping.status`
+
+Pause/stop request:
+
+```json
+{
+  "mappingJobId": "map-...",
+  "sessionId": "default-foreground",
+  "displayId": 0
+}
+```
+
+`mapping.status` has the same plane identity and optional `mappingJobId`. Without a job id it
+returns the active job for that plane, or `state:"idle"`. Pause and stop still require the exact
+bound plane but are allowed to stop mutation safely after control has already been lost.
+
+Layer-2 status/pause/stop also carry the job's `workspaceId` + `workspaceGeneration`.
+`executionGeneration` is acquisition/resume-only and is not accepted by pause/stop/status.
+
+### Mapping status response
+
+Every mapping command/status returns one exact status object. Non-idle jobs contain:
+
+```text
+mappingJobId
+placeId
+persona
+state
+sessionId
+displayId
+plane
+controlRevision
+executionGeneration
+budget
+currentAtlasNodeId
+progress {
+  newScreens
+  verifiedMutations
+  consecutiveNonProgress
+  attemptedDoors
+  remainingDarkRegions
+}
+atlasStatus
+danger
+boundary
+startedAtEpochMs
+updatedAtEpochMs
+failureCode
+```
+
+`state` is exactly:
+
+```text
+idle | running | paused | needs-secret | human-control | completed | stopped | failed
+```
+
+`needs-secret` and `human-control` are nonterminal. A budget-limited successful crawl with dark
+regions completes/stops with Atlas `partial`, never a fake `mapped` and never a fake failure.
+
+### Authority/error behavior
+
+- missing `sessionId` → `SESSION_REQUIRED`;
+- session/display mismatch → `SESSION_DISPLAY_MISMATCH`;
+- human/companion input ownership → `HUMAN_HAS_CONTROL`;
+- changed foreground controller epoch, named-VD generation, or Layer-2 generation →
+  `STALE_CONTROL_REVISION`;
+- another nonterminal mapping job on the same plane → `MAPPING_PLANE_BUSY`;
+- unknown job → `MAPPING_JOB_NOT_FOUND`;
+- illegal state transition → `MAPPING_INVALID_STATE`.
+
+Android owns these states and revisions. Device Gateway validates and forwards only. Remote readonly
+MCP exposes no `mapping.start` tool.
