@@ -88,15 +88,18 @@ export class GatewayClient {
   }
 
   private toError(status: number, payload: unknown): GatewayError {
-    if (status === 401 || status === 403) {
+    const detail = (payload as { detail?: unknown } | null)?.detail;
+    const structured = Boolean(detail) && typeof detail === "object" && !Array.isArray(detail);
+    // Only a rejected bearer ends the Glass session. The gateway also answers 401/403 with a structured
+    // runtime code (PAIRING_REQUIRED, AUTH_REJECTED from the phone); those are about the phone, not this tab.
+    if ((status === 401 || status === 403) && !structured) {
       if (!this.expiredNotified) {
         this.expiredNotified = true;
         this.onSessionExpired?.();
       }
       return new GatewayError("SESSION_EXPIRED", "This Glass session has ended. Reopen Glass from the launcher.", status);
     }
-    const detail = (payload as { detail?: unknown } | null)?.detail;
-    if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+    if (structured) {
       const record = detail as { code?: unknown; message?: unknown; retryable?: unknown };
       const code = typeof record.code === "string" && record.code ? record.code : `HTTP_${status}`;
       const message = typeof record.message === "string" && record.message ? record.message : `Gateway error ${status}`;

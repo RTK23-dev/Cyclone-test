@@ -10,6 +10,8 @@ import { icon, type IconName } from "./ui/icons.js";
 import type { GlassPage } from "./pages/page.js";
 import { createAppsPage } from "./pages/appsPage.js";
 import { createPhonePage } from "./pages/phonePage.js";
+import { createRunsPage } from "./pages/runsPage.js";
+import { createRunPage } from "./pages/runPage.js";
 import { createSettingsPage } from "./pages/settingsPage.js";
 
 export const DEVICE_STORAGE_KEY = "cyclone.glass.device.v1";
@@ -44,12 +46,15 @@ type PageFactory = (ctx: GlassContext, route: Route) => GlassPage;
 const PAGES: Record<Route["name"], PageFactory> = {
   apps: (ctx, route) => createAppsPage(ctx, route),
   app: (ctx, route) => createAppsPage(ctx, route),
+  runs: (ctx) => createRunsPage(ctx),
+  run: (ctx, route) => createRunPage(ctx, route as Extract<Route, { name: "run" }>),
   phone: (ctx) => createPhonePage(ctx),
   settings: (ctx) => createSettingsPage(ctx),
 };
 
-const NAV: Array<{ section: "apps" | "phone"; label: string; icon: IconName; route: Route }> = [
+const NAV: Array<{ section: "apps" | "runs" | "phone"; label: string; icon: IconName; route: Route }> = [
   { section: "apps", label: "Apps", icon: "apps", route: { name: "apps" } },
+  { section: "runs", label: "Runs", icon: "runs", route: { name: "runs" } },
   { section: "phone", label: "Phone", icon: "phone", route: { name: "phone" } },
 ];
 
@@ -203,7 +208,7 @@ export class GlassApp {
   }
 
   private renderPage(force: boolean): void {
-    const key = `${this.route.name}:${this.route.name === "app" ? this.route.placeId : ""}`;
+    const key = `${this.route.name}:${this.route.name === "app" ? this.route.placeId : this.route.name === "run" ? this.route.runId : ""}`;
     if (!force && key === this.pageKey && this.page) return;
     this.page?.destroy();
     this.pageKey = key;

@@ -17,6 +17,8 @@ const PATHS = {
   plug: ["M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0z", "M12 17v4"],
   hand: ["M8 13V5a1.5 1.5 0 0 1 3 0v6", "M11 11V4a1.5 1.5 0 0 1 3 0v7", "M14 11V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2-4a1.5 1.5 0 0 1 2.5-1.5L8 15"],
   send: ["M4 12l16-8-6 16-3-7z"],
+  runs: ["M4 6h16M4 12h10M4 18h13", "M18 10l3 2-3 2"],
+  download: ["M12 4v11", "M7 10l5 5 5-5", "M5 20h14"],
 } as const;
 
 export type IconName = keyof typeof PATHS;

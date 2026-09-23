@@ -4,7 +4,7 @@
  */
 import type { AskStatusView, AtlasClient } from "../services/atlasClient.js";
 import { ASK_MAX_GOAL } from "../services/atlasClient.js";
-import { el, setChildren } from "../ui/dom.js";
+import { el, link, setChildren } from "../ui/dom.js";
 import { actionButton, chip, type Tone } from "../ui/components.js";
 
 export interface AskPanelDeps {
@@ -92,6 +92,7 @@ export function createAskPanel(deps: AskPanelDeps): AskPanel {
       status.milestones.length ? steps : null,
       status.supportingCopy ? el("p", "ask-copy", status.supportingCopy) : null,
       status.outcomeCopy ? el("p", "ask-outcome", status.outcomeCopy) : null,
+      TERMINAL.has(status.state) ? link("See every step in Runs", "#/runs", "ask-runs-link") : null,
     );
     hud.dataset.state = status.state;
   };
