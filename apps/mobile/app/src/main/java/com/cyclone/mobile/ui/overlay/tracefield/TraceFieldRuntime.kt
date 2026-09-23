@@ -28,11 +28,16 @@ import java.util.concurrent.atomic.AtomicBoolean
 object TraceFieldPrefs {
     private const val FILE = "cyclone_trace_field"
     private const val KEY_MODE = "mode"
+    private const val KEY_STYLE = "style"
 
     fun prefs(context: Context): SharedPreferences = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
     fun mode(context: Context): TraceFieldMode = TraceFieldMode.parse(prefs(context).getString(KEY_MODE, null))
     fun setMode(context: Context, mode: TraceFieldMode) {
         prefs(context).edit().putString(KEY_MODE, mode.wire).apply()
+    }
+    fun style(context: Context): TraceFieldStyle = TraceFieldStyle.parse(prefs(context).getString(KEY_STYLE, null))
+    fun setStyle(context: Context, style: TraceFieldStyle) {
+        prefs(context).edit().putString(KEY_STYLE, style.wire).apply()
     }
 }
 
@@ -115,6 +120,7 @@ object TraceFieldRuntime {
             prefsListener?.let { listener -> context?.let { TraceFieldPrefs.prefs(it).unregisterOnSharedPreferenceChangeListener(listener) } }
             prefsListener = null
             TraceFieldCaptureGate.surface = null
+            TraceFieldBackdrop.clear()
             view?.let { field ->
                 field.release()
                 runCatching { windowManager?.removeViewImmediate(field) }
@@ -130,6 +136,7 @@ object TraceFieldRuntime {
         val powerSave = context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
         val chosen = TraceFieldPrefs.mode(context)
         field.mode = if (powerSave && chosen == TraceFieldMode.FIELD) TraceFieldMode.EDGE else chosen
+        field.style = TraceFieldPrefs.style(context)
         field.reduceMotion = runCatching {
             Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
         }.getOrDefault(false)
