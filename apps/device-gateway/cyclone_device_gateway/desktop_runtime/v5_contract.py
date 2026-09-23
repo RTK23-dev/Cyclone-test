@@ -19,7 +19,16 @@ V5_OPS = frozenset({
     "mapping.status",
     "secrets.slots",
     "secrets.request",
+    "ask.start",
+    "ask.status",
 })
+ASK_STATES = frozenset({"idle", "working", "action-needed", "needs-secret", "done", "failed"})
+ASK_MILESTONE_STATES = frozenset({"pending", "active", "done", "action-needed", "failed"})
+ASK_STATUS_KEYS = frozenset({
+    "taskId", "state", "title", "app", "currentMilestone", "milestones", "supportingCopy",
+    "outcomeCopy", "sessionId", "displayId",
+})
+MAX_GOAL = 2000
 PERSONAS = frozenset({"live", "mapping"})
 MAPPING_STATES = frozenset({
     "idle",
@@ -345,6 +354,38 @@ def _validate_mapping_response(value: dict[str, Any], args: dict[str, Any]) -> N
         raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping atlasStatus is invalid.")
 
 
+def _validate_ask_foreground(args: dict[str, Any]) -> None:
+    """Ask from Glass runs on the phone's main screen only; never a guessed named display."""
+    session_id = args.get("sessionId")
+    if not isinstance(session_id, str) or not session_id:
+        raise DesktopRuntimeError(RuntimeErrorCode.SESSION_REQUIRED, "sessionId is required for ask.")
+    if session_id != "default-foreground" or not _is_int(args.get("displayId")) or args.get("displayId") != 0:
+        raise DesktopRuntimeError(
+            RuntimeErrorCode.SESSION_DISPLAY_MISMATCH,
+            "Ask runs on default-foreground / display 0.",
+        )
+
+
+def _validate_ask_response(op: str, value: dict[str, Any]) -> None:
+    if op == "ask.start":
+        if set(value) != {"accepted", "sessionId", "displayId"} or value.get("accepted") is not True:
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android ask.start acknowledgement is malformed.")
+        return
+    if set(value) != ASK_STATUS_KEYS or value.get("state") not in ASK_STATES:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android ask.status result is malformed.")
+    milestones = value.get("milestones")
+    if not isinstance(milestones, list) or len(milestones) > 8:
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android ask.status milestones are malformed.")
+    for milestone in milestones:
+        if (
+            not isinstance(milestone, dict)
+            or set(milestone) != {"label", "state"}
+            or not isinstance(milestone.get("label"), str)
+            or milestone.get("state") not in ASK_MILESTONE_STATES
+        ):
+            raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android ask.status milestone is malformed.")
+
+
 def validate_android_response(op: str, value: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
     """Keep a phone bug from turning into PC/model secret or mapping authority."""
     if op == "secrets.slots":
@@ -371,6 +412,9 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
         return value
     if op in {"mapping.start", "mapping.pause", "mapping.stop", "mapping.status"}:
         _validate_mapping_response(value, args)
+        return value
+    if op in {"ask.start", "ask.status"}:
+        _validate_ask_response(op, value)
         return value
     raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
 
@@ -475,6 +519,20 @@ class V5ContractService:
                 reason=str(args["reason"]),
             )
 
+        if op == "ask.start":
+            if not set(args).issubset({"goal", "sessionId", "displayId"}):
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "ask.start takes goal plus plane identity only.")
+            _validate_ask_foreground(args)
+            goal = args.get("goal")
+            if not isinstance(goal, str) or not goal.strip() or len(goal) > MAX_GOAL:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "goal must be 1..2000 characters of text.")
+            return self._call(device_id, op, args)
+        if op == "ask.status":
+            if not set(args).issubset({"sessionId", "displayId"}):
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "ask.status takes plane identity only.")
+            _validate_ask_foreground(args)
+            return self._call(device_id, op, args)
+
         if op == "mapping.start":
             allowed = {
                 "placeId", "persona", "sessionId", "displayId", "workspaceId", "workspaceGeneration",
@@ -539,6 +597,8 @@ class V5ContractService:
                 "MAPPING_PLANE_BUSY": RuntimeErrorCode.MAPPING_PLANE_BUSY,
                 "MAPPING_JOB_NOT_FOUND": RuntimeErrorCode.MAPPING_JOB_NOT_FOUND,
                 "MAPPING_INVALID_STATE": RuntimeErrorCode.MAPPING_INVALID_STATE,
+                "ASK_BUSY": RuntimeErrorCode.ASK_BUSY,
+                "OVERLAY_UNAVAILABLE": RuntimeErrorCode.OVERLAY_UNAVAILABLE,
             }
             raise DesktopRuntimeError(
                 mapping.get(exc.code, RuntimeErrorCode.CAPABILITY_UNAVAILABLE),

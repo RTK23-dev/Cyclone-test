@@ -14,6 +14,7 @@ ALLOWED_OPS = {
     "atlas.places", "atlas.get", "atlas.diff",
     "mapping.start", "mapping.pause", "mapping.stop", "mapping.status",
     "secrets.slots", "secrets.request",
+    "ask.start", "ask.status",
 }
 UNAUTHENTICATED_OPS = {
     "trust.negotiate", "trust.begin", "trust.complete", "trust.session.begin", "trust.session.complete",

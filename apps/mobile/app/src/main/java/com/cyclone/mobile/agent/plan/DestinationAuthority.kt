@@ -25,8 +25,17 @@ object DestinationAuthority {
 
     private val EMAIL = Regex("(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b")
     private val EMAIL_LOOKUP = Regex("(?i)\\b(e-?mail|address|account)\\b")
-    private val FIND = Regex("(?i)\\b(find|search|look for|locate|current logged-?in)\\b")
-    private val LOGIN = Regex("(?i)\\b(log\\s*in|sign\\s*in|logged\\s*in|signed\\s*in)\\b")
+    private val FIND = Regex("(?i)\\b(find|search|look for|locate|check|which|what|current logged[- ]?in|signed[- ]?in)\\b")
+    /**
+     * An explicit ask about signing in ("log in to Facebook", "check my login status"). "My logged in
+     * email" describes an account; it is not a request to check or change login state.
+     */
+    private val LOGIN_ASK = Regex(
+        "(?i)\\b(?:log\\s*in|sign\\s*in)\\b(?!\\s*(?:e-?mail|account|address|user))|\\blog\\s*in\\s+status\\b|\\blogin\\s+status\\b|" +
+            "\\b(?:am|are)\\s+(?:i|we)\\s+(?:logged|signed)\\s*in\\b",
+    )
+    private val CLAUSE_BREAK = Regex("(?i),?\\s+(?:and\\s+)?then\\s+|;\\s*|\\.\\s+")
+    private val VERB = Regex("(?i)\\b(find|search for|search|look for|look up|locate|read|check|show me|show)\\b\\s+(.+)")
     private val BROWSER = Regex("(?i)\\b(chrome|browser|firefox)\\b")
     private val PLACEHOLDER_LOCAL = setOf("email", "user", "username", "name", "example", "test")
     private val PLACEHOLDER_DOMAIN = setOf("example.com", "email.com", "test.com", "domain.com")
@@ -49,7 +58,27 @@ object DestinationAuthority {
 
     fun wantsSignedInEmail(goal: String, destination: TaskDestination): Boolean {
         if (destination.kind != "app" || destination.value != GMAIL) return false
-        return EMAIL_LOOKUP.containsMatchIn(goal) && FIND.containsMatchIn(goal)
+        val clause = clauseFor(goal, destination)
+        return EMAIL_LOOKUP.containsMatchIn(clause) && FIND.containsMatchIn(clause)
+    }
+
+    /** True when the user explicitly asked about signing in, not merely described an account. */
+    fun asksAboutLogin(text: String): Boolean = LOGIN_ASK.containsMatchIn(text)
+
+    /**
+     * The part of the sentence that belongs to one destination: "open Gmail, check my email, then
+     * go to Facebook and find Louella's DM" → "go to Facebook and find Louella's DM" for Facebook.
+     * The sentence stays law; each stage just reads its own clause of it.
+     */
+    fun clauseFor(goal: String, destination: TaskDestination): String {
+        val breaks = CLAUSE_BREAK.findAll(goal).toList()
+        if (breaks.isEmpty()) return goal
+        var start = 0
+        for (match in breaks) {
+            if (destination.index < match.range.first) return goal.substring(start, match.range.first).trim()
+            start = match.range.last + 1
+        }
+        return goal.substring(start.coerceAtMost(goal.length)).trim().ifBlank { goal }
     }
 
     fun mentionsBrowser(goal: String): Boolean = BROWSER.containsMatchIn(goal)
@@ -69,13 +98,30 @@ object DestinationAuthority {
 
     fun objective(goal: String, destination: TaskDestination, last: Boolean): String {
         val label = labelFor(destination, goal)
+        val clause = clauseFor(goal, destination)
         return when {
             wantsSignedInEmail(goal, destination) -> "Finding the signed-in email address"
             usesSelectedEmailSignIn(goal, destination, last) -> "Signing in with the selected email"
-            LOGIN.containsMatchIn(goal) -> "Checking $label login status"
-            destination.kind == "host" -> "Opening $label"
-            else -> "Working in $label"
+            asksAboutLogin(clause) -> "Checking $label login status"
+            else -> userVerbObjective(clause, destination)
+                ?: if (destination.kind == "host") "Opening $label" else "Working in $label"
         }
+    }
+
+    /** "go to facebook and find the dm of Louella" → "Finding the dm of Louella". Never a template. */
+    private fun userVerbObjective(clause: String, destination: TaskDestination): String? {
+        val match = VERB.find(clause) ?: return null
+        val verb = match.groupValues[1].lowercase()
+        val rest = match.groupValues[2].trim().trimEnd('.', '!', '?', ',', ';').take(60).trim()
+        if (rest.isBlank() || EMAIL.containsMatchIn(rest)) return null
+        val gerund = when {
+            verb.startsWith("find") || verb == "locate" || verb.startsWith("look") -> "Finding"
+            verb.startsWith("search") -> "Searching for"
+            verb == "read" -> "Reading"
+            verb == "check" -> "Checking"
+            else -> "Showing"
+        }
+        return "$gerund $rest"
     }
 
     /** Facebook-in-Chrome (host login) after an email lookup — not a native "check login status" ask. */

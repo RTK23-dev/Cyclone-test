@@ -409,6 +409,7 @@ internal object GatewayDispatcher {
             GatewayV5ContractAdapter.dispatch(request.op, request.args)
         "atlas.diff", "mapping.start", "mapping.pause", "mapping.stop", "mapping.status" ->
             GatewayV5MappingAdapter.dispatch(context, request.op, request.args)
+        "ask.start", "ask.status" -> GatewayV5AskAdapter.dispatch(request.op, request.args)
         else -> throw GatewayProtocolException(
             "PROTOCOL_MISMATCH",
             "Unsupported gateway operation: ${request.op}",

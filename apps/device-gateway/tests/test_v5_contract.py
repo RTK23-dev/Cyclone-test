@@ -429,3 +429,89 @@ def test_alpha3_glass_resume_cannot_smuggle_a_new_place(service):
             "sessionId": "default-foreground", "displayId": 0,
         })
     assert bridge.calls == []
+
+
+ASK_STATUS = {
+    "taskId": "task-1",
+    "state": "needs-secret",
+    "title": "Gmail → Facebook",
+    "app": "Facebook",
+    "currentMilestone": "Finding the dm of Louella",
+    "milestones": [
+        {"label": "Finding the signed-in email address", "state": "done"},
+        {"label": "Finding the dm of Louella", "state": "action-needed"},
+    ],
+    "supportingCopy": "Secure input is required to continue.",
+    "outcomeCopy": None,
+    "sessionId": "default-foreground",
+    "displayId": 0,
+}
+
+
+class AskBridge(FakeBridge):
+    def __init__(self, status=None):
+        super().__init__()
+        self.status = dict(status or ASK_STATUS)
+
+    def request(self, op, args, request_id=None):
+        if op == "ask.start":
+            self.calls.append((op, dict(args), request_id))
+            return {"accepted": True, "sessionId": "default-foreground", "displayId": 0}
+        if op == "ask.status":
+            self.calls.append((op, dict(args), request_id))
+            return dict(self.status)
+        return super().request(op, args, request_id)
+
+
+def _ask_service(status=None):
+    bridge = AskBridge(status)
+    return V5ContractService(FakeFleet(bridge)), bridge
+
+
+FOREGROUND = {"sessionId": "default-foreground", "displayId": 0}
+
+
+def test_alpha4_ask_start_forwards_goal_text_on_the_foreground_plane():
+    svc, bridge = _ask_service()
+    goal = "open Gmail, check my current logged in email, then go to facebook and find the dm of Louella"
+    result = svc.forward("phone-1", "ask.start", {"goal": goal, **FOREGROUND})
+    assert result["accepted"] is True
+    assert bridge.calls == [("ask.start", {"goal": goal, **FOREGROUND}, bridge.calls[0][2])]
+
+
+def test_alpha4_ask_status_is_the_phone_snapshot():
+    svc, _ = _ask_service()
+    status = svc.forward("phone-1", "ask.status", dict(FOREGROUND))
+    assert status["state"] == "needs-secret"
+    assert status["milestones"][1]["state"] == "action-needed"
+
+
+@pytest.mark.parametrize("body, code", [
+    ({"goal": "open clock", "displayId": 0}, "SESSION_REQUIRED"),
+    ({"goal": "open clock", "sessionId": "vd-mail", "displayId": 3}, "SESSION_DISPLAY_MISMATCH"),
+    ({"goal": "", **FOREGROUND}, "INVALID_REQUEST"),
+    ({"goal": "x" * 2001, **FOREGROUND}, "INVALID_REQUEST"),
+    ({"goal": "open clock", "placeId": "package:com.x.y", **FOREGROUND}, "INVALID_REQUEST"),
+])
+def test_alpha4_ask_start_rejects_bad_requests_before_forwarding(body, code):
+    svc, bridge = _ask_service()
+    with pytest.raises(DesktopRuntimeError) as caught:
+        svc.forward("phone-1", "ask.start", body)
+    assert str(caught.value.code) == code
+    assert bridge.calls == []
+
+
+def test_alpha4_secrets_never_travel_in_a_goal():
+    svc, bridge = _ask_service()
+    with pytest.raises(DesktopRuntimeError):
+        svc.forward("phone-1", "ask.start", {"goal": "log in with password: hunter2", **FOREGROUND})
+    with pytest.raises(DesktopRuntimeError):
+        svc.forward("phone-1", "ask.start", {"goal": "open clock", "password": "hunter2", **FOREGROUND})
+    assert bridge.calls == []
+
+
+def test_alpha4_malformed_phone_ask_status_is_rejected():
+    svc, _ = _ask_service({**ASK_STATUS, "state": "walking"})
+    with pytest.raises(DesktopRuntimeError) as caught:
+        svc.forward("phone-1", "ask.status", dict(FOREGROUND))
+    assert str(caught.value.code) == "PROTOCOL_MISMATCH"

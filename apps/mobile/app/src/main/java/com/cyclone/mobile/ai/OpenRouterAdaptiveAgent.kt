@@ -142,6 +142,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         val packagesSeen: MutableSet<String> = mutableSetOf(),
         var pendingAutofill: Boolean = false,
         var pendingLoginAutofill: Boolean = false,
+        var atlasAnnounced: Boolean = false,
         var splashWaits: Int = 0,
         /** Raw observed account for this run only. Never copied into traces or consumer stages. */
         var observedAccountRaw: String? = null,
@@ -829,6 +830,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     })
                     .put("trajectory", session.trajectory.toJson())
                     .put("noProgressFailures", session.consecutiveNoProgressFailures)
+                    .apply { atlasSketchFor(session, goal)?.let { put("atlasSketch", it) } }
                     .put("runtimeFeedback", JSONObject()
                         .put("recentFailures", JSONArray(taskState.recentFailedActions.takeLast(8)))
                         .put("recoveryCyclesWithoutProgress", taskState.consecutiveRecoveryCyclesWithoutNewEvidence)
@@ -1788,6 +1790,25 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         return com.cyclone.mobile.fastpath.FastPathLanding.resolve(goal)
     }
 
+    /**
+     * V5: the phone's Atlas as a hint in the model context (rooms, doors, you-are-here, a suggested
+     * route). Never executed; the next action is still chosen from the live screen.
+     */
+    private fun atlasSketchFor(session: LocalSessionContext, goal: String): JSONObject? = runCatching {
+        AppLearnerRuntime.initialize(context)
+        val here = com.cyclone.mobile.mapping.crawl.CurrentRoom.key(execution.sessionId)
+        val sketch = com.cyclone.mobile.agent.plan.AtlasSketch.build(
+            com.cyclone.mobile.applearner.graphv2.AtlasRuntime.store,
+            goal,
+            setOfNotNull(here),
+        ) ?: return@runCatching null
+        if (!session.atlasAnnounced) {
+            session.atlasAnnounced = true
+            com.cyclone.mobile.agent.plan.AtlasSketch.stageLine(sketch.summaries)?.let { session.progress(it) }
+        }
+        sketch.json
+    }.getOrNull()
+
     private fun requestHorizonPlan(session: LocalSessionContext, goal: String): com.cyclone.mobile.agent.plan.TaskTrajectory? {
         session.providerRequests++
         session.progress("Mapping the long-horizon route…")
@@ -1796,6 +1817,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             .put("TIER", "HARD")
             .put("CURRENT_PAGE", session.state.page.toAgentJson(goal))
             .put("SEEDED_TRAJECTORY", session.trajectory.toJson())
+            .apply { atlasSketchFor(session, goal)?.let { put("ATLAS_SKETCH", it) } }
             .put("rule", "Replace the seeded landing with a compact waypoint plan. Destinations only. No click scripts.")
         val response = pageChat(
             session.apiKey,

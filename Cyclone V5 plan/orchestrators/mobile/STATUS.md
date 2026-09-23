@@ -1,12 +1,14 @@
 # Mobile orchestrator — STATUS
 
-## Current state (2026-09-23) — alpha.3 dev1 in PR
+## Current state (2026-09-23) — alpha.4 dev1 in PR (alpha.3 merged)
 
 **Published developer prerelease:** [`v5.0.0-alpha.2.dev3`](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.2.dev3) — Mobile `5.0.0-alpha.2.dev3` (versionCode 143) + Glass `1.6.0-alpha.2`, source `a896b5da`. Mobile + Glass CI passed; physical phone / Glass acceptance **waived by the owner, not passed**. Signed with the historical development key, which is exposed in repository history (**security debt**; rotation work parked in #168).
 
 **Integration:** #169 merged into `v5/integration` (`df306096`) so integration equals the released source plus its release automation. #167 closed as superseded (its commits are in #169).
 
-**Next candidate:** `5.0.0-alpha.3.dev1` (versionCode 144) + Glass `1.6.0-alpha.3` on `claude/cyclone-v5-handoff-review-9qrs40` — one-button mapping. Plan: [`SESSION-PLAN-alpha3-mapper.md`](SESSION-PLAN-alpha3-mapper.md).
+**Merged:** alpha.3 dev1 (one-button mapping, #171) into `v5/integration` (`51b52150`); not published separately.
+
+**Next candidate:** `5.0.0-alpha.4.dev1` (versionCode 145) + Glass `1.6.0-alpha.4` on `claude/cyclone-v5-handoff-review-9qrs40` — the sentence is law, the Atlas as an Ask hint, and Ask from Glass.
 
 | Capability | State |
 |---|---|
@@ -16,8 +18,10 @@
 | **Autonomous mapping** (driver, backtracking, mapping-persona Atlas port, notification Stop, secret pause/resume) | **new in alpha.3.dev1**, JVM-tested against a fake app with the real walker/controller/journal/AtlasStore; device-unproven |
 | Phone App Maps: Map an app / Pause / Resume / Stop / rooms / structural report | **new in alpha.3.dev1** |
 | Glass Maps: Start/Pause/Stop, live cursor, cards appear from `atlas.diff` | **new in alpha.3.dev1** (Glass side) |
-| Ask reads the Atlas (compiler, People memory, capabilities) | not started — next build |
-| Glass Ask (`ask.start`, live HUD mirror) | not started — next build |
+| Sentence is law: account words no longer become "Checking … login status"; stages keep the user's verb | **new in alpha.4.dev1**, JVM-tested |
+| Ask reads the Atlas as a hint (`atlasSketch`: rooms, doors, you-are-here, suggested route) | **new in alpha.4.dev1**; plumbing/privacy tested; effect on model choices unproven |
+| Glass Ask (`ask.start`, `ask.status`, live HUD mirror) | **new in alpha.4.dev1**, phone + gateway + Glass tested; device-unproven |
+| People memory, fact-slot reading, capability index | not started |
 | Chrome-origin mapping, VD-plane mapping, dummy sign-up, freshness | not started |
 
 Physical Pixel 8 status stays **UNVERIFIED** for every row until a named pass exists.
