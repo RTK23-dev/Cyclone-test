@@ -1,61 +1,73 @@
 # Glass orchestrator — STATUS
 
-**Wave:** 1 (alpha.1 HUD + alpha.2 Maps look-and-feel)  
-**Integration branch:** `v5/integration` @ `805e4b11bcbcf6abefb42d291fb88dbd5289c2a8`  
-**Sync:** issue #137 resolved — integration now exists and carries the hardened V5 plan  
-**Plan:** generation plan `9f1d440e`; orchestrator pack on `main` `d2ec2ca5`  
-**Code base:** `release/cyclone-mobile-v4.8.0` @ `97f81cb692893896b500f2372068fb1cd67d85ed` (One 1.5.5)
+> **Owner correction, 2026-09-23 — read first.** Glass is a **local web app in the browser** (`apps/glass`), not pages in Cyclone One (`apps/pc-companion`) and not Artemis. It is the developer's eyes on the phone's engine: Apps + versions, Map and Scenarios boards, Run inspector (cause of death), Knowledge, Phone control. No intelligence. Charter: [`03-glass-v1.md`](../../03-glass-v1.md), cuts: [`09`](../../09-cuts-and-milestones.md). Runs 1–3 below built a **prototype inside Cyclone One**; port it, do not extend it.
 
-## Board
+## Current state (2026-09-23) — alpha.4 dev1 in PR (alpha.3 merged)
 
-| ID | Agent | Branch | State | PR | Return |
-|---|---|---|---|---|---|
-| 001 | shell-ask-secret | `v5/glass/shell-ask-secret` | issued | | |
-| 002 | maps-canvas | `v5/glass/maps-canvas` | issued | | |
-| 003 | atlas-client | `v5/glass/atlas-client` | issued / dependency-gated | | |
+**Published developer prerelease:** [`v5.0.0-alpha.2.dev3`](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.2.dev3) — Mobile `5.0.0-alpha.2.dev3` (versionCode 143) + Glass `1.6.0-alpha.2`, source `a896b5da`. Mobile + Glass CI passed; physical phone / Glass acceptance **waived by the owner, not passed**. Signed with the historical development key, which is exposed in repository history (**security debt**; rotation work parked in #168).
 
-States: `drafted` → `issued` → `in-pr` → `returned` → `merged` | `blocked`
+**Integration:** #169 merged into `v5/integration` (`df306096`) so integration equals the released source plus its release automation. #167 closed as superseded (its commits are in #169).
 
-## Handoff issuance
+**Merged:** alpha.3 dev1 (one-button mapping, #171) into `v5/integration` (`51b52150`); not published separately.
 
-All three wave-1 handoffs are issued under `agents/` against `v5/integration`.
+**Next candidate:** `5.0.0-alpha.4.dev1` (versionCode 145) + Glass `1.6.0-alpha.4` on `claude/cyclone-v5-handoff-review-9qrs40` — the sentence is law, the Atlas as an Ask hint, and Ask from Glass.
 
-Run 001 launch pack is also seeded on `v5/integration` under `agents/run-001/`: one shared brief plus one agent-specific brief per implementation agent.
+| Capability | State |
+|---|---|
+| Vault + Secrets Card, `needs-secret` on login walls (password slot) | implemented, CI-tested, device-unproven |
+| Durable Atlas, Follow Me → Atlas, `atlas.places/get/diff` | implemented, CI-tested, device-unproven |
+| Canonical Places + Chrome origin privacy, Settings mounts | implemented, CI-tested, device-unproven |
+| **Autonomous mapping** (driver, backtracking, mapping-persona Atlas port, notification Stop, secret pause/resume) | **new in alpha.3.dev1**, JVM-tested against a fake app with the real walker/controller/journal/AtlasStore; device-unproven |
+| Phone App Maps: Map an app / Pause / Resume / Stop / rooms / structural report | **new in alpha.3.dev1** |
+| Glass Maps: Start/Pause/Stop, live cursor, cards appear from `atlas.diff` | **new in alpha.3.dev1** (Glass side) |
+| Sentence is law: account words no longer become "Checking … login status"; stages keep the user's verb | **new in alpha.4.dev1**, JVM-tested |
+| Ask reads the Atlas as a hint (`atlasSketch`: rooms, doors, you-are-here, suggested route) | **new in alpha.4.dev1**; plumbing/privacy tested; effect on model choices unproven |
+| Glass Ask (`ask.start`, `ask.status`, live HUD mirror) | **new in alpha.4.dev1**, phone + gateway + Glass tested; device-unproven |
+| People memory, fact-slot reading, capability index | not started |
+| Chrome-origin mapping, VD-plane mapping, dummy sign-up, freshness | not started |
 
-- **001** owns shell/nav, Ask wait-state, Vault slot stub, and the minimum route seam in `src/core/fleet.ts` + route tests. It must not invent atlas/secrets transport.
-- **002** is intentionally standalone/mock-backed and may proceed in parallel without touching `app.ts`. Its output is the full Minitap-class board and a single swappable `AtlasViewModel`.
-- **003** is issued but execution remains dependency-gated: consume Mobile 001 schemas from integration and rebase onto 001/002 before transport wiring. It must never fork CONTRACT names.
+Physical Pixel 8 status stays **UNVERIFIED** for every row until a named pass exists.
 
-No Glass product branch existed at this status refresh; implementation agents should create their own branches from the integration SHA above when they begin.
+**Wave:** Run 3 **COMPLETE** (alpha.2 operator table)  
+**Integration branch:** `v5/integration` @ `5ec5957b` (plus orch glue on top)  
+**Last release:** `glass-1.0.0-alpha.1` (companion `1.6.0-alpha.1`)  
+**Orch session:** 2026-09-22 — Run 3 merged; combined companion tests **218 pass / 0 fail**  
+**Code base:** One 1.5.5 live path on Mobile 4.8.0; Glass HUD Run 1 + honest pipe Run 2 + operator table Run 3
 
-## Contract with Mobile
+## Run 1 (complete)
 
-- [ ] `needs-secret` on the Ask presentation snapshot
-- [ ] `protocol/cyclone-atlas-v1.schema.json` + `cyclone-secrets-v1.schema.json` on integration
-- [ ] `atlas.get(placeId, persona)` from Follow Me / AtlasStore for a real house
-- [ ] shared `session_id` rules preserved
+| ID | Agent | PR | State |
+|---|---|---|---|
+| 001 | shell-ask-secret | [#153](https://github.com/premiumcentraal-boop/Cyclone/pull/153) | merged |
+| 002 | maps-canvas | [#155](https://github.com/premiumcentraal-boop/Cyclone/pull/155) | merged |
+| 003 | atlas-client | [#154](https://github.com/premiumcentraal-boop/Cyclone/pull/154) | merged |
+| 004 | glue-maps | [#156](https://github.com/premiumcentraal-boop/Cyclone/pull/156) | merged |
+| 005 | glue-copy-adapter | [#158](https://github.com/premiumcentraal-boop/Cyclone/pull/158) | merged |
+| 006 | glass-identity | [#157](https://github.com/premiumcentraal-boop/Cyclone/pull/157) | merged |
 
-## Deep-dive findings
+## Run 2 (complete) — honest live replica
 
-- Glass is an additive HUD over One 1.5.5: keep JPEG live, handoff, session tiles, MCP/ChatGPT Attach, camera, pairing, and doctor.
-- Phone remains the only mutation authority. No PC `PhoneToolExecutor`; Maps is a replica + command surface.
-- Maps is a **primary nav** and alpha.2 exit criterion: dotted infinite board, screen cards, door edges, fit/pan/zoom, inspector, Live/Dummy split, coverage, honest empty/stale states.
-- The renderer boundary matters: 002 must export one `AtlasViewModel`; 003 swaps mock → `atlas.get` without rewriting canvas internals.
-- alpha.1 ships Ask + phone-only secret waiting first; encrypted Glass fill stays later unless proven leak-free.
-- Mobile < 5.0 must fail closed with “update the phone” for Ask/Maps/Vault atlas features.
-- `session_id` is not optional metadata; it is part of authority and routing, especially for named workspaces.
-- Remote MCP remains readonly; no silent `mapping.start`.
-- The current integration branch already contains the V5 hardening commit that tightens durable atlas persistence and secret boundaries. Glass must consume those rules rather than carrying older draft assumptions.
+| ID | Agent | PR | State |
+|---|---|---|---|
+| 007 | maps-honest-source | [#161](https://github.com/premiumcentraal-boop/Cyclone/pull/161) | merged |
+| 008 | vault-live-slots | [#159](https://github.com/premiumcentraal-boop/Cyclone/pull/159) | merged |
+| 009 | glass-runtime-wire | [#160](https://github.com/premiumcentraal-boop/Cyclone/pull/160) | merged |
 
-## Next orchestration checkpoints
+## Run 3 (complete) — operator table
 
-1. 001 can start immediately from `v5/integration`.
-2. 002 can start immediately in parallel against its mock graph and must not edit shell navigation.
-3. 003 waits for the route surface plus Mobile schemas/ops, then rebases and wires the pipe.
-4. After each return: update this board, review PR scope/contract, and write the next numbered handoff. Do not start alpha.3 mapping cursor/start work early.
+Combined `apps/pc-companion` tests after merge + type-assert cleanup: **218 pass / 0 fail**. `tsc --noEmit` clean.
 
-## Notes
+| ID | Agent | PR | State |
+|---|---|---|---|
+| 010 | maps-operator-board | [#164](https://github.com/premiumcentraal-boop/Cyclone/pull/164) | merged `1eb5a4d8` |
+| 011 | ask-hud-honesty | [#163](https://github.com/premiumcentraal-boop/Cyclone/pull/163) | merged `ac63e757` |
+| 012 | glass-session-bind | [#162](https://github.com/premiumcentraal-boop/Cyclone/pull/162) | merged `5ec5957b` |
 
-- Sync issue #137 is obsolete because Mobile created `v5/integration`; close it rather than creating any second integration branch.
-- Mobile STATUS on `main` is stale, but live branches show all three Mobile wave-1 branches now exist. Glass should trust branch/PR evidence over that stale board and keep CONTRACT synchronization explicit.
-- No product code was written by the Glass orchestrator.
+010: session plane on Maps, Take control → Phone, edge inspector (English doors), Dark doors filter, capability glyphs. Start mapping still disabled.  
+011: Ask samples only when preview/omitted version; 5.x without preview is empty honest HUD; redacted HUD log download; Send off.  
+012: `focusedSessionId`; Ask/Maps/Vault keep the focused phone; named VD from Phone tiles; mock-only `previewSnapshots`.
+
+## Still blocked / not this cut
+
+Live Gmail house on the board still needs Mobile [#146](https://github.com/premiumcentraal-boop/Cyclone/pull/146) (`atlas.get` Follow Me).  
+`mapping.start` / cursor / `atlas.diff` (alpha.3). Encrypted PC fill. `ask.start` / Send. Gateway/MCP 5.0 bump. Glass identity / GitHub prerelease (still `1.6.0-alpha.1` / `glass-1.0.0-alpha.1`). Pixel UNVERIFIED.

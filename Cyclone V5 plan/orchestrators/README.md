@@ -5,7 +5,7 @@ Two orchestrators. They do **not** write product code. They read the generation 
 | Orchestrator | Owns | Path |
 |---|---|---|
 | **Mobile 5.0** | Phone: vault, atlas, mapper, Ask compiler, overlay, GATE. Protocol *schemas* (source of truth). Gateway *server* ops. | [`mobile/`](mobile/ORCHESTRATOR.md) |
-| **Glass 1.0** | PC HUD: Ask, **Maps canvas**, Vault slots, live, atlas *client*. Never a second brain. | [`glass/`](glass/ORCHESTRATOR.md) |
+| **Glass 1.0** | Local web dev dashboard (`apps/glass`): Apps, **Maps + Scenarios**, **Run inspector**, Knowledge, Phone control. Never a second brain. See [03](../03-glass-v1.md). | [`glass/`](glass/ORCHESTRATOR.md) |
 
 The **connection** is not a third team. It is [`CONTRACT.md`](CONTRACT.md). Both orchestrators must keep it true. Neither side ships if the contract is a lie.
 
@@ -28,7 +28,7 @@ Cyclone V5 plan/orchestrators/
     (same shape)
 ```
 
-Code does **not** live in this folder. Code lives in `apps/mobile`, `apps/pc-companion`, `apps/device-gateway`, `protocol/`, `tools/*mcp`. This folder is command and memory.
+Code does **not** live in this folder. Code lives in `apps/mobile`, `apps/glass` (Glass web app; `apps/pc-companion` is Cyclone One), `apps/device-gateway`, `protocol/`, `tools/*mcp`. This folder is command and memory.
 
 ## Branch rules
 
