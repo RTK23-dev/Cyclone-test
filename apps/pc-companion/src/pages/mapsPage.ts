@@ -40,6 +40,14 @@ import {
   namedMapsLoadError,
   type MapsLoadErrorView,
 } from "../maps/phoneAtlasSource.js";
+import {
+  createMappingWatcher,
+  isActiveMapping,
+  mappingStatusLine,
+  type MappingOps,
+  type MappingWatcher,
+} from "../maps/mappingWatcher.js";
+import type { MappingJobView } from "../services/atlasClient.js";
 import { button, el, setChildren } from "../ui/dom.js";
 import { createAppMapCanvas, type AppMapCanvasHandle } from "../ui/appMapCanvas.js";
 
@@ -56,9 +64,16 @@ export interface MapsPageOptions {
   sessionId?: string;
   sessionPlane?: "foreground" | "session_kernel_vd";
   onOpenControl?: () => void;
+  /** Real phone mapping commands. Absent in demo / no phone: Start stays disabled and says why. */
+  mapping?: MappingOps;
+  /** Test seam for the mapping poll timer. */
+  mappingTimer?: { set(fn: () => void, ms: number): unknown; clear(handle: unknown): void };
 }
 
-const ALPHA_HINT = "phone alpha.3";
+const ALPHA_HINT = "Connect a Mobile 5 phone to map";
+const MAP_START_HINT = "Walks this app's tabs, menus and settings on the phone. Never pays, sends, deletes or grants.";
+const MAP_VD_HINT = "Mapping runs on the phone's main screen (Foreground) in this alpha.";
+const MAP_NO_APP_HINT = "Pick an installed app, or start the first pass on the phone: Settings → App Maps.";
 const TAKE_CONTROL_HINT = "Phone live handoff, not mapping pause.";
 
 type BoardPhase = "update-phone" | "loading" | "ready" | "empty" | "error";
@@ -164,13 +179,19 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
   const start = button("Start mapping", "button primary compact maps-start");
   start.disabled = true;
   start.title = ALPHA_HINT;
+  const pauseMapping = button("Pause", "button secondary compact maps-pause");
+  pauseMapping.hidden = true;
+  const stopMapping = button("Stop", "button secondary compact maps-stop");
+  stopMapping.hidden = true;
+  const mappingStatus = el("div", "maps-mapping-status");
+  mappingStatus.setAttribute("aria-live", "polite");
 
   const filterStale = chip("Stale", "stale");
   const filterBlocked = chip("Blocked", "blocked");
   const filterDanger = chip("Danger", "danger");
   const filterDark = chip("Dark doors", "unmapped");
   const filtersWrap = el("div", "maps-filters");
-  filtersWrap.append(filterStale, filterBlocked, filterDanger, filterDark, takeControl, start);
+  filtersWrap.append(filterStale, filterBlocked, filterDanger, filterDark, takeControl, mappingStatus, pauseMapping, stopMapping, start);
 
   top.append(heading, sessionPlane, personaSeg.root, viewSeg.root, coverage, el("div", "maps-top-spacer"), filtersWrap);
 
@@ -387,7 +408,7 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
     );
   };
 
-  const renderAll = (fit: boolean): void => {
+  let renderAll = (fit: boolean): void => {
     if (phase === "ready" && !sourceHasPlaces(source, persona)) phase = "empty";
     if (phase === "empty" && sourceHasPlaces(source, persona)) phase = "ready";
     page.dataset.mapsPhase = phase;
@@ -480,7 +501,133 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
     renderRail();
   });
 
+  // ── Live mapping: the phone walks, the board watches. ───────────────────
+  const mappingOps = demo ? undefined : options.mapping;
+  const mappingAllowed = Boolean(mappingOps) && atlasReady && options.sessionPlane !== "session_kernel_vd";
+  let mappingJob: MappingJobView | null = null;
+  let mappingBusy = false;
+  let reloading = false;
+  let reloadAgain = false;
+
+  const paintMappingControls = (): void => {
+    const active = isActiveMapping(mappingJob);
+    const line = mappingStatusLine(mappingJob);
+    mappingStatus.textContent = line;
+    mappingStatus.hidden = line === "";
+    mappingStatus.classList.toggle("needs-secret", mappingJob?.state === "needs-secret");
+    pauseMapping.hidden = !active;
+    stopMapping.hidden = !active;
+    pauseMapping.textContent = mappingJob?.state === "running" ? "Pause" : "Resume";
+    pauseMapping.disabled = mappingBusy;
+    stopMapping.disabled = mappingBusy;
+    start.hidden = active;
+    if (!mappingOps) {
+      start.disabled = true;
+      start.title = ALPHA_HINT;
+    } else if (!mappingAllowed) {
+      start.disabled = true;
+      start.title = atlasReady ? MAP_VD_HINT : ALPHA_HINT;
+    } else if (!placeId.startsWith("package:")) {
+      start.disabled = true;
+      start.title = MAP_NO_APP_HINT;
+    } else {
+      start.disabled = mappingBusy;
+      start.title = MAP_START_HINT;
+    }
+    const cursorVisible = mappingJob != null && persona === "mapping" && mappingJob.placeId === placeId;
+    canvas.setCursorScreenId(cursorVisible ? mappingJob?.currentAtlasNodeId ?? null : null);
+  };
+
+  const reloadBoard = (focusPlaceId: string): void => {
+    if (!loadSource || destroyed) return;
+    if (reloading) {
+      reloadAgain = true;
+      return;
+    }
+    reloading = true;
+    void Promise.resolve()
+      .then(() => loadSource())
+      .then((next) => {
+        if (destroyed) return;
+        source = next ?? emptyMapsDataSource();
+        if (persona === "mapping" && source.listSummaries("mapping").some((item) => item.place.placeId === focusPlaceId)) {
+          placeId = focusPlaceId;
+        }
+        if (phase !== "update-phone") phase = sourceHasPlaces(source, persona) ? "ready" : "empty";
+        // Keep the operator's pan/zoom: new cards appear, the board does not jump.
+        renderAll(false);
+        paintMappingControls();
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        reloading = false;
+        if (reloadAgain && !destroyed) {
+          reloadAgain = false;
+          reloadBoard(focusPlaceId);
+        }
+      });
+  };
+
+  const watcher: MappingWatcher | null = mappingOps && mappingAllowed
+    ? createMappingWatcher({
+        ops: mappingOps,
+        onJob(job) {
+          mappingJob = job;
+          paintMappingControls();
+        },
+        onAtlasChanged(changedPlaceId) {
+          reloadBoard(changedPlaceId);
+        },
+        onError() {
+          mappingStatus.textContent = "Lost contact with the phone's mapping pass; retrying.";
+          mappingStatus.hidden = false;
+        },
+        setTimer: options.mappingTimer?.set,
+        clearTimer: options.mappingTimer?.clear,
+      })
+    : null;
+
+  const runMappingCommand = (command: () => Promise<void>): void => {
+    if (mappingBusy) return;
+    mappingBusy = true;
+    paintMappingControls();
+    void command()
+      .catch((error: unknown) => {
+        const code = (error as { code?: unknown })?.code;
+        mappingStatus.textContent = mappingErrorCopy(typeof code === "string" ? code : "");
+        mappingStatus.hidden = false;
+      })
+      .finally(() => {
+        mappingBusy = false;
+        paintMappingControls();
+      });
+  };
+
+  start.addEventListener("click", () => {
+    if (!watcher || start.disabled) return;
+    const target = placeId;
+    persona = "mapping";
+    selectedScreenId = null;
+    selectedEdgeId = null;
+    runMappingCommand(() => watcher.start(target));
+  });
+  pauseMapping.addEventListener("click", () => {
+    if (!watcher) return;
+    runMappingCommand(() => (mappingJob?.state === "running" ? watcher.pause() : watcher.resume()));
+  });
+  stopMapping.addEventListener("click", () => {
+    if (!watcher) return;
+    runMappingCommand(() => watcher.stop());
+  });
+
+  const baseRenderAll = renderAll;
+  renderAll = (fit: boolean): void => {
+    baseRenderAll(fit);
+    paintMappingControls();
+  };
+
   renderAll(true);
+  if (watcher) void watcher.attach().catch(() => undefined);
 
   if (phase === "loading" && loadSource) {
     const gen = ++loadGen;
@@ -514,9 +661,26 @@ export function createMapsPage(options: MapsPageOptions = {}): MapsPageHandle {
     destroy(): void {
       destroyed = true;
       loadGen += 1;
+      watcher?.dispose();
       canvas.destroy();
     },
   };
+}
+
+function mappingErrorCopy(code: string): string {
+  switch (code) {
+    case "MAPPING_PLANE_BUSY":
+      return "A mapping pass is already running on this phone.";
+    case "HUMAN_HAS_CONTROL":
+      return "You have control of the phone. Give it back to Cyclone, then start mapping.";
+    case "SESSION_REQUIRED":
+    case "SESSION_DISPLAY_MISMATCH":
+      return "The phone's main screen isn't available to Cyclone. Check accessibility on the phone.";
+    case "PLACE_NOT_LAUNCHABLE":
+      return "Glass maps installed apps in this alpha.";
+    default:
+      return `Mapping couldn't start${code ? ` (${code})` : ""}.`;
+  }
 }
 
 function sourceHasPlaces(source: MapsDataSource, persona: Persona): boolean {

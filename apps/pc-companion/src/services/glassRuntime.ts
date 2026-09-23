@@ -5,7 +5,8 @@
  * device id, session id, and phone version. Pages receive loaders + version;
  * they never see the bearer.
  *
- * Does not implement mapping.start, ask.start, or encrypted fill.
+ * Mapping is commanded through `atlas` (the phone walks the app). Does not implement ask.start
+ * or encrypted fill.
  */
 
 import { DEFAULT_FOREGROUND_SESSION_ID } from "../core/sessionTiles.js";

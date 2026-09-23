@@ -127,7 +127,7 @@ test("demo: true shows mock Gmail rooms and a visible (demo) banner", () => {
   assert.match(banner.textContent, /\(demo\)/);
   assert.match(page.element.textContent, new RegExp(MAPS_DEMO_LABEL.replace(/[()]/g, "\\$&")));
   assert.equal(page.element.querySelector(".maps-start")?.disabled, true);
-  assert.equal(page.element.querySelector(".maps-start")?.title, "phone alpha.3");
+  assert.equal(page.element.querySelector(".maps-start")?.title, "Connect a Mobile 5 phone to map");
   page.destroy();
 });
 
@@ -182,11 +182,11 @@ test("phone 5.0 empty loadSource is honest empty, not a crash or mock Gmail", as
   const names = [...page.element.querySelectorAll(".maps-place-name")].map((node) => node.textContent);
   assert.equal(names.includes("Gmail"), false);
   assert.equal(page.element.querySelector(".maps-start")?.disabled, true);
-  assert.equal(page.element.querySelector(".maps-start")?.title, "phone alpha.3");
+  assert.equal(page.element.querySelector(".maps-start")?.title, "Connect a Mobile 5 phone to map");
   page.destroy();
 });
 
-test("phone 5.0 unmapped place keeps Start mapping disabled with phone alpha.3", async () => {
+test("phone 5.0 unmapped place without mapping ops keeps Start mapping disabled and says why", async () => {
   installMiniDom();
   const page = createMapsPage({
     phoneVersion: "5.0.0-alpha.1",
@@ -197,7 +197,7 @@ test("phone 5.0 unmapped place keeps Start mapping disabled with phone alpha.3",
   assert.equal(page.element.querySelector(".map-empty-action")?.disabled, true);
   assert.equal(page.element.querySelector(".map-empty-action")?.title, "mapper is phone alpha.3");
   assert.equal(page.element.querySelector(".maps-start")?.disabled, true);
-  assert.equal(page.element.querySelector(".maps-start")?.title, "phone alpha.3");
+  assert.equal(page.element.querySelector(".maps-start")?.title, "Connect a Mobile 5 phone to map");
   assert.equal(page.element.querySelector(".maps-status.unmapped")?.textContent, "Not mapped");
   page.destroy();
 });

@@ -138,12 +138,12 @@ test("Dark doors chip keeps rooms with a dark outgoing door and hides high-confi
   page.destroy();
 });
 
-test("Start mapping stays disabled on the operator bar and empty board", () => {
+test("Start mapping stays disabled without a connected phone", () => {
   installMiniDom();
   const page = createMapsPage();
   const start = page.element.querySelector(".maps-start");
   assert.equal(start.disabled, true);
-  assert.equal(start.title, "phone alpha.3");
+  assert.equal(start.title, "Connect a Mobile 5 phone to map");
   const youtube = [...page.element.querySelectorAll(".maps-place")].find((row) => row.textContent.includes("YouTube"));
   youtube.click();
   assert.equal(page.element.querySelector(".map-empty-action")?.disabled, true);

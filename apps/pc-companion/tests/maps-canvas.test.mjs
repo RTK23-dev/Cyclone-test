@@ -231,6 +231,6 @@ test("maps page smoke: rail, empty place, inspector select", () => {
   assert.ok(inspector.textContent.includes("open avatar") === false || inspector.textContent.includes("add another account"));
   const start = page.element.querySelector(".maps-start");
   assert.equal(start.disabled, true);
-  assert.equal(start.title, "phone alpha.3");
+  assert.equal(start.title, "Connect a Mobile 5 phone to map");
   page.destroy();
 });
