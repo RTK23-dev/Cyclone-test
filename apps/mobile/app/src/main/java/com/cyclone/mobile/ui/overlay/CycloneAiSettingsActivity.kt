@@ -237,8 +237,9 @@ private fun AiSettingsContent(context: Context, onBack: () -> Unit) {
     }
 }
 
+/** Shared by the AI settings screen and the main Settings → Appearance → Working indicator page. */
 @Composable
-private fun ColumnScope.WorkingIndicatorSettings(context: Context) {
+internal fun ColumnScope.WorkingIndicatorSettings(context: Context) {
     var mode by remember { mutableStateOf(TraceFieldPrefs.mode(context)) }
     var style by remember { mutableStateOf(TraceFieldPrefs.style(context)) }
     var previewMessage by remember { mutableStateOf<String?>(null) }

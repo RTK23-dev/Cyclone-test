@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.6 dev1 paired Mobile and Glass developer candidate: living aurora Trace Field with focus contrast.
-# Owner-requested developer alpha: exact release-branch CI, legacy dev signer, physical acceptance waived.
+# Owner-requested developer alpha: exact release-branch CI, legacy dev signer, physical acceptance waived. Working indicator reachable from main Settings.
 schema = 1
 product_version = "5.0.0-alpha.6.dev1"
 channel = "development"
