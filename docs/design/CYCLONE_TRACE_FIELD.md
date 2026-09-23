@@ -281,3 +281,22 @@ Deferred from the concept: haptic ticks, custom Cyclone glyph
 strokes, per-node exclusion rects (only the Aurora pill area is excluded), and the long-press
 "what do these digits mean" tooltip. Physical Pixel 8 frame-time and battery measurements are
 still UNVERIFIED.
+
+## 11. alpha.6: living aurora and focus contrast
+
+Owner feedback on alpha.5 on a real phone: the lens read as a carved-out block in the middle ~20 % of
+the screen, and while Cyclone thought, opened apps or clicked through the accessibility tree (no
+gestures) the field was a still circle.
+
+- **Two broad gradients** carry the digits far into the page at near-invisible opacity: an oval
+  around the lens (natural, not rectangular) and a soft vertical band reaching about half the screen.
+- **Ambient aurora**: domain-warped value noise shaped into slow curtains flows across the whole
+  screen (faint floor ~5 %, patches up to ~39 % of peak). It uses a seed-free hash, so a new page
+  fingerprint never makes it jump.
+- **Focus** (0 to 1) from the choreographer: target, act and verify = 1, recover 0.8, observe 0.6,
+  gate 0.5, otherwise 0.12. Focused: the sharp rounded-rect lens plus the oval, with the aurora
+  dimmed by 55 %. Thinking: a wide diffuse oval that drifts on incommensurate 19 s/7.3 s/23 s/8.9 s
+  periods, so it never visibly repeats. Focus arrives in ~0.12 s and relaxes over ~0.6 s.
+- **Cost**: glyph lookup now runs before any field maths, so the ~90 % of pixels without a digit
+  still exit after a few hashes and one texture read. The aurora (4 noise lookups) runs only on
+  digit pixels. Still unmeasured on a device.
