@@ -1,5 +1,11 @@
 # Paired V5 Mobile + Glass publication
 
+## Owner-authorized alpha waiver (2026-09-23)
+
+Physical-device testing is no longer required for this alpha, by explicit owner request. No connected phone or evidence branch is required. The publisher now takes only `mobile_ci_run_id`, `signing_run_id`, and `glass_ci_run_id`; after steps 1–3 below, dispatch it directly. Steps 4–6 and the evidence schema below describe the former device-tested process and are not release gates for this alpha.
+
+The manifest records `NOT_TESTED_USER_WAIVED`, and release notes disclose that the phone update and real Phone-to-Glass behavior are unverified. Do not mark physical tests as passed. Protected APK signing, identity, checksums, and source provenance remain required. Back up important app data; do not uninstall the existing app to resolve update errors.
+
 The publisher is `.github/workflows/v5-combined-publish.yml`. Merge that workflow onto the repository default branch before using **Run workflow** with the exact `release/cyclone-mobile-v<version>` ref. It creates **one GitHub prerelease** containing the signed update APK and Windows installer, with checksums and provenance. It never converts an unsigned Android CI candidate into an installable update.
 
 ## Required order

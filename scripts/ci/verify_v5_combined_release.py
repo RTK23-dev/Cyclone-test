@@ -28,8 +28,9 @@ def file_hash(path: Path) -> str:
 
 
 def verify(
-    mobile_dir: Path, glass_dir: Path, evidence_path: Path, source_sha: str,
+    mobile_dir: Path, glass_dir: Path, evidence_path: Path | None, source_sha: str,
     mobile_run_id: int, signing_run_id: int, glass_run_id: int, observed_signer_sha256: str,
+    skip_physical_testing: bool = False,
 ) -> dict:
     if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ValueError("Invalid source SHA")
@@ -73,6 +74,25 @@ def verify(
     if not installer.is_file():
         raise ValueError("Glass installer is absent")
     glass_digest = file_hash(installer)
+    if not re.fullmatch(r"[0-9a-f]{64}", observed_signer_sha256):
+        raise ValueError("Verified APK signer fingerprint is missing")
+    if skip_physical_testing:
+        if "-alpha." not in mobile_version or "-alpha." not in glass_version:
+            raise ValueError("Physical testing waiver is only allowed for alpha prereleases")
+        return {
+            "schema": 1, "source_sha": source_sha,
+            "mobile_version": mobile_version, "mobile_version_code": metadata["android_version_code"],
+            "signed_apk": apk_name, "signed_apk_sha256": apk_digest,
+            "signed_apk_cert_sha256": observed_signer_sha256,
+            "glass_version": glass_version, "glass_installer": installer_name,
+            "glass_installer_sha256": glass_digest,
+            "mobile_ci_run_id": mobile_run_id, "signing_run_id": signing_run_id,
+            "glass_ci_run_id": glass_run_id,
+            "physical_acceptance": "NOT_TESTED_USER_WAIVED",
+            "physical_evidence": None, "physical_evidence_sha256": None,
+        }
+    if evidence_path is None:
+        raise ValueError("Physical evidence or explicit alpha testing waiver is required")
     physical = json.loads(evidence_path.read_text(encoding="utf-8"))
     if physical.get("schema") != 1 or physical.get("status") != "PASS" or physical.get("publication_authorized") is not True:
         raise ValueError("Physical acceptance status is not PASS")
@@ -112,7 +132,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mobile-dir", type=Path, required=True)
     parser.add_argument("--glass-dir", type=Path, required=True)
-    parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--evidence", type=Path)
+    parser.add_argument("--skip-physical-testing", action="store_true")
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--mobile-run-id", type=int, required=True)
     parser.add_argument("--signing-run-id", type=int, required=True)
@@ -122,7 +143,7 @@ def main() -> int:
     args = parser.parse_args()
     manifest = verify(args.mobile_dir, args.glass_dir, args.evidence, args.source_sha,
                       args.mobile_run_id, args.signing_run_id, args.glass_run_id,
-                      args.observed_signer_sha256)
+                      args.observed_signer_sha256, args.skip_physical_testing)
     args.manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"Accepted paired Mobile {manifest['mobile_version']} and Glass {manifest['glass_version']}")
     return 0

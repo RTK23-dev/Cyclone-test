@@ -81,6 +81,20 @@ publication_authorized = true
         self.assertEqual(manifest["signed_apk_sha256"], self.apk_digest)
         self.assertEqual(manifest["glass_installer_sha256"], self.glass_digest)
 
+    def test_alpha_waiver_requires_no_device_evidence(self):
+        manifest = paired.verify(self.mobile, self.glass, None, SOURCE, 101, 202, 303, SIGNER, True)
+        self.assertEqual(manifest["physical_acceptance"], "NOT_TESTED_USER_WAIVED")
+        self.assertIsNone(manifest["physical_evidence"])
+
+    def test_alpha_waiver_does_not_bypass_signing(self):
+        (self.mobile / "signing-state.txt").write_text("UNSIGNED_VERIFIED_CANDIDATE\n")
+        with self.assertRaisesRegex(ValueError, "not protected-environment signed"):
+            paired.verify(self.mobile, self.glass, None, SOURCE, 101, 202, 303, SIGNER, True)
+
+    def test_no_implicit_waiver(self):
+        with self.assertRaisesRegex(ValueError, "explicit alpha testing waiver"):
+            paired.verify(self.mobile, self.glass, None, SOURCE, 101, 202, 303, SIGNER)
+
     def test_refuses_signed_byte_change(self):
         (self.mobile / "Cyclone-5.0.0-alpha.2.dev3.apk").write_bytes(b"other app")
         with self.assertRaisesRegex(ValueError, "checksum"):
