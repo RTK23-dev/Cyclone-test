@@ -103,19 +103,30 @@ object LiveVisionRuntime {
                 ?.takeIf { minCapturedAtMonotonicMs == null || (it.capturedAtMonotonicMs ?: -1) >= minCapturedAtMonotonicMs }
                 ?.let { return it }
         }
-        val selected: Pair<LiveFrame, Bitmap>? = synchronized(lock) {
+        // Live frames are full-display: they include the non-secure Trace Field unless it is hidden
+        // first and only frames composited after the hide are accepted.
+        val releaseField = if (sessionId == ExecutionSession.DEFAULT_FOREGROUND_SESSION_ID &&
+            com.cyclone.mobile.ui.overlay.tracefield.TraceFieldRuntime.isShowing()) {
+            com.cyclone.mobile.ui.overlay.tracefield.TraceFieldRuntime.hideForCaptureBlocking()
+        } else null
+        val minFrameAtMs = if (releaseField != null) {
+            com.cyclone.mobile.capture.LiveCaptureService.sampler.requestBurst(SystemClock.uptimeMillis())
+            maxOf(minCapturedAtMonotonicMs ?: 0L, SystemClock.uptimeMillis())
+        } else minCapturedAtMonotonicMs
+        val frameDeadline = if (releaseField != null) SystemClock.uptimeMillis() + waitMs.coerceIn(0, 2_000) else requestDeadline
+        val selected: Pair<LiveFrame, Bitmap>? = try { synchronized(lock) {
             val session = sessions.lookup(sessionId)
             if (!sources.containsKey(sessionId)) {
                 null
             } else {
                 val revision = revisions[sessionId]
-                val remaining = if (minCapturedAtMonotonicMs == null) waitMs else (requestDeadline - SystemClock.uptimeMillis()).coerceAtLeast(0)
-                val frame = FrameSelection.awaitFresh(sessionId, session.displayId, boundaries[sessionId], minCapturedAtMonotonicMs,
+                val remaining = if (minFrameAtMs == null) waitMs else (frameDeadline - SystemClock.uptimeMillis()).coerceAtLeast(0)
+                val frame = FrameSelection.awaitFresh(sessionId, session.displayId, boundaries[sessionId], minFrameAtMs,
                     remaining, { broker.framesSince(sessionId, 0) }, { revisions[sessionId] == revision && sources.containsKey(sessionId) },
                     { SystemClock.uptimeMillis() }, { lock.wait(it) })
                 frame?.let { candidate -> pixels[candidate.payloadHandle]?.copy(Bitmap.Config.ARGB_8888, false)?.let { candidate to it } }
             }
-        }
+        } } finally { releaseField?.invoke() }
 
         if (selected == null) return null
 
@@ -159,6 +170,8 @@ object LiveVisionRuntime {
                         result.colorSpace ?: ColorSpace.get(ColorSpace.Named.SRGB),
                     ) ?: return
                     val bitmap = wrapped.copy(Bitmap.Config.ARGB_8888, false) ?: wrapped
+                    // Reuse this observation for the Trace Field's colour grid; no extra capture.
+                    com.cyclone.mobile.ui.overlay.tracefield.TraceFieldBackdrop.ingest(bitmap)
                     try {
                         val directory = File(cacheDir, "live-evidence").apply { mkdirs() }
                         val file = File(directory, "${UUID.randomUUID()}.png")

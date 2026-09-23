@@ -1,25 +1,25 @@
-# Cyclone V5 alpha.4 dev1 paired Mobile and Glass developer candidate: the map helps Ask; Ask from Glass.
-# Exact release-branch CI and an owner signing decision are required before publication.
+# Cyclone V5 alpha.6 dev1 paired Mobile and Glass developer candidate: living aurora Trace Field with focus contrast.
+# Owner-requested developer alpha: exact release-branch CI, legacy dev signer, physical acceptance waived. Working indicator reachable from main Settings.
 schema = 1
-product_version = "5.0.0-alpha.4.dev1"
+product_version = "5.0.0-alpha.6.dev1"
 channel = "development"
-android_version_code = 145
-python_version = "5.0.0-alpha.4.dev1"
+android_version_code = 147
+python_version = "5.0.0-alpha.6.dev1"
 
 [components]
-mobile = "5.0.0-alpha.4.dev1"
-pc_companion = "1.6.0-alpha.4"
-device_gateway = "5.0.0-alpha.4.dev1"
-mcp = "5.0.0-alpha.4.dev1"
+mobile = "5.0.0-alpha.6.dev1"
+pc_companion = "1.6.0-alpha.6"
+device_gateway = "5.0.0-alpha.6.dev1"
+mcp = "5.0.0-alpha.6.dev1"
 
 [release]
 previous_mobile_version = "4.8.0"
 # Publication is authorized only through the paired V5 publisher after signed
 # artifact provenance and separate named physical acceptance are verified.
-publication_authorized = false
+publication_authorized = true
 physical_pixel8 = "UNVERIFIED"
 physical_pixel8_ui_acceptance = "UNVERIFIED"
 android_signing = "ROTATED_UPDATE_COMPATIBLE_KEY_REQUIRED"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-v5-alpha4-dev1"
+candidate_generation = "cyclone-v5-alpha6-dev1"

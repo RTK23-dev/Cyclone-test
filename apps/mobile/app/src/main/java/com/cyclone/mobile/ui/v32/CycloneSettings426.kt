@@ -66,6 +66,7 @@ import com.cyclone.mobile.permissions.CyclonePermissionSetup
 import com.cyclone.mobile.runtime.background.BackgroundSetup
 import com.cyclone.mobile.runtime.background.BackgroundSetupActivity
 import com.cyclone.mobile.secrets.VaultSettingsPanel
+import com.cyclone.mobile.ui.overlay.WorkingIndicatorSettings
 import com.cyclone.mobile.ui.RootFeaturesCard
 
 private data class Settings426Row(
@@ -118,6 +119,15 @@ internal fun CycloneSettingsPage426(
         phoneControl.needsRepair -> "Repair"
         else -> "Setup"
     }
+    fun workingIndicatorValue(): String {
+        val mode = com.cyclone.mobile.ui.overlay.tracefield.TraceFieldPrefs.mode(context)
+        return when (mode) {
+            com.cyclone.mobile.ui.overlay.tracefield.TraceFieldMode.OFF -> "Off"
+            com.cyclone.mobile.ui.overlay.tracefield.TraceFieldMode.EDGE -> "Edge only"
+            com.cyclone.mobile.ui.overlay.tracefield.TraceFieldMode.FIELD ->
+                com.cyclone.mobile.ui.overlay.tracefield.TraceFieldPrefs.style(context).label
+        }
+    }
     fun backgroundValue(): String = if (background.setupFailure == null) "Ready" else "Setup"
 
     if (section.isEmpty()) {
@@ -128,6 +138,9 @@ internal fun CycloneSettingsPage426(
                     Settings426Row("Default intelligence", "Default intelligence", Icons.Rounded.Tune, effortValue()),
                     Settings426Row("Phone autonomy", "Phone autonomy", Icons.Rounded.PhoneAndroid, settingsAutonomyLabel(accessProfile)),
                     Settings426Row("User notes", "User notes", Icons.Rounded.Person, if (com.cyclone.mobile.brain.UserMdRuntime.enabled) "On" else "Off"),
+                ),
+                "Appearance" to listOf(
+                    Settings426Row("Working indicator", "Working indicator", Icons.Rounded.Tune, workingIndicatorValue()),
                 ),
                 "Phone" to listOf(
                     Settings426Row("Quick setup", "Quick setup", Icons.Rounded.Bolt, "With root"),
@@ -175,6 +188,14 @@ internal fun CycloneSettingsPage426(
         }
 
         when (section) {
+            "Working indicator" -> item {
+                Settings426Surface {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        WorkingIndicatorSettings(context)
+                    }
+                }
+            }
+
             "Quick setup" -> item { CycloneQuickSetup(context, refresh) { onSection("Permissions") } }
             "Model & API" -> item {
                 ModelApi426Card(
@@ -512,6 +533,7 @@ private fun Settings426Surface(content: @Composable () -> Unit) {
 }
 
 private fun Settings426DetailSubtitle(section: String): String? = when (section) {
+    "Working indicator" -> "The Trace Field overlay shown while Cyclone works: mode, style and a live preview."
     "Model & API" -> "Choose the model Cyclone uses and secure your API access."
     "Default intelligence" -> "Set the default reasoning level for new tasks."
     "Phone autonomy" -> "Choose how independently Cyclone may use phone tools."

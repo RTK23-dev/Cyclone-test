@@ -1,5 +1,8 @@
 package com.cyclone.mobile
 
+import com.cyclone.mobile.ui.overlay.tracefield.TraceActKind
+import com.cyclone.mobile.ui.overlay.tracefield.TraceFieldCaptureGate
+import com.cyclone.mobile.ui.overlay.tracefield.TraceFieldRuntime as TraceField
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Bitmap
@@ -112,6 +115,8 @@ class CycloneAccessibilityService : AccessibilityService() {
 
         runCatching { OverlayChromeRuntime.attach(this) }
             .onFailure { CycloneProcessDiagnostics.recordNonFatal(this, "primary.accessibility.overlay.attach", it) }
+        runCatching { com.cyclone.mobile.ui.overlay.tracefield.TraceFieldRuntime.attach(this) }
+            .onFailure { CycloneProcessDiagnostics.recordNonFatal(this, "primary.accessibility.tracefield.attach", it) }
 
         // Android owns this callback boundary. Optional Cyclone runtimes are deliberately initialized
         // away from it so a corrupt DB, migration issue, legacy bridge config, or app-learning bug can
@@ -206,6 +211,8 @@ class CycloneAccessibilityService : AccessibilityService() {
         guidedOverlay = null
         runCatching { OverlayChromeRuntime.detach() }
             .onFailure { CycloneProcessDiagnostics.recordNonFatal(this, "primary.accessibility.destroy.overlay", it) }
+        runCatching { com.cyclone.mobile.ui.overlay.tracefield.TraceFieldRuntime.detach() }
+            .onFailure { CycloneProcessDiagnostics.recordNonFatal(this, "primary.accessibility.destroy.tracefield", it) }
         runCatching { RoutineTeachingOverlayRuntime.dismiss() }
             .onFailure { CycloneProcessDiagnostics.recordNonFatal(this, "primary.accessibility.destroy.teaching", it) }
         instance = null
@@ -274,7 +281,10 @@ class CycloneAccessibilityService : AccessibilityService() {
             windows = windowsSnapshot,
             nodes = nodes,
         )
-        if (markFresh) DeviceState.markObserved()
+        if (markFresh) {
+            DeviceState.markObserved()
+            TraceField.observed(fingerprint)
+        }
         return snapshot
     }
 
@@ -315,6 +325,16 @@ class CycloneAccessibilityService : AccessibilityService() {
         commandId: String? = null,
     ): Boolean {
         if (!agentCanAct()) return false
+        val clicked = clickResolved(selector, humanize, commandId)
+        if (!clicked) TraceField.recovering()
+        return clicked
+    }
+
+    private fun clickResolved(
+        selector: ElementSelector,
+        humanize: HumanizePreference,
+        commandId: String?,
+    ): Boolean {
         repeat(2) {
             val snapshot = observe(markFresh = false)
             val match = SelectorEngine.resolve(snapshot, selector, 1).firstOrNull() ?: return@repeat
@@ -330,6 +350,8 @@ class CycloneAccessibilityService : AccessibilityService() {
                 }
                 throw GateBlockedException(decision.gateClass)
             }
+            TraceField.targeted(activation.bounds, activation.path)
+            TraceField.acted(TraceActKind.TAP, activation.bounds.centerX, activation.bounds.centerY)
             val targetLive = if (activation.path == snapshotNode.path) {
                 node
             } else {
@@ -564,6 +586,10 @@ class CycloneAccessibilityService : AccessibilityService() {
 
         override fun setText(handle: Any, value: CharSequence): Boolean {
             val target = handle as? AccessibilityTypeHandle ?: return false
+            if (displayId == 0) {
+                val rect = Rect().also { target.node.getBoundsInScreen(it) }
+                TraceField.acted(TraceActKind.TYPE, rect.exactCenterX(), rect.exactCenterY())
+            }
             val args = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)
             }
@@ -592,6 +618,8 @@ class CycloneAccessibilityService : AccessibilityService() {
         val node = if (selector != null) resolveLiveTarget(selector)?.second else findScrollable(preferredForegroundRoot())
         node ?: return false
         val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+        val rect = Rect().also { node.getBoundsInScreen(it) }
+        TraceField.acted(TraceActKind.SCROLL, rect.exactCenterX(), rect.exactCenterY(), 0f, if (forward) -1f else 1f)
         return node.performAction(action)
     }
 
@@ -602,6 +630,7 @@ class CycloneAccessibilityService : AccessibilityService() {
         commandId: String? = null,
     ): Boolean {
         if (!agentCanAct()) return false
+        TraceField.acted(TraceActKind.TAP, x, y)
         return HumanGestureDispatch.tap(
             service = this,
             x = x,
@@ -620,6 +649,7 @@ class CycloneAccessibilityService : AccessibilityService() {
         commandId: String? = null,
     ): Boolean {
         if (!agentCanAct()) return false
+        TraceField.acted(TraceActKind.LONG_PRESS, x, y)
         return HumanGestureDispatch.longPress(
             service = this,
             x = x,
@@ -641,6 +671,7 @@ class CycloneAccessibilityService : AccessibilityService() {
         commandId: String? = null,
     ): Boolean {
         if (!agentCanAct()) return false
+        TraceField.acted(TraceActKind.SCROLL, (x1 + x2) / 2f, (y1 + y2) / 2f, x2 - x1, y2 - y1)
         return HumanGestureDispatch.swipe(
             service = this,
             x1 = x1,
@@ -707,6 +738,18 @@ class CycloneAccessibilityService : AccessibilityService() {
     }
 
     fun takeScreenshot(crop: UiBounds? = null, callback: (Result<ScreenshotArtifact>) -> Unit) {
+        // The Trace Field is a non-secure full-screen layer: hide it before any full-display capture.
+        TraceFieldCaptureGate.hold { release ->
+            val done: (Result<ScreenshotArtifact>) -> Unit = { result -> release(); callback(result) }
+            try {
+                takeDisplayScreenshot(crop, done)
+            } catch (failure: Throwable) {
+                done(Result.failure(failure))
+            }
+        }
+    }
+
+    private fun takeDisplayScreenshot(crop: UiBounds?, callback: (Result<ScreenshotArtifact>) -> Unit) {
         takeScreenshot(Display.DEFAULT_DISPLAY, screenshotExecutor, object : TakeScreenshotCallback {
             override fun onSuccess(result: ScreenshotResult) {
                 val outcome = runCatching {
@@ -714,6 +757,7 @@ class CycloneAccessibilityService : AccessibilityService() {
                         val wrapped = Bitmap.wrapHardwareBuffer(result.hardwareBuffer, result.colorSpace ?: ColorSpace.get(ColorSpace.Named.SRGB))
                             ?: error("Unable to map screenshot buffer")
                         val bitmap = wrapped.copy(Bitmap.Config.ARGB_8888, false) ?: wrapped
+                        if (crop == null) com.cyclone.mobile.ui.overlay.tracefield.TraceFieldBackdrop.ingest(bitmap)
                         val boundedCrop = crop?.let { bounds ->
                             UiBounds(
                                 bounds.left.coerceIn(0, bitmap.width), bounds.top.coerceIn(0, bitmap.height),
