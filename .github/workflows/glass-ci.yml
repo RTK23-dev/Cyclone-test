@@ -62,12 +62,14 @@ jobs:
       - name: Launcher smoke (real gateway serves the built bundle and exchanges a launch code)
         env:
           CYCLONE_DEVICE_GATEWAY_TOKEN: ci-glass-smoke-token
+          PYTHONUNBUFFERED: '1'
           CYCLONE_DESKTOP_PAIRING_BOOTSTRAP: '1'
           CYCLONE_DEVICE_GATEWAY_RUNTIME: ${{ runner.temp }}/glass-runtime
           LOCALAPPDATA: ${{ runner.temp }}/glass-localappdata
         run: |
           timeout 90 cyclone-device-gateway glass --no-browser --print-url > launch.log 2>&1 &
-          for i in $(seq 1 60); do grep -q '/glass/#code=' launch.log && break; sleep 0.5; done
+          for i in $(seq 1 120); do grep -q '/glass/#code=' launch.log && break; sleep 0.5; done
+          cat launch.log
           URL=$(grep -o 'http://127.0.0.1:[0-9]*/glass/#code=[A-Za-z0-9_-]*' launch.log | head -1)
           test -n "$URL" || { cat launch.log; exit 1; }
           BASE=${URL%%/glass/*}

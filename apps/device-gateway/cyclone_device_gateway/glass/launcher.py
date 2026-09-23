@@ -59,8 +59,11 @@ def run_glass(
     connection_loader: Callable[[], dict[str, str] | None] = load_connection,
     code_requester: Callable[[str, str], LaunchTarget | None] = request_launch_code,
     opener: Callable[[str], bool] = webbrowser.open,
-    out: Callable[[str], None] = print,
+    out: Callable[[str], None] | None = None,
 ) -> int:
+    # Flush: the launcher keeps a gateway running, so buffered output would never reach a log or pipe.
+    out = out or (lambda line: print(line, flush=True))
+
     def announce(target: LaunchTarget) -> None:
         if print_url:
             out(target.url)
@@ -90,7 +93,7 @@ def serve_in_process(announce: Callable[[LaunchTarget], None]) -> int:
     try:
         settings = Settings.from_env()
     except RuntimeError as exc:
-        print(f"ACTION REQUIRED: {exc}. Start Cyclone One once, or set up the gateway with `cyclone-device-gateway serve`.")
+        print(f"ACTION REQUIRED: {exc}. Start Cyclone One once, or set up the gateway with `cyclone-device-gateway serve`.", flush=True)
         return 2
     app = build_serve_app(settings)
     server = uvicorn.Server(uvicorn.Config(app, host=settings.host, port=settings.port, log_level="warning"))
@@ -100,11 +103,11 @@ def serve_in_process(announce: Callable[[LaunchTarget], None]) -> int:
     while not server.started and thread.is_alive() and time.monotonic() < deadline:
         time.sleep(0.05)
     if not server.started:
-        print("ACTION REQUIRED: the local gateway did not start. Is another program using port %d?" % settings.port)
+        print("ACTION REQUIRED: the local gateway did not start. Is another program using port %d?" % settings.port, flush=True)
         return 2
     code = app.state.glass_codes.issue()
     announce(LaunchTarget(base_url=f"http://{settings.host}:{settings.port}", path=f"/glass/#code={code}"))
-    print("Glass is running. Press Ctrl+C to stop.")
+    print("Glass is running. Press Ctrl+C to stop.", flush=True)
     try:
         while thread.is_alive():
             thread.join(0.5)

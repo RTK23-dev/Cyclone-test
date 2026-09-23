@@ -204,3 +204,27 @@ def test_launcher_starts_a_gateway_when_none_answers() -> None:
     assert code == 0
     assert started == ["serve"]
     assert printed == [f"{BASE}/glass/#code=zzzzzzzzzzzzzzzzzzzzzzzz"]
+
+
+def test_launcher_output_is_flushed_for_logs_and_pipes(capsys: pytest.CaptureFixture[str]) -> None:
+    # The launcher keeps a gateway running; unflushed output never reaches a log file (CI smoke regression).
+    import builtins
+
+    seen: list[bool] = []
+    original = builtins.print
+
+    def spy(*args, **kwargs):
+        seen.append(bool(kwargs.get("flush")))
+        return original(*args, **kwargs)
+
+    builtins.print = spy
+    try:
+        run_glass(
+            open_browser=False,
+            connection_loader=lambda: {"token": TOKEN, "url": BASE},
+            code_requester=lambda url, token: LaunchTarget(base_url=BASE, path="/glass/#code=abcdefghijklmnopqrstuvwx"),
+        )
+    finally:
+        builtins.print = original
+    assert seen == [True]
+    assert capsys.readouterr().out.strip() == f"Cyclone Glass: {BASE}/glass/"
