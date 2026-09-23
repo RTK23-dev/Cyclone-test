@@ -71,6 +71,48 @@ fn open_diagnostics_folder(app: tauri::AppHandle) -> Result<String, String> {
     Ok(path.to_string_lossy().to_string())
 }
 
+/// Returns true for the exact launch link shape the local gateway mints: `/glass/#code=<token_urlsafe>`.
+fn is_glass_launch_path(path: &str) -> bool {
+    path.strip_prefix("/glass/#code=")
+        .map(|code| {
+            (16..=128).contains(&code.len())
+                && code
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        })
+        .unwrap_or(false)
+}
+
+/// Open Cyclone Glass (the local browser dashboard) in the default browser. Only a one-time
+/// launch link on this app's own loopback gateway is accepted; nothing else can be opened.
+#[tauri::command]
+fn open_glass(state: State<'_, GatewayState>, path: String) -> Result<String, String> {
+    if !is_glass_launch_path(&path) {
+        return Err("Not a Cyclone Glass launch link.".to_string());
+    }
+    if !state.http_base.starts_with("http://127.0.0.1:") {
+        return Err("Cyclone Glass opens on this PC only.".to_string());
+    }
+    let base = state.http_base.trim_end_matches('/');
+    let url = format!("{base}{path}");
+
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        // url.dll keeps the #fragment that carries the one-time code; explorer.exe may drop it.
+        Command::new("rundll32.exe")
+            .arg("url.dll,FileProtocolHandler")
+            .arg(&url)
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|error| error.to_string())?;
+    }
+    #[cfg(not(windows))]
+    let _ = url;
+
+    Ok(format!("{base}/glass/"))
+}
+
 #[tauri::command]
 async fn connector_status(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     sidecar_json(app, &["status", "--probe-gateway"]).await
@@ -289,6 +331,7 @@ pub fn run() {
             live_phone_bridge::live_bridge_token,
             diagnostics_folder,
             open_diagnostics_folder,
+            open_glass,
             connector_status,
             local_ai_status,
             local_ai_adapters,
@@ -322,4 +365,25 @@ pub fn run() {
                 chatgpt_share::shutdown(app.state::<std::sync::Arc<chatgpt_share::ShareState>>().inner());
             }
         });
+}
+
+#[cfg(test)]
+mod glass_launch_tests {
+    use super::is_glass_launch_path;
+
+    #[test]
+    fn accepts_only_one_time_glass_links() {
+        assert!(is_glass_launch_path(
+            "/glass/#code=1JDKTd6EKYcslLhje1bJ_uQKi-Bn2CxK"
+        ));
+        assert!(!is_glass_launch_path("/glass/#code=short"));
+        assert!(!is_glass_launch_path("/glass/#code=abcdefghijklmnop&x=1"));
+        assert!(!is_glass_launch_path(
+            "https://evil.example/glass/#code=abcdefghijklmnopqr"
+        ));
+        assert!(!is_glass_launch_path("/v1/fleet"));
+        assert!(!is_glass_launch_path(
+            "/glass/#code=abcdefghijklmnop\" & calc"
+        ));
+    }
 }

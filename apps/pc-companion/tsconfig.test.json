@@ -21,6 +21,7 @@
     "src/services/atlasTypes.ts",
     "src/services/secretGuards.ts",
     "src/services/glassRuntime.ts",
+    "src/services/glassLauncher.ts",
     "src/maps/**/*.ts",
     "src/ui/dom.ts",
     "src/ui/appMapCanvas.ts",

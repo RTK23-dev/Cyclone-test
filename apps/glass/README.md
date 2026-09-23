@@ -6,6 +6,11 @@ no agent loop, no model calls, no API keys. Charter: [`Cyclone V5 plan/03-glass-
 
 ## Run it
 
+**Windows with Cyclone One installed:** Cyclone One → Settings → **Open Cyclone Glass**. One's own runtime serves Glass and
+opens your browser with a one-time link; nothing else to install.
+
+**From a checkout (any OS):**
+
 ```bash
 python -m pip install -e 'apps/device-gateway[test]'
 cd apps/glass && npm ci && npm run build          # builds dist/, which the gateway serves at /glass/

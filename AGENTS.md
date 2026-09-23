@@ -28,6 +28,7 @@ Load more context only when the task needs it.
 - Android runtime + UX: `apps/mobile/**`
 - Device gateway: `apps/device-gateway/**`
 - Windows companion: `apps/pc-companion/**`, `packaging/pc-companion/**`
+- Cyclone Glass (local browser dashboard, no intelligence): `apps/glass/**`, gateway hosting in `apps/device-gateway/cyclone_device_gateway/glass/**`
 - PC agent adapters: `tools/codex-phone-mcp/**`, `tools/cyclone-agent-mcp/**`
 - CI/release: `.github/workflows/**`, `scripts/ci/**`, `release/version.toml`
 
@@ -52,6 +53,14 @@ For PC gateway/MCP changes:
 python -m pip install -e 'apps/device-gateway[test]' -e tools/codex-phone-mcp
 python -m pytest apps/device-gateway/tests -q
 python -m unittest discover -s tools/codex-phone-mcp/tests -v
+```
+
+For Cyclone Glass changes:
+
+```bash
+cd apps/glass && npm ci && npm test && npm run build
+python scripts/ci/glass_guard.py
+python -m pytest apps/device-gateway/tests/test_glass_hosting.py -q
 ```
 
 Run `python scripts/ci/release_versions.py --check` and `python scripts/ci/mobile_product_guard.py` when product identity or release surfaces change.

@@ -13,6 +13,7 @@ import {
 } from "../core/mcpTunnel.js";
 import { DEFAULT_FOREGROUND_SESSION_ID, SETTINGS_MCP_SESSION_COPY } from "../core/sessionTiles.js";
 import type { DesktopDevice, DesktopRuntimeStatus, DesktopService } from "../services/types.js";
+import { openCycloneGlass } from "../services/glassLauncher.js";
 import { button, el } from "../ui/dom.js";
 
 export interface SettingsPageHandle {
@@ -41,10 +42,21 @@ export function createSettingsPage(service: DesktopService, devices: DesktopDevi
     "Installs to %LOCALAPPDATA%\\Cyclone One. Uninstall Cyclone PC Companion 3.8.x if it remains beside One; doctor reports this.",
   );
   const glassAtlas = statusCard(
-    "Cyclone Glass atlas",
-    "Mobile 5.0",
-    "Maps / Ask atlas / Vault need Mobile 5.0. Installer path may still say Cyclone One. Ask/Maps declare Foreground (default-foreground) or the named Session Kernel VD; named ids are never rewritten to display 0.",
+    "Cyclone Glass",
+    "Opens in your browser",
+    "Glass is Cyclone's developer dashboard: every app and its map, the phone live, and Ask. It runs on this PC only and needs Mobile 5.0 on the phone. One's own Ask/Maps pages declare Foreground (default-foreground) or the named Session Kernel VD; named ids are never rewritten to display 0.",
   );
+  const openGlass = button("Open Cyclone Glass", "button primary wide");
+  openGlass.addEventListener("click", () => {
+    openGlass.disabled = true;
+    void openCycloneGlass(service.glassGateway, (path) => invoke<string>("open_glass", { path }))
+      .then((address) => setCard(glassAtlas, "Opened in your browser", `Glass is at ${address} on this PC.`))
+      .catch((error: unknown) => setCard(glassAtlas, "Could not open", error instanceof Error ? error.message : String(error)))
+      .finally(() => {
+        openGlass.disabled = false;
+      });
+  });
+  glassAtlas.append(openGlass);
   const phones = statusCard(
     "Phones",
     `${devices.length} detected`,

@@ -147,7 +147,8 @@ def missing_tokens(text: str, required: tuple[str, ...]) -> list[str]:
 
 def check() -> list[str]:
     errors: list[str] = []
-    supported_apps = {"mobile", "device-gateway", "pc-companion"}
+    # glass: Cyclone Glass, the local browser dashboard (Cyclone V5 plan/03-glass-v1.md).
+    supported_apps = {"mobile", "device-gateway", "pc-companion", "glass"}
     for path in (ROOT / "apps").iterdir():
         if path.is_dir() and path.name not in supported_apps:
             errors.append(f"Unsupported product component: apps/{path.name}")

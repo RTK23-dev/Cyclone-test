@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'apps/pc-companion/**'
+      - 'apps/glass/**'
       - 'apps/device-gateway/**'
       - 'tools/cyclone-agent-mcp/**'
       - 'tools/codex-phone-mcp/**'
@@ -20,6 +21,7 @@ on:
     branches: [main, 'codex/cyclone-4.4.2-one-1.5.5-camera', 'codex/live-phone', 'release/cyclone-mobile-v*', 'release/cyclone-one-v*', 'release/cyclone-v5-*']
     paths:
       - 'apps/pc-companion/**'
+      - 'apps/glass/**'
       - 'apps/device-gateway/**'
       - 'tools/cyclone-agent-mcp/**'
       - 'tools/codex-phone-mcp/**'

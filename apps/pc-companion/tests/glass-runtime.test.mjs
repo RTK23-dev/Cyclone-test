@@ -215,10 +215,11 @@ test("app.ts source mounts loadSource, mobileVersion, and glassRuntime", () => {
   assert.doesNotMatch(appSource, /ask\.start/);
 });
 
-test("settingsPage source mentions Mobile 5.0 / Glass atlas", () => {
-  assert.match(settingsSource, /Cyclone Glass atlas/);
-  assert.match(settingsSource, /Mobile 5\.0/);
-  assert.match(settingsSource, /Maps \/ Ask atlas \/ Vault need Mobile 5\.0/);
+test("settingsPage opens Cyclone Glass in the browser and keeps the plane rules", () => {
+  // Glass is the local browser dashboard (owner charter 2026-09-23); One links to it instead of hosting it.
+  assert.match(settingsSource, /Open Cyclone Glass/);
+  assert.match(settingsSource, /invoke<string>\("open_glass", \{ path \}\)/);
+  assert.match(settingsSource, /needs Mobile 5\.0 on the phone/);
   assert.match(settingsSource, /Cyclone One/);
   assert.match(settingsSource, /createRemoteMcpCard/);
   assert.match(settingsSource, /Foreground \(default-foreground\)/);

@@ -17,6 +17,16 @@ if (-not (Test-Path $BuildPython)) {
 & $BuildPython -m pip install --disable-pip-version-check "pyinstaller==$($Lock.pyinstaller)"
 & $BuildPython -m pip install --disable-pip-version-check (Join-Path $Repo 'apps\device-gateway') (Join-Path $Repo 'tools\cyclone-agent-mcp') (Join-Path $Repo 'tools\codex-phone-mcp')
 & $BuildPython (Join-Path $Repo 'scripts\pc-companion\prepare-live-bridge.py')
+# Cyclone Glass (apps/glass) ships inside CyclonePCRuntime so One's local gateway serves it at /glass/.
+$Glass = Join-Path $Repo 'apps\glass'
+Push-Location $Glass
+try {
+    npm ci --no-audit --no-fund
+    npm run build
+} finally {
+    Pop-Location
+}
+if (-not (Test-Path (Join-Path $Glass 'dist\index.html'))) { throw "Cyclone Glass bundle was not built: $Glass\dist" }
 $Dist = Join-Path $Repo 'dist\pc-companion'
 New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 & $BuildPython -m PyInstaller --clean --noconfirm --distpath $Dist --workpath (Join-Path $Repo 'build\pyinstaller\agent') (Join-Path $Repo 'packaging\pc-companion\pyinstaller\CycloneAgentMCP.spec')

@@ -2,6 +2,20 @@
 
 > **Owner correction, 2026-09-23 — read first.** Glass is a **local web app in the browser** (`apps/glass`), not pages in Cyclone One (`apps/pc-companion`) and not Artemis. It is the developer's eyes on the phone's engine: Apps + versions, Map and Scenarios boards, Run inspector (cause of death), Knowledge, Phone control. No intelligence. Charter: [`03-glass-v1.md`](../../03-glass-v1.md), cuts: [`09`](../../09-cuts-and-milestones.md). Runs 1–3 below built a **prototype inside Cyclone One**; port it, do not extend it.
 
+## Glass web — 1.0.0-alpha.1 (2026-09-23, built by the front-runner session)
+
+Glass restarted as `apps/glass` per the owner charter. Scope: [`SESSION-PLAN-glass-alpha1.md`](../SESSION-PLAN-glass-alpha1.md).
+
+| Capability | State |
+|---|---|
+| Local web app served by the gateway at `/glass/`, one-tab launch session, `cyclone-device-gateway glass` | built; pytest + launcher smoke + headless Chromium verified |
+| Cyclone One → Settings → **Open Cyclone Glass** (One's runtime bundles the Glass build) | built; TS tested, Rust validator unit-tested; Windows build/install verified only by CI |
+| Phone `apps.list` (apps, installed + mapped versions, needs-remap) | built; JVM + gateway contract tests |
+| Apps page, App → Map board (inspector, start/pause/stop, live cursor), Phone page (live view, take control, Ask) | built; 47 Glass tests; visual check with mocked phone replies |
+| Runs + run inspector, Scenarios, Versions tab, Knowledge | next cuts (alpha.2–alpha.4) |
+
+Physical phone and Windows install: **UNVERIFIED** until someone runs it.
+
 ## Current state (2026-09-23) — alpha.4 dev1 in PR (alpha.3 merged)
 
 **Published developer prerelease:** [`v5.0.0-alpha.2.dev3`](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.2.dev3) — Mobile `5.0.0-alpha.2.dev3` (versionCode 143) + Glass `1.6.0-alpha.2`, source `a896b5da`. Mobile + Glass CI passed; physical phone / Glass acceptance **waived by the owner, not passed**. Signed with the historical development key, which is exposed in repository history (**security debt**; rotation work parked in #168).
