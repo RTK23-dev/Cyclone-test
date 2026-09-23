@@ -1,0 +1,28 @@
+# V5 Android signing operator steps
+
+The V5 CI artifact is unsigned. The `mobile-release-approval` environment needs five private signing inputs before `.github/workflows/mobile-release.yml` can create an update-compatible APK. A previous run stopped at the secret check; it produced no signed file.
+
+## Prepare on the owner's Windows PC
+
+Use a trusted PC with PowerShell, Git, authenticated GitHub CLI (`gh auth login`), a JDK (`keytool`), and Android SDK Build Tools 35 (`apksigner`). The GitHub account must be allowed to configure secrets in the repository's `mobile-release-approval` environment and dispatch Actions. Make a secure offline backup of the resulting keystore, signing lineage, and password. Never paste those files or passwords into chat, a PR, a log, or a Git commit.
+
+From the Cyclone checkout, after checking the current source SHA and successful release-branch Mobile CI run:
+
+```powershell
+./scripts/release/rotate-android-signing-and-release.ps1 `
+  -Version '5.0.0-alpha.2.dev2' `
+  -BuildRunId '35858293602' `
+  -ExpectedSourceSha '1a47ca1fc2aa167b4321f408c386f924887ac388'
+```
+
+If the Pixel 8 is connected and authorized, add `-PixelSerial '<exact adb serial>'`. The script reads the installed base APK, checks its signer against the published 4.8.0 APK and the historical lineage source, and does not modify phone data. Without the optional serial, the same phone comparison remains mandatory before installation. To use a **newer dev3 or later candidate**, replace all three values with its reviewed version, exact successful **push** Mobile CI run ID, and 40-character source SHA. The script requires the matching release branch and artifact name and refuses a mismatched run.
+
+The script creates a fresh private key and proof-of-rotation lineage, writes exactly five protected environment secrets through standard input, and dispatches the V5 signing workflow. The new private key stays in `$HOME/.cyclone-signing` on the operator's PC; its password backup is encrypted with that Windows account's DPAPI. An offline backup is essential before relying on it for future upgrades. If these files already exist, the script stops instead of replacing the key; do not generate a second rotation. An existing key should be configured again from the owner's secure backup.
+
+## Review the result
+
+In GitHub Actions, open **Cyclone Mobile Release Signing** for the dispatched release branch. Confirm the run passes, then download its `Cyclone-Android-<version>-signed` artifact. Check `source-sha.txt`, `run-id.txt`, `mobile-metadata.json`, APK SHA-256 sidecar, `signing-state.txt`, and `signing-lineage.txt`. Only the signed APK inside that successful protected run is an install candidate. A green Mobile CI run alone contains an unsigned APK.
+
+On the Pixel, compare the installed APK signer with the published 4.8.0 signer and ensure the signed V5 APK validates with its rotation lineage before attempting `adb install -r`. Never uninstall 4.8.0 to get around `INSTALL_FAILED_UPDATE_INCOMPATIBLE`: that would lose local data. Run the named Pixel 8 and real Glass acceptance steps in `Cyclone V5 plan/orchestrators/mobile/returns/RETURN-V5-ALPHA2-PHYSICAL.md` after a successful update. A signed artifact alone does not make the V5 alpha.2 release physically verified or production ready.
+
+The old 3.9.1 publisher and historical exposed signer are not used for V5 publication. The historical key is read only to prove an update path to the newly generated key. A stable GitHub Release should wait for source CI, protected signing, update compatibility, and the named physical acceptance record.

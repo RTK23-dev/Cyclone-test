@@ -1,23 +1,23 @@
 # Cyclone V5 Mobile alpha.2 development candidate: canonical Places and Settings integration.
 # Publication remains disabled pending CI and named physical-device acceptance.
 schema = 1
-product_version = "5.0.0-alpha.2.dev2"
+product_version = "5.0.0-alpha.2.dev3"
 channel = "development"
-android_version_code = 142
-python_version = "5.0.0-alpha.2.dev2"
+android_version_code = 143
+python_version = "5.0.0-alpha.2.dev3"
 
 [components]
-mobile = "5.0.0-alpha.2.dev2"
-pc_companion = "1.6.0-alpha.1"
-device_gateway = "5.0.0-alpha.2.dev2"
-mcp = "5.0.0-alpha.2.dev2"
+mobile = "5.0.0-alpha.2.dev3"
+pc_companion = "1.6.0-alpha.2"
+device_gateway = "5.0.0-alpha.2.dev3"
+mcp = "5.0.0-alpha.2.dev3"
 
 [release]
 previous_mobile_version = "4.8.0"
 publication_authorized = false
 physical_pixel8 = "UNVERIFIED"
 physical_pixel8_ui_acceptance = "UNVERIFIED"
-android_signing = "LEGACY_UPDATE_COMPATIBLE_DEV_KEY"
+android_signing = "ROTATED_UPDATE_COMPATIBLE_KEY_REQUIRED"
 windows_signing = "CI_UNSIGNED"
 windows_installer = "CI_UNSIGNED"
-candidate_generation = "cyclone-v5-alpha2-dev2"
+candidate_generation = "cyclone-v5-alpha2-dev3"
