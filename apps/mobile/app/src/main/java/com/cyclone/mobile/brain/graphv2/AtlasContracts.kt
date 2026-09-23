@@ -206,6 +206,11 @@ object AtlasGraphIds {
         .digest(rawSelector.toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it) }
 
+    /** The public `edgeId` used by atlas.get and atlas.diff for one navigation edge. */
+    fun wireEdgeId(key: GraphEdgeKey): String =
+        "edge:" + selectorDigest(key.from.value + "|" + key.type.name + "|" + key.to.value)
+            .removePrefix("sha256:")
+
     fun stableLayout(seed: String, ordinal: Int): Pair<Double, Double> {
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(seed.toByteArray(Charsets.UTF_8))

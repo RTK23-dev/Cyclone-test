@@ -25,6 +25,12 @@ internal object GatewayV5MappingAdapter {
         "(?i)^(password|passcode|passwd|pin|otp|token|secret|api[_-]?key|authorization|cookie|cvv|credential|typed[_-]?(text|value))$",
     )
 
+    /** Replaceable for JVM tests; production launches the phone mapping driver. */
+    @Volatile
+    internal var driverLauncher: (Context, MappingJob, Boolean) -> Unit = { context, job, freshStart ->
+        com.cyclone.mobile.mapping.run.MappingDriverRuntime.launch(context, job, freshStart)
+    }
+
     fun dispatch(context: Context, op: String, args: JSONObject): JSONObject = try {
         when (op) {
             "atlas.diff" -> atlasDiff(context, args)
@@ -82,7 +88,9 @@ internal object GatewayV5MappingAdapter {
             )
             controller.start(request)
         }
-        return jobJson(job)
+        // mapping.start owns the job; the phone driver walks it. Without this the job would idle.
+        driverLauncher(context, job, resumeJobId == null)
+        return jobJson(controller.status(job.mappingJobId) ?: job)
     }
 
     private fun mappingPause(context: Context, args: JSONObject): JSONObject {

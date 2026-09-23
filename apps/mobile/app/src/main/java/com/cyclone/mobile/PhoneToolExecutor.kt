@@ -610,6 +610,8 @@ object PhoneToolExecutor {
                     intent.addCategory(Intent.CATEGORY_LAUNCHER)
                     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 }
+                // Mapping returns to the app's entry room instead of resuming a deep screen.
+                if (p.optBoolean("clearTask", false)) intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 val eventGeneration = DeviceState.uiGeneration()
                 context.startActivity(intent)
                 launchedOutcome(service, before, p, eventGeneration, JSONObject().put("package", packageName).put("launched", true))

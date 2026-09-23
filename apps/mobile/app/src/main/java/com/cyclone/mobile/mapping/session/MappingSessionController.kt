@@ -225,6 +225,17 @@ class MappingSessionController(
         return jobs[id]
     }
 
+    /**
+     * Publishes structural Atlas changes the phone already committed (room discovered, place status)
+     * without claiming a new mutation. Terminal jobs may still publish their final place status.
+     */
+    @Synchronized
+    fun appendAtlasChanges(mappingJobId: String, changes: List<AtlasStructuralChange>) {
+        if (changes.isEmpty()) return
+        val current = requireJob(mappingJobId)
+        journal.append(current.placeId, current.persona, changes)
+    }
+
     fun atlasDiff(placeId: String, persona: String, since: String?): AtlasDiffResult =
         journal.diff(placeId, persona, since)
 
