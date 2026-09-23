@@ -48,7 +48,24 @@ jobs:
           test "$(tr -d '\r\n' < candidate/run-id.txt)" = "$MOBILE_RUN"
           test "$(tr -d '\r\n' < candidate/signing-state.txt)" = UNSIGNED_VERIFIED_CANDIDATE
           (cd candidate && sha256sum --check Cyclone-5.0.0-alpha.2.dev3.apk.sha256)
-          python scripts/pc-companion/verify-v5-release-artifact.py --artifact-dir glass --source-sha "$SOURCE_SHA" --version 1.6.0-alpha.2
+          (cd glass-download && sha256sum --check SHA256SUMS.txt)
+          python - <<'PY'
+          import json, os, hashlib
+          from pathlib import Path
+          root = Path('glass-download')
+          provenance = json.loads((root / 'release-provenance.json').read_text(encoding='utf-8-sig'))
+          assert provenance['source_sha'] == os.environ['SOURCE_SHA']
+          assert provenance['version'] == '1.6.0-alpha.2'
+          assert (root / 'source-sha.txt').read_text().strip() == os.environ['SOURCE_SHA']
+          artifacts = provenance['artifacts']
+          assert any(a['name'] == 'Cyclone-PC-Companion-1.6.0-alpha.2-Setup.exe' for a in artifacts)
+          for artifact in artifacts:
+              assert Path(artifact['name']).name == artifact['name']
+              payload = root / artifact['name']
+              assert payload.stat().st_size == artifact['size_bytes']
+              assert hashlib.sha256(payload.read_bytes()).hexdigest() == artifact['sha256']
+          print('All Glass installer and bundled sidecar hashes verified')
+          PY
       - name: Set up Android signing tools
         uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
