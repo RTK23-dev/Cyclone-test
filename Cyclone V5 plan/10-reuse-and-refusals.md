@@ -12,7 +12,9 @@
 | Ask HUD | Overlay / Ask panel presentation snapshot |
 | Live view | One JPEG path, `HUMAN_HAS_CONTROL`, `PHONE_LOCKED` |
 | Pairing / doctor | Existing QR, four-letter, loopback gateway |
-| Fleet / camera / ChatGPT Attach | Stay. Glass adds pages; it does not rewrite `livePhoneController` |
+| Fleet / camera / ChatGPT Attach | Stay in Cyclone One. Glass reuses the live/handoff path through the gateway |
+| Glass prototype pages | `apps/pc-companion/src/pages/{mapsPage,askPage,vaultPage}.ts`, `ui/appMapCanvas.ts`, `services/atlasClient.ts`, `maps/mappingWatcher.ts` → port to `apps/glass` |
+| Run trace | `ai/AgentTraceStore.kt`, `ai/AgentRunDiagnosticV39.kt` → extend into run record v2 |
 | Settings | `CycloneSettings426.kt` — add App Maps row, don’t replace the page |
 
 ## What we refuse
@@ -22,6 +24,10 @@
 - Passwords in Graph nodes, MCP, Glass disk, Download logs
 - Mapping the feed (400 emails, infinite Reels)
 - A PC-side PhoneToolExecutor
+- Any intelligence in Glass: agent loop, planner, model calls, LLM keys (the Artemis Glass approach)
+- Glass as pages inside Cyclone One or as any desktop-only (Tauri) app
+- Importing Artemis code into Glass (keep the *idea* of run forensics only)
+- Hidden provider chain-of-thought in run records
 - `LOGIN` / `SESSION_STATUS` as the default title for every account sentence
 - Glass that works on 4.8 phones “a bit.” Break the contract loudly: **update the phone**
 - Unattended whole-phone crawl. One button, one place, a budget
@@ -40,7 +46,8 @@
 | M2 atlas | `apps/mobile/**/applearner/**`, `brain/graphv2/**` |
 | M3 mapper | new `apps/mobile/**/mapping/` |
 | M4 ask | destination authority / presentation / agent loop |
-| G2 Maps board | `apps/pc-companion/src/pages/mapsPage.ts`, `ui/appMapCanvas.ts` |
+| Glass web app | `apps/glass/**` |
+| Run record v2 | `apps/mobile/**/ai/AgentTrace*`, new `runs/` |
 | Pipe | `apps/device-gateway/**`, `protocol/**`, `tools/*mcp/**` |
 
 ## Definition of done (generation)

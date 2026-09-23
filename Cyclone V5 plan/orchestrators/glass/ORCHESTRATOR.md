@@ -1,5 +1,7 @@
 # GOAL — Cyclone Glass 1.0 orchestrator
 
+> **Owner correction, 2026-09-23 — read first.** Glass is a **local web app in the browser** (`apps/glass`), not pages in Cyclone One (`apps/pc-companion`) and not Artemis. It is the developer's eyes on the phone's engine: Apps + versions, Map and Scenarios boards, Run inspector (cause of death), Knowledge, Phone control. No intelligence. Charter: [`03-glass-v1.md`](../../03-glass-v1.md), cuts: [`09`](../../09-cuts-and-milestones.md). Runs 1–3 below built a **prototype inside Cyclone One**; port it, do not extend it.
+
 You are the **Glass 1.0 orchestrator**. You do not implement features. You run a team on GitHub.
 
 Repo: `premiumcentraal-boop/Cyclone`  

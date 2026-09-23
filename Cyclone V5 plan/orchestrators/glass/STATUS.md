@@ -1,5 +1,7 @@
 # Glass orchestrator — STATUS
 
+> **Owner correction, 2026-09-23 — read first.** Glass is a **local web app in the browser** (`apps/glass`), not pages in Cyclone One (`apps/pc-companion`) and not Artemis. It is the developer's eyes on the phone's engine: Apps + versions, Map and Scenarios boards, Run inspector (cause of death), Knowledge, Phone control. No intelligence. Charter: [`03-glass-v1.md`](../../03-glass-v1.md), cuts: [`09`](../../09-cuts-and-milestones.md). Runs 1–3 below built a **prototype inside Cyclone One**; port it, do not extend it.
+
 ## Current state (2026-09-23) — alpha.4 dev1 in PR (alpha.3 merged)
 
 **Published developer prerelease:** [`v5.0.0-alpha.2.dev3`](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.2.dev3) — Mobile `5.0.0-alpha.2.dev3` (versionCode 143) + Glass `1.6.0-alpha.2`, source `a896b5da`. Mobile + Glass CI passed; physical phone / Glass acceptance **waived by the owner, not passed**. Signed with the historical development key, which is exposed in repository history (**security debt**; rotation work parked in #168).

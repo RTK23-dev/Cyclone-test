@@ -1,6 +1,9 @@
 # 04 — App Maps canvas (Glass operator board)
 
-The PC is the **operator table**. The phone is the **hands**.
+> Updated 2026-09-23 with the owner's Glass charter ([03](03-glass-v1.md)): Glass is a local web app (`apps/glass`), not Cyclone One pages.
+> The board below is the **App → Map** tab. This doc adds the **Scenarios** lens and **per-version maps**.
+
+The PC is the **operator table**. The phone is the **hands** and the **brain**.
 
 Glass Maps V1 is a **Minitap-class full mapping view**: dotted board, cards, edges, zoom, filters, inspector. The operator must get a look and feel of every mapped app — not a list of package names.
 
@@ -13,11 +16,11 @@ MiniTest’s demo worked because you could **see the house**: dotted board, card
 | Mini (miniTest demo) | Cyclone Glass Maps |
 |---|---|
 | App switcher (Demo App) | Place switcher: Gmail, Chrome · facebook.com, … |
-| Tabs: SCENARIOS / PERSONAS | **Screens** / **Capabilities** / **Live vs mapping** |
-| Journey cards (“Register a New Account”) | Screen cards (purpose, coverage, stale/blocked) |
+| Tabs: SCENARIOS / PERSONAS | **Map** (rooms/doors) / **Scenarios** (routes to end results) / **Live vs mapping** |
+| Journey cards (“Register a New Account”) | **Scenarios lens:** journey cards (“Sign in”, “DM a person”). **Map lens:** room cards (purpose, coverage, stale/blocked) |
 | Edges = story order | Edges = **doors** (“open avatar”, “Create account”) |
-| Passed / warning / critical | Mapped / stale / blocked (secret) / danger (pay) |
-| Click → recording + acceptance criteria | Click → redacted frame + slots + doors + last proof |
+| Passed / warning / critical | Rooms: mapped / stale / blocked (secret) / danger (pay). Scenarios: passing / warning / critical from real runs |
+| Click → recording + acceptance criteria | Room → redacted frame + slots + doors + last proof. Scenario → route on the map + runs that used it → [run inspector](11-run-inspector.md) |
 | Mini orb while authoring | Live **mapping cursor** on the node being walked |
 | Filters | Region, status, danger, Chrome vs native |
 | 4/12 bar | Doors mapped / still dark |
@@ -78,6 +81,33 @@ Open an **edge**: last success/fail, English action, hint target (text / id). No
 - Filters: stale, blocked-secret, danger, unmapped doors, Chrome vs native
 - View toggle: Screens (default) · Capabilities (index of what this place is good for)
 
+## Scenarios lens
+
+The owner's picture: Instagram is a house. You arrive by **registering**, **signing in** or being **already signed in**; you land on the home
+screen; from there doors lead to the DM list, DM search, a person's thread. A scenario is one known route to one **end result**.
+
+- **Card** = a scenario: title in plain English (*DM a person*, *Search DMs*, *Sign in to an existing account*), the room it starts from,
+  the end-result room, the number of steps, health (passing / warning / critical) from the last runs that used it, last verified, app version.
+- **Layout** = left to right like Minitap: entry scenarios (register / sign in / already signed in) → landing → destination scenarios.
+  Edges mean "this scenario continues from that one's end room".
+- **Click** = the route lights up on the Map lens, room by room, with every run that used it; a failing run opens the [run inspector](11-run-inspector.md).
+- **Where scenarios come from** (phone-side, never Glass): successful Ask runs whose path followed Atlas doors, mapping runs that reached a
+  recognised end room (sign-in, DM list, search), and developer pins in Glass ("this route is *DM a person*"). Parameterised ends
+  (*DM **someone***) keep the person out of the scenario; the person comes from the sentence and People memory.
+- **Why it matters**: with a known route, the phone takes the next door without asking the model when the screen matches the expected room,
+  and checks the room after every door. That is how Cyclone gets near-instant decisions without losing its eyes (law 1).
+
+Scenario health is **coverage of the engine**, not product QA: "critical" means Cyclone currently cannot get there reliably.
+
+## Versions
+
+Every door already stores the app version it was verified on. Glass shows:
+
+- which versions of the app have a map, and which is installed now;
+- **needs remap** when the installed version has no verified map;
+- per version: rooms and doors added, removed or failing compared with the previous version;
+- Remap for this version (phone mapper; the older version's map stays for comparison until forgotten).
+
 ## Live mapping theater
 
 JPEG live stays available on **Phone**. Maps board **animates**:
@@ -116,7 +146,7 @@ Glass holds a local replica for pan/zoom. Diffs apply in place so the board does
 
 | ID | Task | Ship |
 |---|---|---|
-| G2.1 | Board engine | `mapsPage.ts` + `appMapCanvas.ts`: pan/zoom/fit, dotted grid, region layout |
+| G2.1 | Board engine | Port the prototype `mapsPage.ts` + `appMapCanvas.ts` into `apps/glass`: pan/zoom/fit, dotted grid, region layout |
 | G2.2 | Node cards + edges | Purpose, status color, capability icons, hover English, confidence opacity |
 | G2.3 | Layout | Seed by region; persist operator drags on the phone atlas |
 | G2.4 | Atlas sync | `atlasClient.ts` replica + diff apply |
@@ -125,6 +155,8 @@ Glass holds a local replica for pan/zoom. Diffs apply in place so the board does
 | G2.7 | Live mapping | Cursor, spawn, secrets interrupt, Take control on the same bar |
 | G2.8 | Empty / loading / stale | Honest copy, one primary action |
 | G2.9 | Phone small canvas | List + mini-graph only — must not block Glass |
+| G2.10 | Scenarios lens | Scenario cards, entry → landing → destinations layout, health from runs, route highlight on the Map lens |
+| G2.11 | Versions | Mapped versions per app, needs-remap, per-version diff, remap for this version |
 
 ## Exit tests
 
@@ -138,10 +170,10 @@ Glass holds a local replica for pan/zoom. Diffs apply in place so the board does
 
 ## What not to copy from Mini
 
-- Acceptance-criteria **as the graph**. Those are Ask proofs, shown in the inspector, not the nodes.
-- “Passed 8/8” as if mapping were a test suite. Mapping is coverage of **doors**, not product QA.
+- Acceptance criteria **as room nodes**. Rooms are screens; proofs live in the inspector. (Scenario cards are wanted — see the Scenarios lens.)
+- Scenario health presented as product QA of the app. It measures whether **Cyclone** can get there.
 - A Mini orb that *is* the agent. Cyclone’s agent is on the phone; the pulse is just the cursor.
-- Rapid-fire along edges from the pretty picture.
+- Replaying doors without checking the room after each one. Map steps are fast, never blind.
 - Storing dummy emails as the signed-in identity of the live persona.
 
 The board is how **you** see the atlas. The phone still **looks** when it walks.

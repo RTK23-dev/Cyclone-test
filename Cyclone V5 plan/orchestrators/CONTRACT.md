@@ -55,7 +55,7 @@ Password, OTP, cookie, token, raw typed secret, unredacted vault field in JSON, 
 
 ## Version lockstep
 
-`release/version.toml` mobile, pc_companion (Glass), device_gateway, mcp move together for V5 alphas. Pipe stays **5.0.0-alpha.N** with mobile. Do not leave gateway at 4.1.0.
+`release/version.toml` mobile, glass (web app; `pc_companion` is Cyclone One — corrected 2026-09-23), device_gateway, mcp move together for V5 alphas. Pipe stays **5.0.0-alpha.N** with mobile. Do not leave gateway at 4.1.0.
 
 ## Who implements what
 
@@ -65,7 +65,9 @@ Password, OTP, cookie, token, raw typed secret, unredacted vault field in JSON, 
 | `apps/mobile/**/gateway` phone op registration / dispatch / data adapters | Writes; phone remains source of truth | — |
 | `apps/device-gateway` forwarding / validation handlers | Writes | Reviews contract tests |
 | `apps/mobile` vault, GATE, atlas, mapper, overlay | Writes | — |
-| `apps/pc-companion` Ask, Maps, Vault UI, `atlasClient` | — | Writes |
+| `apps/glass` (Glass web app: Apps, Maps, Scenarios, Runs, Knowledge, Phone) | — | Writes |
+| `apps/pc-companion` V5 prototype pages (Cyclone One) | — | Port out, then remove |
+| Run record v2, `runs.*`, `apps.*`, `scenarios.*` handlers | Writes | Consumes |
 | Overlay JPEG / live / handoff | Keep 4.8 behavior | Keep One 1.5.5 live path |
 
 ## Handshake for this wave
