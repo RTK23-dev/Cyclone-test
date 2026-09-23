@@ -104,12 +104,15 @@ float vnoise(float2 p) {
 // Domain-warped noise shaped into slow curtains, like an aurora or a tide line.
 float aurora(float2 p, float t) {
     float2 uv = p / res.y;
-    float2 w = float2(vnoise(uv * 1.3 + float2(t * 0.04, -t * 0.03)),
-                      vnoise(uv * 1.3 + float2(-t * 0.03, t * 0.05) + 7.1));
-    float n = 0.6 * vnoise(uv * float2(1.6, 3.2) + w * 1.8 + float2(0.0, t * 0.06))
-            + 0.4 * vnoise(uv * float2(3.1, 6.0) + w * 1.2 - float2(t * 0.05, 0.0));
-    float curtain = 0.5 + 0.5 * sin(uv.y * 5.0 + n * 4.0 - t * 0.25);
-    return smoothstep(0.42, 0.82, n) * (0.5 + 0.5 * curtain);
+    float2 w = float2(vnoise(uv * 1.1 + float2(t * 0.025, -t * 0.018)),
+                      vnoise(uv * 1.1 + float2(-t * 0.02, t * 0.03) + 7.1));
+    float n = 0.6 * vnoise(uv * float2(1.4, 2.6) + w * 1.8 + float2(0.0, t * 0.035))
+            + 0.4 * vnoise(uv * float2(2.8, 5.0) + w * 1.2 - float2(t * 0.03, 0.0));
+    float curtain = 0.5 + 0.5 * sin(uv.y * 5.0 + n * 4.0 - t * 0.15);
+    // A slow diagonal swell that travels over the whole screen, so the unfocused field waves
+    // everywhere instead of pooling in one spot.
+    float swell = 0.5 + 0.5 * sin(uv.x * 1.7 + uv.y * 1.1 - t * 0.22 + n * 2.2);
+    return smoothstep(0.38, 0.8, n) * (0.35 + 0.65 * curtain) * (0.25 + 0.75 * swell);
 }
 
 float3 iridescent(float2 xy) {
@@ -132,7 +135,7 @@ half4 main(float2 xy) {
 
     // Edge filament zone (cheap). It hugs one column per side, so it must not lose that column to thinning.
     float de = min(min(xy.x, res.x - xy.x), min(xy.y, res.y - xy.y));
-    bool edgeZone = edge > 0.0 && de < cell.x * 1.25;
+    bool edgeZone = edge > 0.0 && de < cell.x * 2.5;
     float colGate = edgeZone ? 0.0 : 0.3;
 
     // Glyphs first: most pixels are not inside a digit, and they leave here before any field maths.
@@ -173,20 +176,21 @@ half4 main(float2 xy) {
     float2 relWide = (q - lens.xy) / (lens.zw + float2(res.x * 0.45, res.y * 0.26));
     float ovalWide = exp(-1.8 * dot(relWide, relWide));
     float focused = max(lensCoreMask, max(oval * 0.38, band * 0.13));
-    float diffuse = max(ovalWide * 0.26, band * 0.1);
+    float diffuse = max(ovalWide * 0.09, band * 0.04);
     float m = mix(diffuse, focused, focus);
 
     // Ambient aurora: flowing, never-repeating curtains across the whole screen. Low when
     // Cyclone is focused, the main motion while it thinks, opens apps or clicks through the UI tree.
     float amb = aurora(q, flowTime);
-    m = max(m, (0.05 + 0.34 * amb) * (1.0 - 0.55 * focus));
+    // alpha.7: quieter at rest (faint floor 2 %, patches up to ~20 %), the lens carries focus.
+    m = max(m, (0.02 + 0.2 * amb) * (1.0 - 0.6 * focus));
 
     if (ripple.w > 0.0) {
         float ring = abs(length(xy - ripple.xy) - ripple.z);
-        m = max(m, (1.0 - smoothstep(0.0, cell.y * 1.3, ring)) * ripple.w);
+        m = max(m, (1.0 - smoothstep(0.0, lensSoft * 0.35, ring)) * ripple.w);
     }
     if (scan.y > 0.0) {
-        float scanBand = 1.0 - smoothstep(0.0, cell.y * 2.2, abs(xy.y - scan.x));
+        float scanBand = 1.0 - smoothstep(0.0, lensSoft * 0.6, abs(xy.y - scan.x));
         m = max(m, scanBand * scan.y);
     }
     m *= intensity * fade;
@@ -202,7 +206,7 @@ half4 main(float2 xy) {
         float behind = mod(edgeHead * perimeter - s + perimeter, perimeter);
         float tail = res.y * 0.4;
         if (behind < tail) {
-            e = (1.0 - behind / tail) * (1.0 - smoothstep(cell.x * 0.35, cell.x * 1.25, de)) * edge * 0.85;
+            e = (1.0 - behind / tail) * (1.0 - smoothstep(cell.x * 0.7, cell.x * 2.5, de)) * edge * 0.85;
         }
     }
 
