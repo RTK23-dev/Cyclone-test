@@ -97,6 +97,17 @@ Skill Compiler stays: a high-confidence edge may replay. Miss → look. Unchange
 - Peek chip during mapping.
 - Secrets card is a sibling of Ask, not a webview stuffed in chat.
 
+## M7 — Engine insight for Glass (owner charter, 2026-09-23)
+
+Glass shows what the phone knows and did. The phone must expose it:
+
+- **Run record v2** on top of `AgentTraceStore`: room and expected room per step, `decisionSource: map | model`, scenario id, app version, redacted before/after frames (optional, bounded, TTL), mapping runs recorded as runs. Spec: [11](11-run-inspector.md).
+- **Cause-of-death classifier** on the phone, shared by the phone's diagnostic export and Glass.
+- **Scenarios**: routes to end results derived from successful runs, mapping and developer pins; health from runs. See [04](04-app-maps-canvas.md#scenarios-lens).
+- **Map-driven steps** (law 1): on a known route take the next door without a model call when the room matches; verify the room after every door.
+- **Per-version maps**: needs-remap when the installed app version has no verified map.
+- Gateway handlers: `apps.list`, `atlas.versions`, `scenarios.*`, `runs.*` ([08](08-protocol-gateway.md)).
+
 ## Settings insertion
 
 `ui/v32/CycloneSettings426.kt` gains a first-class **App Maps** row (and Glass has the real board). Do not hide mapping behind Brain-only copy.

@@ -17,6 +17,14 @@ mapping.start | pause | stop | status
 
 ask.start | status                 # goal text only
 
+apps.list                          # installed apps + web places, installed version, mapped versions, needs-remap
+atlas.versions(placeId)            # maps per app version + per-version diff
+scenarios.list(placeId) | get(id)  # routes to end results + health from runs
+
+runs.list(filter, cursor)          # every run: Ask, Glass Ask, mapping, automations
+runs.get(runId)                    # steps, rooms, decision source, cause of death, route
+runs.frame(runId, step, which)     # redacted before/after JPEG, only when kept
+
 secrets.slots                      # booleans
 secrets.request                    # slot name; phone/Glass shows card
 
@@ -33,6 +41,10 @@ protocol/cyclone-secrets-v1.schema.json
 ```
 
 Extend `protocol/cyclone-live-v1.schema.json` only if live JPEG needs a mapping-cursor overlay; prefer a sidecar event `mapping.cursor` on the fleet websocket.
+
+## Glass serving
+
+The local gateway also serves the Glass web bundle (`apps/glass` build) on `127.0.0.1` only, with a per-launch session secret. Glass talks to the ops above over the same origin. Glass has no other backend and no model access.
 
 ## MCP
 
@@ -61,10 +73,9 @@ When alpha.1 cuts, `release/version.toml` must agree:
 | Key | Value |
 |---|---|
 | `components.mobile` | `5.0.0-alpha.1` (or the cut’s id) |
-| `components.pc_companion` | `1.0.0-alpha.1` as **Glass** (or `2.0.0-alpha.1` if One 1.x numbering must continue — pick one in M0 and do not flip) |
+| `components.pc_companion` | Cyclone One's own line (1.x). **Not** Glass |
+| `components.glass` | Glass web app, starting `1.0.0-alpha.1` |
 | `components.device_gateway` | `5.0.0-alpha.1` |
 | `components.mcp` | `5.0.0-alpha.1` |
 
-**Numbering recommendation:** One becomes Glass **1.0**. Do not ship “One 1.6 with Maps.” Doctor, installer display name, and this folder all say Glass.
-
-If installer-path compatibility forces keeping `Cyclone One` under `%LOCALAPPDATA%`, that is a path, not the product name.
+**Numbering (corrected 2026-09-23):** Glass is its own component with its own line. The `pc_companion 1.6.0-alpha.x` builds that carried V5 pages inside Cyclone One were a prototype; they do not count as Glass releases.

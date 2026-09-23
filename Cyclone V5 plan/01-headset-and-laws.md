@@ -17,11 +17,11 @@ A headset gives the agent **eyes, hands, a memory, and a critic**, then lets it 
 | Critic | Goal-drift, dummy-vs-live, payment, stale edge. |
 | Human | First-class tool: secrets card, Take control, pin “this is DMs.” |
 
-Minitap’s Mini still **looks every step**. Their graph is coverage of stories, not a GPS tape. Steal that loop. Do not steal “rapid-fire the saved path.”
+Minitap’s Mini still **looks every step**. Steal that. Cyclone goes further: a mapped route lets it skip the *thinking*, never the *looking*.
 
 ## Laws (or V5 is 4.8 with a graph sticker)
 
-1. **Map is a hint.** Failed edge → look. Never rapid-fire a stale path from the pretty picture.
+1. **Map drives, eyes confirm.** On a known route Cyclone takes the next door without asking the model when the screen matches the expected room, and checks the room after every door. Mismatch or failed door → look and think. Never replay doors blind.
 2. **Sentence is law.** Maps do not rewrite “find DM” into “check login.”
 3. **See or it isn’t real.** Slot values are read **now**, not remembered from mapping day.
 4. **Secrets only through the card.** Not chat, not screenshots, not Download logs, not MCP, not Glass disk.
@@ -29,8 +29,9 @@ Minitap’s Mini still **looks every step**. Their graph is coverage of stories,
 6. **Doors, not infinite scroll.** Feeds are one node with a content region, not a thousand pages.
 7. **Places, not packages only.** Chrome + host is a place. Native-missing is data.
 8. **Dummy ≠ you.** Two personas. Mix them and the product is wrong.
-9. **Phone mutates.** Glass does not grow a PhoneToolExecutor.
+9. **Phone thinks and mutates.** Glass has no agent, no planner, no model calls and no PhoneToolExecutor. It shows, inspects and sends commands.
 10. **Proof is pixels / a11y.** Transport success is not task success. Unchanged is not a second click.
+11. **Every run is inspectable.** Any run can be opened step by step with its cause of death. If you can't see why it failed, you can't make the map better.
 
 ## How we stop the checklist reflex in code
 
