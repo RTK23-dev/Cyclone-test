@@ -22,8 +22,8 @@ Glass restarts as `apps/glass`, a local web app. The V5 pages prototyped inside 
 
 | Cut | Glass (web) | Phone / gateway work it needs | Developer can |
 |---|---|---|---|
-| **glass 1.0.0-alpha.1** | Web shell served by the local gateway, one launcher, one design system. **Apps** page. **Map** board ported. **Phone** live + take control + Ask | `apps.list`; serve static bundle; existing `atlas.*`, `mapping.*`, `ask.*` | Open Glass in a browser, see every app, pan a map, drive the phone |
-| **alpha.2** | **Runs** list + **Run inspector** v1 from today's trace (steps, tools, verification, failure) with cause of death | `runs.list/get` over `AgentTraceStore`; phone-side cause-of-death classifier | Open a failed run and see which step killed it |
+| **glass 1.0.0-alpha.1** ✅ built 2026-09-23 | Web shell served by the local gateway, one launcher, one design system. **Apps** page. **Map** board ported. **Phone** live + take control + Ask | `apps.list`; serve static bundle; existing `atlas.*`, `mapping.*`, `ask.*` | Open Glass in a browser, see every app, pan a map, drive the phone |
+| **alpha.2** ✅ built 2026-09-23 | **Runs** list + **Run inspector** v1 from today's trace (steps, tools, verification, failure) with cause of death | `runs.list/get` over `AgentTraceStore`; phone-side cause-of-death classifier | Open a failed run and see which step killed it |
 | **alpha.3** | Inspector v2: rooms per step, map vs model steps, redacted frames, route on the map | Run record v2 (room, expected room, decision source, frames) | See where a route broke on the map and jump to fix it |
 | **alpha.4** | **Scenarios** lens + **Versions** tab | Scenario store + health; `atlas.versions` | See Instagram's scenarios like Minitap's board; see needs-remap after an app update |
 | **Glass 1.0** | Knowledge page, Vault slots, polish, parity; Cyclone One loses the prototype pages | People memory, freshness | Glass exit criteria in [03](03-glass-v1.md) |

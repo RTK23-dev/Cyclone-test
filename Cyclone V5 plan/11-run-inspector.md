@@ -48,6 +48,15 @@ For every run that did not finish, one line naming the **first step that went wr
 
 The classifier runs **on the phone** from the recorded events, so the phone's own diagnostics and Glass agree.
 
+**Built in Glass alpha.2** (`apps/mobile/**/ai/RunInsight.kt`): `needs-secret`, `gate`, `human-took-control`, `transport`,
+`timeout`, `unchanged`, `element-not-found`, `wrong-room`, `verification-failed`, `model-gave-up`, plus three the trace needs
+today: `cancelled` (stopped by the user), `provider-error` (model provider failed) and `blocked` (other hard blockers), and
+`unknown` with the last failed step. `door-missing` and `stale-door` need rooms per step (run record v2, alpha.3).
+Mapping from today's trace: GATE_SUSPEND without a later GATE_RESUME → `gate` / `needs-secret`; HARD_BLOCKER text → login wall,
+locked phone or lost accessibility; NON_CONVERGENCE codes (`convergence.task_timeout`, `.repeated_action`, `.stale_target`,
+`.backtrack`, `.mutations_without_verified_progress`, `completion.*`, `.malformed_model`, `.recovery_without_evidence`,
+`classifier.non_convergence`) → the classes above.
+
 ### Timeline
 
 One row per decision turn. Each step shows:
