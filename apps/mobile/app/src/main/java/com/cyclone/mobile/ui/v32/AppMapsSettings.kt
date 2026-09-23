@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -25,14 +24,13 @@ import java.time.Instant
 /**
  * Run-1 App Maps settings surface.
  *
- * Root Settings navigation is intentionally not edited here so Agent 002 can land its own section
- * without a parallel-file collision. Integration can mount AppMapsSettingsSection from the root.
+ * Compact phone catalog. A Glass action is shown only when a real navigation callback is supplied.
  */
 @Composable
 internal fun AppMapsSettingsSection(
     context: Context,
     refreshTick: Int,
-    onOpenOnGlass: (String, String) -> Unit = { _, _ -> },
+    onOpenOnGlass: ((String, String) -> Unit)? = null,
 ) {
     val places = remember(refreshTick) {
         AppLearnerRuntime.initialize(context)
@@ -42,7 +40,7 @@ internal fun AppMapsSettingsSection(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("App Maps", style = MaterialTheme.typography.headlineSmall)
         Text(
-            "Phone-owned maps learned from Follow Me. Mapping automation is coming later; Run 1 only teaches from real demonstrations.",
+            "Map coverage stored on this phone from Follow Me and mapping sessions.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -50,7 +48,7 @@ internal fun AppMapsSettingsSection(
         if (places.isEmpty()) {
             Card(Modifier.fillMaxWidth()) {
                 Text(
-                    "No app maps yet. Start Follow Me and navigate an app to teach Cyclone its rooms and doors.",
+                    "No app maps yet. Use Follow Me or a supported mapping session to teach Cyclone an app's rooms and doors.",
                     modifier = Modifier.padding(16.dp),
                 )
             }
@@ -59,17 +57,13 @@ internal fun AppMapsSettingsSection(
                 AppMapPlaceCard(summary, onOpenOnGlass)
             }
         }
-
-        Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-            Text("Start Mapping · coming soon")
-        }
     }
 }
 
 @Composable
 private fun AppMapPlaceCard(
     summary: AtlasPlaceSummary,
-    onOpenOnGlass: (String, String) -> Unit,
+    onOpenOnGlass: ((String, String) -> Unit)?,
 ) {
     val place = summary.place
     val source = place.packageName ?: place.origin.orEmpty()
@@ -105,11 +99,13 @@ private fun AppMapPlaceCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedButton(
-                onClick = { onOpenOnGlass(place.id, place.persona.wireValue) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Open on Glass")
+            if (onOpenOnGlass != null) {
+                OutlinedButton(
+                    onClick = { onOpenOnGlass(place.id, place.persona.wireValue) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Open on Glass")
+                }
             }
         }
     }

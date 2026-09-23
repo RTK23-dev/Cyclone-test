@@ -7,6 +7,7 @@ import com.cyclone.mobile.brain.graphv2.AtlasRetriever
 import com.cyclone.mobile.brain.graphv2.AtlasStore
 import com.cyclone.mobile.brain.graphv2.PlaceCatalog
 import com.cyclone.mobile.brain.graphv2.StoreBackedAtlasReadProvider
+import com.cyclone.mobile.places.PlaceResolver
 import java.io.File
 
 /** Process facade around the durable phone-owned Atlas. */
@@ -46,6 +47,8 @@ object AtlasRuntime {
     fun projectLegacy(legacyStore: AppKnowledgeStore) {
         if (!initialized) return
         legacyStore.listApps().forEach { app ->
+            // Legacy graphs are package-scoped and cannot prove a Chrome website origin.
+            if (PlaceResolver.isChromePackage(app.packageName)) return@forEach
             legacyStore.graph(app.packageName)?.let(legacyImporter::import)
         }
     }

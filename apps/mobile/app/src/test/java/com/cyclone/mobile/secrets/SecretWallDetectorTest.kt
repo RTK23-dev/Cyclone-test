@@ -37,7 +37,20 @@ class SecretWallDetectorTest {
         )
     }
 
-    private fun page(packageName: String, sessionId: String, displayId: Int): AgentPageCard {
+    @Test
+    fun chromeLoginUsesCurrentCanonicalOriginAndMappingPersona() {
+        val page = page("com.android.chrome", "workspace-7", 11, "https://example.com")
+        val live = SecretWallDetector.passwordForLogin(page, SecretPersona.LIVE)
+        val mapping = SecretWallDetector.passwordForLogin(page, SecretPersona.MAPPING)
+        assertEquals("chrome:https://example.com", live?.request?.placeId)
+        assertEquals(SecretPersona.LIVE, live?.request?.persona)
+        assertEquals("chrome:https://example.com", mapping?.request?.placeId)
+        assertEquals(SecretPersona.MAPPING, mapping?.request?.persona)
+        assertTrue(mapping.toString().contains("chrome:https://example.com"))
+        assertTrue(!mapping.toString().contains("private"))
+    }
+
+    private fun page(packageName: String, sessionId: String, displayId: Int, origin: String? = null): AgentPageCard {
         val password = AgentElementCandidate(
             elementId = "semantic:obs-login:password",
             observationId = "obs-login",
@@ -66,7 +79,13 @@ class SecretWallDetectorTest {
             accessibilityFingerprint = "fp-login",
             pageSummary = JSONObject(),
             pageText = JSONObject(),
-            pageEvidence = JSONObject(),
+            pageEvidence = JSONObject().apply {
+                if (origin != null) {
+                    put("browserOrigin", origin)
+                    put("browserOriginSource", "chrome-address-bar")
+                    put("browserOriginObservationId", "obs-login")
+                }
+            },
             controls = listOf(password),
             nextHopHints = JSONArray(),
             sessionId = sessionId,

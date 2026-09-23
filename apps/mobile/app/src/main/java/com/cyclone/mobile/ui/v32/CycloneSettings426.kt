@@ -65,6 +65,7 @@ import com.cyclone.mobile.gateway.GatewaySettingsActivity
 import com.cyclone.mobile.permissions.CyclonePermissionSetup
 import com.cyclone.mobile.runtime.background.BackgroundSetup
 import com.cyclone.mobile.runtime.background.BackgroundSetupActivity
+import com.cyclone.mobile.secrets.VaultSettingsPanel
 import com.cyclone.mobile.ui.RootFeaturesCard
 
 private data class Settings426Row(
@@ -137,6 +138,10 @@ internal fun CycloneSettingsPage426(
                 ),
                 "Profiles" to listOf(
                     Settings426Row("Profile engine", "Profiles", Icons.Rounded.Layers, "Manage"),
+                ),
+                "Knowledge" to listOf(
+                    Settings426Row("App Maps", "App Maps", Icons.Rounded.Layers, "On device"),
+                    Settings426Row("Vault", "Vault", Icons.Rounded.Key, "Slots only"),
                     Settings426Row("Storage", "Storage", Icons.Rounded.Storage, "On device"),
                 ),
                 "Connections" to listOf(
@@ -158,11 +163,13 @@ internal fun CycloneSettingsPage426(
         contentPadding = cyclonePageInsets(top = 10.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(if (section == "Profile engine") "Profiles" else section, style = MaterialTheme.typography.headlineSmall)
-                Settings426DetailSubtitle(section)?.let { subtitle ->
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (section !in setOf("App Maps", "Vault")) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(if (section == "Profile engine") "Profiles" else section, style = MaterialTheme.typography.headlineSmall)
+                    Settings426DetailSubtitle(section)?.let { subtitle ->
+                        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
@@ -302,6 +309,8 @@ internal fun CycloneSettingsPage426(
 
             "Permissions" -> item { Permissions426Card(context) }
             "Profile engine" -> item { Settings426Surface { RootFeaturesCard() } }
+            "App Maps" -> item { AppMapsSettingsSection(context, refreshTick) }
+            "Vault" -> item { VaultSettingsPanel() }
             "Storage" -> item {
                 Settings426Surface {
                     Settings426InfoRow(

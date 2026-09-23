@@ -1,5 +1,13 @@
 # Mobile orchestrator — STATUS
 
+## Alpha.2 exit candidate in validation
+
+The `codex/v5-alpha2-exit` branch carries the `5.0.0-alpha.2.dev2` candidate (Android versionCode **142**) based on `v5/integration@7462e40578e3dea3c548439b09452546f993d283`. It adds canonical native and observed Chrome-origin Places, binds live/mapping secret walls to the proven Place, redacts Chrome address-bar URLs from Gateway evidence, and mounts App Maps and Vault in root Settings. The Glass version contract now follows V5 metadata. Publication remains disabled.
+
+Local validation and remote CI are in progress. A named Pixel 8 is connected, but physical acceptance and the real Follow Me → Glass demonstration remain **UNVERIFIED** until an exact, update-compatible signed candidate is installed and tested. See [physical acceptance return](returns/RETURN-V5-ALPHA2-PHYSICAL.md). The frozen `alpha.2.dev1` release branch is unchanged.
+
+## Prior validated checkpoint
+
 **Wave:** `5.0.0-alpha.2.dev1` consolidated checkpoint **MERGED**  
 **Integration merge:** `v5/integration@a7f03728fdca16064e03f977499c8d1790029cff`  
 **Release branch:** `release/cyclone-mobile-v5.0.0-alpha.2.dev1@a7f03728fdca16064e03f977499c8d1790029cff`  
@@ -22,7 +30,7 @@
 | 003 | durable Atlas + Follow Me | absorbed/corrected in PR #165; source PR #146 closed as superseded |
 | 004 | mapping session + protocol | absorbed in PR #165; source PR #152 closed as superseded |
 | 005 | safe mapper walker | absorbed/repaired in PR #165; source PR #151 closed as superseded |
-| 006 | canonical Place/Chrome + Settings | **not implemented; still missing** |
+| 006 | canonical Place/Chrome + Settings | implemented on `codex/v5-alpha2-exit`; local/CI and physical exit pending |
 
 PR #165 is the authoritative integration path for 003–005. Their stale branch histories were not merged directly; their owned code was consolidated on the latest shared integration line and revalidated together with Glass.
 

@@ -1,5 +1,7 @@
 package com.cyclone.mobile.brain.graphv2
 
+import com.cyclone.mobile.places.PlaceResolver
+import com.cyclone.mobile.places.ResolvedPlace
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
@@ -196,8 +198,30 @@ class PlaceCatalog(
     fun addPackage(packageName: String, label: String, persona: AtlasPersona): AtlasPlace =
         store.ensurePackagePlace(packageName, label, persona)
 
-    fun addChromeOrigin(origin: String, label: String, persona: AtlasPersona): AtlasPlace =
-        store.ensureChromeOrigin(origin, label, persona)
+    fun addChromeOrigin(origin: String, label: String, persona: AtlasPersona): AtlasPlace {
+        require(label.isNotBlank()) { "Chrome Place label must not be blank" }
+        require(PlaceResolver.canonicalOrigin(origin) == origin) { "Chrome Place requires a canonical origin" }
+        // Host-only labels prevent arbitrary page content from entering the catalog.
+        return store.ensureChromeOrigin(origin, origin, persona)
+    }
+
+    fun recordObserved(place: ResolvedPlace, persona: AtlasPersona): AtlasPlace {
+        require(
+            (place.origin != null && place.packageName == null &&
+                place.id == "chrome:${place.origin}" && PlaceResolver.canonicalOrigin(place.origin) == place.origin) ||
+                (place.packageName != null && place.origin == null &&
+                    PlaceResolver.packagePlace(place.packageName)?.id == place.id),
+        ) { "Invalid observed Place" }
+        val key = AtlasPlaceKey(place.id, persona)
+        store.place(key)?.let { return it }
+        return when {
+            place.origin != null && place.id == "chrome:${place.origin}" ->
+                addChromeOrigin(place.origin, place.origin, persona)
+            place.packageName != null && PlaceResolver.packagePlace(place.packageName)?.id == place.id ->
+                addPackage(place.packageName, place.packageName, persona)
+            else -> error("Invalid observed Place")
+        }
+    }
 }
 
 /**
