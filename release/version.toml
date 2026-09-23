@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.8 dev1 + Cyclone Glass 1.0.0-alpha.2: the run inspector. The phone explains every run (steps,
-# cause of death, fix) over runs.list / runs.get; Glass shows Runs and the step-by-step autopsy. No intelligence in Glass.
+# cause of death, fix) over runs.list / runs.get; Glass shows Runs and the step-by-step autopsy. No intelligence in Glass. Device-test candidate for the owner's PC agent.
 schema = 1
 product_version = "5.0.0-alpha.8.dev1"
 channel = "development"
