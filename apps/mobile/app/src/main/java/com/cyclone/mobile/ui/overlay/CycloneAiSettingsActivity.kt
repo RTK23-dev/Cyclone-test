@@ -57,6 +57,7 @@ import com.cyclone.mobile.ui.v32.CycloneV32Theme
 import com.cyclone.mobile.ui.overlay.tracefield.TraceFieldMode
 import com.cyclone.mobile.ui.overlay.tracefield.TraceFieldPrefs
 import com.cyclone.mobile.ui.overlay.tracefield.TraceFieldRuntime
+import com.cyclone.mobile.ui.overlay.tracefield.TraceFieldStyle
 import kotlinx.coroutines.launch
 
 /** Full AI configuration intentionally lives in the Cyclone app, never in the floating composer. */
@@ -239,6 +240,7 @@ private fun AiSettingsContent(context: Context, onBack: () -> Unit) {
 @Composable
 private fun ColumnScope.WorkingIndicatorSettings(context: Context) {
     var mode by remember { mutableStateOf(TraceFieldPrefs.mode(context)) }
+    var style by remember { mutableStateOf(TraceFieldPrefs.style(context)) }
     var previewMessage by remember { mutableStateOf<String?>(null) }
     Text("Working indicator", fontWeight = FontWeight.Bold)
     Text(
@@ -262,6 +264,25 @@ private fun ColumnScope.WorkingIndicatorSettings(context: Context) {
                 label = { Text(label) },
             )
         }
+    }
+    if (mode == TraceFieldMode.FIELD) {
+        Text("Style", fontWeight = FontWeight.Bold)
+        TraceFieldStyle.entries.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEach { option ->
+                    FilterChip(
+                        selected = style == option,
+                        onClick = {
+                            TraceFieldPrefs.setStyle(context, option)
+                            style = option
+                            previewMessage = null
+                        },
+                        label = { Text(option.label) },
+                    )
+                }
+            }
+        }
+        Text(style.blurb, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     OutlinedButton(
         enabled = mode != TraceFieldMode.OFF,

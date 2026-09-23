@@ -263,7 +263,21 @@ Code: `apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/tracefield/`.
 | Capture gating | `CycloneAccessibilityService.takeScreenshot`, `LiveVisionRuntime.capture` | Full-display screenshots wait for a frame without the field (120 ms failsafe). Live MediaProjection frames are accepted only if they were captured after the hide. The `takeScreenshotOfWindow` path already excludes overlays. |
 | Setting | AI settings → Working indicator | Trace Field / Edge only / Off, plus **Preview**. Battery Saver forces Edge only. |
 
-Deferred from the concept: luminance-adaptive blending (§4.4), haptic ticks, custom Cyclone glyph
+### Styles (AI settings → Working indicator → Style)
+
+Android composites overlays with plain alpha, so real Difference/Burn blend modes against other
+apps are impossible. Instead `TraceFieldBackdrop` shrinks the screenshot Cyclone already takes for
+each observation into a 16×32 colour grid (memory only, never persisted, no extra capture) and
+the shader reads it.
+
+| Style | Look | How |
+|---|---|---|
+| **Obsidian** (default) | Outlined digits that glow on dark content and turn to ink on light content; a 1.5 px red/blue fringe on the lens rim | Halo atlas row, backdrop luminance, per-channel offset sampling on the rim only |
+| **Forge** | Digits appear white-hot, cool to Cyclone blue, fade as embers; the previous digit lingers as an afterglow | Heat ramp from each digit's age; ghost from the previous tick's glyph |
+| **Chameleon** | Takes on the colour of the app around the target; soft depth of field | `TraceFieldColor.accentFrom` on the backdrop colour at the target; blurred atlas row for the far layer |
+| **Signal** | Digits break into print dots toward the lens edge; the finishing rain is iridescent | Halftone mask from lens distance; hue ramp during rain |
+
+Deferred from the concept: haptic ticks, custom Cyclone glyph
 strokes, per-node exclusion rects (only the Aurora pill area is excluded), and the long-press
 "what do these digits mean" tooltip. Physical Pixel 8 frame-time and battery measurements are
 still UNVERIFIED.

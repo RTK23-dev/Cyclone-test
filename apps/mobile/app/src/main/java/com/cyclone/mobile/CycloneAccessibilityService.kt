@@ -757,6 +757,7 @@ class CycloneAccessibilityService : AccessibilityService() {
                         val wrapped = Bitmap.wrapHardwareBuffer(result.hardwareBuffer, result.colorSpace ?: ColorSpace.get(ColorSpace.Named.SRGB))
                             ?: error("Unable to map screenshot buffer")
                         val bitmap = wrapped.copy(Bitmap.Config.ARGB_8888, false) ?: wrapped
+                        if (crop == null) com.cyclone.mobile.ui.overlay.tracefield.TraceFieldBackdrop.ingest(bitmap)
                         val boundedCrop = crop?.let { bounds ->
                             UiBounds(
                                 bounds.left.coerceIn(0, bitmap.width), bounds.top.coerceIn(0, bitmap.height),

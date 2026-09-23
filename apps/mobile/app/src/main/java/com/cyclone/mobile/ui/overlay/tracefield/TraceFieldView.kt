@@ -39,6 +39,13 @@ internal class TraceFieldView(
         set(value) { field = value; choreographer?.mode = value; kick() }
     var reduceMotion: Boolean = false
         set(value) { field = value; choreographer?.reduceMotion = value }
+    var style: TraceFieldStyle = TraceFieldStyle.OBSIDIAN
+        set(value) { field = value; kick() }
+
+    private var backdropRevision = -1L
+    private var backdropReady = false
+    private var accentTarget = TraceFieldColor.CYCLONE_BLUE
+    private var accentNow = TraceFieldColor.CYCLONE_BLUE
 
     /** Bottom-center Aurora pill area; the field never draws over Cyclone's own entry point. */
     private val exclusionWidth = 176f * density
@@ -88,7 +95,13 @@ internal class TraceFieldView(
             val cellH = (12f * density).roundToInt().coerceAtLeast(10)
             val bitmap = buildAtlas(cellW, cellH)
             val runtime = RuntimeShader(TraceFieldShader.SOURCE)
-            runtime.setInputShader("atlas", BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP))
+            runtime.setInputShader("atlas", linear(BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)))
+            runtime.setInputShader("backdrop", linear(BitmapShader(PLACEHOLDER_GRID, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)))
+            runtime.setFloatUniform("gridSize", TraceFieldBackdrop.GRID_W.toFloat(), TraceFieldBackdrop.GRID_H.toFloat())
+            runtime.setFloatUniform("backdropOn", 0f)
+            runtime.setFloatUniform("opacity", 0.8f)
+            runtime.setColorUniform("ink", INK)
+            runtime.setColorUniform("accent", TraceFieldColor.CYCLONE_BLUE)
             runtime.setFloatUniform("cell", cellW.toFloat(), cellH.toFloat())
             runtime.setFloatUniform("glyphCount", TraceFieldShader.GLYPHS.length.toFloat())
             runtime.setFloatUniform("lensSoft", 44f * density)
@@ -107,7 +120,8 @@ internal class TraceFieldView(
 
     private fun buildAtlas(cellW: Int, cellH: Int): Bitmap {
         val glyphs = TraceFieldShader.GLYPHS
-        val bitmap = Bitmap.createBitmap(cellW * glyphs.length, cellH, Bitmap.Config.ARGB_8888)
+        // Rows: 0 core, 1 outline halo, 2 blurred (depth of field). See TraceFieldShader.
+        val bitmap = Bitmap.createBitmap(cellW * glyphs.length, cellH * TraceFieldShader.ATLAS_ROWS, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.WHITE
@@ -118,8 +132,20 @@ internal class TraceFieldView(
         }
         val metrics = text.fontMetrics
         val baseline = cellH / 2f - (metrics.ascent + metrics.descent) / 2f
+        val halo = Paint(text).apply {
+            style = Paint.Style.FILL_AND_STROKE
+            strokeWidth = 0.9f * density
+            strokeJoin = Paint.Join.ROUND
+        }
+        val soft = Paint(text).apply {
+            maskFilter = android.graphics.BlurMaskFilter(0.9f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        }
+        val y = ceil(baseline)
         glyphs.forEachIndexed { index, glyph ->
-            canvas.drawText(glyph.toString(), index * cellW + cellW / 2f, ceil(baseline), text)
+            val x = index * cellW + cellW / 2f
+            canvas.drawText(glyph.toString(), x, y, text)
+            canvas.drawText(glyph.toString(), x, cellH + y, halo)
+            canvas.drawText(glyph.toString(), x, 2 * cellH + y, soft)
         }
         return bitmap
     }
@@ -130,6 +156,11 @@ internal class TraceFieldView(
         val now = now()
         while (true) {
             val event = events.poll() ?: break
+            if (event is TraceEvent.Wake) accentTarget = TraceFieldColor.CYCLONE_BLUE
+            if (event is TraceEvent.Target) {
+                TraceFieldBackdrop.colorAt((event.left + event.right) / 2f, (event.top + event.bottom) / 2f, width, height)
+                    ?.let { accentTarget = TraceFieldColor.accentFrom(it) }
+            }
             machine.onEvent(event, now)
         }
         val frame = machine.frame(now)
@@ -139,6 +170,10 @@ internal class TraceFieldView(
         }
         if (captureHidden) return
         try {
+            syncBackdrop(runtime)
+            accentNow = TraceFieldColor.lerp(accentNow, accentTarget, 0.12f)
+            runtime.setColorUniform("accent", accentNow)
+            runtime.setFloatUniform("style", style.shaderIndex)
             runtime.setFloatUniform("res", width.toFloat(), height.toFloat())
             runtime.setFloatUniform("clock", frame.glyphClock)
             runtime.setFloatUniform("seed", frame.seed)
@@ -164,6 +199,21 @@ internal class TraceFieldView(
         }
         if (frame.animating || events.isNotEmpty()) postInvalidateOnAnimation()
     }
+
+    private fun syncBackdrop(runtime: RuntimeShader) {
+        val revision = TraceFieldBackdrop.revision
+        if (revision == backdropRevision) return
+        backdropRevision = revision
+        val grid = TraceFieldBackdrop.grid
+        backdropReady = grid != null && !grid.isRecycled
+        if (backdropReady) {
+            runtime.setInputShader("backdrop", linear(BitmapShader(grid!!, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)))
+        }
+        runtime.setFloatUniform("backdropOn", if (backdropReady) 1f else 0f)
+    }
+
+    private fun linear(shader: BitmapShader): BitmapShader =
+        shader.apply { filterMode = BitmapShader.FILTER_MODE_LINEAR }
 
     override fun hide(onHidden: () -> Unit) {
         val work = Runnable {
@@ -213,5 +263,7 @@ internal class TraceFieldView(
         private const val TINT = 0x804A8DFF.toInt()
         private const val HOT = 0xB3E8F4FF.toInt()
         private const val WARM = 0xB3FFC46B.toInt()
+        private const val INK = 0xFF0B2A6B.toInt()
+        private val PLACEHOLDER_GRID: Bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
     }
 }

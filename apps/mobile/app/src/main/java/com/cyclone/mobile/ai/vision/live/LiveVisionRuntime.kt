@@ -170,6 +170,8 @@ object LiveVisionRuntime {
                         result.colorSpace ?: ColorSpace.get(ColorSpace.Named.SRGB),
                     ) ?: return
                     val bitmap = wrapped.copy(Bitmap.Config.ARGB_8888, false) ?: wrapped
+                    // Reuse this observation for the Trace Field's colour grid; no extra capture.
+                    com.cyclone.mobile.ui.overlay.tracefield.TraceFieldBackdrop.ingest(bitmap)
                     try {
                         val directory = File(cacheDir, "live-evidence").apply { mkdirs() }
                         val file = File(directory, "${UUID.randomUUID()}.png")
