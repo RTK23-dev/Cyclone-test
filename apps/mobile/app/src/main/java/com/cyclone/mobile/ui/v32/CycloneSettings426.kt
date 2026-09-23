@@ -394,12 +394,7 @@ private fun Settings426Root(groups: List<Pair<String, List<Settings426Row>>>, on
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        shadowElevation = 0.dp,
-                    ) {
+                    CycloneSurface(Modifier.fillMaxWidth()) {
                         Column {
                             rows.forEachIndexed { index, row ->
                                 Settings426ListRow(row, onClick = { onOpen(row.id) })
@@ -422,9 +417,9 @@ private fun Settings426ListRow(row: Settings426Row, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-            Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
-                Icon(row.icon, null, Modifier.size(19.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        CycloneMatrixIconTile(size = 38.dp) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(row.icon, null, Modifier.size(19.dp), tint = TealMatrix.Teal)
             }
         }
         Text(row.title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
@@ -508,8 +503,8 @@ private fun Settings426Readiness(title: String, body: String, ready: Boolean) {
 @Composable
 private fun Settings426InfoRow(icon: ImageVector, title: String, body: String) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        CycloneMatrixIconTile(size = 40.dp) {
+            Box(contentAlignment = Alignment.Center) {
                 Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
             }
         }
@@ -522,12 +517,7 @@ private fun Settings426InfoRow(icon: ImageVector, title: String, body: String) {
 
 @Composable
 private fun Settings426Surface(content: @Composable () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 0.dp,
-    ) {
+    CycloneSurface(Modifier.fillMaxWidth()) {
         Box(Modifier.padding(16.dp)) { content() }
     }
 }

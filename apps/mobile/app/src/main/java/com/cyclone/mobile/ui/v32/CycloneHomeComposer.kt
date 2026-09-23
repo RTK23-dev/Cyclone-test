@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -54,17 +58,25 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun CycloneHomeComposer(onSubmit: (String) -> Unit) {
+fun CycloneHomeComposer(seed: Pair<Int, String> = 0 to "", onSubmit: (String) -> Unit) {
     val context = LocalContext.current
-    val backdrop = LocalCycloneLiquidBackdrop.current
     var text by rememberSaveable { mutableStateOf("") }
     var tools by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    var focused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
     val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let {
                 text = listOf(text, it).filter(String::isNotBlank).joinToString(" ")
             }
+        }
+    }
+    // Quick actions prefill the capsule and focus it; the user always sends the request.
+    LaunchedEffect(seed.first) {
+        if (seed.first > 0 && seed.second.isNotBlank()) {
+            text = seed.second
+            runCatching { focusRequester.requestFocus() }
         }
     }
 
@@ -77,27 +89,21 @@ fun CycloneHomeComposer(onSubmit: (String) -> Unit) {
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // Home is a launcher, not a second AI settings surface. Model and intelligence live in
-        // the AI workspace; phone autonomy lives in Settings.
-        CycloneLiquidPanel(
-            modifier = Modifier.fillMaxWidth(),
-            cornerRadius = 28.dp,
-            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 5.dp),
+        // the AI workspace; phone autonomy lives in Settings. The capsule is the Ask Cyclone glass.
+        CycloneSignatureGlass(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+            focused = focused,
         ) {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 54.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CycloneTrayIconAction(
+                SignatureAction(
+                    SignatureGlyph.ADD,
+                    "Add attachment",
                     onClick = { tools = !tools },
-                    modifier = Modifier.size(44.dp),
-                ) {
-                    Icon(
-                        Icons.Rounded.Add,
-                        "Add attachment",
-                        modifier = Modifier.size(22.dp),
-                        tint = if (tools) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                    selected = tools,
+                )
 
                 BasicTextField(
                     value = text,
@@ -106,9 +112,11 @@ fun CycloneHomeComposer(onSubmit: (String) -> Unit) {
                         .weight(1f)
                         .heightIn(min = 48.dp, max = 72.dp)
                         .padding(horizontal = 8.dp, vertical = 12.dp)
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { focused = it.isFocused }
                         .semantics { contentDescription = "Home request composer" },
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                    cursorBrush = SolidColor(SignatureTeal),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = SignatureInk),
                     maxLines = 2,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { send() }),
@@ -116,8 +124,8 @@ fun CycloneHomeComposer(onSubmit: (String) -> Unit) {
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (text.isEmpty()) {
                                 Text(
-                                    "Ask Cyclone",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    "Ask Cyclone…",
+                                    color = SignatureMuted,
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
                             }
@@ -126,43 +134,21 @@ fun CycloneHomeComposer(onSubmit: (String) -> Unit) {
                     },
                 )
 
-                CycloneTrayIconAction(
-                    onClick = {
-                        runCatching {
-                            voice.launch(
-                                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                                    .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM),
-                            )
-                        }.onFailure { error = "Voice is unavailable. You can type your request." }
-                    },
-                    modifier = Modifier.size(44.dp),
-                ) {
-                    Icon(
-                        Icons.Rounded.Mic,
+                if (text.isBlank()) {
+                    SignatureAction(
+                        SignatureGlyph.MIC,
                         "Dictate request",
-                        modifier = Modifier.size(22.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        onClick = {
+                            runCatching {
+                                voice.launch(
+                                    Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM),
+                                )
+                            }.onFailure { error = "Voice is unavailable. You can type your request." }
+                        },
                     )
-                }
-                if (backdrop != null) {
-                    CycloneKyantLiquidIconButton(
-                        onClick = { send() },
-                        backdrop = backdrop,
-                        enabled = text.isNotBlank(),
-                        modifier = Modifier.size(46.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    ) {
-                        Icon(
-                            Icons.Rounded.ArrowUpward,
-                            "Send request",
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    }
                 } else {
-                    CycloneTrayIconAction(onClick = { send() }, enabled = text.isNotBlank(), modifier = Modifier.size(46.dp)) {
-                        Icon(Icons.Rounded.ArrowUpward, "Send request", modifier = Modifier.size(22.dp))
-                    }
+                    SignatureAction(SignatureGlyph.SEND, "Send request", onClick = { send() }, selected = true)
                 }
             }
         }

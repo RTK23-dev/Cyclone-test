@@ -78,10 +78,12 @@ class CycloneVisual42ContractTest {
 
     @Test fun designSystemUsesCycloneIdentityAndAvoidsCardSoupBorders() {
         val design = source("CycloneV32DesignSystem.kt")
-        assertTrue(design.contains("Color(0xFF1A73FF)"))
-        assertTrue(design.contains("Color(0xFFF5F9FE)"))
-        assertTrue(design.contains("Color(0xFF07101F)"))
-        assertTrue(design.contains("Color(0xFF0E1A2B)"))
+        // Teal Matrix is the only in-app palette; system light mode no longer swaps it out.
+        assertTrue(design.contains("SignatureScheme.copy("))
+        assertTrue(design.contains("TealMatrixBackdrop(Modifier.fillMaxSize().layerBackdrop(liquidBackdrop))"))
+        assertTrue(design.contains("LocalCycloneSignatureTheme provides true"))
+        assertFalse(design.contains("lightColorScheme("))
+        assertFalse(design.contains("isSystemInDarkTheme()"))
         assertTrue(design.contains("val Page = 20.dp"))
         assertTrue(design.contains("val ScreenBottom = 24.dp"))
         assertTrue(design.contains("fun cyclonePageInsets"))
