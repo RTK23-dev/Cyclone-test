@@ -24,6 +24,7 @@ import { toMapsDocument } from "../maps/atlasDocument.js";
 import { toViewModel, type AtlasViewModel, type Persona } from "../maps/atlasViewModel.js";
 import { actionButton, card, chip, emptyState, errorState, loadingState, segmented, statTile } from "../ui/components.js";
 import { runRow, runsError } from "./runsPage.js";
+import { getKnowledge, type VaultSlot } from "../services/knowledgeSummary.js";
 import { el, link, setChildren } from "../ui/dom.js";
 import { relativeTime } from "../ui/format.js";
 import { icon } from "../ui/icons.js";
@@ -291,6 +292,21 @@ export function createAppKnowledgePage(
     return board;
   }
 
+  /** Whether this app's Vault slots are set (never their values), for the Sign in card. */
+  async function vaultState(into: HTMLElement): Promise<void> {
+    let slots: VaultSlot[];
+    try {
+      slots = (await getKnowledge(ctx.client, deviceId, controller.signal)).vault.slots.filter((slot) => slot.placeId === placeId);
+    } catch {
+      return;
+    }
+    if (!slots.length) {
+      setChildren(into, chip("No password slot yet", "warning"), el("span", "muted", "The phone asks for one the first time this login runs."));
+      return;
+    }
+    setChildren(into, ...slots.map((slot) => chip(`${slot.slot}${slot.persona === "mapping" ? " (test account)" : ""} · ${slot.set ? "set" : "not set"}`, slot.set ? "success" : "warning")));
+  }
+
   function scenarioCard(scenario: Scenario): HTMLElement {
     const node = card(`scenario-card health-${scenario.health}`);
     node.dataset.scenarioId = scenario.scenarioId;
@@ -316,6 +332,9 @@ export function createAppKnowledgePage(
     node.append(top, meta, rooms);
     if (scenario.kind === "sign-in") {
       node.append(el("p", "muted knowledge-note", "The phone fills the login from its Vault. Glass never sees the password."));
+      const vault = el("div", "scenario-vault");
+      node.append(vault);
+      void vaultState(vault);
     }
     node.append(actions);
     if (scenario.runs.length) {

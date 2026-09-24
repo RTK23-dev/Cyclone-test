@@ -218,9 +218,21 @@ test("Scenarios: Sign in and Already signed in are marked; the password never co
   };
   const parsed = parseScenarios(signed, GM);
   assert.deepEqual(parsed.scenarios.map((s) => s.kind), ["sign-in", "signed-in", "reach"]);
-  const { page } = open("scenarios", { "GET /v1/devices/d1/apps/scenarios": () => signed });
+  const { page } = open("scenarios", {
+    "GET /v1/devices/d1/apps/scenarios": () => signed,
+    "GET /v1/devices/d1/knowledge": () => ({
+      vault: { slotCount: 2, setCount: 1, slots: [
+        { placeId: GM, persona: "live", slot: "password", set: true, updatedAt: null },
+        { placeId: "package:com.facebook.katana", persona: "live", slot: "otp", set: false, updatedAt: null },
+      ] },
+      skills: [], automations: [], atlas: { places: 1, rooms: 1, doors: 1 },
+    }),
+  });
+  await flush();
   await flush();
   const text = page.element.textContent;
+  assert.match(text, /password · set/);
+  assert.doesNotMatch(text, /otp/, "only this app's slots");
   assert.match(text, /Sign in/);
   assert.match(text, /Already signed in/);
   assert.match(text, /No login/);

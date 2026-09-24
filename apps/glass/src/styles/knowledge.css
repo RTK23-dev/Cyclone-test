@@ -317,3 +317,14 @@ button.scenario-mini:hover {
 .knowledge-body > .persona-toggle {
   align-self: flex-start;
 }
+
+.scenario-vault {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scenario-vault:empty {
+  display: none;
+}
