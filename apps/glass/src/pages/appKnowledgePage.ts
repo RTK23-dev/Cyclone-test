@@ -12,6 +12,7 @@ import {
   getVersions,
   healthLabel,
   kindLabel,
+  staleDays,
   healthTone,
   versionText,
   type AppVersions,
@@ -316,6 +317,8 @@ export function createAppKnowledgePage(
     meta.append(el("span", "muted", `${scenario.steps} ${scenario.steps === 1 ? "door" : "doors"}`));
     if (scenario.appVersion) meta.append(el("span", "muted", `version ${scenario.appVersion}`));
     if (scenario.lastVerifiedAt) meta.append(el("span", "muted", `last worked ${relativeTime(scenario.lastVerifiedAt)}`));
+    const stale = staleDays(scenario.lastVerifiedAt, Date.now());
+    if (stale !== null) meta.append(chip(`Not checked for ${stale} days`, "warning"));
     const kind = kindLabel(scenario.kind);
     if (kind) meta.append(chip(kind, "accent"));
     if (scenario.danger) meta.append(chip("Passes a guarded door", "warning"));

@@ -252,3 +252,16 @@ test("Scenarios: switch between the mapping pass and your teaching", async () =>
   assert.match(page.element.textContent, /No scenarios yet/);
   assert.ok(page.element.querySelector(".persona-toggle"), "the switch stays so you can go back");
 });
+
+import { staleDays } from "../.test-dist/services/knowledge.js";
+
+test("scenario freshness: routes not confirmed for over two weeks are flagged", async () => {
+  const now = Date.now();
+  assert.equal(staleDays(null, now), null);
+  assert.equal(staleDays(now - 3 * 86_400_000, now), null);
+  assert.equal(staleDays(now - 20 * 86_400_000, now), 20);
+  const old = { ...SCENARIOS, scenarios: [{ ...SCENARIOS.scenarios[0], lastVerifiedAt: now - 30 * 86_400_000 }] };
+  const { page } = open("scenarios", { "GET /v1/devices/d1/apps/scenarios": () => old });
+  await flush();
+  assert.match(page.element.textContent, /Not checked for 30 days/);
+});

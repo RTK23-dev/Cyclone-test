@@ -227,3 +227,12 @@ export async function getHere(client: GatewayClient, deviceId: string, signal?: 
     observedAt: typeof r.observedAt === "number" ? r.observedAt : null,
   };
 }
+
+export const STALE_AFTER_DAYS = 14;
+
+/** Days since the route last worked when that is longer than STALE_AFTER_DAYS; null when fresh or never verified. */
+export function staleDays(lastVerifiedAt: number | null, now: number): number | null {
+  if (lastVerifiedAt === null) return null;
+  const days = Math.floor((now - lastVerifiedAt) / 86_400_000);
+  return days > STALE_AFTER_DAYS ? days : null;
+}
