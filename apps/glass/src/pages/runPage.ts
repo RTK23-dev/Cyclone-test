@@ -202,6 +202,30 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       parts.push(done);
     }
 
+    if (run.clauses.length) {
+      const clauses = card("clauses-card");
+      clauses.append(el("h2", "card-title", "Clauses"));
+      const rows = el("ol", "event-list");
+      for (const clause of run.clauses) {
+        const row = el("li", "event");
+        row.append(el("strong", undefined, clause.text), chip(clause.status.replaceAll("-", " "),
+          clause.status === "verified" ? "success" : clause.status === "failed" ? "danger" : "neutral"));
+        if (clause.place) row.append(el("p", "muted", appName(clause.place)));
+        if (clause.proof) row.append(el("p", undefined, clause.proof));
+        rows.append(row);
+      }
+      clauses.append(rows);
+      parts.push(clauses);
+    }
+    if (run.ledger.length) {
+      const facts = card("ledger-card");
+      facts.append(el("h2", "card-title", "Observed facts · masked"));
+      for (const fact of run.ledger) {
+        facts.append(keyValue([[fact.key.replaceAll("-", " "), fact.value], ["Read in", appName(fact.sourcePlace)],
+          ["Room", roomLabel(fact.sourceRoom)], ["Observed", relativeTime(fact.readAtMs)]]));
+      }
+      parts.push(facts);
+    }
     if (run.places.length) parts.push(routeCard(run));
     if (run.status === "failed" || run.status === "cancelled") {
       const compare = card("compare-card");
@@ -256,6 +280,7 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
           ["Chosen by", step.decisionSource === "map" ? "A known route (no model call)" : step.decisionSource === "model" ? "The model" : step.action?.startsWith("mapper:") ? "The mapper, exploring" : "—"],
           ["App", step.placeId ? `${appName(step.placeId)}${step.appVersion ? ` · version ${step.appVersion}` : ""}` : "—"],
           ["Room", step.roomId ? roomLabel(step.roomId) : "not recorded"],
+          ["Expected room", step.expectedRoomId ? roomLabel(step.expectedRoomId) : "—"],
           ["Room after", step.roomAfter ? roomLabel(step.roomAfter) : "—"],
           ["Screen", step.pageId ? `page …${step.pageId}` : "not recorded"],
           ["Verification", step.verification ?? "—"],

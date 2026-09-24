@@ -342,6 +342,7 @@ object TraceHumanizer {
 }
 
 object TracePrivacy {
+    private val email = Regex("(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}")
     private val secretAssignments = Regex("(?i)(password|passwd|token|api[_ -]?key|secret|otp|2fa|pin)\\s*[:=]\\s*[^,;\\s}]+")
     private val bearer = Regex("(?i)bearer\\s+[a-z0-9._~+/-]{8,}")
     private val longBase64 = Regex("[A-Za-z0-9+/]{180,}={0,2}")
@@ -349,6 +350,7 @@ object TracePrivacy {
     private val usSsn = Regex("(?<!\\d)\\d{3}-\\d{2}-\\d{4}(?!\\d)")
 
     fun clean(value: String): String = value
+        .replace(email) { com.cyclone.mobile.agent.plan.DestinationAuthority.maskEmail(it.value) }
         .replace(secretAssignments) { "${it.groupValues[1]}=[REDACTED]" }
         .replace(bearer, "Bearer [REDACTED]")
         .replace(usSsn, "[IDENTIFIER_REDACTED]")

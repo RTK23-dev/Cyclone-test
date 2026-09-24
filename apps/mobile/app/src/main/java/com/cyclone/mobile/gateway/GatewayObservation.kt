@@ -484,6 +484,18 @@ internal object GatewayObservationAdapter {
         return digest.joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
 
+    /** Equality only, for the live Ask ledger. Never expose editable text or the process-local salt. */
+    fun matchesObservedEmail(observation: GatewayObservation, elementId: String, email: String): Boolean {
+        if (!Regex("(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}").matches(email)) return false
+        val current = GatewayObservationStore.current(observation.execution) ?: return false
+        if (current.id != observation.id) return false
+        val evidence = observation.elements[elementId]?.evidence ?: return false
+        if (!evidence.optBoolean("editable") || evidence.optBoolean("password")) return false
+        val expected = MessageDigest.getInstance("SHA-256").digest("$editableStateSalt|$email".toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        return evidence.optString("textStateDigest") == expected
+    }
+
     private fun bestNode(control: PageControl, nodes: JSONArray): JSONObject? {
         val selector = control.selector
         var best: JSONObject? = null

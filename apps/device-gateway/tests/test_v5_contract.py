@@ -614,6 +614,34 @@ RUN_STEP = {
 }
 RUN_DETAIL = {**RUN_SUMMARY, "result": "Waiting for a password", "stepsTruncated": False, "steps": [RUN_STEP]}
 
+NAV_CLAUSE = {"id": "clause-1", "text": "check which Gmail I am logged in with", "place": "package:com.google.android.gm", "status": "verified", "proof": "Live signed-in email: j***@gmail.com"}
+NAV_FACT = {"key": "signed-in-email", "value": "j***@gmail.com", "sourcePlace": "package:com.google.android.gm", "sourceRoom": "screen:account:0123456789abcdef", "persona": "live", "readAtMs": 1000}
+
+
+def test_navigation_fields_are_optional_and_accept_masked_live_facts():
+    detail = {**RUN_DETAIL, "clauses": [NAV_CLAUSE], "ledger": [NAV_FACT], "steps": [{**RUN_STEP, "expectedRoomId": "screen:account:0123456789abcdef"}]}
+    svc = V5ContractService(FakeFleet(RunsBridge(detail=detail)))
+    assert svc.runs_get("phone-1", "ai-run-1") == detail
+
+
+@pytest.mark.parametrize("fields", [
+    {"clauses": [{**NAV_CLAUSE, "status": "made-up"}]},
+    {"clauses": [{**NAV_CLAUSE, "place": "chrome:https://facebook.com/messages?token=hidden"}]},
+    {"clauses": [NAV_CLAUSE] * 17},
+    {"clauses": [NAV_CLAUSE, NAV_CLAUSE]},
+    {"ledger": [{**NAV_FACT, "value": "jane@gmail.com"}]},
+    {"ledger": [{**NAV_FACT, "persona": "mapping"}]},
+    {"ledger": [{**NAV_FACT, "readAtMs": True}]},
+    {"ledger": [{**NAV_FACT, "sourceRoom": "raw text"}]},
+    {"ledger": [{**NAV_FACT, "extra": "hidden"}]},
+    {"ledger": [NAV_FACT] * 5},
+    {"steps": [{**RUN_STEP, "expectedRoomId": "raw screen text"}]},
+])
+def test_navigation_rejects_malformed_or_unmasked_phone_fields(fields):
+    svc = V5ContractService(FakeFleet(RunsBridge(detail={**RUN_DETAIL, **fields})))
+    with pytest.raises(DesktopRuntimeError):
+        svc.runs_get("phone-1", "ai-run-1")
+
 
 class RunsBridge(FakeBridge):
     def __init__(self, listing=None, detail=None, error=None):

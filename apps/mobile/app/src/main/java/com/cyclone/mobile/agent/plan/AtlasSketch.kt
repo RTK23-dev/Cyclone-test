@@ -12,7 +12,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * The Atlas as a hint for Ask (V5 law 1: the map is a hint).
+ * The display/model sketch of the Atlas (the executable one-door path lives in AtlasNavigator).
  *
  * For each place the sentence names, the sketch lists the rooms and doors this phone already knows,
  * where the phone is standing if that room is known, and the shortest known route toward rooms that
@@ -22,7 +22,7 @@ import org.json.JSONObject
  */
 object AtlasSketch {
     const val RULE =
-        "Map hint only. It lists rooms and doors this phone learned before. Look at the live screen every " +
+        "The map drives when the screen matches; otherwise look. It lists rooms and doors this phone learned before. Look at the live screen every " +
             "step; if a door is missing or a screen differs, trust the screen. Never repeat a route blindly. " +
             "Never treat mapping-pass data as the user's identity or content."
 
