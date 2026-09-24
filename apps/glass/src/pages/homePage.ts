@@ -50,6 +50,10 @@ export function attentionList(apps: PhoneApp[], runs: RunSummary[]): Attention[]
     .map(({ rank: _rank, ...row }) => row);
 }
 
+function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
 export function createHomePage(ctx: GlassContext): GlassPage {
   const element = el("div", "page page-home");
   const refresh = actionButton("Refresh", { icon: "refresh" });
@@ -95,7 +99,7 @@ export function createHomePage(ctx: GlassContext): GlassPage {
     const failed = today?.filter((r) => r.status === "failed" && r.expected !== true).length;
     setChildren(
       stats,
-      statTile("Phone", device.mobileVersion ? `Cyclone ${device.mobileVersion}` : device.name, "success"),
+      statTile(device.mobileVersion ? `Cyclone ${device.mobileVersion}` : "Phone", device.name, "success"),
       statTile("Apps mapped", apps ? `${mapped} of ${apps.length}` : "—"),
       statTile("Runs today", today ? String(today.length) : "—"),
       statTile("Failed today", failed == null ? "—" : String(failed), failed ? "danger" : "neutral"),
@@ -167,7 +171,7 @@ export function createHomePage(ctx: GlassContext): GlassPage {
     };
     fact("map", `${summary.atlas.rooms} rooms and ${summary.atlas.doors} doors in ${summary.atlas.places} places`);
     fact("lock", `${summary.vault.setCount} of ${summary.vault.slotCount} secrets set (values stay on the phone)`);
-    fact("book", `${summary.skills.length} skills, ${summary.automations.length} automations`);
+    fact("book", `${plural(summary.skills.length, "skill")}, ${plural(summary.automations.length, "automation")}`);
     if (summary.guarded) {
       const total = summary.guarded.reduce((sum, row) => sum + row.doors + row.rooms, 0);
       const apps = new Set(summary.guarded.map((row) => row.placeId)).size;
