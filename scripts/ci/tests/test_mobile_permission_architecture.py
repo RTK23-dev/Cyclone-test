@@ -23,6 +23,9 @@ INFRASTRUCTURE_PERMISSIONS = {
     # Normal Live Update eligibility permission, without a runtime grant dialog. Android/user
     # notification settings still control promotion; POST_NOTIFICATIONS retains its setup row.
     "android.permission.POST_PROMOTED_NOTIFICATIONS",
+    # Normal install-time permission for AlarmClock intents (phone.set_alarm / phone.set_timer). No runtime dialog;
+    # it only lets Cyclone ask the clock app to create an alarm/timer, which the clock app shows to the owner.
+    "com.android.alarm.permission.SET_ALARM",
 }
 
 # Every permission in this set must appear in the Cyclone setup UI as a row that maps to the
