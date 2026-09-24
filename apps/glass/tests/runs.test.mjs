@@ -395,3 +395,45 @@ test("Goals view: runs grouped by sentence with how often they worked; mapping p
   assert.equal(rows[1].href ?? rows[1].getAttribute("href"), "#/runs/ai-run-g1");
   page.destroy();
 });
+
+test("a running run is live: re-read until it ends, keeping the step you picked", async () => {
+  installMiniDom();
+  const timers = [];
+  let state = { ...V2, status: "running", cause: null, steps: V2.steps.slice(0, 2), stepCount: 2 };
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs/ai-run-1": () => state });
+  const page = createRunPage(ctx(gateway.fetch), { name: "run", runId: "ai-run-1" }, { setTimer: (fn) => timers.push(fn), clearTimer: () => (timers.length = 0) });
+  await flush();
+  assert.match(page.element.textContent, /Live · updating/);
+  assert.equal(page.element.querySelectorAll(".timeline-item").length, 2);
+  assert.equal(timers.length, 1, "a running run schedules the next read");
+  page.element.querySelectorAll(".timeline-button")[0].click();
+
+  state = { ...V2, status: "running", cause: null };
+  timers.shift()();
+  await flush();
+  assert.equal(page.element.querySelectorAll(".timeline-item").length, 3, "new steps appear");
+  assert.equal(page.element.querySelector(".timeline-item.selected .timeline-button").dataset.step, "0", "your pick stays");
+
+  state = { ...V2, status: "completed", cause: null };
+  timers.shift()();
+  await flush();
+  assert.doesNotMatch(page.element.textContent, /Live · updating/);
+  assert.equal(timers.length, 0, "a finished run stops updating");
+  page.destroy();
+});
+
+test("the Runs list refreshes itself while a run is going, quietly", async () => {
+  installMiniDom();
+  const timers = [];
+  let list = [{ ...DONE, runId: "ai-run-live", status: "running", cause: null }];
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs": () => ({ runs: list }) });
+  const page = createRunsPage(ctx(gateway.fetch), { setTimer: (fn) => timers.push(fn), clearTimer: () => (timers.length = 0) });
+  await flush();
+  assert.equal(timers.length, 1);
+  list = [{ ...DONE, runId: "ai-run-live" }];
+  timers.shift()();
+  await flush();
+  assert.equal(timers.length, 0, "nothing running, no more refreshes");
+  assert.match(page.element.textContent, /Finished/);
+  page.destroy();
+});

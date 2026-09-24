@@ -17,7 +17,12 @@ const FILTERS: Array<{ id: RunFilter; label: string }> = [
   { id: "stopped", label: "Stopped or waiting" },
 ];
 
-export function createRunsPage(ctx: GlassContext): GlassPage {
+export interface RunsPageDeps {
+  setTimer?: (fn: () => void, ms: number) => unknown;
+  clearTimer?: (handle: unknown) => void;
+}
+
+export function createRunsPage(ctx: GlassContext, deps: RunsPageDeps = {}): GlassPage {
   const element = el("div", "page page-runs");
   const refresh = actionButton("Refresh", { icon: "refresh" });
   element.append(pageHeader("Runs", "Every task Cyclone ran on this phone. Open one to see each step and why it ended.", [refresh]));
@@ -112,13 +117,21 @@ export function createRunsPage(ctx: GlassContext): GlassPage {
     setChildren(body, table);
   };
 
-  const load = async (): Promise<void> => {
+  const setTimer = deps.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
+  const clearTimer = deps.clearTimer ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+  let timer: unknown = null;
+
+  const load = async (quiet = false): Promise<void> => {
     controller?.abort();
     controller = new AbortController();
-    setChildren(body, loadingState("Asking the phone for its runs…"));
+    if (timer !== null) clearTimer(timer);
+    timer = null;
+    if (!quiet) setChildren(body, loadingState("Asking the phone for its runs…"));
     try {
       runs = await listRuns(ctx.client, deviceId, filter, 100, controller.signal);
       render();
+      // While a run is going on the phone, the list keeps itself current.
+      if (runs.some((run) => run.status === "running")) timer = setTimer(() => void load(true), 5_000);
     } catch (error) {
       if ((error as { name?: string })?.name === "AbortError") return;
       runs = null;
@@ -128,7 +141,13 @@ export function createRunsPage(ctx: GlassContext): GlassPage {
 
   refresh.addEventListener("click", () => void load());
   void load();
-  return { element, destroy: () => controller?.abort() };
+  return {
+    element,
+    destroy: () => {
+      controller?.abort();
+      if (timer !== null) clearTimer(timer);
+    },
+  };
 }
 
 /** Mapping passes are recorded as runs by the phone's mapper (model name `cyclone-mapper`). */

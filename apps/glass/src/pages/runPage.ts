@@ -39,7 +39,13 @@ export interface RunPageDeps {
   fetch?: typeof fetch;
   /** Save a file for the developer; defaults to a Blob download. */
   saveFile?: (name: string, text: string) => void;
+  /** Timer for following a running run (defaults to setTimeout / clearTimeout). */
+  setTimer?: (fn: () => void, ms: number) => unknown;
+  clearTimer?: (handle: unknown) => void;
 }
+
+/** How often a running run is re-read from the phone. */
+export const LIVE_RUN_MS = 3_000;
 
 /** Causes a developer fixes in the map (remap a room, teach a door). */
 const MAP_CAUSES = new Set(["stale-door", "wrong-room", "door-missing", "element-not-found", "unchanged"]);
@@ -68,10 +74,20 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
   element.append(body);
   setChildren(body, loadingState("Loading this run from the phone…"));
 
+  const setTimer = deps.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
+  const clearTimer = deps.clearTimer ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+  let timer: unknown = null;
+  /** The step the developer picked; null follows the phone (the fatal step, else the newest). */
+  let pinnedStep: number | null = null;
+
   const load = async (): Promise<void> => {
+    timer = null;
     try {
       const run = await getRun(ctx.client, deviceId, route.runId, controller.signal);
+      if (controller.signal.aborted) return;
       render(run);
+      // Live: a run still going on the phone is re-read until it ends.
+      if (run.status === "running") timer = setTimer(() => void load(), LIVE_RUN_MS);
     } catch (error) {
       if ((error as { name?: string })?.name === "AbortError") return;
       setChildren(body, runsError(error, () => void load()));
@@ -79,7 +95,7 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
   };
 
   const render = (run: RunDetail): void => {
-    let selected = run.cause?.stepIndex ?? run.steps.at(-1)?.index ?? 0;
+    let selected = pinnedStep ?? run.cause?.stepIndex ?? run.steps.at(-1)?.index ?? 0;
     const timeline = el("ol", "timeline");
     const detail = el("section", "step-detail");
 
@@ -131,6 +147,7 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
     if (run.goal && run.status !== "running" && run.model !== "cyclone-mapper") headerActions.append(again);
     headerActions.append(download);
     if (run.expected) meta.append(chip("Marked expected", "neutral"));
+    if (run.status === "running") meta.append(chip("Live · updating", "accent"));
     header.append(titles, headerActions);
 
     const stats = el("div", "stats stats-6");
@@ -369,16 +386,23 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       setChildren(into, el("span", "cause-kicker", "Scenarios this run reached"), list);
     }
 
-    const select = (index: number): void => {
+    const select = (index: number, byUser = true): void => {
+      if (byUser) pinnedStep = index;
       selected = index;
       renderTimeline();
       renderDetail();
     };
-    select(selected);
+    select(selected, false);
   };
 
   void load();
-  return { element, destroy: () => controller.abort() };
+  return {
+    element,
+    destroy: () => {
+      controller.abort();
+      if (timer !== null) clearTimer(timer);
+    },
+  };
 }
 
 export function saveWithBlob(name: string, text: string): void {
