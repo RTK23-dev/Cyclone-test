@@ -17,6 +17,31 @@ export interface KnowledgeSummary {
   skills: Array<{ id: string; name: string; steps: number; enabled: boolean; version: number }>;
   automations: Array<{ id: string; name: string; trigger: string; steps: number; enabled: boolean }>;
   atlas: { places: number; rooms: number; doors: number };
+  /** The never-pay list: doors and rooms the phone marked dangerous, per app. `null` from phones before alpha.15. */
+  guarded: GuardedRow[] | null;
+}
+
+export type GuardedDanger = "payment" | "send-public" | "delete-account" | "logout-all" | "permission";
+
+export interface GuardedRow {
+  placeId: string;
+  label: string;
+  persona: "live" | "mapping";
+  danger: GuardedDanger;
+  doors: number;
+  rooms: number;
+}
+
+const DANGERS: Record<GuardedDanger, string> = {
+  payment: "Pay or buy",
+  "send-public": "Send or post",
+  "delete-account": "Delete",
+  "logout-all": "Sign out everywhere",
+  permission: "Grant a permission",
+};
+
+export function dangerLabel(danger: GuardedDanger): string {
+  return DANGERS[danger];
 }
 
 export async function getKnowledge(client: GatewayClient, deviceId: string, signal?: AbortSignal): Promise<KnowledgeSummary> {
@@ -48,6 +73,18 @@ export function parseKnowledge(raw: unknown): KnowledgeSummary {
       .filter((s) => typeof s.id === "string")
       .map((s) => ({ id: s.id as string, name: str(s.name) || "Untitled automation", trigger: str(s.trigger), steps: num(s.steps), enabled: s.enabled === true })),
     atlas: { places: num(atlas.places), rooms: num(atlas.rooms), doors: num(atlas.doors) },
+    guarded: Array.isArray(r.guarded)
+      ? list(r.guarded)
+          .filter((g) => typeof g.placeId === "string" && typeof g.danger === "string" && g.danger in DANGERS)
+          .map((g) => ({
+            placeId: g.placeId as string,
+            label: str(g.label),
+            persona: g.persona === "live" ? "live" : "mapping",
+            danger: g.danger as GuardedDanger,
+            doors: num(g.doors),
+            rooms: num(g.rooms),
+          }))
+      : null,
   };
 }
 

@@ -684,12 +684,13 @@ def _validate_scenarios(value: dict[str, Any], args: dict[str, Any]) -> None:
 
 
 SLOT_PLACE_ID = re.compile(r"^(?:package:[A-Za-z][A-Za-z0-9_.]{1,150}|chrome:https?://[A-Za-z0-9.-]{1,190}(?::\d{1,5})?)$")
+GUARDED_DANGERS = frozenset({"payment", "send-public", "delete-account", "logout-all", "permission"})
 SLOT_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9._-]{0,63}$")
 
 
 def _validate_knowledge_summary(value: dict[str, Any]) -> None:
     """Slot presence (never values), skill/automation names and counts, Atlas totals."""
-    if set(value) != {"vault", "skills", "automations", "atlas"}:
+    if set(value) - {"guarded"} != {"vault", "skills", "automations", "atlas"}:
         raise _bad_knowledge("knowledge.get")
     vault = value["vault"]
     if not isinstance(vault, dict) or set(vault) != {"slotCount", "setCount", "slots"}:
@@ -721,6 +722,19 @@ def _validate_knowledge_summary(value: dict[str, Any]) -> None:
     atlas = value["atlas"]
     if not isinstance(atlas, dict) or set(atlas) != {"places", "rooms", "doors"} or not all(_is_int(atlas[k]) for k in atlas):
         raise _bad_knowledge("atlas totals")
+    if "guarded" in value:  # alpha.15+: the never-pay list, counts per app and danger
+        guarded = value["guarded"]
+        if not isinstance(guarded, list) or len(guarded) > 200:
+            raise _bad_knowledge("guarded")
+        for row in guarded:
+            if not isinstance(row, dict) or set(row) != {"placeId", "label", "persona", "danger", "doors", "rooms"}:
+                raise _bad_knowledge("guarded row")
+            if not isinstance(row["placeId"], str) or not SLOT_PLACE_ID.match(row["placeId"]) or row["persona"] not in {"live", "mapping"}:
+                raise _bad_knowledge("guarded place")
+            if row["danger"] not in GUARDED_DANGERS or not _short_text(row["label"], 80):
+                raise _bad_knowledge("guarded danger")
+            if not _is_int(row["doors"]) or not _is_int(row["rooms"]) or row["doors"] < 0 or row["rooms"] < 0:
+                raise _bad_knowledge("guarded counts")
 
 
 def validate_android_response(op: str, value: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:

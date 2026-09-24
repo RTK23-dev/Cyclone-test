@@ -21,6 +21,7 @@ const PATHS = {
   download: ["M12 4v11", "M7 10l5 5 5-5", "M5 20h14"],
   book: ["M5 4h9a4 4 0 0 1 4 4v12H9a4 4 0 0 1-4-4z", "M5 16a4 4 0 0 1 4-4h9"],
   lock: ["M6 11h12v9H6z", "M8 11V8a4 4 0 0 1 8 0v3"],
+  shield: ["M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z", "M9 12l2 2 4-4"],
 } as const;
 
 export type IconName = keyof typeof PATHS;

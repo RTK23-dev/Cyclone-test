@@ -175,6 +175,34 @@ test("Knowledge: vault slots as set / not set per app, skills, automations and A
   assert.match(text, /app opened · 1 step/);
   assert.match(text, /31/);
   assert.doesNotMatch(text, /hunter2/);
+  assert.match(text, /Update Cyclone on the phone to see this list/);
+  page.destroy();
+});
+
+test("Knowledge: the never-pay list shows guarded doors per app, with unknown dangers dropped", async () => {
+  installMiniDom();
+  const summary = {
+    vault: { slotCount: 0, setCount: 0, slots: [] },
+    skills: [],
+    automations: [],
+    atlas: { places: 1, rooms: 3, doors: 2 },
+    guarded: [
+      { placeId: "package:com.example.shop", label: "Shop", persona: "mapping", danger: "payment", doors: 2, rooms: 1 },
+      { placeId: "package:com.example.shop", label: "Shop", persona: "mapping", danger: "delete-account", doors: 1, rooms: 0 },
+      { placeId: "package:com.example.shop", label: "Shop", persona: "mapping", danger: "hack", doors: 9, rooms: 9 },
+    ],
+  };
+  const gateway = fakeGateway({ "GET /v1/devices/d1/knowledge": () => summary });
+  const devices = [parseDevice({ ...READY_DEVICE, mobileVersion: "5.0.0-alpha.15.dev1" })];
+  const page = createKnowledgePage({ client: new GatewayClient({ token: "t", fetch: gateway.fetch }), version: "x", devices, device: devices[0], devicesError: null, navigate() {}, selectDevice() {}, refreshDevices: async () => {} });
+  await flush();
+  const text = page.element.textContent;
+  assert.match(text, /Never pressed/);
+  assert.match(text, /Pay or buy · 3/);
+  assert.match(text, /Delete · 1/);
+  assert.doesNotMatch(text, /hack|· 18/);
+  const link = page.element.querySelector(".guarded-app");
+  assert.equal(link.getAttribute("href") ?? link.href, `#/apps/${encodeURIComponent("package:com.example.shop")}/screens`);
   page.destroy();
 });
 

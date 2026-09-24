@@ -50,6 +50,19 @@ export function createSettingsPage(ctx: GlassContext): GlassPage {
   open.addEventListener("click", () => ctx.navigate({ name: "devices" }));
   pairing.append(open);
 
-  element.append(connection, phones, pairing);
+  const safety = card("safety-card");
+  safety.append(el("h2", "card-title", "Safety"));
+  safety.append(
+    keyValue([
+      ["Pay, buy, subscribe", "Never pressed while mapping. In an Ask the phone asks you first."],
+      ["Send, post, delete", "Never pressed while mapping. In an Ask the phone asks you first."],
+      ["Passwords and codes", "Stay in the phone's Vault. Glass sees only whether a slot is set."],
+    ]),
+  );
+  const guarded = actionButton("See what Cyclone never presses", { icon: "shield" });
+  guarded.addEventListener("click", () => ctx.navigate({ name: "knowledge" }));
+  safety.append(guarded);
+
+  element.append(connection, phones, pairing, safety);
   return { element, destroy() {} };
 }

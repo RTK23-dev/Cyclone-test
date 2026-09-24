@@ -847,11 +847,22 @@ def test_glass_knowledge_summary_is_presence_and_names_only():
         svc.forward("phone-1", "knowledge.get", {"all": True})
 
 
+GUARDED = {"placeId": "package:com.example.shop", "label": "Shop", "persona": "mapping", "danger": "payment", "doors": 2, "rooms": 1}
+
+
+def test_glass_knowledge_summary_may_carry_the_never_pay_list():
+    summary = {**KNOWLEDGE, "guarded": [GUARDED]}
+    assert V5ContractService(FakeFleet(SummaryBridge(summary))).knowledge_summary("phone-1") == summary
+
+
 @pytest.mark.parametrize("summary", [
     {**KNOWLEDGE, "vault": {**KNOWLEDGE["vault"], "slots": [{**KNOWLEDGE["vault"]["slots"][0], "value": "hunter2"}]}},
     {**KNOWLEDGE, "vault": {**KNOWLEDGE["vault"], "slots": [{**KNOWLEDGE["vault"]["slots"][0], "set": "yes"}]}},
     {**KNOWLEDGE, "skills": [{**KNOWLEDGE["skills"][0], "name": "x" * 81}]},
     {**KNOWLEDGE, "people": ["Louella"]},
+    {**KNOWLEDGE, "guarded": [{**GUARDED, "danger": "authentication"}]},
+    {**KNOWLEDGE, "guarded": [{**GUARDED, "selector": "Buy now"}]},
+    {**KNOWLEDGE, "guarded": [{**GUARDED, "doors": -1}]},
 ])
 def test_glass_knowledge_summary_rejects_values_and_extras(summary):
     svc = V5ContractService(FakeFleet(SummaryBridge(summary)))

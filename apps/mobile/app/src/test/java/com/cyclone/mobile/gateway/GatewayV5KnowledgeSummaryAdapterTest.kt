@@ -49,4 +49,33 @@ class GatewayV5KnowledgeSummaryAdapterTest {
         assertEquals("INVALID_REQUEST", (bad as GatewayProtocolException).code)
         assertTrue("knowledge.get" in GatewayProtocol.legacyReadOnlyOperations)
     }
+
+    @Test
+    fun guardedDoorsAreCountedPerAppAndDangerWithoutLabels() {
+        val dir = java.nio.file.Files.createTempDirectory("guarded").toFile()
+        try {
+            val store = com.cyclone.mobile.brain.graphv2.AtlasStore(java.io.File(dir, "atlas.json"))
+            val shop = "package:com.example.shop"
+            val port = com.cyclone.mobile.mapping.run.AtlasStoreMappingPort(store, shop, "Shop", clock = { 1_000 })
+            port.recordVerified(shop, "mapping", com.cyclone.mobile.mapping.crawl.VerifiedStructure(
+                "screen:home:aaaaaaaaaaaaaaaa", "screen:list:bbbbbbbbbbbbbbbb", "door:list:1111111111111111",
+                com.cyclone.mobile.mapping.crawl.MappingDoorKind.MENU, "fp-a", "fp-b",
+            ))
+            port.markDanger(shop, "mapping", "screen:list:bbbbbbbbbbbbbbbb", "door:buy:2222222222222222", com.cyclone.mobile.mapping.crawl.MappingDanger.PAY)
+            val summary = store.places().single()
+            val snapshot = store.snapshot(com.cyclone.mobile.brain.graphv2.AtlasPlaceKey(summary.place.id, summary.place.persona))!!
+            val rows = GatewayV5KnowledgeSummaryAdapter.guardedCounts(summary.place, snapshot)
+            assertEquals(listOf("payment"), rows.map { it.danger.wireValue })
+            assertTrue(rows.single().doors + rows.single().rooms >= 1)
+
+            GatewayV5KnowledgeSummaryAdapter.guarded = { rows }
+            val guarded = GatewayV5KnowledgeSummaryAdapter.summary(JSONObject()).getJSONArray("guarded").getJSONObject(0)
+            assertEquals(shop, guarded.getString("placeId"))
+            assertEquals("Shop", guarded.getString("label"))
+            assertEquals("payment", guarded.getString("danger"))
+            assertEquals(setOf("placeId", "label", "persona", "danger", "doors", "rooms"), guarded.keys().asSequence().toSet())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 }

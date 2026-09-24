@@ -4,7 +4,7 @@
  */
 import type { GlassContext } from "../app.js";
 import { appName } from "../services/runs.js";
-import { getKnowledge, type KnowledgeSummary, type VaultSlot } from "../services/knowledgeSummary.js";
+import { dangerLabel, getKnowledge, type GuardedRow, type KnowledgeSummary, type VaultSlot } from "../services/knowledgeSummary.js";
 import { actionButton, card, chip, emptyState, loadingState, pageHeader, statTile } from "../ui/components.js";
 import { el, setChildren } from "../ui/dom.js";
 import { relativeTime } from "../ui/format.js";
@@ -49,7 +49,7 @@ export function createKnowledgePage(ctx: GlassContext): GlassPage {
       statTile("Skills", String(summary.skills.length)),
       statTile("Automations", String(summary.automations.length)),
     );
-    setChildren(body, stats, vaultCard(summary.vault.slots), listCard("Skills", "Routes Cyclone learned from you and replays without asking the model.", summary.skills.map((s) => ({
+    setChildren(body, stats, vaultCard(summary.vault.slots), guardedCard(summary.guarded), listCard("Skills", "Routes Cyclone learned from you and replays without asking the model.", summary.skills.map((s) => ({
       title: s.name,
       meta: `${s.steps} ${s.steps === 1 ? "step" : "steps"} · version ${s.version}`,
       enabled: s.enabled,
@@ -81,6 +81,41 @@ export function createKnowledgePage(ctx: GlassContext): GlassPage {
         const c = chip(`${slot.slot} · ${slot.set ? "set" : "not set"}`, slot.set ? "success" : "warning");
         if (slot.updatedAt) c.title = `Changed ${relativeTime(slot.updatedAt)}`;
         chips.append(c);
+      }
+      item.append(chips);
+      list.append(item);
+    }
+    node.append(list);
+    return node;
+  }
+
+  function guardedCard(rows: GuardedRow[] | null): HTMLElement {
+    const node = card("guarded-card");
+    node.id = "never-pressed";
+    const title = el("h2", "card-title");
+    title.append(icon("shield"), el("span", undefined, "Never pressed"));
+    node.append(title, el("p", "muted", "Doors Cyclone marked as pay, send, delete or permission. Mapping never presses them; in an Ask, the phone asks you first."));
+    if (rows === null) {
+      node.append(el("p", "muted", "Update Cyclone on the phone to see this list."));
+      return node;
+    }
+    if (!rows.length) {
+      node.append(el("p", "muted", "Nothing guarded yet. Map an app and Cyclone lists the doors it will not press here."));
+      return node;
+    }
+    const byPlace = new Map<string, GuardedRow[]>();
+    for (const row of rows) byPlace.set(row.placeId, [...(byPlace.get(row.placeId) ?? []), row]);
+    const list = el("ul", "vault-list");
+    for (const [placeId, placeRows] of byPlace) {
+      const item = el("li", "vault-place");
+      item.dataset.placeId = placeId;
+      const name = el("a", "guarded-app", placeRows[0]!.label || placeLabel(placeId));
+      (name as HTMLAnchorElement).href = `#/apps/${encodeURIComponent(placeId)}/screens`;
+      item.append(name);
+      const chips = el("span", "vault-slots");
+      for (const row of placeRows) {
+        const count = row.doors + row.rooms;
+        chips.append(chip(`${dangerLabel(row.danger)} · ${count}`, row.danger === "permission" ? "warning" : "danger"));
       }
       item.append(chips);
       list.append(item);
