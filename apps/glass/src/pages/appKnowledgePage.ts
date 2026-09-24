@@ -23,7 +23,7 @@ import { listRuns, roomLabel, statusLabel as runStatusLabel, statusTone as runSt
 import { phoneClient } from "../services/phone.js";
 import { toMapsDocument } from "../maps/atlasDocument.js";
 import { toViewModel, type AtlasViewModel, type Persona } from "../maps/atlasViewModel.js";
-import { actionButton, card, chip, emptyState, errorState, loadingState, segmented, statTile } from "../ui/components.js";
+import { actionButton, card, chip, emptyState, errorState, loadingState, searchInput, segmented, statTile } from "../ui/components.js";
 import { runRow, runsError } from "./runsPage.js";
 import { getKnowledge, type VaultSlot } from "../services/knowledgeSummary.js";
 import { el, link, setChildren } from "../ui/dom.js";
@@ -145,6 +145,7 @@ export function createAppKnowledgePage(
     ["Screen", "Purpose", "Doors out", "Doors in", "Confidence", "Last seen"].forEach((label) => head.append(el("span", undefined, label)));
     table.append(head);
     const rows = [...model.screens].sort((a, b) => (doorsOut.get(b.screenId) ?? 0) - (doorsOut.get(a.screenId) ?? 0) || a.label.localeCompare(b.label));
+    const rowFor = new Map<string, HTMLElement>();
     for (const screen of rows) {
       const row = el("button", "run-row screen-row");
       row.type = "button";
@@ -162,10 +163,20 @@ export function createAppKnowledgePage(
         el("span", "muted", screen.lastObservedAt ? relativeTime(Date.parse(screen.lastObservedAt)) : "—"),
       );
       row.addEventListener("click", () => showMap([screen.screenId]));
+      rowFor.set(screen.screenId, row);
       table.append(row);
     }
     const summary = el("p", "muted knowledge-note", `${model.screens.length} screens · ${model.edges.length} doors. Click a screen to find it on the map.`);
-    setChildren(body, toggle.element, summary, table);
+    const search = searchInput("Find a screen", (value) => {
+      const q = value.trim().toLowerCase();
+      for (const screen of rows) {
+        const hit = !q || `${screen.label} ${screen.purpose ?? ""} ${roomLabel(screen.screenId)}`.toLowerCase().includes(q);
+        rowFor.get(screen.screenId)!.hidden = !hit;
+      }
+    });
+    const tools = el("div", "scenario-toggles");
+    tools.append(toggle.element, search);
+    setChildren(body, tools, summary, table);
   }
 
   async function loadRuns(): Promise<void> {

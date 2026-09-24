@@ -129,6 +129,11 @@ test("Screens: every room with doors in and out; a row opens it on the map", asy
   assert.equal(rows[0].dataset.screenId, HOME, "most doors out first");
   rows[1].click();
   assert.deepEqual(navigated.at(-1).route, [MENU]);
+  const find = page.element.querySelector(".search-input");
+  find.value = "menu";
+  find.dispatchEvent({ type: "input" });
+  assert.equal(rows[0].hidden, true, "Home is filtered out");
+  assert.equal(rows[1].hidden, false);
 });
 
 test("Runs tab: only runs that entered this app, with the map share; old phones are explained", async () => {
