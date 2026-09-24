@@ -26,6 +26,7 @@ object OpenRouterCatalogStore {
     private const val AVAILABILITY_FINGERPRINT = "availability_key_fingerprint"
     private const val AVAILABLE_IDS = "available_model_ids"
     private const val REASONING_PREFIX = "reasoning_effort::"
+    private const val BACKUP_KEY = "openrouter_backup_model"
     val revision = MutableStateFlow(0)
 
     @Volatile private var initialized = false
@@ -86,6 +87,33 @@ object OpenRouterCatalogStore {
         }
         check(context.getSharedPreferences("cyclone_ai", Context.MODE_PRIVATE).edit().putString("openrouter_model", id).commit()) {
             "Could not update selected model."
+        }
+        revision.value++
+    }
+
+    /**
+     * The owner's backup route for when the main model is rate-limited or unavailable during a task. Empty means
+     * "stop and tell me". Only a chosen, verified model that differs from the main model qualifies.
+     */
+    fun backupId(context: Context): String {
+        initialize(context)
+        val stored = canonicalId(context.getSharedPreferences("cyclone_ai", Context.MODE_PRIVATE).getString(BACKUP_KEY, "").orEmpty())
+        val key = OpenRouterSecretStore.read(context)
+        return stored.takeIf {
+            it.isNotBlank() && it != activeId(context) && it in selectedIds(context) &&
+                availability(context, key, it) == OpenRouterModelAvailability.AVAILABLE
+        }.orEmpty()
+    }
+
+    @Synchronized fun setBackup(context: Context, rawId: String) {
+        initialize(context)
+        val id = rawId.trim().takeIf(String::isNotBlank)?.let(::canonicalId).orEmpty()
+        if (id.isNotBlank()) {
+            require(id in selectedIds(context)) { "Choose this model in the OpenRouter catalog first." }
+            require(id != activeId(context)) { "The backup must differ from the main model." }
+        }
+        check(context.getSharedPreferences("cyclone_ai", Context.MODE_PRIVATE).edit().putString(BACKUP_KEY, id).commit()) {
+            "Could not update the backup model."
         }
         revision.value++
     }

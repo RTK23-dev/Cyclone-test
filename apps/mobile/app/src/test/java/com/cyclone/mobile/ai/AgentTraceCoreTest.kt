@@ -22,6 +22,16 @@ class AgentTraceCoreTest {
         assertTrue(clean.contains("REDACTED"))
     }
 
+    @Test fun cardNumbersAreRedactedButTimestampsAndIdsSurvive() {
+        assertTrue(TracePrivacy.clean("card 4111 1111 1111 1111 ok").contains("[PAYMENT_REDACTED]"))
+        assertTrue(TracePrivacy.clean("card 4111111111111111").contains("[PAYMENT_REDACTED]"))
+        assertTrue("grouped like a card", TracePrivacy.clean("card 1234-5678-9012-3456").contains("[PAYMENT_REDACTED]"))
+        // alpha.22 diagnostics: a millisecond timestamp and a hex page key were shown as payment data.
+        assertEquals("{\"readAtMs\":1790283787000}", TracePrivacy.clean("{\"readAtMs\":1790283787000}"))
+        assertEquals("page=8194b87cb4429371", TracePrivacy.clean("page=8194b87cb4429371"))
+        assertEquals("page=698461bb3b6e1790283787001dc", TracePrivacy.clean("page=698461bb3b6e1790283787001dc"))
+    }
+
     @Test
     fun traceHumanizerNeverIncludesTypedValue() {
         val params = JSONObject()

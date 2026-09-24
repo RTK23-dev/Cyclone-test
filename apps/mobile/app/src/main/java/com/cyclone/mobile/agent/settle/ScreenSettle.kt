@@ -150,3 +150,78 @@ object SettleRecorder {
     fun record(sessionId: String, outcome: SettleOutcome<*>) { last[sessionId] = outcome.copy(value = null) }
     fun take(sessionId: String): SettleOutcome<*>? = last.remove(sessionId)
 }
+
+/**
+ * How long screens of each app usually take to settle on this phone, learned from verified steps. Durations only:
+ * no labels, text or values. Budget = clamp(p90 × 1.5, 2 s, 15 s), never below the default window.
+ */
+object SettleBudgets {
+    private const val KEEP = 20
+    private const val CEILING_MS = 15_000L
+    private val samples = java.util.concurrent.ConcurrentHashMap<String, ArrayDeque<Long>>()
+    @Volatile private var file: java.io.File? = null
+    @Volatile private var loaded = false
+
+    fun attach(dir: java.io.File) {
+        if (file != null) return
+        file = java.io.File(dir, "Cyclone Brain/Settle/budgets.json")
+    }
+
+    fun record(packageName: String, waitedMs: Long) {
+        if (packageName.isBlank() || waitedMs !in 0..60_000) return
+        load()
+        val ring = samples.getOrPut(packageName) { ArrayDeque() }
+        synchronized(ring) {
+            ring.addLast(waitedMs)
+            while (ring.size > KEEP) ring.removeFirst()
+        }
+        save()
+    }
+
+    /** Learned typical settle time (p90) for this app, or null before enough evidence. */
+    fun p90(packageName: String): Long? {
+        load()
+        val ring = samples[packageName] ?: return null
+        val sorted = synchronized(ring) { ring.toList() }.sorted()
+        if (sorted.size < 3) return null
+        return sorted[((sorted.size - 1) * 0.9).toInt()]
+    }
+
+    fun budgetFor(packageName: String, base: SettleBudget): SettleBudget {
+        val learned = p90(packageName)?.let { (it * 1.5).toLong().coerceIn(2_000L, CEILING_MS) } ?: return base
+        val total = maxOf(base.fastMs + base.extendedMs, learned).coerceAtMost(CEILING_MS)
+        return base.copy(extendedMs = (total - base.fastMs).coerceAtLeast(0))
+    }
+
+    fun forget(packageName: String) { samples.remove(packageName); save() }
+
+    internal fun reset() { samples.clear(); loaded = true }
+
+    private fun load() {
+        if (loaded) return
+        synchronized(this) {
+            if (loaded) return
+            runCatching {
+                val source = file?.takeIf { it.isFile && it.length() < 64_000 } ?: return@runCatching
+                val json = JSONObject(source.readText())
+                json.keys().forEach { pkg ->
+                    val values = json.optJSONArray(pkg) ?: return@forEach
+                    samples[pkg] = ArrayDeque((0 until minOf(values.length(), KEEP)).map { values.optLong(it) }.filter { it in 0..60_000 })
+                }
+            }
+            loaded = true
+        }
+    }
+
+    private fun save() {
+        val target = file ?: return
+        runCatching {
+            val json = JSONObject()
+            samples.forEach { (pkg, ring) -> json.put(pkg, org.json.JSONArray(synchronized(ring) { ring.toList() })) }
+            target.parentFile?.mkdirs()
+            val temp = java.io.File(target.parentFile, "budgets.tmp")
+            temp.writeText(json.toString())
+            if (!temp.renameTo(target)) { target.delete(); temp.renameTo(target) }
+        }
+    }
+}

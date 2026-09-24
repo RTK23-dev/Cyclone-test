@@ -280,9 +280,12 @@ internal object GatewayV33ActionAdapter {
             return null
         }
         val launch = tool in LAUNCH_TOOLS
+        com.cyclone.mobile.agent.settle.SettleBudgets.attach(context.filesDir)
+        val budgetKey = params.optString("package").ifBlank { before?.page?.packageName.orEmpty() }
         val outcome = com.cyclone.mobile.agent.settle.SettleController.run(
             beforeFingerprint = before?.payload?.optString("accessibilityFingerprint"),
-            budget = com.cyclone.mobile.agent.settle.SettleBudget(fastMs = pageTransitionSettleMs(tool)),
+            budget = com.cyclone.mobile.agent.settle.SettleBudgets.budgetFor(budgetKey,
+                com.cyclone.mobile.agent.settle.SettleBudget(fastMs = pageTransitionSettleMs(tool))),
             capture = capture,
             sample = { settleSample(it, launch) },
             targetReached = { after ->
@@ -302,6 +305,7 @@ internal object GatewayV33ActionAdapter {
             requireStable = launch,
         )
         com.cyclone.mobile.agent.settle.SettleRecorder.record(identity.sessionId, outcome)
+        if (outcome.ready) outcome.value?.page?.packageName?.let { com.cyclone.mobile.agent.settle.SettleBudgets.record(it, outcome.waitedMs) }
         return outcome.value
     }
 

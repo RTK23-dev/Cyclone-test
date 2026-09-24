@@ -143,3 +143,15 @@ internal object ProviderFailure {
             .find(raw)?.groupValues?.getOrNull(1)?.trim()?.trim('"')
     }
 }
+
+
+/** When the owner's backup model may take over a task: the main route is busy or down, never an account/key problem. */
+object ProviderFallbackPolicy {
+    fun shouldSwitch(httpStatus: Int, lifecycle: String?, failureClass: ProviderFailureClass?): Boolean = when {
+        lifecycle == "provider.circuit_open" -> true
+        lifecycle != null -> false // deadline/cancel: the task budget, not the route, is the limit
+        failureClass == ProviderFailureClass.RATE_LIMITED -> true
+        httpStatus in setOf(502, 503) -> true
+        else -> false
+    }
+}

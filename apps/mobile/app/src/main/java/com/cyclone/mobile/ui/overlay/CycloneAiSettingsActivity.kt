@@ -82,6 +82,7 @@ private fun AiSettingsContent(context: Context, onBack: () -> Unit) {
     val catalogRevision by OpenRouterCatalogStore.revision.collectAsState()
     val pickerModels = remember(catalogRevision) { OpenRouterCatalogStore.picker(context) }
     var selectedModelId by rememberSaveable(catalogRevision) { mutableStateOf(OpenRouterCatalogStore.activeId(context)) }
+    var backupModelId by rememberSaveable(catalogRevision) { mutableStateOf(OpenRouterCatalogStore.backupId(context)) }
     var checking by remember { mutableStateOf(false) }
     var accessResult by remember { mutableStateOf<String?>(null) }
     var roleRefresh by remember { mutableStateOf(0) }
@@ -143,6 +144,40 @@ private fun AiSettingsContent(context: Context, onBack: () -> Unit) {
                 },
                 label = { Text(model.label) },
             )
+        }
+
+        item {
+            SettingsCard {
+                Text("When the main model is busy", fontWeight = FontWeight.Bold)
+                Text(
+                    "If the main model is rate-limited or down during a task, Cyclone can continue with a backup you choose. It never switches on its own.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.size(8.dp))
+                FilterChip(
+                    selected = backupModelId.isBlank(),
+                    onClick = {
+                        runCatching { OpenRouterCatalogStore.setBackup(context, "") }
+                        backupModelId = OpenRouterCatalogStore.backupId(context)
+                    },
+                    label = { Text("Stop and tell me") },
+                )
+                pickerModels.filter { it.id != selectedModelId }.forEach { model ->
+                    FilterChip(
+                        selected = backupModelId == model.id,
+                        onClick = {
+                            try {
+                                OpenRouterCatalogStore.setBackup(context, model.id)
+                                backupModelId = OpenRouterCatalogStore.backupId(context)
+                            } catch (failure: Exception) {
+                                accessResult = failure.message
+                            }
+                        },
+                        label = { Text("Backup: ${model.label}") },
+                    )
+                }
+            }
         }
 
         item {

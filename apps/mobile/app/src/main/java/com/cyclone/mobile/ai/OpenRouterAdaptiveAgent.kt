@@ -147,6 +147,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         var playbookPackage: String? = null,
         val providerCancellation: ProviderCancellation = ProviderCancellation(),
         val providerCircuitBreaker: ProviderTaskCircuitBreaker = ProviderTaskCircuitBreaker(),
+        /** The owner's backup model once the main route was rate-limited/unavailable in this task. */
+        var modelOverride: OpenRouterModelPreset? = null,
         var decisionDeadlineMs: Long = Long.MAX_VALUE,
         var progress: (String) -> Unit = {},
         var difficulty: com.cyclone.mobile.agent.plan.TaskDifficultyTier =
@@ -1893,11 +1895,32 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             cancelled = { !ownsInput() },
         )
         traceSettle(session, outcome, deferred = true)
+        val final = if (outcome.ready || outcome.state != com.cyclone.mobile.agent.settle.SettleState.LOADING) outcome else {
+            // Still showing a spinner/splash: one longer wait on that evidence, inside a 30 s ceiling per step.
+            val left = (STEP_WAIT_CEILING_MS - outcome.waitedMs - 9_800L).coerceAtLeast(0L)
+            if (left < 1_000L) outcome else com.cyclone.mobile.agent.settle.SettleController.run(
+                beforeFingerprint = before?.payload?.optString("accessibilityFingerprint"),
+                budget = com.cyclone.mobile.agent.settle.SettleBudget(fastMs = 500L, extendedMs = left),
+                capture = { com.cyclone.mobile.gateway.GatewayObservationAdapter.capture(context, scoped()) },
+                sample = { adapter.settleSample(it, launch) },
+                targetReached = { after ->
+                    adapter.verifiedByAfterState(action.tool, action.params.optString("package"),
+                        before?.page?.pageKey.orEmpty(), before?.payload?.optString("accessibilityFingerprint").orEmpty(),
+                        after.page.packageName, after.page.pageKey, after.payload.optString("accessibilityFingerprint"),
+                        expectedUri = action.params.optString("uri"), afterHaystack = adapter.observationHaystack(after))
+                },
+                requireStable = launch,
+                cancelled = { !ownsInput() },
+            ).also { traceSettle(session, it, deferred = true) }
+        }
+        if (final.ready) final.value?.page?.packageName?.let {
+            com.cyclone.mobile.agent.settle.SettleBudgets.record(it, outcome.waitedMs + final.waitedMs)
+        }
         AgentTraceRuntime.event(context, session.traceId, "VERIFICATION",
-            if (outcome.ready) "Deferred proof: the expected screen arrived" else "Deferred proof: the expected screen did not arrive",
-            code = if (outcome.ready) "verify.deferred" else "verify.deferred_missing", ok = outcome.ready,
-            detail = outcome.toJson().toString())
-        return outcome.ready
+            if (final.ready) "Deferred proof: the expected screen arrived" else "Deferred proof: the expected screen did not arrive",
+            code = if (final.ready) "verify.deferred" else "verify.deferred_missing", ok = final.ready,
+            detail = final.toJson().toString())
+        return final.ready
     }
 
     private fun traceSettle(session: LocalSessionContext, outcome: com.cyclone.mobile.agent.settle.SettleOutcome<*>, deferred: Boolean = false) {
@@ -2313,6 +2336,31 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
 
     private fun pageChat(
         apiKey: String,
+        requestedModel: OpenRouterModelPreset,
+        messages: JSONArray,
+        providerSort: String,
+    ): JSONObject {
+        val model = activeLocalSession?.context?.modelOverride ?: requestedModel
+        val json = pageChatOnce(apiKey, model, messages, providerSort)
+        val session = activeLocalSession?.context ?: return json
+        if (!json.has("error") || session.modelOverride != null) return json
+        val lifecycle = json.optString("_lifecycle").takeIf(String::isNotBlank)
+        val status = json.optInt("_httpStatus", json.optJSONObject("error")?.optInt("code", 0) ?: 0)
+        val failureClass = if (lifecycle == null) ProviderFailure.classify(status, json.optJSONObject("error")?.toString(), model.id).failureClass else null
+        if (!ProviderFallbackPolicy.shouldSwitch(status, lifecycle, failureClass)) return json
+        val backupId = runCatching { OpenRouterCatalogStore.backupId(context) }.getOrDefault("")
+        if (backupId.isBlank() || backupId == model.id) return json
+        val backup = OpenRouterCatalogStore.preset(context, backupId)
+        session.modelOverride = backup
+        AgentTraceRuntime.event(context, session.traceId, "PROVIDER_FALLBACK",
+            "${model.label} is busy; continuing this task with your backup model ${backup.label}",
+            code = "provider.backup_route", ok = true, detail = "from=${model.id}; to=${backup.id}; status=$status; lifecycle=${lifecycle.orEmpty()}")
+        session.progress("${model.label} is busy · continuing with ${backup.label}")
+        return pageChatOnce(apiKey, backup, messages, providerSort)
+    }
+
+    private fun pageChatOnce(
+        apiKey: String,
         model: OpenRouterModelPreset,
         messages: JSONArray,
         providerSort: String,
@@ -2496,6 +2544,7 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
     }
 
     companion object {
+        private const val STEP_WAIT_CEILING_MS = 30_000L
         private val DEFERRED_PROOF_TOOLS = setOf("phone.open_app", "phone.launch_intent", "phone.click", "phone.back", "phone.set_alarm", "phone.set_timer")
         private const val API_KEY_BLOCKER = "runtime.api_key_missing"
         private val HUMAN_BOUNDARY_MARKERS = listOf(

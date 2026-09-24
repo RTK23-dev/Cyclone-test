@@ -107,3 +107,21 @@ class ScreenSettleTest {
         assertTrue(json.contains("\"state\":\"ready\""))
     }
 }
+
+class SettleBudgetsTest {
+    @Test fun learnedBudgetsGrowWithSlowAppsAndAreCapped() {
+        SettleBudgets.reset()
+        val base = SettleBudget()
+        assertEquals("no evidence yet: default window", base, SettleBudgets.budgetFor("com.slow", base))
+        repeat(5) { SettleBudgets.record("com.slow", 9_000) }
+        val learned = SettleBudgets.budgetFor("com.slow", base)
+        assertEquals(13_500L, learned.fastMs + learned.extendedMs)
+        repeat(20) { SettleBudgets.record("com.slower", 30_000) }
+        val capped = SettleBudgets.budgetFor("com.slower", base)
+        assertEquals(15_000L, capped.fastMs + capped.extendedMs)
+        repeat(5) { SettleBudgets.record("com.fast", 400) }
+        assertEquals("a fast app never shrinks the default window", base, SettleBudgets.budgetFor("com.fast", base))
+        SettleBudgets.forget("com.slow")
+        assertEquals(base, SettleBudgets.budgetFor("com.slow", base))
+    }
+}
