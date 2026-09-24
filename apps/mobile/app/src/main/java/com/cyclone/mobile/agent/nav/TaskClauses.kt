@@ -18,7 +18,7 @@ data class TaskClause(
     val status: ClauseStatus = ClauseStatus.PENDING,
     val proof: String? = null,
 ) {
-    fun toJson() = JSONObject().put("id", id).put("text", text).put("place", place ?: JSONObject.NULL)
+    fun toJson() = JSONObject().put("id", id).put("text", text.take(500)).put("place", place ?: JSONObject.NULL)
         .put("capability", capability.name).put("doneWhen", doneWhen).put("status", status.wire)
         .put("proof", proof ?: JSONObject.NULL)
 }

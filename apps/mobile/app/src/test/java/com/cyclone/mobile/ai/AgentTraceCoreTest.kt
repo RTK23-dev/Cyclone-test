@@ -7,6 +7,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AgentTraceCoreTest {
+    @Test fun accountEmailsAreMaskedEvenWhenTheModelEchoesThem() {
+        assertEquals("Account j***@gmail.com", TracePrivacy.clean("Account jane@gmail.com"))
+        assertEquals("Account j***@gmail.com", TracePrivacy.clean("Account j***@gmail.com"))
+    }
     @Test
     fun tracePrivacyRedactsSecretsAndBinaryPayloads() {
         val dirty = "password=hunter2 token:abc123456789 Bearer abcdefghijklmnop pngBase64:${"A".repeat(220)}"

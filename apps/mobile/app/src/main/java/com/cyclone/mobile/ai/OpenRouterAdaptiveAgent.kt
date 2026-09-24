@@ -1801,8 +1801,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         val email = LiveTaskFacts.signedInEmails(screen.page).singleOrNull() ?: return
         if (session.ledger.record("signed-in-email", email, screen.placeId ?: return, screen.roomId,
                 screen.persona, screen.readAtMs)) {
-            AgentTraceRuntime.event(context, session.traceId, "NAV_LEDGER", "Live account identity observed",
-                code = "nav.ledger", ok = true, detail = session.ledger.maskedTrace().toString())
+            traceLedger(session)
         }
     }
 
@@ -1830,8 +1829,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     code = "nav.clause", ok = clause.status == ClauseStatus.VERIFIED, detail = json)
             }
         }
-        AgentTraceRuntime.event(context, session.traceId, "NAV_LEDGER", "Run facts",
-            code = "nav.ledger", ok = true, detail = session.ledger.maskedTrace().toString())
+        traceLedger(session)
         session.navigation.current?.let { session.progress("${navigation.index + 1}/${navigation.clauses().size} · ${it.text}") }
     }
 
@@ -1839,6 +1837,19 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         val facts = session.ledger.entries()
         return if (facts.isEmpty()) "Every requested clause is verified." else facts.joinToString(" · ") {
             "${it.key.replace('-', ' ')}: ${it.maskedValue()}"
+        }
+    }
+
+    private fun traceLedger(session: LocalSessionContext) {
+        // One bounded row per event: an array can be truncated by the trace store's detail limit.
+        val facts = session.ledger.maskedTrace()
+        for (index in 0 until facts.length()) {
+            val row = facts.getJSONObject(index)
+            val json = row.toString()
+            if (session.clauseTrace.put("fact:${row.getString("key")}", json) != json) {
+                AgentTraceRuntime.event(context, session.traceId, "NAV_LEDGER", "Live run fact",
+                    code = "nav.ledger", ok = true, detail = json)
+            }
         }
     }
 

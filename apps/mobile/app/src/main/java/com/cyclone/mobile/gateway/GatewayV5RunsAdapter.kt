@@ -136,7 +136,8 @@ internal object GatewayV5RunsAdapter {
         val runs = sessions(MAX_LIMIT)
             .map { session ->
                 val events = events(session.id)
-                withMapCause(RunInsight.summaryJson(session, events), RunInsight.steps(events)).put("expected", marks.isExpected(session.id))
+                navigationRecord(withMapCause(RunInsight.summaryJson(session, events), RunInsight.steps(events)), events)
+                    .put("expected", marks.isExpected(session.id))
             }
             .filter { run ->
                 when (filter) {
@@ -156,8 +157,12 @@ internal object GatewayV5RunsAdapter {
             ?: throw GatewayProtocolException("INVALID_REQUEST", "runId is malformed.")
         val found = session(id) ?: throw GatewayProtocolException("RUN_NOT_FOUND", "No run with that id on this phone.")
         val events = events(id)
-        return withMapCause(RunInsight.detailJson(found, events), RunInsight.steps(events)).put("expected", marks.isExpected(id))
+        return navigationRecord(withMapCause(RunInsight.detailJson(found, events), RunInsight.steps(events)), events)
+            .put("expected", marks.isExpected(id))
     }
+
+    private fun navigationRecord(record: JSONObject, events: List<AiTraceEvent>): JSONObject =
+        com.cyclone.mobile.agent.nav.NavigationRunRecord.enrich(record, events, RunInsight.steps(events))
 
     fun mark(args: JSONObject): JSONObject {
         requireOnly(args, setOf("runId", "expected"))

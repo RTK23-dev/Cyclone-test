@@ -472,8 +472,13 @@ RUN_STEP_KEYS = frozenset({
 RUN_EVENT_KEYS = frozenset({"at", "kind", "text", "code", "ok", "detail"})
 # Run record v2 (Glass alpha.4): optional so phones from alpha.8-alpha.10 keep working.
 RUN_SUMMARY_V2_KEYS = frozenset({"mapSteps", "modelSteps", "places"})
-RUN_OPTIONAL_KEYS = frozenset({"expected"})  # alpha.12+: the developer marked the run as expected
+RUN_OPTIONAL_KEYS = frozenset({"expected", "clauses", "ledger"})
 RUN_STEP_V2_KEYS = frozenset({"roomId", "roomAfter", "placeId", "appVersion", "decisionSource"})
+RUN_STEP_OPTIONAL_KEYS = frozenset({"expectedRoomId"})
+RUN_CLAUSE_KEYS = frozenset({"id", "text", "place", "status", "proof"})
+RUN_LEDGER_KEYS = frozenset({"key", "value", "sourcePlace", "sourceRoom", "persona", "readAtMs"})
+NAV_PLACE_ID = re.compile(r"^(?:package:[A-Za-z][A-Za-z0-9_.]{1,150}|chrome:https?://[A-Za-z0-9.-]+(?::[0-9]{1,5})?)$")
+MASKED_FACT = re.compile(r"^[^\s*@]\*{3}(?:@[A-Za-z0-9.-]+\.[A-Za-z]{2,})?$")
 RUN_PLACE_KEYS = frozenset({"placeId", "appVersion", "route"})
 ROOM_ID = re.compile(r"^screen:[a-z_]{1,40}:[0-9a-f]{8,64}$")
 RUN_PLACE_ID = re.compile(r"^package:[A-Za-z][A-Za-z0-9_.]{1,150}$")
@@ -505,6 +510,44 @@ def _validate_run_summary(run: Any, keys: frozenset[str]) -> None:
         raise _bad_run("summary")
     if "expected" in run and not isinstance(run["expected"], bool):
         raise _bad_run("expected")
+    if "clauses" in run:
+        clauses = run["clauses"]
+        if not isinstance(clauses, list) or len(clauses) > 16:
+            raise _bad_run("clauses")
+        seen = set()
+        for clause in clauses:
+            if not isinstance(clause, dict) or set(clause) != RUN_CLAUSE_KEYS:
+                raise _bad_run("clause")
+            if not isinstance(clause["id"], str) or not re.fullmatch(r"clause-(?:[1-9]|1[0-6])", clause["id"]) or clause["id"] in seen:
+                raise _bad_run("clause id")
+            seen.add(clause["id"])
+            if not _short_text(clause["text"], 500) or not _short_text(clause["proof"], 400, nullable=True):
+                raise _bad_run("clause text")
+            if not _optional_match(clause["place"], NAV_PLACE_ID) or clause["status"] not in (
+                "pending", "active", "verified", "needs-approval", "failed"
+            ):
+                raise _bad_run("clause state")
+    if "ledger" in run:
+        ledger = run["ledger"]
+        if not isinstance(ledger, list) or len(ledger) > 4:
+            raise _bad_run("ledger")
+        seen = set()
+        for fact in ledger:
+            if not isinstance(fact, dict) or set(fact) != RUN_LEDGER_KEYS:
+                raise _bad_run("ledger fact")
+            if not isinstance(fact["key"], str) or fact["key"] not in (
+                "signed-in-email", "found-username", "thread-with", "connected-network"
+            ) or fact["key"] in seen:
+                raise _bad_run("ledger key")
+            seen.add(fact["key"])
+            if not isinstance(fact["value"], str) or len(fact["value"]) > 256 or not MASKED_FACT.fullmatch(fact["value"]):
+                raise _bad_run("unmasked ledger")
+            if not isinstance(fact["sourcePlace"], str) or not NAV_PLACE_ID.fullmatch(fact["sourcePlace"]):
+                raise _bad_run("ledger place")
+            if not isinstance(fact["sourceRoom"], str) or not ROOM_ID.fullmatch(fact["sourceRoom"]):
+                raise _bad_run("ledger room")
+            if fact["persona"] != "live" or not _is_int(fact["readAtMs"]):
+                raise _bad_run("ledger provenance")
     if RUN_SUMMARY_V2_KEYS & set(run):
         if set(run) & RUN_SUMMARY_V2_KEYS != RUN_SUMMARY_V2_KEYS:
             raise _bad_run("record v2")
@@ -566,8 +609,10 @@ def _validate_run_detail(value: dict[str, Any], args: dict[str, Any]) -> None:
     if not isinstance(steps, list) or len(steps) > MAX_RUN_STEPS:
         raise _bad_run("steps")
     for step in steps:
-        if not isinstance(step, dict) or not RUN_STEP_KEYS <= set(step) <= RUN_STEP_KEYS | RUN_STEP_V2_KEYS:
+        if not isinstance(step, dict) or not RUN_STEP_KEYS <= set(step) <= RUN_STEP_KEYS | RUN_STEP_V2_KEYS | RUN_STEP_OPTIONAL_KEYS:
             raise _bad_run("step")
+        if "expectedRoomId" in step and not _optional_match(step["expectedRoomId"], ROOM_ID):
+            raise _bad_run("expected room")
         if step["outcome"] not in STEP_OUTCOMES:
             raise _bad_run("step")
         if RUN_STEP_V2_KEYS & set(step):

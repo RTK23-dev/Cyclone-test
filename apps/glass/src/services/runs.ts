@@ -44,6 +44,26 @@ export interface RunSummary {
   places: RunPlace[];
   /** The developer marked this run as expected; it no longer counts against scenario health. Null on older phones. */
   expected: boolean | null;
+  /** Optional on the wire; empty for older phones. Proof and status are supplied by the phone. */
+  clauses: RunClause[];
+  ledger: RunFact[];
+}
+
+export interface RunClause {
+  id: string;
+  text: string;
+  place: string | null;
+  status: "pending" | "active" | "verified" | "needs-approval" | "failed";
+  proof: string | null;
+}
+
+export interface RunFact {
+  key: string;
+  value: string;
+  sourcePlace: string;
+  sourceRoom: string;
+  persona: "live";
+  readAtMs: number;
 }
 
 export interface RunPlace {
@@ -80,6 +100,7 @@ export interface RunStep {
   placeId: string | null;
   appVersion: string | null;
   decisionSource: "map" | "model" | null;
+  expectedRoomId: string | null;
 }
 
 export interface RunDetail extends RunSummary {
@@ -93,6 +114,9 @@ const OUTCOMES = new Set<StepOutcome>(["ok", "failed", "unverified", "recovered"
 const ROOM = /^screen:[a-z_]{1,40}:[0-9a-f]{8,64}$/;
 const PLACE = /^package:[A-Za-z][A-Za-z0-9_.]{1,150}$/;
 const VERSION = /^[A-Za-z0-9._+-]{1,40}$/;
+const NAV_PLACE = /^(?:package:[A-Za-z][A-Za-z0-9_.]{1,150}|chrome:https?:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?)$/;
+const MASKED_FACT = /^[^\s*@]\*{3}(?:@[A-Za-z0-9.-]+\.[A-Za-z]{2,})?$/;
+const CLAUSE_STATUSES = new Set(["pending", "active", "verified", "needs-approval", "failed"]);
 
 export async function listRuns(client: GatewayClient, deviceId: string, filter: RunFilter = "all", limit = 100, signal?: AbortSignal): Promise<RunSummary[]> {
   const body = await client.get<{ runs?: unknown }>(
@@ -146,7 +170,25 @@ export function parseRunSummary(raw: unknown): RunSummary | null {
     modelSteps: typeof r.modelSteps === "number" ? r.modelSteps : null,
     places: Array.isArray(r.places) ? r.places.map(parsePlace).filter((place): place is RunPlace => place !== null) : [],
     expected: typeof r.expected === "boolean" ? r.expected : null,
+    clauses: Array.isArray(r.clauses) ? r.clauses.slice(0, 16).map(parseClause).filter((c): c is RunClause => c !== null) : [],
+    ledger: Array.isArray(r.ledger) ? r.ledger.slice(0, 4).map(parseFact).filter((f): f is RunFact => f !== null) : [],
   };
+}
+
+function parseClause(raw: unknown): RunClause | null {
+  const r = record(raw);
+  if (!/^clause-(?:[1-9]|1[0-6])$/.test(str(r.id)) || typeof r.text !== "string" || r.text.length > 500 ||
+      !CLAUSE_STATUSES.has(str(r.status)) || (r.place !== null && !match(r.place, NAV_PLACE)) ||
+      (r.proof !== null && (typeof r.proof !== "string" || r.proof.length > 400))) return null;
+  return { id: str(r.id), text: r.text, place: match(r.place, NAV_PLACE), status: r.status as RunClause["status"], proof: r.proof as string | null };
+}
+
+function parseFact(raw: unknown): RunFact | null {
+  const r = record(raw);
+  if (!["signed-in-email", "found-username", "thread-with", "connected-network"].includes(str(r.key)) ||
+      !match(r.value, MASKED_FACT) || str(r.value).length > 256 || !match(r.sourcePlace, NAV_PLACE) ||
+      !match(r.sourceRoom, ROOM) || r.persona !== "live" || !Number.isSafeInteger(r.readAtMs) || (r.readAtMs as number) < 0) return null;
+  return { key: str(r.key), value: str(r.value), sourcePlace: str(r.sourcePlace), sourceRoom: str(r.sourceRoom), persona: "live", readAtMs: r.readAtMs as number };
 }
 
 export async function markRun(client: GatewayClient, deviceId: string, runId: string, expected: boolean): Promise<boolean> {
@@ -181,6 +223,7 @@ export function roomLabel(roomId: string): string {
 }
 
 export function appName(placeId: string): string {
+  if (placeId.startsWith("chrome:")) return `Chrome · ${placeId.replace(/^chrome:https?:\/\//, "")}`;
   const pkg = placeId.replace(/^package:/, "");
   const known: Record<string, string> = {
     "com.google.android.gm": "Gmail",
@@ -236,6 +279,7 @@ function parseStep(raw: unknown): RunStep | null {
     placeId: match(r.placeId, PLACE),
     appVersion: match(r.appVersion, VERSION),
     decisionSource: r.decisionSource === "map" || r.decisionSource === "model" ? r.decisionSource : null,
+    expectedRoomId: match(r.expectedRoomId, ROOM),
   };
 }
 
@@ -282,6 +326,7 @@ const CAUSE_LABELS: Record<string, string> = {
   "stale-door": "Door no longer works",
   "door-missing": "No known door",
   "verification-failed": "Couldn't prove done",
+  "clause-failed": "Clause not completed",
   "model-gave-up": "Model stuck",
   "provider-error": "Model provider failed",
   blocked: "Hard blocker",

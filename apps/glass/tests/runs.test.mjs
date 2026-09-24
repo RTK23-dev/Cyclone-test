@@ -35,6 +35,34 @@ const DETAIL = {
   ],
 };
 
+const CLAUSE = { id: "clause-1", text: "check which Gmail I am logged in with", place: "package:com.google.android.gm", status: "verified", proof: "Live email: j***@gmail.com" };
+const FACT = { key: "signed-in-email", value: "j***@gmail.com", sourcePlace: "package:com.google.android.gm", sourceRoom: "screen:account:0123456789abcdef", persona: "live", readAtMs: 1000 };
+
+test("navigation fields tolerate older phones but discard unmasked or malformed facts", () => {
+  assert.deepEqual(parseRunSummary(FAILED).clauses, []);
+  const run = parseRunDetail({ ...DETAIL, clauses: [CLAUSE, { ...CLAUSE, status: "invented" }],
+    ledger: [FACT, { ...FACT, value: "jane@gmail.com" }, { ...FACT, persona: "mapping" }],
+    steps: [{ ...DETAIL.steps[0], expectedRoomId: FACT.sourceRoom }] });
+  assert.deepEqual(run.clauses, [CLAUSE]);
+  assert.deepEqual(run.ledger, [FACT]);
+  assert.equal(run.steps[0].expectedRoomId, FACT.sourceRoom);
+  assert.equal(parseRunDetail({ ...DETAIL, steps: [{ ...DETAIL.steps[0], expectedRoomId: "private text" }] }).steps[0].expectedRoomId, null);
+});
+
+test("run inspector renders clauses and masked live facts without evaluating proof", async () => {
+  installMiniDom();
+  const detail = { ...DETAIL, clauses: [CLAUSE, { ...CLAUSE, id: "clause-2", text: "open sign-up", place: "chrome:https://instagram.com", status: "needs-approval", proof: "Approval before submit" }],
+    ledger: [FACT], steps: [{ ...DETAIL.steps[0], expectedRoomId: FACT.sourceRoom }] };
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs/ai-run-1": () => detail });
+  const page = createRunPage(ctx(gateway.fetch), { name: "run", runId: "ai-run-1" });
+  await flush();
+  assert.match(page.element.querySelector(".clauses-card").textContent, /Approval before submit/);
+  assert.match(page.element.querySelector(".clauses-card").textContent, /Chrome · instagram.com/);
+  assert.match(page.element.querySelector(".ledger-card").textContent, /j\*\*\*@gmail.com/);
+  assert.doesNotMatch(page.element.textContent, /jane@gmail.com/);
+  page.destroy();
+});
+
 function ctx(fetch, device = READY_DEVICE) {
   const devices = [parseDevice(device)];
   return { client: new GatewayClient({ token: "t", fetch }), version: "1.0.0-alpha.2", devices, device: devices[0], devicesError: null, navigate() {}, selectDevice() {}, refreshDevices: async () => {} };
