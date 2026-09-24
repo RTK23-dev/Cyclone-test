@@ -24,5 +24,10 @@ the phone GATE and secrets are entered only through the Secrets Card.
 
 ## Evidence log
 
+First build carrying this work: **v5.0.0-alpha.21.dev1** (versionCode 162, Glass 1.0.0-alpha.13). It adds, after review:
+learned App Learner routes stop at the same sign-up boundary as model taps; observations record their producer, and an
+active mapping pass never feeds the ledger, clause proof or people; plain "open X" sentences keep Stage 1 Fast Path;
+single-clause runs may replay compiled skills (clause proof still decides completion); hour-long timers are provable.
+
 Physical evaluation: **not run**. No connected phone is required to develop or push checkpoints.
 Record real results here or in the navigation return handoff; do not infer them from fake tests.
