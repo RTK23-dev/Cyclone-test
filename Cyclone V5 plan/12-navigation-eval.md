@@ -1,0 +1,28 @@
+# Navigation evaluation
+
+Keep these sentences unchanged between builds. Start each run through Glass Ask and inspect it
+in Runs → Goals. Record build/source SHA, device/session, map coverage, outcome, duration,
+map/model steps, first failed clause and its proof. Unit tests use fake screens and actions;
+they do not establish physical-device success.
+
+| Sentence | Required evidence |
+| --- | --- |
+| open Gmail and tell me which Gmail I am logged in with | The current account address is read from live account UI; inbox senders and mapping values are insufficient. |
+| open Gmail and check which Gmail I am logged in with, then open Chrome and go to instagram.com sign-up with that email | Gmail identity proof precedes Chrome; the same live address is visible in the Instagram sign-up email field. Stop for phone approval before creating/submitting the account. |
+| open the clock app and set a timer for 5 minutes | A running five-minute timer is visible; opening Clock or entering a duration alone is insufficient. |
+| find the DM of Louella on Facebook | Louella's conversation is open, not just a search result. Native missing binds to Facebook in Chrome. A real login wall requests the Secrets Card. |
+| open Settings, then Wi-Fi, then tell me the connected network name | The connected network is read from current Wi-Fi UI; nearby network names are insufficient. |
+
+For mapped routes, confirm each direct door has `decisionSource=map`, an expected room and
+a fresh observed room after execution. Exercise a missing selector, an ambiguous selector,
+a stale/wrong-room landing and an unchanged screen. None may trigger blind replay.
+
+Facts crossing clauses must identify their live source and appear masked in exported reports.
+Dummy/mapping runs cannot supply identity or people. Passwords, OTPs and payment details never
+enter the task ledger or reports. Pay/send/delete/permission/authentication boundaries retain
+the phone GATE and secrets are entered only through the Secrets Card.
+
+## Evidence log
+
+Physical evaluation: **not run**. No connected phone is required to develop or push checkpoints.
+Record real results here or in the navigation return handoff; do not infer them from fake tests.
