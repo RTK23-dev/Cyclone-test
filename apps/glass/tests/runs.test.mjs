@@ -204,6 +204,30 @@ test("run record v2: rooms, app version and map vs model per step; the route ope
   page.destroy();
 });
 
+test("the route card lists the scenarios this run reached, with their health", async () => {
+  installMiniDom();
+  const scenarios = {
+    placeId: FB,
+    persona: "mapping",
+    entryScreenId: HOME,
+    scenarios: [
+      { scenarioId: "sc_0123456789abcdef01", kind: "reach", title: "Reach List", startScreenId: HOME, endScreenId: LIST, route: [HOME, LIST], steps: 1, danger: false, health: "critical", lastVerifiedAt: null, appVersion: null, runs: [] },
+      { scenarioId: "sc_0123456789abcdef02", kind: "reach", title: "Reach Settings", startScreenId: HOME, endScreenId: "screen:settings:bbbbbbbbbbbbbbbb", route: [HOME, "screen:settings:bbbbbbbbbbbbbbbb"], steps: 1, danger: false, health: "passing", lastVerifiedAt: null, appVersion: null, runs: [] },
+    ],
+  };
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs/ai-run-1": () => V2, "GET /v1/devices/d1/apps/scenarios": () => scenarios });
+  const page = createRunPage(ctx(gateway.fetch), { name: "run", runId: "ai-run-1" });
+  await flush();
+  await flush();
+  const text = page.element.querySelector(".route-card").textContent;
+  assert.match(text, /Scenarios this run reached/);
+  assert.match(text, /Reach List/);
+  assert.match(text, /Critical/);
+  assert.doesNotMatch(text, /Reach Settings/);
+  assert.equal(page.element.querySelector(".route-scenario").href ?? page.element.querySelector(".route-scenario").getAttribute("href"), `#/apps/${encodeURIComponent(FB)}/scenarios`);
+  page.destroy();
+});
+
 test("v2 parsing drops rooms and places that are not structural; app routes carry the route", () => {
   const parsed = parseRunDetail({ ...V2, places: [{ placeId: "https://evil", route: [] }, { placeId: FB, appVersion: "x y", route: [HOME, "Inbox of alice"] }] });
   assert.equal(parsed.places.length, 1);

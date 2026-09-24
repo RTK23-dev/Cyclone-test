@@ -19,6 +19,8 @@ import {
   type RunPlace,
   type RunStep,
 } from "../services/runs.js";
+import { getScenarios, healthLabel, healthTone, type Scenario } from "../services/knowledge.js";
+import { routeHref } from "../core/router.js";
 import { el, link, setChildren } from "../ui/dom.js";
 import { actionButton, card, chip, keyValue, loadingState, statTile, type Tone } from "../ui/components.js";
 import { icon } from "../ui/icons.js";
@@ -274,8 +276,32 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
         const show = actionButton("Show on the map", { icon: "map", variant: "primary" });
         show.addEventListener("click", () => ctx.navigate({ name: "app", placeId: place.placeId, tab: "map", route: place.route, runId: detail.runId }));
         row.append(show);
+        const touched = el("div", "route-scenarios");
+        row.append(touched);
+        void scenariosReached(place, touched);
       }
       return row;
+    }
+
+    /** Scenarios whose destination this run reached (Glass matches ids; the phone computed both). */
+    async function scenariosReached(place: RunPlace, into: HTMLElement): Promise<void> {
+      let scenarios: Scenario[];
+      try {
+        scenarios = (await getScenarios(ctx.client, deviceId, place.placeId, "mapping", controller.signal)).scenarios;
+      } catch {
+        return; // older phones or unmapped apps: nothing to add
+      }
+      const rooms = new Set(place.route);
+      const reached = scenarios.filter((scenario) => rooms.has(scenario.endScreenId));
+      if (!reached.length) return;
+      const list = el("div", "route-scenario-list");
+      for (const scenario of reached.slice(0, 8)) {
+        const open = el("a", "route-scenario");
+        open.href = routeHref({ name: "app", placeId: place.placeId, tab: "scenarios" });
+        open.append(el("span", undefined, scenario.title), chip(healthLabel(scenario.health), healthTone(scenario.health)));
+        list.append(open);
+      }
+      setChildren(into, el("span", "cause-kicker", "Scenarios this run reached"), list);
     }
 
     const select = (index: number): void => {
