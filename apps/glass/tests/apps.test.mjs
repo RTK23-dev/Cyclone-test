@@ -126,3 +126,14 @@ test("Apps page shows each app's last run and filters apps whose last run failed
   assert.equal(page.element.querySelector("a.app-row").dataset.placeId, GMAIL.placeId);
   page.destroy();
 });
+
+test("apps show scenario health counts when the phone sends them", async () => {
+  installMiniDom();
+  const withScenarios = { ...GMAIL, scenarios: { passing: 6, warning: 1, critical: 2, untested: 0 } };
+  const gateway = fakeGateway({ "GET /v1/devices/d1/apps": () => ({ apps: [withScenarios, CLOCK], truncated: false }) });
+  const page = createAppsPage(context(gateway.fetch), { name: "apps" });
+  await flush();
+  assert.match(page.element.querySelector(`a.app-row[data-place-id="${GMAIL.placeId}"]`).textContent, /9 scenarios · 2 critical/);
+  assert.doesNotMatch(page.element.querySelector(`a.app-row[data-place-id="${CLOCK.placeId}"]`).textContent, /scenario/);
+  page.destroy();
+});

@@ -889,3 +889,13 @@ def test_glass_you_are_here_is_structural_only():
     for bad in ({**here, "roomId": "Inbox of alice"}, {**here, "label": "Inbox"}):
         with pytest.raises(DesktopRuntimeError):
             V5ContractService(FakeFleet(HereBridge(bad))).atlas_here("phone-1")
+
+
+def test_apps_list_may_carry_scenario_health_counts():
+    counts = {"passing": 3, "warning": 1, "critical": 0, "untested": 2}
+    svc = V5ContractService(FakeFleet(AppsBridge({"apps": [{**GMAIL_APP, "scenarios": counts}], "truncated": False})))
+    assert svc.forward("phone-1", "apps.list", {})["apps"][0]["scenarios"] == counts
+    for bad in ({**counts, "names": 1}, {**counts, "passing": "3"}):
+        svc = V5ContractService(FakeFleet(AppsBridge({"apps": [{**GMAIL_APP, "scenarios": bad}], "truncated": False})))
+        with pytest.raises(DesktopRuntimeError):
+            svc.forward("phone-1", "apps.list", {})

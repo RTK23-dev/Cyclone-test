@@ -59,19 +59,36 @@ internal object GatewayV5KnowledgeAdapter {
                 AppVersionEvidence(pkg, info.versionName, info.longVersionCode)
             }.getOrNull()
         }
-        walks = { placeId ->
-            AgentTraceRuntime.initialize(app)
-            if (!AgentTraceRuntime.isReady()) emptyList() else AgentTraceRuntime.store.listSessions(RUNS_CONSIDERED)
-                .filterNot { GatewayV5RunsAdapter.marks.isExpected(it.id) }
-                .mapNotNull { session ->
-                val steps = RunInsight.steps(AgentTraceRuntime.store.events(session.id))
-                val rooms = RunInsight.places(steps).firstOrNull { it.getString("placeId") == placeId }
-                    ?.getJSONArray("route")?.let { route -> (0 until route.length()).map(route::getString) }
-                    ?: return@mapNotNull null
-                RunWalk(session.id, RunInsight.wireStatus(session.status), session.startedAt, placeId, rooms)
-            }
-        }
+        walks = { placeId -> allWalks(app).filter { it.placeId == placeId } }
+        GatewayV5AppsAdapter.scenarioHealth = { placeId -> healthCounts(placeId) }
     }
+
+    @Volatile private var walkCache: Pair<Long, List<RunWalk>>? = null
+
+    /** Every recent run's walk through every app, read once and reused for a few seconds (apps.list asks per app). */
+    private fun allWalks(app: Context): List<RunWalk> {
+        walkCache?.let { (at, cached) -> if (System.currentTimeMillis() - at < 5_000) return cached }
+        AgentTraceRuntime.initialize(app)
+        val walks = if (!AgentTraceRuntime.isReady()) emptyList() else AgentTraceRuntime.store.listSessions(RUNS_CONSIDERED)
+            .filterNot { GatewayV5RunsAdapter.marks.isExpected(it.id) }
+            .flatMap { session ->
+                val steps = RunInsight.steps(AgentTraceRuntime.store.events(session.id))
+                RunInsight.places(steps).map { place ->
+                    val route = place.getJSONArray("route")
+                    RunWalk(session.id, RunInsight.wireStatus(session.status), session.startedAt, place.getString("placeId"),
+                        (0 until route.length()).map(route::getString))
+                }
+            }
+        walkCache = System.currentTimeMillis() to walks
+        return walks
+    }
+
+    /** Scenario health counts for one app (Apps page), or null when the app has no scenarios. */
+    fun healthCounts(placeId: String): Map<String, Int>? = runCatching {
+        val list = scenarios(JSONObject().put("placeId", placeId)).getJSONArray("scenarios")
+        if (list.length() == 0) null else (0 until list.length()).map { list.getJSONObject(it).getString("health") }
+            .groupingBy { it }.eachCount()
+    }.getOrNull()
 
     fun dispatch(op: String, args: JSONObject): JSONObject = when (op) {
         "atlas.versions" -> versions(args)

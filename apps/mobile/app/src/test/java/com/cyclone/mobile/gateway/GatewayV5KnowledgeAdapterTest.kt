@@ -102,4 +102,27 @@ class GatewayV5KnowledgeAdapterTest {
         assertEquals(0, GatewayV5KnowledgeAdapter.scenarios(JSONObject().put("placeId", gmail)).getJSONArray("scenarios").length())
         assertTrue(setOf("atlas.versions", "scenarios.list").all { it in GatewayProtocol.operations && it in GatewayProtocol.legacyReadOnlyOperations })
     }
+
+    @Test
+    fun appsListCarriesScenarioHealthCounts() {
+        map(v2, 1_000, Triple(home, menu, "door:menu:1111111111111111"), Triple(home, inbox, "door:inbox:3333333333333333"))
+        install(v2, listOf(RunWalk("ai-run-1", "failed", 2_000, gmail, listOf(home, inbox)), RunWalk("ai-run-0", "failed", 1_000, gmail, listOf(home, inbox))))
+        assertEquals(mapOf("untested" to 1, "critical" to 1), GatewayV5KnowledgeAdapter.healthCounts(gmail))
+        assertEquals(null, GatewayV5KnowledgeAdapter.healthCounts("package:com.unknown.app"))
+        GatewayV5AppsAdapter.mappedPlaces = {
+            listOf(MappedPlace(gmail, com.cyclone.mobile.brain.graphv2.AtlasPlaceKind.PACKAGE, "Gmail", "com.google.android.gm", null, "mapping",
+                com.cyclone.mobile.brain.graphv2.AtlasMapStatus.PARTIAL, 3, 2, null, emptyMap()))
+        }
+        GatewayV5AppsAdapter.scenarioHealth = { GatewayV5KnowledgeAdapter.healthCounts(it) }
+        try {
+            val app = GatewayV5AppsAdapter.list(JSONObject()).getJSONArray("apps").getJSONObject(0)
+            val counts = app.getJSONObject("scenarios")
+            assertEquals(1, counts.getInt("critical"))
+            assertEquals(1, counts.getInt("untested"))
+            assertEquals(0, counts.getInt("passing"))
+        } finally {
+            GatewayV5AppsAdapter.mappedPlaces = { emptyList() }
+            GatewayV5AppsAdapter.scenarioHealth = { null }
+        }
+    }
 }

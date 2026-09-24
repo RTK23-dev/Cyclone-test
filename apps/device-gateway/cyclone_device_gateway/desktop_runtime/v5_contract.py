@@ -419,8 +419,14 @@ def _validate_apps_list(value: dict[str, Any]) -> None:
     if len(value["apps"]) > MAX_APPS:
         raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android apps.list returned too many apps.")
     for app in value["apps"]:
-        if not isinstance(app, dict) or set(app) != APP_KEYS:
+        if not isinstance(app, dict) or not APP_KEYS <= set(app) <= APP_KEYS | {"scenarios"}:
             raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app entry is malformed.")
+        if "scenarios" in app:  # alpha.14+: scenario health counts for the Apps page
+            counts = app["scenarios"]
+            if not isinstance(counts, dict) or set(counts) != {"passing", "warning", "critical", "untested"} or not all(
+                _is_int(counts[key]) for key in counts
+            ):
+                raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app scenario counts are malformed.")
         place_id = app["placeId"]
         if not isinstance(place_id, str) or not place_id.startswith(("package:", "chrome:")) or len(place_id) > 512:
             raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android app placeId is malformed.")

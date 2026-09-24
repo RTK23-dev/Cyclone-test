@@ -32,6 +32,8 @@ export interface PhoneApp {
   needsRemap: boolean;
   personas: AppPersonaMap[];
   mappedVersions: Array<AppVersion & { doors: number }>;
+  /** Scenario health counts (phone alpha.14+); null when unknown or the app has no scenarios. */
+  scenarios: { passing: number; warning: number; critical: number; untested: number } | null;
 }
 
 export interface AppCatalog {
@@ -93,7 +95,26 @@ function parseApp(raw: unknown): PhoneApp | null {
           return parsed ? [{ ...parsed, doors: count((v as Record<string, unknown>).doors) }] : [];
         })
       : [],
+    scenarios: r.scenarios && typeof r.scenarios === "object"
+      ? (() => {
+          const s = r.scenarios as Record<string, unknown>;
+          return { passing: count(s.passing), warning: count(s.warning), critical: count(s.critical), untested: count(s.untested) };
+        })()
+      : null,
   };
+}
+
+/** "9 scenarios · 2 critical" for the Apps page; null without scenarios. */
+export function scenarioSummary(app: PhoneApp): { text: string; tone: "success" | "warning" | "danger" | "neutral" } | null {
+  const s = app.scenarios;
+  if (!s) return null;
+  const total = s.passing + s.warning + s.critical + s.untested;
+  if (!total) return null;
+  const head = `${total} ${total === 1 ? "scenario" : "scenarios"}`;
+  if (s.critical) return { text: `${head} · ${s.critical} critical`, tone: "danger" };
+  if (s.warning) return { text: `${head} · ${s.warning} warning`, tone: "warning" };
+  if (s.passing) return { text: `${head} · ${s.passing} passing`, tone: "success" };
+  return { text: `${head} · not run yet`, tone: "neutral" };
 }
 
 export function versionLabel(v: AppVersion | null): string {

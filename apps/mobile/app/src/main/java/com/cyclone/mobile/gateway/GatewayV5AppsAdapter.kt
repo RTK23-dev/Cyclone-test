@@ -47,6 +47,8 @@ internal object GatewayV5AppsAdapter {
     /** Seams for JVM tests; production reads PackageManager and the durable Atlas. */
     @Volatile internal var installedApps: () -> List<InstalledApp> = { emptyList() }
     @Volatile internal var mappedPlaces: () -> List<MappedPlace> = { emptyList() }
+    /** Scenario health counts per app (from the knowledge adapter); null when unknown. */
+    @Volatile internal var scenarioHealth: (String) -> Map<String, Int>? = { null }
 
     fun install(context: Context, store: AtlasStore) {
         val app = context.applicationContext
@@ -113,6 +115,13 @@ internal object GatewayV5AppsAdapter {
             .put("mappedVersions", JSONArray(versions.map { (version, doors) ->
                 version(version.versionName, version.versionCode).put("doors", doors)
             }))
+            .apply {
+                if (mapped && placeId.startsWith("package:")) scenarioHealth(placeId)?.let { counts ->
+                    put("scenarios", JSONObject().apply {
+                        listOf("passing", "warning", "critical", "untested").forEach { put(it, counts[it] ?: 0) }
+                    })
+                }
+            }
     }
 
     private fun version(name: String?, code: Long?): JSONObject = JSONObject()

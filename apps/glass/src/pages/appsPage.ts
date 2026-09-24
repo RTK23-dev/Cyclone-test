@@ -6,6 +6,7 @@ import type { GlassContext } from "../app.js";
 import { routeHref, type Route } from "../core/router.js";
 import {
   catalogStats,
+  scenarioSummary,
   filterApps,
   loadApps,
   sortApps,
@@ -190,7 +191,7 @@ function appRow(app: PhoneApp, lastRun?: RunSummary): HTMLAnchorElement {
     statusCell,
     el("span", "col-version", app.kind === "chrome-origin" ? "Web" : versionLabel(app.installedVersion)),
     mapped,
-    el("span", "col-size", app.rooms ? `${plural(app.rooms, "room")} · ${plural(app.doors, "door")}` : "—"),
+    sizeCell(app),
     lastRunCell(app, lastRun),
     go,
   );
@@ -208,6 +209,15 @@ function appsError(error: unknown, retry: () => void): HTMLElement {
   }
   const message = error instanceof Error ? error.message : String(error);
   return errorState("Couldn't load the phone's apps", { message }, retry);
+}
+
+function sizeCell(app: PhoneApp): HTMLElement {
+  const cell = el("span", "col-size", app.rooms ? `${plural(app.rooms, "room")} · ${plural(app.doors, "door")}` : "—");
+  const summary = scenarioSummary(app);
+  if (summary) {
+    cell.append(el("br"), chip(summary.text, summary.tone));
+  }
+  return cell;
 }
 
 function lastRunCell(app: PhoneApp, lastRun?: RunSummary): HTMLElement {
