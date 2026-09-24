@@ -2,7 +2,7 @@
 
 > **Owner correction, 2026-09-23 — read first.** Glass is a **local web app in the browser** (`apps/glass`), not pages in Cyclone One (`apps/pc-companion`) and not Artemis. It is the developer's eyes on the phone's engine: Apps + versions, Map and Scenarios boards, Run inspector (cause of death), Knowledge, Phone control. No intelligence. Charter: [`03-glass-v1.md`](../../03-glass-v1.md), cuts: [`09`](../../09-cuts-and-milestones.md). Runs 1–3 below built a **prototype inside Cyclone One**; port it, do not extend it.
 
-## Glass web — 1.0.0-alpha.8 (2026-09-24, built by the front-runner session)
+## Glass web — 1.0.0-alpha.9 (2026-09-24, built by the front-runner session)
 
 Glass restarted as `apps/glass` per the owner charter. Scope: [`SESSION-PLAN-glass-alpha1.md`](../SESSION-PLAN-glass-alpha1.md).
 
@@ -19,7 +19,8 @@ Glass restarted as `apps/glass` per the owner charter. Scope: [`SESSION-PLAN-gla
 | **alpha.6:** App Screens / Runs tabs, Scenarios board, Knowledge page (vault set / not set, skills, automations, totals), mapping passes as runs, Mark as expected (skipped by scenario health), You are here on Phone (`atlas.here`), cause-of-death fix links, Runs filters, last run per app | built; phone + gateway + Glass tests |
 | **alpha.7:** mapping depth picker, type + scroll from the PC while you have control, scenario health counts on Apps, `door-missing` (run gave up in a mapped room with no door onward), Teach on the phone (Follow Me) from the map | built; phone + gateway + Glass tests green |
 | **alpha.8:** **Home** page (phone at a glance, needs attention, latest runs, knowledge), **Sign in / Already signed in** scenarios (phone), Mapping pass / Your teaching switch on Scenarios, **Never pressed** list (`knowledge.get` `guarded`, counts only) + Safety card in Settings, scenarios a run reached in the inspector, a finished Ask links to its run | built; phone + gateway + Glass 90 tests green; visual check with mocked replies |
-| Redacted frames, expected room per step, per-version forget, data retention | next cuts |
+| **alpha.9:** Home runs chart + Download report, Runs Goals view, compare with the last good run, Ask again, `wrong-room` (phone, from the Atlas), scenario freshness, Vault state on Sign in, recent sentences on Phone, keyboard shortcuts, `[hidden]` fix; phone Linked PCs with Log out per PC | built; phone + gateway + Glass 99 tests green; visual check with mocked replies |
+| Redacted frames, expected room recorded by the agent, per-version forget, data retention | next cuts |
 
 Physical phone and Windows install: **UNVERIFIED** until someone runs it.
 
