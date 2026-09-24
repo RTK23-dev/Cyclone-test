@@ -2,7 +2,7 @@
 
 > **Owner correction, 2026-09-23 — read first.** Glass is a **local web app in the browser** (`apps/glass`), not pages in Cyclone One (`apps/pc-companion`) and not Artemis. It is the developer's eyes on the phone's engine: Apps + versions, Map and Scenarios boards, Run inspector (cause of death), Knowledge, Phone control. No intelligence. Charter: [`03-glass-v1.md`](../../03-glass-v1.md), cuts: [`09`](../../09-cuts-and-milestones.md). Runs 1–3 below built a **prototype inside Cyclone One**; port it, do not extend it.
 
-## Glass web — 1.0.0-alpha.2 (2026-09-23, built by the front-runner session)
+## Glass web — 1.0.0-alpha.3 (2026-09-24, built by the front-runner session)
 
 Glass restarted as `apps/glass` per the owner charter. Scope: [`SESSION-PLAN-glass-alpha1.md`](../SESSION-PLAN-glass-alpha1.md).
 
@@ -13,7 +13,8 @@ Glass restarted as `apps/glass` per the owner charter. Scope: [`SESSION-PLAN-gla
 | Phone `apps.list` (apps, installed + mapped versions, needs-remap) | built; JVM + gateway contract tests |
 | Apps page, App → Map board (inspector, start/pause/stop, live cursor), Phone page (live view, take control, Ask) | built; 47 Glass tests; visual check with mocked phone replies |
 | **alpha.2:** Runs page + run inspector (steps, metrics, cause of death with the failing step and the fix, events, report download); phone `RunInsight` + `runs.list` / `runs.get`; gateway validation | built; phone JVM 9 + gateway contract 14 + Glass 7 tests; visual check with mocked phone replies |
-| Rooms per step + route on the map + frames (alpha.3), Scenarios + Versions (alpha.4), Knowledge | next cuts |
+| **alpha.3:** **Devices** page — connect with a six-digit code + Allow on the phone (heads-up "Connect this PC?"), reconnect, disconnect; Glass opens on Devices when nothing is connected; not-ready pages give the gateway's reason (fixes "Waiting for Cyclone" on a trusted phone whose session was not open) | built; Glass 61 tests, gateway trust/fleet tests, phone match-code fixture shared with the PC; visual check with mocked replies |
+| Rooms per step + route on the map + frames (alpha.4), Scenarios + Versions (alpha.5), Knowledge | next cuts |
 
 Physical phone and Windows install: **UNVERIFIED** until someone runs it.
 

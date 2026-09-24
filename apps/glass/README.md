@@ -20,6 +20,17 @@ cyclone-device-gateway glass                      # starts the local gateway if 
 `cyclone-device-gateway glass` mints a one-time launch code and opens `http://127.0.0.1:<port>/glass/#code=…`. The page exchanges
 the code for a session that lives only in that tab. A new tab needs the launcher again.
 
+## Connect a phone (Devices)
+
+Plug the phone in by USB and allow USB debugging. In Glass, **Devices** lists every phone this PC sees:
+
+- **Ready to connect** → **Connect**. Glass shows a six-digit code; the phone shows a "Connect this PC?" notification with
+  the same code. Open it, check the code, tap **Allow**. The phone and the PC keep the trust; Glass never stores it.
+- **Connected** → **Use in Glass**, **Reconnect** (when the phone was locked or restarted), **Disconnect** (asks first).
+- **Needs the phone** → allow USB debugging or reconnect the cable.
+
+Glass opens on Devices whenever no phone is ready. Pay, send, delete and sign-in steps still ask on the phone.
+
 Development with hot reload: `npm run dev` (Vite on `127.0.0.1:5178`, proxying `/v1` to `CYCLONE_GATEWAY_URL`, default
 `http://127.0.0.1:8765`). Open the launch link the CLI prints with `--print-url` and swap in the dev port.
 
