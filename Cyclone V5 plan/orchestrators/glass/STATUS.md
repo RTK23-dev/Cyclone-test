@@ -17,7 +17,8 @@ Glass restarted as `apps/glass` per the owner charter. Scope: [`SESSION-PLAN-gla
 | **alpha.4:** run inspector v2 — room / room after / app + version / map-or-model per step, 'From the map' split, Route on the map card, map highlights a run's route, `stale-door` cause | built; phone RunInsight + gateway contract + Glass tests |
 | **alpha.5:** App → **Scenarios** (routes from the entry room, health from runs, Show on the map) and **Versions** (versions, needs remap, stale doors); mapper stamps doors with the app version | built; phone knowledge adapter + gateway contract + Glass tests |
 | **alpha.6:** App Screens / Runs tabs, Scenarios board, Knowledge page (vault set / not set, skills, automations, totals), mapping passes as runs, Mark as expected (skipped by scenario health), You are here on Phone (`atlas.here`), cause-of-death fix links, Runs filters, last run per app | built; phone + gateway + Glass tests |
-| Redacted frames, expected room per step, door-missing, per-version forget, Settings (budgets, never-pay, retention) | next cuts |
+| **alpha.7 (in progress):** mapping depth picker, type + scroll from the PC while you have control, scenario health counts on Apps, `door-missing` (run gave up in a mapped room with no door onward) | built; tests green; not yet released |
+| Redacted frames, expected room per step, per-version forget, Settings (never-pay, retention) | next cuts |
 
 Physical phone and Windows install: **UNVERIFIED** until someone runs it.
 
