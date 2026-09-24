@@ -20,6 +20,9 @@ data class TaskWaypoint(
     val uri: String? = null,
     val until: String = "",
     val summary: String,
+    val clauseId: String? = null,
+    val capability: String? = null,
+    val doneWhen: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("do", kind.name.lowercase())
@@ -27,6 +30,9 @@ data class TaskWaypoint(
         .put("uri", uri ?: JSONObject.NULL)
         .put("until", until)
         .put("summary", summary)
+        .put("clauseId", clauseId ?: JSONObject.NULL)
+        .put("capability", capability ?: JSONObject.NULL)
+        .put("doneWhen", doneWhen ?: JSONObject.NULL)
 }
 
 data class TaskTrajectory(
