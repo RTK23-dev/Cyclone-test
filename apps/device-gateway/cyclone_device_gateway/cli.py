@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import getpass
 import json
+from pathlib import Path
+import sys
 
 import uvicorn
 
@@ -40,6 +42,11 @@ def build_parser() -> argparse.ArgumentParser:
     glass = subcommands.add_parser("glass", help="Open Cyclone Glass in the browser (starts the local gateway if needed)")
     glass.add_argument("--no-browser", action="store_true", help="Do not open a browser window")
     glass.add_argument("--print-url", action="store_true", help="Print the one-time launch link instead of the plain address")
+    subcommands.add_parser("terminal", help="What the `cyclone` command runs: update check, then Glass in its own window")
+    install_cli = subcommands.add_parser("install-cli", help="Install (or --remove) the `cyclone` terminal command for this user")
+    install_cli.add_argument("--remove", action="store_true")
+    install_cli.add_argument("--runtime", help="Runtime executable the command starts (default: this one)")
+    install_cli.add_argument("--bin-dir", help="Folder for cyclone.cmd (default: %%LOCALAPPDATA%%\\Cyclone One\\bin)")
     return parser
 
 
@@ -89,8 +96,20 @@ def _run_transport(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
+    if raw[:1] == ["terminal"]:
+        # `cyclone` (cyclone.cmd) lands here with the owner's own arguments, parsed by the terminal module.
+        from .terminal.app import run_terminal
+
+        return run_terminal(raw[1:])
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "install-cli":
+        from .terminal.install import install, runtime_executable
+
+        runtime = Path(args.runtime).expanduser() if args.runtime else runtime_executable()
+        print(install(runtime, Path(args.bin_dir).expanduser() if args.bin_dir else None, remove=args.remove), flush=True)
+        return 0
     if args.command == "doctor":
         report = BridgeDoctor().run()
         if args.json_output:

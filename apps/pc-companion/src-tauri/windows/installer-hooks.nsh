@@ -25,6 +25,13 @@
   Sleep 1500
 !macroend
 
+; Install the `cyclone` terminal command for this user (cyclone.cmd in %LOCALAPPDATA%\Cyclone One\bin, added to
+; the user PATH). New terminals can then type: cyclone
+!macro NSIS_HOOK_POSTINSTALL
+  ClearErrors
+  ExecWait '"$INSTDIR\CyclonePCRuntime.exe" install-cli'
+!macroend
+
 !macro NSIS_HOOK_PREUNINSTALL
   ClearErrors
   ExecWait 'cmd /C taskkill /F /T /IM "Cyclone One.exe" >NUL 2>&1'
@@ -41,4 +48,6 @@
   ClearErrors
   ExecWait 'cmd /C taskkill /F /T /IM CycloneLivePhone.exe >NUL 2>&1'
   Sleep 1500
+  ClearErrors
+  ExecWait '"$INSTDIR\CyclonePCRuntime.exe" install-cli --remove'
 !macroend
