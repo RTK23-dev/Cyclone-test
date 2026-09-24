@@ -1,18 +1,18 @@
-# Cyclone V5 alpha.21 dev1: multi-app navigation (clauses, live proof, Atlas doors, task ledger) + review fixes; Teal Matrix v2 from alpha.20.
-# Owner-requested developer candidate; physical phone acceptance UNVERIFIED.
+# Cyclone V5 alpha.22 dev1: fast analytic Teal glass (no layer refraction noise, 24 fps field, background shader warm-up) on alpha.21 (CI guard updated for the no-capture glass contract).
+# Owner-requested developer candidate; physical phone acceptance UNVERIFIED. Release candidate.
 schema = 1
-product_version = "5.0.0-alpha.21.dev1"
+product_version = "5.0.0-alpha.22.dev1"
 channel = "development"
-android_version_code = 162
-python_version = "5.0.0-alpha.21.dev1"
+android_version_code = 163
+python_version = "5.0.0-alpha.22.dev1"
 
 [components]
-mobile = "5.0.0-alpha.21.dev1"
-pc_companion = "1.6.0-alpha.21"
+mobile = "5.0.0-alpha.22.dev1"
+pc_companion = "1.6.0-alpha.22"
 # Cyclone Glass web app (apps/glass). Its own line; pc_companion is Cyclone One.
 glass = "1.0.0-alpha.13"
-device_gateway = "5.0.0-alpha.21.dev1"
-mcp = "5.0.0-alpha.21.dev1"
+device_gateway = "5.0.0-alpha.22.dev1"
+mcp = "5.0.0-alpha.22.dev1"
 
 [release]
 previous_mobile_version = "4.8.0"
