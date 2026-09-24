@@ -276,3 +276,18 @@ test("a stopped run can be marked expected on the phone, and unmarked", async ()
   assert.equal(expected, false);
   page.destroy();
 });
+
+test("a map-caused death offers the room on the map and, for a stale door, the app's versions", async () => {
+  installMiniDom();
+  const navigated = [];
+  const stale = { ...V2, cause: { kind: "stale-door", stepIndex: 1, headline: "A mapped door stopped working on version 512.0.0", detail: "", fix: "Remap." } };
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs/ai-run-1": () => stale });
+  const page = createRunPage({ ...ctx(gateway.fetch), navigate: (r) => navigated.push(r) }, { name: "run", runId: "ai-run-1" });
+  await flush();
+  const buttons = [...page.element.querySelectorAll(".cause-card .btn")];
+  buttons.find((b) => /Open the room on the map/.test(b.textContent)).click();
+  assert.deepEqual(navigated.at(-1), { name: "app", placeId: FB, tab: "map", route: [HOME, LIST], runId: "ai-run-1" });
+  buttons.find((b) => /See app versions/.test(b.textContent)).click();
+  assert.deepEqual(navigated.at(-1), { name: "app", placeId: FB, tab: "versions" });
+  page.destroy();
+});

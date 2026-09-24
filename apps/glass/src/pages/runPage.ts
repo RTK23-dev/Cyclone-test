@@ -32,6 +32,9 @@ export interface RunPageDeps {
   saveFile?: (name: string, text: string) => void;
 }
 
+/** Causes a developer fixes in the map (remap a room, teach a door). */
+const MAP_CAUSES = new Set(["stale-door", "wrong-room", "door-missing", "element-not-found", "unchanged"]);
+
 const OUTCOME_TONE: Record<RunStep["outcome"], Tone> = {
   ok: "success",
   failed: "danger",
@@ -131,11 +134,26 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       const fix = el("p", "cause-fix");
       fix.append(el("strong", undefined, "Fix: "), el("span", undefined, run.cause.fix));
       cause.append(fix);
+      const causeActions = el("div", "cause-actions");
       if (run.cause.stepIndex != null) {
         const go = actionButton(`Go to step ${run.cause.stepIndex + 1}`, { icon: "chevron" });
         go.addEventListener("click", () => select(run.cause!.stepIndex!));
-        cause.append(go);
+        causeActions.append(go);
+        // Map problems get a way to the map: the failing room lit up, or the app's versions after an update.
+        const failing = run.steps.find((s) => s.index === run.cause!.stepIndex);
+        const rooms = [failing?.roomId, failing?.roomAfter].filter((room): room is string => !!room);
+        if (failing?.placeId && rooms.length && MAP_CAUSES.has(run.cause.kind)) {
+          const fix = actionButton("Open the room on the map", { icon: "map", variant: "primary" });
+          fix.addEventListener("click", () => ctx.navigate({ name: "app", placeId: failing.placeId!, tab: "map", route: rooms, runId: run.runId }));
+          causeActions.append(fix);
+        }
+        if (failing?.placeId && run.cause.kind === "stale-door") {
+          const versions = actionButton("See app versions", { icon: "refresh" });
+          versions.addEventListener("click", () => ctx.navigate({ name: "app", placeId: failing.placeId!, tab: "versions" }));
+          causeActions.append(versions);
+        }
       }
+      cause.append(causeActions);
       parts.push(cause);
     } else if (run.status === "completed") {
       const done = card("cause-card cause-success");

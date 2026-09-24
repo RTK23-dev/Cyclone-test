@@ -402,3 +402,9 @@ a.run-row:hover {
   align-items: center;
   gap: var(--space-2);
 }
+
+.cause-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
