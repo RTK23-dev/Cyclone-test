@@ -239,3 +239,15 @@ test("Runs can be narrowed to one reason and one app", async () => {
   assert.match(causeSelect.textContent, /Login wall/);
   page.destroy();
 });
+
+test("mapping passes are listed as runs and marked as such", async () => {
+  installMiniDom();
+  const pass = { ...DONE, runId: "ai-map-1", goal: "Map Gmail", model: "cyclone-mapper", mapSteps: 0, modelSteps: 0, places: [{ placeId: "package:com.google.android.gm", appVersion: "1", route: [] }] };
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs": () => ({ runs: [pass] }) });
+  const page = createRunsPage(ctx(gateway.fetch));
+  await flush();
+  const row = page.element.querySelector("a.run-row").textContent;
+  assert.match(row, /Mapping pass/);
+  assert.doesNotMatch(row, /cyclone-mapper/);
+  page.destroy();
+});

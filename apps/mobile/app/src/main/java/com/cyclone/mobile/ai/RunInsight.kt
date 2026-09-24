@@ -131,6 +131,7 @@ object RunInsight {
     fun decisionSource(head: AiTraceEvent, action: String?): String? = when {
         head.kind !in BOUNDARY -> null
         action == null -> "model"
+        action.startsWith("mapper:") -> null // the mapper explores; neither a known route nor the model chose
         action.startsWith("graph:") || action.startsWith("compiled-skill:") -> "map"
         else -> "model"
     }

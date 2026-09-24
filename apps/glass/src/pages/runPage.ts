@@ -168,7 +168,7 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       const facts = keyValue(
         [
           ["Action", step.action ?? "—"],
-          ["Chosen by", step.decisionSource === "map" ? "A known route (no model call)" : step.decisionSource === "model" ? "The model" : "—"],
+          ["Chosen by", step.decisionSource === "map" ? "A known route (no model call)" : step.decisionSource === "model" ? "The model" : step.action?.startsWith("mapper:") ? "The mapper, exploring" : "—"],
           ["App", step.placeId ? `${appName(step.placeId)}${step.appVersion ? ` · version ${step.appVersion}` : ""}` : "—"],
           ["Room", step.roomId ? roomLabel(step.roomId) : "not recorded"],
           ["Room after", step.roomAfter ? roomLabel(step.roomAfter) : "—"],

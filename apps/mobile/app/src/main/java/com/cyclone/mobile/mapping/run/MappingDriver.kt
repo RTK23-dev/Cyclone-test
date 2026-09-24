@@ -15,6 +15,8 @@ data class MappingDriverEvent(
     val atEpochMs: Long,
     val kind: String,
     val detail: String,
+    /** Structural room key the step reached (progress) or finished (room exhausted); null otherwise. */
+    val roomKey: String? = null,
 )
 
 /**
@@ -41,6 +43,8 @@ class MappingDriver(
     private val maxBacksPerClimb: Int = 6,
     private val maxResets: Int = 6,
     private val stepDelayMs: Long = 250,
+    /** Every structural event, as it happens (the mapping run's trace for Glass Runs). */
+    private val onEvent: (MappingDriverEvent) -> Unit = {},
 ) {
     private val eventLog = mutableListOf<MappingDriverEvent>()
 
@@ -70,7 +74,7 @@ class MappingDriver(
             } finally {
                 publish()
             }
-            log(kindOf(result), detailOf(result))
+            log(kindOf(result), detailOf(result), roomOf(result))
 
             when (result) {
                 is MappingStepResult.Progress -> {
@@ -175,11 +179,19 @@ class MappingDriver(
         return (budget.maxNewScreens * 12 + 40).coerceAtMost(2_000)
     }
 
-    private fun log(kind: String, detail: String) {
+    private fun log(kind: String, detail: String, roomKey: String? = null) {
+        val event = MappingDriverEvent(clock(), kind, detail.take(80), roomKey)
         synchronized(eventLog) {
-            eventLog += MappingDriverEvent(clock(), kind, detail.take(80))
+            eventLog += event
             while (eventLog.size > 400) eventLog.removeAt(0)
         }
+        runCatching { onEvent(event) }
+    }
+
+    private fun roomOf(result: MappingStepResult): String? = when (result) {
+        is MappingStepResult.Progress -> result.toNodeKey
+        is MappingStepResult.RoomExhausted -> result.nodeKey
+        else -> null
     }
 
     private fun kindOf(result: MappingStepResult): String = when (result) {

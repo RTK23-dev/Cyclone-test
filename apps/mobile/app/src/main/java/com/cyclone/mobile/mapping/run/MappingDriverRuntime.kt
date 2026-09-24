@@ -61,6 +61,8 @@ object MappingDriverRuntime {
         val atlas: AtlasStoreMappingPort,
         val session: ControllerSessionPort,
         val driver: MappingDriver,
+        /** This pass in the run trace (Glass Runs); null if the trace store could not open. */
+        val trace: MappingRunTrace.Session?,
     )
 
     private val executor = Executors.newSingleThreadExecutor { runnable ->
@@ -114,6 +116,7 @@ object MappingDriverRuntime {
                 }
             } finally {
                 running.remove(job.mappingJobId)
+                runCatching { ctx.trace?.park(controller.status(job.mappingJobId)) }
             }
         }
     }
@@ -132,11 +135,15 @@ object MappingDriverRuntime {
         } catch (error: MappingSessionException) {
             return
         }
+        jobs[jobId]?.trace?.let { trace -> runCatching { trace.resumed() } }
         launch(context, resumed, freshStart = false)
     }
 
     fun stop(context: Context, jobId: String) {
-        MappingSessionRuntime.controller(context).stop(jobId)
+        val controller = MappingSessionRuntime.controller(context)
+        controller.stop(jobId)
+        // A paused pass has no driver thread to close its run; close it here.
+        if (jobId !in running) jobs[jobId]?.trace?.let { trace -> runCatching { trace.park(controller.status(jobId)) } }
     }
 
     fun current(context: Context): MappingRunUi? {
@@ -189,6 +196,7 @@ object MappingDriverRuntime {
             mutations = PhoneToolMappingMutationPort(appContext),
             secrets = secrets,
         )
+        val trace = runCatching { MappingRunTrace.Session(appContext, label, job.placeId, version?.versionName) }.getOrNull()
         val driver = MappingDriver(
             controller = controller,
             jobId = job.mappingJobId,
@@ -197,8 +205,9 @@ object MappingDriverRuntime {
             navigation = PhoneToolMappingNavigationPort(appContext),
             atlas = atlas,
             publishChanges = { changes -> controller.appendAtlasChanges(job.mappingJobId, changes) },
+            onEvent = { event -> trace?.record(event) },
         )
-        return JobContext(job, label, atlas, session, driver)
+        return JobContext(job, label, atlas, session, driver, trace)
     }
 }
 

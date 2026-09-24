@@ -114,6 +114,9 @@ export function createRunsPage(ctx: GlassContext): GlassPage {
   return { element, destroy: () => controller?.abort() };
 }
 
+/** Mapping passes are recorded as runs by the phone's mapper (model name `cyclone-mapper`). */
+export const MAPPER = "cyclone-mapper";
+
 export function runRow(run: RunSummary): HTMLAnchorElement {
   const row = el("a", `run-row status-${run.status}`);
   row.href = routeHref({ name: "run", runId: run.runId });
@@ -123,9 +126,10 @@ export function runRow(run: RunSummary): HTMLAnchorElement {
   const sub = [
     run.places.length ? run.places.map((place) => appName(place.placeId)).join(" → ") : "",
     run.mapSteps ? `${run.mapSteps} ${run.mapSteps === 1 ? "step" : "steps"} from the map` : "",
-    run.model,
+    run.model === MAPPER ? "" : run.model,
   ].filter(Boolean).join(" · ");
   goal.append(el("span", "run-goal-text", run.goal), el("span", "run-sub", sub));
+  if (run.model === MAPPER) goal.append(chip("Mapping pass", "accent"));
   const result = el("span");
   result.append(chip(statusLabel(run.status), statusTone(run.status)));
   const why = el("span", "run-why");
