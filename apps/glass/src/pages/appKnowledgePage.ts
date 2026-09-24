@@ -26,6 +26,7 @@ import { toViewModel, type AtlasViewModel, type Persona } from "../maps/atlasVie
 import { actionButton, card, chip, emptyState, errorState, loadingState, searchInput, segmented, statTile } from "../ui/components.js";
 import { runRow, runsError } from "./runsPage.js";
 import { getKnowledge, type VaultSlot } from "../services/knowledgeSummary.js";
+import { appIssues } from "../services/issues.js";
 import { el, link, setChildren } from "../ui/dom.js";
 import { relativeTime } from "../ui/format.js";
 import { icon } from "../ui/icons.js";
@@ -37,7 +38,7 @@ type KnowledgeTab = Exclude<AppTab, "map">;
 export function appTabs(placeId: string, active: AppTab): HTMLElement {
   const tabs = el("nav", "tabs");
   const items: Array<[AppTab, string]> = [["map", "Map"], ["screens", "Screens"]];
-  if (placeId.startsWith("package:")) items.push(["scenarios", "Scenarios"], ["versions", "Versions"], ["runs", "Runs"]);
+  if (placeId.startsWith("package:")) items.push(["scenarios", "Scenarios"], ["versions", "Versions"], ["runs", "Runs"], ["issues", "Issues"]);
   for (const [tab, label] of items) {
     if (tab === active) {
       const current = el("span", "tab active", label);
@@ -104,12 +105,59 @@ export function createAppKnowledgePage(
       if (route.tab === "scenarios") renderScenarios(await getScenarios(ctx.client, deviceId, placeId, scenariosPersona, controller.signal));
       else if (route.tab === "versions") renderVersions(await getVersions(ctx.client, deviceId, placeId, controller.signal));
       else if (route.tab === "screens") await loadScreens();
+      else if (route.tab === "issues") await loadIssues();
       else await loadRuns();
     } catch (error) {
       if ((error as { name?: string })?.name === "AbortError") return;
       setChildren(body, route.tab === "runs" ? runsError(error, () => void load()) : knowledgeError(error, () => void load()));
     }
   };
+
+  async function loadIssues(): Promise<void> {
+    const signal = controller.signal;
+    const [versions, scenarios, runs, rooms] = await Promise.all([
+      getVersions(ctx.client, deviceId, placeId, signal).catch(() => null),
+      getScenarios(ctx.client, deviceId, placeId, "mapping", signal).catch(() => null),
+      listRuns(ctx.client, deviceId, "failed", 100, signal).catch(() => null),
+      phoneClient(ctx, deviceId, deps.fetch)
+        .get(placeId as never, "mapping")
+        .then((document) => toViewModel(toMapsDocument(document)).screens.map((screen) => ({ screenId: screen.screenId, confidence: screen.confidence })))
+        .catch(() => null),
+    ]);
+    if (signal.aborted) return;
+    if (!versions && !scenarios && !runs && !rooms) throw new GatewayError("PHONE_UNAVAILABLE", "The phone did not answer.", 0, true);
+    const issues = appIssues({ placeId, versions, scenarios, runs, rooms });
+    if (!issues.length) {
+      setChildren(body, emptyState({ icon: "map", tone: "success", title: "No open issues", body: "The map is current, no scenario is failing and no recent run broke in this app." }));
+      return;
+    }
+    const counts = { critical: 0, warning: 0, info: 0 };
+    issues.forEach((issue) => counts[issue.severity]++);
+    const stats = el("div", "stats stats-4");
+    stats.append(
+      statTile("Critical", String(counts.critical), counts.critical ? "danger" : "neutral"),
+      statTile("Warnings", String(counts.warning), counts.warning ? "warning" : "neutral"),
+      statTile("Notes", String(counts.info)),
+      statTile("Checked", "map · scenarios · runs"),
+    );
+    const list = el("div", "issue-list");
+    for (const issue of issues) {
+      const node = card(`issue-card issue-${issue.severity}`);
+      node.dataset.issueId = issue.id;
+      const top = el("div", "scenario-top");
+      top.append(el("h2", "scenario-title", issue.title), chip(issue.severity === "critical" ? "Critical" : issue.severity === "warning" ? "Warning" : "Note", issue.severity === "critical" ? "danger" : issue.severity === "warning" ? "warning" : "neutral"));
+      const act = actionButton(issue.action.label, { icon: issue.action.kind === "run" ? "runs" : "map" });
+      const action = issue.action;
+      act.addEventListener("click", () => {
+        if (action.kind === "run") ctx.navigate({ name: "run", runId: action.runId });
+        else if (action.kind === "map") ctx.navigate({ name: "app", placeId, tab: "map", route: action.rooms });
+        else ctx.navigate({ name: "app", placeId, tab: action.tab });
+      });
+      node.append(top, el("p", "muted", issue.detail), act);
+      list.append(node);
+    }
+    setChildren(body, stats, list);
+  }
 
   async function loadScreens(): Promise<void> {
     const document = await phoneClient(ctx, deviceId, deps.fetch).get(placeId as never, screensPersona);
