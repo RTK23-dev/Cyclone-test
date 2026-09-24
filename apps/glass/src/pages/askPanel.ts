@@ -12,6 +12,9 @@ export interface AskPanelDeps {
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
   intervalMs?: number;
+  /** The newest run on the phone that started at or after `since` (ms); lets a finished Ask link to its inspector. */
+  latestRun?: (since: number) => Promise<string | null>;
+  now?: () => number;
 }
 
 export interface AskPanel {
@@ -71,6 +74,24 @@ export function createAskPanel(deps: AskPanelDeps): AskPanel {
   let timer: unknown = null;
   let destroyed = false;
   let busy = false;
+  let askedAt: number | null = null;
+  let runLink: { askedAt: number; runId: string } | null = null;
+  const now = deps.now ?? Date.now;
+
+  /** Once per Ask: find its run so the link opens the inspector, not the whole list. */
+  const findRun = (): void => {
+    const since = askedAt;
+    if (since === null || !deps.latestRun || runLink?.askedAt === since) return;
+    void deps.latestRun(since - 5_000).then((runId) => {
+      if (destroyed || !runId || askedAt !== since) return;
+      runLink = { askedAt: since, runId };
+      const current = hud.querySelector(".ask-runs-link") as HTMLAnchorElement | null;
+      if (current) {
+        current.textContent = "Open this run";
+        current.href = `#/runs/${encodeURIComponent(runId)}`;
+      }
+    }).catch(() => undefined);
+  };
 
   const renderStatus = (status: AskStatusView): void => {
     if (status.state === "idle") {
@@ -92,9 +113,14 @@ export function createAskPanel(deps: AskPanelDeps): AskPanel {
       status.milestones.length ? steps : null,
       status.supportingCopy ? el("p", "ask-copy", status.supportingCopy) : null,
       status.outcomeCopy ? el("p", "ask-outcome", status.outcomeCopy) : null,
-      TERMINAL.has(status.state) ? link("See every step in Runs", "#/runs", "ask-runs-link") : null,
+      TERMINAL.has(status.state)
+        ? runLink && runLink.askedAt === askedAt
+          ? link("Open this run", `#/runs/${encodeURIComponent(runLink.runId)}`, "ask-runs-link")
+          : link("See every step in Runs", "#/runs", "ask-runs-link")
+        : null,
     );
     hud.dataset.state = status.state;
+    if (TERMINAL.has(status.state)) findRun();
   };
 
   const schedule = (): void => {
@@ -124,6 +150,7 @@ export function createAskPanel(deps: AskPanelDeps): AskPanel {
     void deps.phone
       .askStart(goal)
       .then(() => {
+        askedAt = now();
         input.value = "";
         if (timer !== null) clearTimer(timer);
         return poll();

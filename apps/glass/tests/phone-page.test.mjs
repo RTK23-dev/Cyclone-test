@@ -24,6 +24,7 @@ function phone({ locked = false, askError = null } = {}) {
       return { accepted: true, goal: body.goal };
     },
     "POST /v1/devices/d1/ask/status": () => state.ask,
+    "GET /v1/devices/d1/runs": () => ({ runs: state.runs ?? [] }),
   });
   return { state, gateway };
 }
@@ -117,9 +118,15 @@ test("Ask sends the sentence unchanged and mirrors the phone's run", async () =>
   assert.match(page.element.querySelector(".ask-hud").textContent, /Finding the dm of Louella/);
 
   fake.state.ask = { ...fake.state.ask, state: "done", outcomeCopy: "Opened Louella's conversation.", milestones: [{ label: "Finding the dm of Louella", state: "done" }] };
+  const run = (runId, startedAt) => ({ runId, goal, model: "m", status: "completed", startedAt, endedAt: startedAt + 1, durationMs: 1, decisions: 1, stepCount: 1, metrics: {}, cause: null });
+  fake.state.runs = [run("ai-run-old", Date.now() - 3_600_000), run("ai-run-9", Date.now())];
   for (const fn of timers.splice(0)) fn();
   await flush();
+  await flush();
   assert.match(page.element.querySelector(".ask-hud").textContent, /Opened Louella's conversation/);
+  const runLink = page.element.querySelector(".ask-runs-link");
+  assert.equal(runLink.textContent, "Open this run", "a finished Ask links to its own run");
+  assert.equal(runLink.href ?? runLink.getAttribute("href"), "#/runs/ai-run-9");
   assert.equal(timers.length, 0, "polling stops when the run is done");
   page.destroy();
 });

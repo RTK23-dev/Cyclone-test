@@ -11,6 +11,7 @@ import { el, setChildren } from "../ui/dom.js";
 import { actionButton, chip, pageHeader } from "../ui/components.js";
 import { createLiveView, type LiveView, type LiveViewOptions } from "../ui/liveView.js";
 import { createAskPanel, type AskPanelDeps } from "./askPanel.js";
+import { listRuns } from "../services/runs.js";
 import { deviceGate } from "./deviceGate.js";
 import type { GlassPage } from "./page.js";
 
@@ -126,7 +127,15 @@ export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): Gl
     render();
   };
 
-  const ask = createAskPanel({ phone: phoneClient(ctx, device.id, deps.fetch), ...deps.askTimer });
+  const ask = createAskPanel({
+    phone: phoneClient(ctx, device.id, deps.fetch),
+    latestRun: async (since) => {
+      const runs = await listRuns(ctx.client, device.id, "all", 5);
+      const fresh = runs.filter((run) => run.startedAt >= since).sort((a, b) => b.startedAt - a.startedAt);
+      return fresh[0]?.runId ?? null;
+    },
+    ...deps.askTimer,
+  });
 
   const stage = el("section", "phone-stage");
   const bar = el("div", "phone-bar");
