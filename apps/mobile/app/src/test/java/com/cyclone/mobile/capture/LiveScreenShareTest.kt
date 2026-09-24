@@ -14,7 +14,10 @@ class LiveScreenShareTest {
         val launcher = source("capture/LiveScreenShare.kt")
         assertTrue(share.contains("LiveScreenShare.start(context)"))
         assertTrue(home.contains("LiveScreenShare.start(context)"))
-        assertTrue(overlay.contains("putExtra(\"wholeDisplay\", true)"))
+        // The overlay's Share screen lives in the bottom tools drawer, launched by the controller.
+        val controller = source("ai/OverlayChromeController.kt")
+        assertTrue(controller.contains("putExtra(\"wholeDisplay\", true)"))
+        assertTrue(overlay.contains("OverlayToolsSheetState"))
         assertTrue(launcher.contains("EXTRA_WHOLE_DISPLAY"))
         assertTrue(launcher.contains("OverlayUserAction.ASK_CYCLONE"))
         assertTrue(launcher.contains("CATEGORY_HOME"))

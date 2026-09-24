@@ -330,15 +330,14 @@ private fun ComposerPanel(
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
-    var accessory by remember { mutableStateOf(ComposerAccessory.NONE) }
+    // The + tools drawer lives in its own window (OverlayToolsSheet); this panel only reads it.
+    val accessory by OverlayToolsSheetState.page.collectAsState()
     val sharing by LiveCaptureSessionManager.state.collectAsState()
     val attached by PendingTaskAttachment.present.collectAsState()
     val queued by WorkspaceTasks.requests.state.collectAsState()
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val view = LocalView.current
-    var editorFocused by remember { mutableStateOf(false) }
-    var restoreEditor by remember { mutableStateOf(false) }
     val workspace by WorkspaceTasks.state.collectAsState()
     val clearedCards = com.cyclone.mobile.ui.v32.TaskCardDismissals.cleared(context)
     val task = workspace?.takeIf { com.cyclone.mobile.ui.v32.taskCardVisible(it, clearedCards) }
@@ -355,36 +354,8 @@ private fun ComposerPanel(
     LaunchedEffect(task?.taskId, task?.working, foregroundWorking) {
         if (activeWork) {
             focusManager.clearFocus()
-            accessory = ComposerAccessory.NONE
+            OverlayToolsSheetState.close()
         }
-    }
-
-    DisposableEffect(view) {
-        val listener = android.view.ViewTreeObserver.OnWindowFocusChangeListener { focused ->
-            if (focused && restoreEditor) {
-                view.post {
-                    if (view.isAttachedToWindow && restoreEditor) {
-                        restoreEditor = false
-                        focusRequester.requestFocus()
-                        keyboard?.show()
-                    }
-                }
-            }
-        }
-        view.viewTreeObserver.addOnWindowFocusChangeListener(listener)
-        onDispose { view.viewTreeObserver.removeOnWindowFocusChangeListener(listener) }
-    }
-
-    fun launchExternal(intent: Intent) {
-        OverlayExternalInteraction.active.value = true
-        restoreEditor = editorFocused
-        accessory = ComposerAccessory.NONE
-        runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            .onFailure {
-                restoreEditor = false
-                OverlayExternalInteraction.active.value = false
-                android.widget.Toast.makeText(context, "This action is unavailable.", android.widget.Toast.LENGTH_SHORT).show()
-            }
     }
 
     val submit = {
@@ -395,14 +366,14 @@ private fun ComposerPanel(
     }
 
     val upperVisible = !minimized && (task != null || foregroundWorking || queued.isNotEmpty() ||
-        sharing.phase != ScreenSharePhase.OFF || attached || accessory != ComposerAccessory.NONE)
+        sharing.phase != ScreenSharePhase.OFF || attached)
     SignatureOverlayDrawer(
         expanded = upperVisible,
         minimized = minimized,
         onCollapse = {
             focusManager.clearFocus(force = true)
             keyboard?.hide()
-            accessory = ComposerAccessory.NONE
+            OverlayToolsSheetState.close()
             onAction(OverlayUserAction.MINIMIZE)
         },
         onExpand = { onAction(OverlayUserAction.ASK_CYCLONE) },
@@ -412,7 +383,7 @@ private fun ComposerPanel(
             text = snapshot.composerText,
             onTextChanged = onComposerChanged,
             focusRequester = focusRequester,
-            onFocusChanged = { editorFocused = it },
+            onFocusChanged = {},
             placeholder = when {
                 snapshot.voiceListening -> OverlayCopy.LISTENING
                 else -> OverlayCopy.COMPOSER
@@ -425,8 +396,9 @@ private fun ComposerPanel(
             onPause = { onAction(OverlayUserAction.TAKE_CONTROL) },
             onStop = { onAction(OverlayUserAction.STOP_TASK) },
             onMenu = {
-                if (minimized) onAction(OverlayUserAction.ASK_CYCLONE)
-                accessory = if (accessory == ComposerAccessory.ATTACHMENTS) ComposerAccessory.NONE else ComposerAccessory.ATTACHMENTS
+                focusManager.clearFocus()
+                keyboard?.hide()
+                OverlayToolsSheetState.toggle(ComposerAccessory.ATTACHMENTS)
             },
             onDictate = onVoiceInput,
             onPrimary = {
@@ -481,44 +453,6 @@ private fun ComposerPanel(
             )
         }
 
-        when (accessory) {
-            ComposerAccessory.ATTACHMENTS -> OverlayAppleToolsMenu(
-                sharingActive = sharing.active,
-                onCamera = {
-                    launchExternal(Intent(context, OverlayAttachmentActivity::class.java).putExtra("camera", true))
-                },
-                onPhotos = {
-                    launchExternal(Intent(context, OverlayAttachmentActivity::class.java).putExtra("photos", true))
-                },
-                onFiles = {
-                    launchExternal(Intent(context, OverlayAttachmentActivity::class.java))
-                },
-                onShareScreen = {
-                    launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
-                },
-                onCrossAppShare = {
-                    launchExternal(Intent(context, LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true))
-                },
-                onModelAndIntelligence = { accessory = ComposerAccessory.MODEL },
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            ComposerAccessory.MODEL -> OverlayAppleGlass(
-                modifier = Modifier.fillMaxWidth(),
-                cornerRadius = 30.dp,
-            ) {
-                Box(Modifier.padding(12.dp)) {
-                    com.cyclone.mobile.ui.v32.CycloneModelIntelligencePanel(
-                        aiSettings.modelId,
-                        aiSettings.reasoningEffort,
-                    ) { model, effort ->
-                        onAiSettingsChanged(aiSettings.copy(modelId = model, reasoningEffort = effort))
-                    }
-                }
-            }
-
-            ComposerAccessory.NONE -> Unit
-        }
 
         if (attached) {
             OverlayAppleStatusPill(

@@ -166,8 +166,27 @@ internal fun OverlayAppleToolsMenu(
         modifier = modifier.fillMaxWidth(),
         cornerRadius = 30.dp,
     ) {
+        OverlayAppleToolsContent(
+            sharingActive, onCamera, onPhotos, onFiles, onShareScreen, onCrossAppShare, onModelAndIntelligence,
+        )
+    }
+}
+
+/** Tools list shared by the glass menu and the bottom tools drawer. */
+@Composable
+internal fun OverlayAppleToolsContent(
+    sharingActive: Boolean,
+    onCamera: () -> Unit,
+    onPhotos: () -> Unit,
+    onFiles: () -> Unit,
+    onShareScreen: () -> Unit,
+    onCrossAppShare: () -> Unit,
+    onModelAndIntelligence: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    run {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp),
+            modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
