@@ -29,5 +29,9 @@ learned App Learner routes stop at the same sign-up boundary as model taps; obse
 active mapping pass never feeds the ledger, clause proof or people; plain "open X" sentences keep Stage 1 Fast Path;
 single-clause runs may replay compiled skills (clause proof still decides completion); hour-long timers are provable.
 
-Physical evaluation: **not run**. No connected phone is required to develop or push checkpoints.
+**alpha.22 device runs (2026-09-24, owner's phone):** Gmail→Facebook sentence failed twice (after-screen lost on every
+launch, one clause bound to Chrome, 429 / 17 s model turns); "open clock and set an alarm for 5 minutes" falsely
+completed. Analysis and fixes: `13-alpha23-reliability-plan.md`. Build to retest: **v5.0.0-alpha.23.dev1**.
+
+Physical evaluation of alpha.23: **not run**. No connected phone is required to develop or push checkpoints.
 Record real results here or in the navigation return handoff; do not infer them from fake tests.

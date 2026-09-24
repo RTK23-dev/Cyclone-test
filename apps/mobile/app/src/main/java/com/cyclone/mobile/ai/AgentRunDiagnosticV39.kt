@@ -95,6 +95,29 @@ object AgentRunDiagnosticV39 {
     }
 
     /**
+     * alpha.23: what the owner needs to judge a run at a glance: how long screens took, whether a missing after-state
+     * was proven later, how slow the model was, whether the backup model took over, and what proved completion.
+     */
+    internal fun reliabilitySummary(events: List<AiTraceEvent>): String = buildString {
+        val waits = events.filter { it.kind == "WAIT" }.mapNotNull { runCatching { org.json.JSONObject(it.detail.orEmpty()) }.getOrNull() }
+        appendLine("Screen waits: ${waits.size} (${waits.sumOf { it.optLong("waitedMs") }} ms total, " +
+            "${waits.count { it.optBoolean("extended") }} extended on loading evidence)")
+        val deferred = events.filter { it.kind == "VERIFICATION" && it.code.orEmpty().startsWith("verify.deferred") }
+        appendLine("Deferred proofs: ${deferred.count { it.ok == true }} proven / ${deferred.count { it.ok == false }} not proven")
+        val latencies = events.filter { it.kind == "PROVIDER_PHASE" && it.code in setOf("provider_closed", "provider_deadline") }
+            .mapNotNull { Regex("elapsedMs=(\\d+)").find(it.detail.orEmpty())?.groupValues?.get(1)?.toLongOrNull() }
+        appendLine("Model request latency ms: ${if (latencies.isEmpty()) "none" else latencies.joinToString(", ")}")
+        events.lastOrNull { it.kind == "PROVIDER_FALLBACK" }?.let { appendLine("Backup model: ${clean(it.displayText)}") }
+        val basis = events.lastOrNull { it.kind == "NAV_CLAUSE" && it.ok == true }?.detail?.let { detail ->
+            runCatching { org.json.JSONObject(detail).optString("proof") }.getOrNull()?.takeIf(String::isNotBlank)
+        } ?: events.lastOrNull { it.kind == "VERIFY" && it.code == "completion.verified" }?.let { "goal contract verified" }
+        appendLine("Completion basis: ${basis?.let(::clean) ?: "none"}")
+        if (events.any { it.code == "completion.claim_is_navigation" }) {
+            appendLine("Rejected claim: the model reported only navigation for an action goal")
+        }
+    }
+
+    /**
      * Produce a point-in-time snapshot for every run state, including RUNNING and SUSPENDED.
      * Diagnostics are most useful while a task is broken, so export must never depend on terminal state.
      */
@@ -181,6 +204,7 @@ object AgentRunDiagnosticV39 {
             appendLine("Free Mode entries: ${metrics.freeModeEntries}")
             appendLine("Vision events: ${metrics.visionChecks}")
             timeAfterFirstDone?.let { appendLine("Time after first DONE ms: $it") }
+            append(reliabilitySummary(events))
             appendLine()
             appendLine("TIMELINE")
             appendLine("============================================================")

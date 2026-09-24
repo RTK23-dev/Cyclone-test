@@ -21,6 +21,23 @@ Clock merely open. alpha.23 is a reliability release: no new surfaces until thes
 What worked and stays: live signed-in email read into the ledger (persona LIVE), masked facts, refusal to call the
 Gmail task done without proof, approval boundaries.
 
+## Status (built 2026-09-25, v5.0.0-alpha.23.dev1, versionCode 164)
+
+| Item | State |
+|---|---|
+| W1 settle controller: refused capture = moving, classifier, evidence-based extension, launch stability | done (C1) |
+| W1 deferred proof, WAIT events, progress line | done (C1) |
+| W1 learned budgets per app (durations only) | done (C4) |
+| W1 reasoned wait | done as a **local** evidence wait (one longer wait while loading, 30 s ceiling); a model check was not added because model turns cost 15–18 s on the owner's route |
+| W2 action-goal rule, claim audit, ALARM/TIMER contracts, `phone.set_alarm` / `phone.set_timer` | done (C2) |
+| W3 splitter v2, per-clause place binding, consumed facts, Dutch, once-per-clause landing, 30-sentence table | done (C3) |
+| W3 model-compiled clauses with validator | **not built**; rules cover the table; next if device runs show gaps |
+| W4 backup model route (settings + runtime switch on 429/502/503/circuit) | done (C4) |
+| W4 NEEDS_YOU + one-tap retry when no backup is set; Glass per-route latency card | **not built** (runs still stop with the rate-limit message) |
+| W5 replays (launch, alarm), phrasing table, redaction fix | done |
+| W6 diagnostic header (waits, deferred proofs, model latency, backup, completion basis) | done (C5); Glass WAIT chips **not built** |
+| Device gate | **not run** — see `orchestrators/HANDOFF-device-test-alpha23.md` |
+
 ## Release goal and acceptance (physical phone, this is the gate)
 
 alpha.23 may be called stable only when, on the owner's phone with the owner's model route:
