@@ -57,6 +57,10 @@ today: `cancelled` (stopped by the user), `provider-error` (model provider faile
 and its installed version (`appv=`); each check records `roomAfter=`. `decisionSource` is `map` for `graph:` / `compiled-skill:`
 actions and `model` otherwise. `stale-door` = a map-chosen step failed on the target or screen (named with the app version).
 Still to come: `expectedRoomId` (needs the planned route per step), `door-missing`, redacted frames, `scenarioId` per run.
+
+**Built in Glass alpha.6:** mapping passes are written to the same trace (door steps with a `mapper:` action, neither map nor
+model), so Runs lists them and the classifier explains how they ended. **Mark as expected** (`runs.mark`) keeps a run in Runs but
+out of scenario health. The cause card links to the failing room on the map and, for `stale-door`, the app's Versions tab.
 Mapping from today's trace: GATE_SUSPEND without a later GATE_RESUME → `gate` / `needs-secret`; HARD_BLOCKER text → login wall,
 locked phone or lost accessibility; NON_CONVERGENCE codes (`convergence.task_timeout`, `.repeated_action`, `.stale_target`,
 `.backtrack`, `.mutations_without_verified_progress`, `completion.*`, `.malformed_model`, `.recovery_without_evidence`,
