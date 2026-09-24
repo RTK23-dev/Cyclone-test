@@ -265,3 +265,19 @@ test("scenario freshness: routes not confirmed for over two weeks are flagged", 
   await flush();
   assert.match(page.element.textContent, /Not checked for 30 days/);
 });
+
+test("app pages show the installed version, map state and scenario health in the header", async () => {
+  const { page } = open("versions", {
+    "GET /v1/devices/d1/apps": () => ({
+      apps: [{ placeId: GM, kind: "package", label: "Gmail", packageName: "com.google.android.gm", installed: true, installedVersion: { versionName: "2026.10.01", versionCode: 130 }, mapStatus: "mapped", rooms: 4, doors: 3, lastVerifiedAt: null, needsRemap: true, personas: [], mappedVersions: [], scenarios: { passing: 2, warning: 0, critical: 1, untested: 0 } }],
+      truncated: false,
+    }),
+    "GET /v1/devices/d1/apps/versions": () => VERSIONS,
+  });
+  await flush();
+  await flush();
+  const facts = page.element.querySelector(".app-facts").textContent;
+  assert.match(facts, /Installed 2026\.10\.01/);
+  assert.match(facts, /Needs remap/);
+  assert.match(facts, /3 scenarios · 1 critical/);
+});

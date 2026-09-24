@@ -5,7 +5,7 @@
  */
 import type { GlassContext } from "../app.js";
 import type { AppTab, Route } from "../core/router.js";
-import { loadApps, type PhoneApp } from "../services/apps.js";
+import { loadApps, scenarioSummary, statusLabel as appStatusLabel, statusTone as appStatusTone, versionLabel, type PhoneApp } from "../services/apps.js";
 import { GatewayError } from "../services/gateway.js";
 import {
   getScenarios,
@@ -83,6 +83,14 @@ export function createAppKnowledgePage(
     const names = el("div", "app-names");
     names.append(el("h1", "page-title", label), el("p", "page-subtitle", app?.packageName ?? placeId));
     title.append(avatar, names);
+    if (app) {
+      const facts = el("div", "app-facts");
+      if (app.installedVersion) facts.append(chip(`Installed ${versionLabel(app.installedVersion)}`, "neutral"));
+      facts.append(chip(appStatusLabel(app), appStatusTone(app)));
+      const scenarios = scenarioSummary(app);
+      if (scenarios) facts.append(chip(scenarios.text, scenarios.tone));
+      names.append(facts);
+    }
     setChildren(header, title);
   }
 
