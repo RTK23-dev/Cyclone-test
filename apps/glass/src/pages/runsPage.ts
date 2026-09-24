@@ -2,7 +2,7 @@
 import type { GlassContext } from "../app.js";
 import { routeHref } from "../core/router.js";
 import { GatewayError } from "../services/gateway.js";
-import { appName, causeLabel, causeTone, formatDuration, groupByGoal, listRuns, statusLabel, statusTone, type GoalGroup, type RunFilter, type RunSummary } from "../services/runs.js";
+import { appName, causeLabel, causeTone, formatDuration, groupByGoal, listRuns, runsCsv, statusLabel, statusTone, type GoalGroup, type RunFilter, type RunSummary } from "../services/runs.js";
 import { el, setChildren } from "../ui/dom.js";
 import { actionButton, chip, emptyState, errorState, loadingState, pageHeader, searchInput, segmented } from "../ui/components.js";
 import { icon } from "../ui/icons.js";
@@ -18,6 +18,7 @@ const FILTERS: Array<{ id: RunFilter; label: string }> = [
 ];
 
 export interface RunsPageDeps {
+  saveFile?: (name: string, text: string, type: string) => void;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
 }
@@ -25,7 +26,13 @@ export interface RunsPageDeps {
 export function createRunsPage(ctx: GlassContext, deps: RunsPageDeps = {}): GlassPage {
   const element = el("div", "page page-runs");
   const refresh = actionButton("Refresh", { icon: "refresh" });
-  element.append(pageHeader("Runs", "Every task Cyclone ran on this phone. Open one to see each step and why it ended.", [refresh]));
+  const exportCsv = actionButton("Export CSV", { icon: "download" });
+  element.append(pageHeader("Runs", "Every task Cyclone ran on this phone. Open one to see each step and why it ended.", [exportCsv, refresh]));
+  let inView: RunSummary[] = [];
+  exportCsv.addEventListener("click", () => {
+    const save = deps.saveFile ?? saveText;
+    save(`cyclone-runs-${new Date().toISOString().slice(0, 10)}.csv`, runsCsv(inView), "text/csv");
+  });
   const gate = deviceGate(ctx);
   if (gate || !ctx.device) {
     element.append(gate ?? el("div"));
@@ -93,6 +100,7 @@ export function createRunsPage(ctx: GlassContext, deps: RunsPageDeps = {}): Glas
         (!causeFilter || run.cause?.kind === causeFilter) &&
         (!appFilter || run.places.some((place) => place.placeId === appFilter)),
     );
+    inView = visible;
     if (!visible.length) {
       setChildren(
         body,
@@ -235,4 +243,13 @@ function goalTable(groups: GoalGroup[]): HTMLElement {
     table.append(row);
   }
   return table;
+}
+
+function saveText(name: string, text: string, type: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const anchor = el("a");
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }

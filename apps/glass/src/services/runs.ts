@@ -406,3 +406,31 @@ export function groupByGoal(runs: RunSummary[]): GoalGroup[] {
 export function normalizeGoal(goal: string): string {
   return goal.trim().toLowerCase().replace(/\s+/g, " ");
 }
+
+/** One CSV cell: quoted, with formula-looking text neutralised so spreadsheets never evaluate it. */
+export function csvCell(value: string | number | null | undefined): string {
+  let text = value === null || value === undefined ? "" : String(value);
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+/** The runs in view as CSV for a spreadsheet: one row per run, apps by package. */
+export function runsCsv(runs: RunSummary[]): string {
+  const header = ["runId", "goal", "status", "cause", "startedAt", "durationSeconds", "steps", "apps", "expected"];
+  const lines = runs.map((run) =>
+    [
+      run.runId,
+      run.goal,
+      run.status,
+      run.cause?.kind ?? "",
+      new Date(run.startedAt).toISOString(),
+      Math.round(run.durationMs / 1000),
+      run.stepCount,
+      run.places.map((place) => place.placeId.replace(/^package:/, "")).join(" "),
+      run.expected === true ? "yes" : "",
+    ]
+      .map(csvCell)
+      .join(","),
+  );
+  return [header.map(csvCell).join(","), ...lines].join("\r\n") + "\r\n";
+}

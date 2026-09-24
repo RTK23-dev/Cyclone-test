@@ -437,3 +437,30 @@ test("the Runs list refreshes itself while a run is going, quietly", async () =>
   assert.match(page.element.textContent, /Finished/);
   page.destroy();
 });
+
+import { csvCell, runsCsv } from "../.test-dist/services/runs.js";
+
+test("Export CSV: the runs in view, quoted, formulas neutralised", async () => {
+  assert.equal(csvCell('say "hi", then'), '"say ""hi"", then"');
+  assert.equal(csvCell("=HYPERLINK(1)"), `"'=HYPERLINK(1)"`);
+  assert.equal(csvCell(null), '""');
+  const csv = runsCsv([parseRunSummary({ ...V2, goal: "open facebook, then messages", status: "failed" })]);
+  const lines = csv.trim().split("\r\n");
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /^"runId","goal","status"/);
+  assert.match(lines[1], /"open facebook, then messages","failed"/);
+  assert.match(lines[1], /"com\.facebook\.katana"/);
+
+  installMiniDom();
+  const saved = [];
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs": () => ({ runs: [FAILED, DONE] }) });
+  const page = createRunsPage(ctx(gateway.fetch), { saveFile: (name, text, type) => saved.push({ name, text, type }) });
+  await flush();
+  const search = page.element.querySelector(".search-input");
+  search.value = "clock";
+  search.dispatchEvent({ type: "input" });
+  [...page.element.querySelectorAll(".btn")].find((b) => /Export CSV/.test(b.textContent)).click();
+  assert.equal(saved[0].type, "text/csv");
+  assert.equal(saved[0].text.trim().split("\r\n").length, 2, "only the runs in view");
+  page.destroy();
+});
