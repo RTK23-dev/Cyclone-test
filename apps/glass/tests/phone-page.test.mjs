@@ -199,3 +199,18 @@ test("typing and scrolling from the PC only while you have control; the text is 
   assert.deepEqual(controls().at(-1), { kind: "scroll_down" });
   page.destroy();
 });
+
+test("recent sentences fill the Ask box without sending", async () => {
+  const fake = phone();
+  const run = (runId, goal, startedAt, model = "m") => ({ runId, goal, model, status: "completed", startedAt, endedAt: startedAt + 1, durationMs: 1, decisions: 1, stepCount: 1, metrics: {}, cause: null });
+  fake.state.runs = [run("ai-run-r1", "open clock", 3000), run("ai-run-r2", "Open  Clock", 2000), run("ai-map-r3", "Map Clock", 4000, "cyclone-mapper"), run("ai-run-r4", "open gmail", 1000)];
+  const { page } = open(fake);
+  await flush();
+  await flush();
+  const chips = [...page.element.querySelectorAll(".ask-recent-goal")];
+  assert.deepEqual(chips.map((c) => c.textContent), ["open clock", "open gmail"]);
+  chips[1].click();
+  assert.equal(page.element.querySelector(".ask-input").value, "open gmail");
+  assert.equal(fake.gateway.calls.filter((c) => c.path.endsWith("/ask/start")).length, 0, "choosing a sentence never sends it");
+  page.destroy();
+});

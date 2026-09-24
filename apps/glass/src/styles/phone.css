@@ -204,3 +204,31 @@
   margin: var(--space-1) 0 0;
   font-size: var(--text-xs);
 }
+
+.ask-recent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ask-recent:empty {
+  display: none;
+}
+
+.ask-recent-goal {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  max-width: 100%;
+  text-align: left;
+}
+
+.ask-recent-goal:hover {
+  background: var(--surface-hover);
+}

@@ -14,6 +14,8 @@ export interface AskPanelDeps {
   intervalMs?: number;
   /** The newest run on the phone that started at or after `since` (ms); lets a finished Ask link to its inspector. */
   latestRun?: (since: number) => Promise<string | null>;
+  /** Recent distinct sentences, newest first; clicking one fills the box (it never sends by itself). */
+  recentGoals?: () => Promise<string[]>;
   now?: () => number;
 }
 
@@ -68,8 +70,25 @@ export function createAskPanel(deps: AskPanelDeps): AskPanel {
   const note = el("p", "ask-note");
   note.setAttribute("role", "status");
   form.append(input, send, note);
+  const recent = el("div", "ask-recent");
   const hud = el("div", "ask-hud");
-  element.append(form, hud);
+  element.append(form, recent, hud);
+  void deps.recentGoals?.()
+    .then((goals) => {
+      if (destroyed || !goals.length) return;
+      const chips = goals.slice(0, 5).map((goal) => {
+        const button = el("button", "ask-recent-goal", goal.length > 60 ? `${goal.slice(0, 57)}…` : goal);
+        button.type = "button";
+        button.title = goal;
+        button.addEventListener("click", () => {
+          input.value = goal;
+          input.focus?.();
+        });
+        return button;
+      });
+      setChildren(recent, el("span", "muted", "Recent:"), ...chips);
+    })
+    .catch(() => undefined);
 
   let timer: unknown = null;
   let destroyed = false;
