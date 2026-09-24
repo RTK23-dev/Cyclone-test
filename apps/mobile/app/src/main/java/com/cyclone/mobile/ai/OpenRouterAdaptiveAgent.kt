@@ -637,7 +637,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 }
                 val landing = currentLanding(session, goal)
                 if (landing?.tool == "phone.launch_intent" && !landing.uri.isNullOrBlank()) {
-                    val landingKey = "fastpath:${landing.uri}"
+                    val landingKey = "fastpath:${landing.uri}" + landingScope(session)
                     if (landingKey !in session.compiledAttempts) {
                         session.compiledAttempts += landingKey
                         val summary = when {
@@ -671,7 +671,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 }
                 if (landing?.tool == "phone.open_app" && !landing.packageName.isNullOrBlank()) {
                     val pkg = landing.packageName
-                    val landingKey = "fastpath:$pkg"
+                    val landingKey = "fastpath:$pkg" + landingScope(session)
                     val onTarget = com.cyclone.mobile.fastpath.FastPathLanding.launchCandidates(pkg)
                         .any { it == session.state.page.packageName }
                     val notInstalled = session.failedActions.any { failure ->
@@ -707,7 +707,9 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                         }
                     } else if (!onTarget) {
                         val tries = session.compiledAttempts.count { it.startsWith("$landingKey#") }
-                        if (tries < 2) {
+                        // A clause lands once. If the model then leaves for another place the sentence named, Cyclone
+                        // does not drag it back (alpha.22: Chrome → Gmail → Chrome); the clause proof decides instead.
+                        if (tries < if (session.navigation != null) 1 else 2) {
                             session.compiledAttempts += "$landingKey#$tries"
                             val summary = "Open ${landing.packageName}"
                             onProgress(summary)
@@ -1824,6 +1826,9 @@ class OpenRouterAdaptiveAgent(private val context: Context,
      * clock app shows what it created and the clause/contract proof reads it from the live screen. One attempt per
      * run: if it does not verify, the model works from the Clock screen like any other task.
      */
+    private fun landingScope(session: LocalSessionContext): String =
+        session.navigation?.current?.id?.let { "@$it" }.orEmpty()
+
     private fun clockIntentAction(session: LocalSessionContext, goal: String): PageAgentDecision? {
         val clause = session.navigation?.current
         if (session.navigation != null && clause?.capability !in setOf(NavCapability.SET_ALARM, NavCapability.SET_TIMER)) return null
