@@ -367,3 +367,31 @@ test("Ask again sends the same sentence to the phone and opens the Phone page; m
   assert.ok(![...pass.element.querySelectorAll(".run-header .btn")].some((b) => /Ask again/.test(b.textContent)));
   pass.destroy();
 });
+
+import { groupByGoal } from "../.test-dist/services/runs.js";
+
+test("Goals view: runs grouped by sentence with how often they worked; mapping passes and expected runs are not counted", async () => {
+  const at = Date.now();
+  const list = [
+    { ...DONE, runId: "ai-run-g1", goal: "open clock", startedAt: at - 1000 },
+    { ...DONE, runId: "ai-run-g2", goal: "Open  Clock", status: "failed", cause: FAILED.cause, startedAt: at - 2000 },
+    { ...DONE, runId: "ai-run-g3", goal: "open clock", status: "failed", cause: FAILED.cause, startedAt: at - 3000, expected: true },
+    { ...DONE, runId: "ai-run-g4", goal: "open gmail", status: "failed", cause: FAILED.cause, startedAt: at - 500 },
+    { ...DONE, runId: "ai-map-g5", goal: "Map Clock", model: "cyclone-mapper", startedAt: at },
+  ];
+  const groups = groupByGoal(list.map(parseRunSummary));
+  assert.deepEqual(groups.map((g) => [g.goal, g.runs, g.finished, g.failed]), [["open gmail", 1, 0, 1], ["open clock", 3, 1, 1]]);
+  assert.equal(groups[1].successRate, 0.5);
+  assert.equal(groups[1].last.runId, "ai-run-g1");
+
+  installMiniDom();
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs": () => ({ runs: list }) });
+  const page = createRunsPage(ctx(gateway.fetch));
+  await flush();
+  [...page.element.querySelectorAll(".toolbar button")].find((b) => b.textContent === "Goals").click();
+  const rows = page.element.querySelectorAll("a.goal-row");
+  assert.equal(rows.length, 2);
+  assert.match(rows[1].textContent, /50% · 1 of 2/);
+  assert.equal(rows[1].href ?? rows[1].getAttribute("href"), "#/runs/ai-run-g1");
+  page.destroy();
+});

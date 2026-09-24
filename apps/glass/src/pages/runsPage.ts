@@ -2,7 +2,7 @@
 import type { GlassContext } from "../app.js";
 import { routeHref } from "../core/router.js";
 import { GatewayError } from "../services/gateway.js";
-import { appName, causeLabel, causeTone, formatDuration, listRuns, statusLabel, statusTone, type RunFilter, type RunSummary } from "../services/runs.js";
+import { appName, causeLabel, causeTone, formatDuration, groupByGoal, listRuns, statusLabel, statusTone, type GoalGroup, type RunFilter, type RunSummary } from "../services/runs.js";
 import { el, setChildren } from "../ui/dom.js";
 import { actionButton, chip, emptyState, errorState, loadingState, pageHeader, searchInput, segmented } from "../ui/components.js";
 import { icon } from "../ui/icons.js";
@@ -32,6 +32,7 @@ export function createRunsPage(ctx: GlassContext): GlassPage {
   let causeFilter = "";
   let appFilter = "";
   let runs: RunSummary[] | null = null;
+  let view: "runs" | "goals" = "runs";
   let controller: AbortController | null = null;
 
   const filters = segmented(FILTERS, filter, (id) => {
@@ -59,7 +60,19 @@ export function createRunsPage(ctx: GlassContext): GlassPage {
     appFilter = appSelect.value;
     render();
   });
-  toolbar.append(causeSelect, appSelect);
+  const views = segmented<"runs" | "goals">(
+    [
+      { id: "runs", label: "Runs" },
+      { id: "goals", label: "Goals" },
+    ],
+    view,
+    (id) => {
+      view = id;
+      views.set(view);
+      render();
+    },
+  );
+  toolbar.append(causeSelect, appSelect, views.element);
   const body = el("div", "runs-body");
   element.append(toolbar, body);
 
@@ -84,6 +97,10 @@ export function createRunsPage(ctx: GlassContext): GlassPage {
           body: runs.length ? "Try another search." : "Ask Cyclone something on the phone or from the Phone page; runs appear here.",
         }),
       );
+      return;
+    }
+    if (view === "goals") {
+      setChildren(body, goalTable(groupByGoal(visible)));
       return;
     }
     const table = el("div", "run-table");
@@ -172,4 +189,31 @@ function fillOptions(select: HTMLSelectElement, anyLabel: string, options: Array
   })];
   rows.forEach((option) => (option.selected = option.value === selected));
   select.replaceChildren(...rows);
+}
+
+/** One row per sentence: how often it worked and how the last run ended. */
+function goalTable(groups: GoalGroup[]): HTMLElement {
+  const table = el("div", "run-table goal-table");
+  table.setAttribute("role", "list");
+  const head = el("div", "goal-row run-row-head");
+  head.append(el("span", undefined, "Goal"), el("span", undefined, "Runs"), el("span", undefined, "Worked"), el("span", undefined, "Last run"), el("span"));
+  table.append(head);
+  for (const group of groups) {
+    const row = el("a", "goal-row");
+    row.href = routeHref({ name: "run", runId: group.last.runId });
+    row.setAttribute("role", "listitem");
+    const rate = group.successRate;
+    const tone = rate === null ? "neutral" : rate >= 0.8 ? "success" : rate >= 0.5 ? "warning" : "danger";
+    const last = el("span", "goal-last");
+    last.append(chip(group.last.expected ? "Expected" : statusLabel(group.last.status), group.last.expected ? "neutral" : statusTone(group.last.status)), el("span", "muted", relativeTime(group.last.startedAt)));
+    row.append(
+      el("span", "run-goal-text", group.goal),
+      el("span", undefined, String(group.runs)),
+      chip(rate === null ? "—" : `${Math.round(rate * 100)}% · ${group.finished} of ${group.finished + group.failed}`, tone),
+      last,
+      icon("chevron"),
+    );
+    table.append(row);
+  }
+  return table;
 }

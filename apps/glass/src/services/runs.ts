@@ -367,6 +367,42 @@ export function routeSplits(run: RunSummary, good: RunSummary): RouteSplit[] {
   return splits;
 }
 
-function normalizeGoal(goal: string): string {
+export interface GoalGroup {
+  goal: string;
+  runs: number;
+  finished: number;
+  failed: number;
+  /** Finished share of the runs that counted (expected runs and still-running ones do not). Null when none counted. */
+  successRate: number | null;
+  last: RunSummary;
+}
+
+/** Runs grouped by sentence (case and spaces ignored), most recently run first. Mapping passes are left out. */
+export function groupByGoal(runs: RunSummary[]): GoalGroup[] {
+  const groups = new Map<string, RunSummary[]>();
+  for (const run of runs) {
+    if (run.model === "cyclone-mapper") continue;
+    const key = normalizeGoal(run.goal);
+    if (!key) continue;
+    groups.set(key, [...(groups.get(key) ?? []), run]);
+  }
+  return [...groups.values()]
+    .map((list) => {
+      const sorted = [...list].sort((a, b) => b.startedAt - a.startedAt);
+      const counted = sorted.filter((run) => run.expected !== true && run.status !== "running" && run.status !== "suspended");
+      const finished = counted.filter((run) => run.status === "completed").length;
+      return {
+        goal: sorted[0]!.goal,
+        runs: sorted.length,
+        finished,
+        failed: counted.filter((run) => run.status === "failed").length,
+        successRate: counted.length ? finished / counted.length : null,
+        last: sorted[0]!,
+      };
+    })
+    .sort((a, b) => b.last.startedAt - a.last.startedAt);
+}
+
+export function normalizeGoal(goal: string): string {
   return goal.trim().toLowerCase().replace(/\s+/g, " ");
 }

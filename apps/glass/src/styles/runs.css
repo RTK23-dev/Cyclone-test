@@ -456,3 +456,38 @@ a.run-row:hover {
 .compare-text {
   margin: 0;
 }
+
+.goal-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 3fr) 70px 170px 190px 24px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.goal-row:first-child {
+  border-top: none;
+}
+
+a.goal-row:hover {
+  background: var(--surface-hover);
+}
+
+.goal-row > .chip {
+  justify-self: start;
+}
+
+.goal-last {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+@media (max-width: 900px) {
+  .goal-row {
+    grid-template-columns: 1fr auto;
+  }
+}
