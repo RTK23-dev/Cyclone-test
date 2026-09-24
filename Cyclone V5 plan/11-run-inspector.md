@@ -51,7 +51,12 @@ The classifier runs **on the phone** from the recorded events, so the phone's ow
 **Built in Glass alpha.2** (`apps/mobile/**/ai/RunInsight.kt`): `needs-secret`, `gate`, `human-took-control`, `transport`,
 `timeout`, `unchanged`, `element-not-found`, `wrong-room`, `verification-failed`, `model-gave-up`, plus three the trace needs
 today: `cancelled` (stopped by the user), `provider-error` (model provider failed) and `blocked` (other hard blockers), and
-`unknown` with the last failed step. `door-missing` and `stale-door` need rooms per step (run record v2, alpha.3).
+`unknown` with the last failed step.
+
+**Built in Glass alpha.4** (run record v2): each decision turn records the structural room (`room=`), the app (`place=package:…`)
+and its installed version (`appv=`); each check records `roomAfter=`. `decisionSource` is `map` for `graph:` / `compiled-skill:`
+actions and `model` otherwise. `stale-door` = a map-chosen step failed on the target or screen (named with the app version).
+Still to come: `expectedRoomId` (needs the planned route per step), `door-missing`, redacted frames, `scenarioId` per run.
 Mapping from today's trace: GATE_SUSPEND without a later GATE_RESUME → `gate` / `needs-secret`; HARD_BLOCKER text → login wall,
 locked phone or lost accessibility; NON_CONVERGENCE codes (`convergence.task_timeout`, `.repeated_action`, `.stale_target`,
 `.backtrack`, `.mutations_without_verified_progress`, `completion.*`, `.malformed_model`, `.recovery_without_evidence`,
