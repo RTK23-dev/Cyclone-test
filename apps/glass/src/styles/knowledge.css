@@ -173,3 +173,90 @@ a.tab:hover {
     display: none;
   }
 }
+
+/* App → Screens */
+.screen-row {
+  grid-template-columns: minmax(240px, 3fr) 140px 90px 90px 110px 130px;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.screen-row:hover {
+  background: var(--surface-hover);
+}
+
+/* App → Scenarios, board view (entry on the left, then rooms by distance) */
+.scenario-board {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding-bottom: var(--space-3);
+}
+
+.scenario-column {
+  flex: 0 0 240px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.scenario-column-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.scenario-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.scenario-mini.entry {
+  border-left-color: var(--accent);
+  cursor: default;
+}
+
+.scenario-mini.health-passing {
+  border-left-color: var(--success);
+}
+
+.scenario-mini.health-warning {
+  border-left-color: var(--warning);
+}
+
+.scenario-mini.health-critical {
+  border-left-color: var(--danger);
+}
+
+button.scenario-mini:hover {
+  background: var(--surface-hover);
+}
+
+@media (max-width: 720px) {
+  .screen-row {
+    grid-template-columns: 1fr 70px 70px;
+  }
+
+  .screen-row > :nth-child(2),
+  .screen-row > :nth-child(n + 5) {
+    display: none;
+  }
+}

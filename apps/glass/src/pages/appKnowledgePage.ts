@@ -17,8 +17,12 @@ import {
   type Scenario,
   type ScenarioList,
 } from "../services/knowledge.js";
-import { roomLabel, statusLabel as runStatusLabel, statusTone as runStatusTone } from "../services/runs.js";
-import { actionButton, card, chip, emptyState, errorState, loadingState, statTile } from "../ui/components.js";
+import { listRuns, roomLabel, statusLabel as runStatusLabel, statusTone as runStatusTone, type RunSummary } from "../services/runs.js";
+import { phoneClient } from "../services/phone.js";
+import { toMapsDocument } from "../maps/atlasDocument.js";
+import { toViewModel, type AtlasViewModel, type Persona } from "../maps/atlasViewModel.js";
+import { actionButton, card, chip, emptyState, errorState, loadingState, segmented, statTile } from "../ui/components.js";
+import { runRow, runsError } from "./runsPage.js";
 import { el, link, setChildren } from "../ui/dom.js";
 import { relativeTime } from "../ui/format.js";
 import { icon } from "../ui/icons.js";
@@ -29,8 +33,8 @@ type KnowledgeTab = Exclude<AppTab, "map">;
 
 export function appTabs(placeId: string, active: AppTab): HTMLElement {
   const tabs = el("nav", "tabs");
-  const items: Array<[AppTab, string]> = [["map", "Map"]];
-  if (placeId.startsWith("package:")) items.push(["scenarios", "Scenarios"], ["versions", "Versions"]);
+  const items: Array<[AppTab, string]> = [["map", "Map"], ["screens", "Screens"]];
+  if (placeId.startsWith("package:")) items.push(["scenarios", "Scenarios"], ["versions", "Versions"], ["runs", "Runs"]);
   for (const [tab, label] of items) {
     if (tab === active) {
       const current = el("span", "tab active", label);
@@ -43,7 +47,11 @@ export function appTabs(placeId: string, active: AppTab): HTMLElement {
   return tabs;
 }
 
-export function createAppKnowledgePage(ctx: GlassContext, route: Extract<Route, { name: "app" }> & { tab: KnowledgeTab }): GlassPage {
+export function createAppKnowledgePage(
+  ctx: GlassContext,
+  route: Extract<Route, { name: "app" }> & { tab: KnowledgeTab },
+  deps: { fetch?: typeof fetch } = {},
+): GlassPage {
   const placeId = route.placeId;
   const element = el("div", "page page-app page-knowledge");
   const back = link("", "#/apps", "back-link");
@@ -60,7 +68,9 @@ export function createAppKnowledgePage(ctx: GlassContext, route: Extract<Route, 
   const body = el("div", "knowledge-body");
   element.append(header, appTabs(placeId, route.tab), body);
   renderHeader(null);
-  setChildren(body, loadingState(route.tab === "scenarios" ? "Loading scenarios from the phone…" : "Loading versions from the phone…"));
+  setChildren(body, loadingState(`Loading ${route.tab} from the phone…`));
+  let scenarioView: "cards" | "board" = "cards";
+  let screensPersona: Persona = "mapping";
 
   function renderHeader(app: PhoneApp | null): void {
     const title = el("div", "app-title-row");
@@ -80,12 +90,106 @@ export function createAppKnowledgePage(ctx: GlassContext, route: Extract<Route, 
       .catch(() => undefined);
     try {
       if (route.tab === "scenarios") renderScenarios(await getScenarios(ctx.client, deviceId, placeId, "mapping", controller.signal));
-      else renderVersions(await getVersions(ctx.client, deviceId, placeId, controller.signal));
+      else if (route.tab === "versions") renderVersions(await getVersions(ctx.client, deviceId, placeId, controller.signal));
+      else if (route.tab === "screens") await loadScreens();
+      else await loadRuns();
     } catch (error) {
       if ((error as { name?: string })?.name === "AbortError") return;
-      setChildren(body, knowledgeError(error, () => void load()));
+      setChildren(body, route.tab === "runs" ? runsError(error, () => void load()) : knowledgeError(error, () => void load()));
     }
   };
+
+  async function loadScreens(): Promise<void> {
+    const document = await phoneClient(ctx, deviceId, deps.fetch).get(placeId as never, screensPersona);
+    if (controller.signal.aborted) return;
+    renderScreens(toViewModel(toMapsDocument(document)));
+  }
+
+  function renderScreens(model: AtlasViewModel): void {
+    const toggle = segmented<Persona>(
+      [
+        { id: "mapping", label: "Mapping pass" },
+        { id: "live", label: "Your teaching" },
+      ],
+      screensPersona,
+      (id) => {
+        screensPersona = id;
+        setChildren(body, loadingState("Loading screens from the phone…"));
+        void loadScreens().catch((error) => setChildren(body, knowledgeError(error, () => void load())));
+      },
+    );
+    if (!model.screens.length) {
+      setChildren(body, toggle.element, emptyState({ icon: "map", title: "No screens known yet", body: "Map the app, or show Cyclone around it with Follow Me on the phone." }));
+      return;
+    }
+    const doorsOut = new Map<string, number>();
+    const doorsIn = new Map<string, number>();
+    for (const edge of model.edges) {
+      doorsOut.set(edge.fromScreenId, (doorsOut.get(edge.fromScreenId) ?? 0) + 1);
+      doorsIn.set(edge.toScreenId, (doorsIn.get(edge.toScreenId) ?? 0) + 1);
+    }
+    const table = el("div", "run-table screens-table");
+    const head = el("div", "run-row run-row-head screen-row");
+    ["Screen", "Purpose", "Doors out", "Doors in", "Confidence", "Last seen"].forEach((label) => head.append(el("span", undefined, label)));
+    table.append(head);
+    const rows = [...model.screens].sort((a, b) => (doorsOut.get(b.screenId) ?? 0) - (doorsOut.get(a.screenId) ?? 0) || a.label.localeCompare(b.label));
+    for (const screen of rows) {
+      const row = el("button", "run-row screen-row");
+      row.type = "button";
+      row.dataset.screenId = screen.screenId;
+      const name = el("span", "run-goal");
+      name.append(el("span", "run-goal-text", screen.label), el("span", "run-sub", roomLabel(screen.screenId)));
+      if (screen.risk.danger) name.append(chip("Guarded", "warning"));
+      const confidence = Math.round((Number.isFinite(screen.confidence) ? screen.confidence : 0) * 100);
+      row.append(
+        name,
+        el("span", undefined, screen.purpose || "—"),
+        el("span", undefined, String(doorsOut.get(screen.screenId) ?? 0)),
+        el("span", undefined, String(doorsIn.get(screen.screenId) ?? 0)),
+        el("span", confidence < 50 ? "text-danger" : undefined, `${confidence}%`),
+        el("span", "muted", screen.lastObservedAt ? relativeTime(Date.parse(screen.lastObservedAt)) : "—"),
+      );
+      row.addEventListener("click", () => showMap([screen.screenId]));
+      table.append(row);
+    }
+    const summary = el("p", "muted knowledge-note", `${model.screens.length} screens · ${model.edges.length} doors. Click a screen to find it on the map.`);
+    setChildren(body, toggle.element, summary, table);
+  }
+
+  async function loadRuns(): Promise<void> {
+    const runs = await listRuns(ctx.client, deviceId, "all", 200, controller.signal);
+    renderRuns(runs.filter((run) => run.places.some((place) => place.placeId === placeId)), runs.some((run) => run.mapSteps != null));
+  }
+
+  function renderRuns(runs: RunSummary[], phoneRecordsApps: boolean): void {
+    if (!runs.length) {
+      setChildren(
+        body,
+        emptyState({
+          icon: "runs",
+          title: "No runs in this app yet",
+          body: phoneRecordsApps
+            ? "Runs that enter this app show up here. Ask Cyclone something that uses it."
+            : "This phone does not record which app each run used yet (Cyclone Mobile 5.0.0-alpha.11 or newer does).",
+        }),
+      );
+      return;
+    }
+    const failed = runs.filter((run) => run.status === "failed").length;
+    const stats = el("div", "stats stats-4");
+    const mapSteps = runs.reduce((sum, run) => sum + (run.mapSteps ?? 0), 0);
+    const modelSteps = runs.reduce((sum, run) => sum + (run.modelSteps ?? 0), 0);
+    stats.append(
+      statTile("Runs", String(runs.length)),
+      statTile("Finished", String(runs.filter((run) => run.status === "completed").length), "success"),
+      statTile("Failed", String(failed), failed ? "danger" : "neutral"),
+      statTile("From the map", mapSteps + modelSteps ? `${Math.round((100 * mapSteps) / (mapSteps + modelSteps))}%` : "—"),
+    );
+    const table = el("div", "run-table");
+    table.setAttribute("role", "list");
+    table.append(...runs.map(runRow));
+    setChildren(body, stats, table);
+  }
 
   function renderScenarios(list: ScenarioList): void {
     if (!list.scenarios.length) {
@@ -116,9 +220,51 @@ export function createAppKnowledgePage(ctx: GlassContext, route: Extract<Route, 
       "muted knowledge-note",
       `Health measures whether Cyclone can get there, from the runs that reached each screen${list.entryScreenId ? `. Every route starts at ${roomLabel(list.entryScreenId)}` : ""}.`,
     );
+    const view = segmented<"cards" | "board">(
+      [
+        { id: "cards", label: "Cards" },
+        { id: "board", label: "Board" },
+      ],
+      scenarioView,
+      (id) => {
+        scenarioView = id;
+        renderScenarios(list);
+      },
+    );
+    if (scenarioView === "board") {
+      setChildren(body, stats, view.element, note, scenarioBoard(list));
+      return;
+    }
     const grid = el("div", "scenario-grid");
     grid.append(...list.scenarios.map(scenarioCard));
-    setChildren(body, stats, note, grid);
+    setChildren(body, stats, view.element, note, grid);
+  }
+
+  /** Minitap-style: the entry room on the left, then one column per number of doors away. */
+  function scenarioBoard(list: ScenarioList): HTMLElement {
+    const board = el("div", "scenario-board");
+    const entry = el("section", "scenario-column entry");
+    entry.append(el("h3", "scenario-column-title", "Start"));
+    const start = el("div", "scenario-mini entry");
+    start.append(el("strong", undefined, list.entryScreenId ? roomLabel(list.entryScreenId) : "Entry"), el("span", "muted", "where every route begins"));
+    entry.append(start);
+    board.append(entry);
+    const depths = [...new Set(list.scenarios.map((scenario) => scenario.steps))].sort((a, b) => a - b);
+    for (const depth of depths) {
+      const column = el("section", "scenario-column");
+      column.append(el("h3", "scenario-column-title", `${depth} ${depth === 1 ? "door" : "doors"} away`));
+      for (const scenario of list.scenarios.filter((s) => s.steps === depth)) {
+        const mini = el("button", `scenario-mini health-${scenario.health}`);
+        mini.type = "button";
+        mini.dataset.scenarioId = scenario.scenarioId;
+        mini.append(el("strong", undefined, scenario.title), chip(healthLabel(scenario.health), healthTone(scenario.health)));
+        if (scenario.danger) mini.append(chip("Guarded", "warning"));
+        mini.addEventListener("click", () => showMap(scenario.route));
+        column.append(mini);
+      }
+      board.append(column);
+    }
+    return board;
   }
 
   function scenarioCard(scenario: Scenario): HTMLElement {

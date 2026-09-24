@@ -104,3 +104,25 @@ test("Apps page does not call the phone when the device gate says no", async () 
   assert.match(page.element.textContent, /Update Cyclone on the phone/);
   assert.equal(gateway.calls.length, 0);
 });
+
+test("Apps page shows each app's last run and filters apps whose last run failed", async () => {
+  installMiniDom();
+  const base = { goal: "g", model: "m", endedAt: null, durationMs: 1, decisions: 1, stepCount: 1, metrics: {}, cause: null, mapSteps: 1, modelSteps: 0 };
+  const runs = [
+    { ...base, runId: "ai-run-2", status: "failed", startedAt: 2000, places: [{ placeId: GMAIL.placeId, appVersion: null, route: [] }] },
+    { ...base, runId: "ai-run-1", status: "completed", startedAt: 1000, places: [{ placeId: GMAIL.placeId, appVersion: null, route: [] }, { placeId: CLOCK.placeId, appVersion: null, route: [] }] },
+  ];
+  const gateway = fakeGateway({
+    "GET /v1/devices/d1/apps": () => ({ apps: [CLOCK, GMAIL, FACEBOOK], truncated: false }),
+    "GET /v1/devices/d1/runs": () => ({ runs }),
+  });
+  const page = createAppsPage(context(gateway.fetch), { name: "apps" });
+  await flush();
+  const row = (id) => page.element.querySelector(`a.app-row[data-place-id="${id}"]`);
+  assert.match(row(GMAIL.placeId).textContent, /Last run failed/);
+  assert.match(row(CLOCK.placeId).textContent, /Last run finished/);
+  page.element.querySelectorAll(".segment").find((s) => s.dataset.id === "failing").click();
+  assert.equal(page.element.querySelectorAll("a.app-row").length, 1);
+  assert.equal(page.element.querySelector("a.app-row").dataset.placeId, GMAIL.placeId);
+  page.destroy();
+});

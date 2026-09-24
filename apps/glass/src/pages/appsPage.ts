@@ -17,6 +17,7 @@ import {
   type PhoneApp,
 } from "../services/apps.js";
 import { GatewayError } from "../services/gateway.js";
+import { listRuns, statusLabel as runStatusLabel, statusTone as runStatusTone, type RunSummary } from "../services/runs.js";
 import { el, setChildren } from "../ui/dom.js";
 import { actionButton, chip, emptyState, errorState, loadingState, pageHeader, searchInput, segmented, statTile } from "../ui/components.js";
 import { icon } from "../ui/icons.js";
@@ -31,6 +32,7 @@ const FILTERS: Array<{ id: AppFilter; label: string }> = [
   { id: "needs-remap", label: "Needs remap" },
   { id: "unmapped", label: "Not mapped" },
   { id: "web", label: "Web" },
+  { id: "failing", label: "Last run failed" },
 ];
 
 export function createAppsPage(ctx: GlassContext, route: Route): GlassPage {
@@ -48,6 +50,8 @@ export function createAppsPage(ctx: GlassContext, route: Route): GlassPage {
   const deviceId = ctx.device.id;
 
   let catalog: AppCatalog | null = null;
+  /** Latest run per app (phones from alpha.11 record which apps a run entered). Loaded after the list; optional. */
+  let lastRuns = new Map<string, RunSummary>();
   let filter: AppFilter = "all";
   let query = "";
   let controller: AbortController | null = null;
@@ -86,7 +90,9 @@ export function createAppsPage(ctx: GlassContext, route: Route): GlassPage {
       unmapped: all.length - s.mapped,
       web: all.filter((app) => app.kind === "chrome-origin").length,
     });
-    const visible = sortApps(filterApps(all, filter, query));
+    const visible = sortApps(filter === "failing"
+      ? filterApps(all, "all", query).filter((app) => lastRuns.get(app.placeId)?.status === "failed")
+      : filterApps(all, filter, query));
     if (!visible.length) {
       setChildren(body, emptyState({ icon: "search", title: all.length ? "No apps match" : "No apps reported", body: all.length ? "Try another filter or search." : "The phone did not report any launchable apps." }));
       return;
@@ -94,7 +100,7 @@ export function createAppsPage(ctx: GlassContext, route: Route): GlassPage {
     const table = el("div", "app-table");
     table.setAttribute("role", "list");
     table.append(tableHeader());
-    for (const app of visible) table.append(appRow(app));
+    for (const app of visible) table.append(appRow(app, lastRuns.get(app.placeId)));
     setChildren(body, table, catalog.truncated ? el("p", "muted table-note", "Showing the first 600 apps the phone reported.") : null);
   };
 
@@ -105,6 +111,7 @@ export function createAppsPage(ctx: GlassContext, route: Route): GlassPage {
     try {
       catalog = await loadApps(ctx.client, deviceId, controller.signal);
       render();
+      void loadLastRuns(controller.signal);
     } catch (error) {
       if ((error as { name?: string })?.name === "AbortError") return;
       catalog = null;
@@ -112,6 +119,23 @@ export function createAppsPage(ctx: GlassContext, route: Route): GlassPage {
       setChildren(body, appsError(error, () => void load()));
     }
   };
+
+  async function loadLastRuns(signal: AbortSignal): Promise<void> {
+    try {
+      const runs = await listRuns(ctx.client, deviceId, "all", 200, signal);
+      const latest = new Map<string, RunSummary>();
+      for (const run of runs) {
+        for (const place of run.places) {
+          const known = latest.get(place.placeId);
+          if (!known || known.startedAt < run.startedAt) latest.set(place.placeId, run);
+        }
+      }
+      lastRuns = latest;
+      if (catalog) render();
+    } catch {
+      /* Older phones: the Apps page works without run facts. */
+    }
+  }
 
   refresh.addEventListener("click", () => void load());
   void load();
@@ -131,13 +155,13 @@ function tableHeader(): HTMLElement {
     el("span", "col-version", "Installed"),
     el("span", "col-mapped", "Mapped versions"),
     el("span", "col-size", "Rooms · doors"),
-    el("span", "col-when", "Verified"),
+    el("span", "col-when", "Verified · last run"),
     el("span", "col-go"),
   );
   return row;
 }
 
-function appRow(app: PhoneApp): HTMLAnchorElement {
+function appRow(app: PhoneApp, lastRun?: RunSummary): HTMLAnchorElement {
   const row = el("a", "app-row");
   row.href = routeHref({ name: "app", placeId: app.placeId, tab: "map" });
   row.setAttribute("role", "listitem");
@@ -167,7 +191,7 @@ function appRow(app: PhoneApp): HTMLAnchorElement {
     el("span", "col-version", app.kind === "chrome-origin" ? "Web" : versionLabel(app.installedVersion)),
     mapped,
     el("span", "col-size", app.rooms ? `${plural(app.rooms, "room")} · ${plural(app.doors, "door")}` : "—"),
-    el("span", "col-when muted", app.rooms ? relativeTime(app.lastVerifiedAt) : "—"),
+    lastRunCell(app, lastRun),
     go,
   );
   return row;
@@ -184,4 +208,13 @@ function appsError(error: unknown, retry: () => void): HTMLElement {
   }
   const message = error instanceof Error ? error.message : String(error);
   return errorState("Couldn't load the phone's apps", { message }, retry);
+}
+
+function lastRunCell(app: PhoneApp, lastRun?: RunSummary): HTMLElement {
+  const cell = el("span", "col-when muted", app.rooms ? `verified ${relativeTime(app.lastVerifiedAt)}` : "—");
+  if (lastRun) {
+    cell.replaceChildren(chip(`Last run ${runStatusLabel(lastRun.status).toLowerCase()}`, runStatusTone(lastRun.status)));
+    cell.title = `${lastRun.goal} · ${relativeTime(lastRun.startedAt)}`;
+  }
+  return cell;
 }

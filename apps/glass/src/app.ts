@@ -2,7 +2,7 @@
  * Glass shell: sidebar, phone picker, one mounted page. Owns the device list and the route; pages own their data.
  * Glass has no intelligence: everything below reads from or commands the phone through the local gateway.
  */
-import { parseRoute, routeHref, sectionOf, type Route } from "./core/router.js";
+import { parseRoute, routeHref, sectionOf, type AppTab, type Route } from "./core/router.js";
 import { deviceReadiness, listDevices, pickDevice, type GlassDevice, type NotReadyReason } from "./services/devices.js";
 import { GatewayError, type GatewayClient } from "./services/gateway.js";
 import { el, setChildren } from "./ui/dom.js";
@@ -49,7 +49,7 @@ const PAGES: Record<Route["name"], PageFactory> = {
   apps: (ctx, route) => createAppsPage(ctx, route),
   app: (ctx, route) =>
     route.name === "app" && route.tab !== "map"
-      ? createAppKnowledgePage(ctx, route as Extract<Route, { name: "app" }> & { tab: "scenarios" | "versions" })
+      ? createAppKnowledgePage(ctx, route as Extract<Route, { name: "app" }> & { tab: Exclude<AppTab, "map"> })
       : createAppsPage(ctx, route),
   runs: (ctx) => createRunsPage(ctx),
   run: (ctx, route) => createRunPage(ctx, route as Extract<Route, { name: "run" }>),

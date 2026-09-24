@@ -39,7 +39,7 @@ export interface AppCatalog {
   truncated: boolean;
 }
 
-export type AppFilter = "all" | "mapped" | "needs-remap" | "unmapped" | "web";
+export type AppFilter = "all" | "mapped" | "needs-remap" | "unmapped" | "web" | "failing";
 
 const STATUSES = new Set<AppMapStatus>(["unmapped", "partial", "mapped", "stale"]);
 
@@ -137,6 +137,8 @@ export function filterApps(apps: PhoneApp[], filter: AppFilter, query: string): 
         return app.rooms === 0;
       case "web":
         return app.kind === "chrome-origin";
+      case "failing":
+        return true; // needs run facts; the Apps page applies it
     }
   });
 }

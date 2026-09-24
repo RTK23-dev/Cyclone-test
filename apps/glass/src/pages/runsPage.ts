@@ -2,7 +2,7 @@
 import type { GlassContext } from "../app.js";
 import { routeHref } from "../core/router.js";
 import { GatewayError } from "../services/gateway.js";
-import { causeLabel, causeTone, formatDuration, listRuns, statusLabel, statusTone, type RunFilter, type RunSummary } from "../services/runs.js";
+import { appName, causeLabel, causeTone, formatDuration, listRuns, statusLabel, statusTone, type RunFilter, type RunSummary } from "../services/runs.js";
 import { el, setChildren } from "../ui/dom.js";
 import { actionButton, chip, emptyState, errorState, loadingState, pageHeader, searchInput, segmented } from "../ui/components.js";
 import { icon } from "../ui/icons.js";
@@ -91,13 +91,18 @@ export function createRunsPage(ctx: GlassContext): GlassPage {
   return { element, destroy: () => controller?.abort() };
 }
 
-function runRow(run: RunSummary): HTMLAnchorElement {
+export function runRow(run: RunSummary): HTMLAnchorElement {
   const row = el("a", `run-row status-${run.status}`);
   row.href = routeHref({ name: "run", runId: run.runId });
   row.setAttribute("role", "listitem");
   row.dataset.runId = run.runId;
   const goal = el("span", "run-goal");
-  goal.append(el("span", "run-goal-text", run.goal), el("span", "run-sub", run.model));
+  const sub = [
+    run.places.length ? run.places.map((place) => appName(place.placeId)).join(" → ") : "",
+    run.mapSteps ? `${run.mapSteps} ${run.mapSteps === 1 ? "step" : "steps"} from the map` : "",
+    run.model,
+  ].filter(Boolean).join(" · ");
+  goal.append(el("span", "run-goal-text", run.goal), el("span", "run-sub", sub));
   const result = el("span");
   result.append(chip(statusLabel(run.status), statusTone(run.status)));
   const why = el("span", "run-why");

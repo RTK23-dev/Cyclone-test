@@ -1,6 +1,6 @@
 /** Hash routes. Hash routing keeps the gateway's static mount trivial (one index.html under /glass/). */
-export type AppTab = "map" | "scenarios" | "versions";
-const APP_TABS: AppTab[] = ["map", "scenarios", "versions"];
+export type AppTab = "map" | "screens" | "scenarios" | "versions" | "runs";
+const APP_TABS: AppTab[] = ["map", "screens", "scenarios", "versions", "runs"];
 
 export type Route =
   | { name: "apps" }

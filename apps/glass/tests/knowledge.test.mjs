@@ -38,7 +38,7 @@ function open(tab, routes) {
   const devices = [parseDevice({ ...READY_DEVICE, mobileVersion: "5.0.0-alpha.11.dev1" })];
   const navigated = [];
   const ctx = { client: new GatewayClient({ token: "t", fetch: gateway.fetch }), version: "1.0.0-alpha.5", devices, device: devices[0], devicesError: null, navigate: (r) => navigated.push(r), selectDevice() {}, refreshDevices: async () => {} };
-  const page = createAppKnowledgePage(ctx, { name: "app", placeId: GM, tab });
+  const page = createAppKnowledgePage(ctx, { name: "app", placeId: GM, tab }, { fetch: gateway.fetch });
   return { page, gateway, navigated };
 }
 
@@ -91,4 +91,58 @@ test("older phones are told to update; empty knowledge explains itself; parsing 
   assert.deepEqual(parsed.scenarios[0].route, [HOME, MENU]);
   assert.equal(parsed.scenarios[0].health, "untested");
   assert.equal(parseVersions({ staleDoors: [{ edgeId: "e", fromScreenId: "bad", toScreenId: MENU }] }, GM).staleDoors.length, 0);
+});
+
+test("Scenarios board: entry on the left, then columns by doors away", async () => {
+  const { page, navigated } = open("scenarios", { "GET /v1/devices/d1/apps/scenarios": () => SCENARIOS });
+  await flush();
+  [...page.element.querySelectorAll(".segment")].find((b) => /Board/.test(b.textContent)).click();
+  const columns = page.element.querySelectorAll(".scenario-column");
+  assert.equal(columns.length, 3);
+  assert.match(columns[0].textContent, /Home screen · aaaa/);
+  assert.match(columns[1].textContent, /1 door away/);
+  assert.match(columns[2].textContent, /Reach Settings/);
+  page.element.querySelector('button.scenario-mini[data-scenario-id="sc_0123456789abcdef02"]').click();
+  assert.deepEqual(navigated.at(-1).route, [HOME, MENU]);
+});
+
+test("Screens: every room with doors in and out; a row opens it on the map", async () => {
+  const atlas = {
+    place: { placeId: GM, kind: "package", label: "Gmail", packageName: "com.google.android.gm" },
+    persona: "mapping",
+    mapStatus: "partial",
+    screens: [HOME, MENU].map((screenId, i) => ({ screenId, label: i ? "Menu" : "Home", purpose: i ? "menu" : "home", factSlots: [], risk: { danger: i === 1, classes: [] }, confidence: i ? 0.4 : 0.9, lastObservedAt: null, lastVerifiedAt: null, layout: { x: i * 260, y: 0 } })),
+    edges: [{ edgeId: "edge:1", fromScreenId: HOME, toScreenId: MENU, actionHint: "Open menu", risk: { danger: false, classes: [] }, confidence: 0.8, lastVerifiedAt: null }],
+    capabilities: [],
+    confidence: 0.8,
+    lastObservedAt: null,
+    lastVerifiedAt: null,
+  };
+  const { page, navigated } = open("screens", { "GET /v1/devices/d1/atlas": () => atlas });
+  await flush();
+  const text = page.element.textContent;
+  assert.match(text, /2 screens · 1 doors/);
+  assert.match(text, /Guarded/);
+  assert.match(text, /40%/);
+  const rows = page.element.querySelectorAll("button.screen-row");
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].dataset.screenId, HOME, "most doors out first");
+  rows[1].click();
+  assert.deepEqual(navigated.at(-1).route, [MENU]);
+});
+
+test("Runs tab: only runs that entered this app, with the map share; old phones are explained", async () => {
+  const base = { goal: "g", model: "m", startedAt: Date.now() - 1000, endedAt: null, durationMs: 1000, decisions: 1, stepCount: 2, metrics: {}, cause: null };
+  const runs = [
+    { ...base, runId: "ai-run-1", status: "completed", mapSteps: 3, modelSteps: 1, places: [{ placeId: GM, appVersion: "1", route: [] }] },
+    { ...base, runId: "ai-run-2", status: "failed", mapSteps: 0, modelSteps: 2, places: [{ placeId: "package:com.other.app", appVersion: null, route: [] }] },
+  ];
+  let s = open("runs", { "GET /v1/devices/d1/runs": () => ({ runs }) });
+  await flush();
+  assert.equal(s.page.element.querySelectorAll(".run-row").length, 1);
+  assert.match(s.page.element.textContent, /75%/);
+  assert.match(s.page.element.textContent, /Gmail · 3 steps from the map/);
+  s = open("runs", { "GET /v1/devices/d1/runs": () => ({ runs: [{ ...base, runId: "ai-old-1", status: "completed" }] }) });
+  await flush();
+  assert.match(s.page.element.textContent, /does not record which app/);
 });
