@@ -177,3 +177,24 @@ test("Knowledge: vault slots as set / not set per app, skills, automations and A
   assert.doesNotMatch(text, /hunter2/);
   page.destroy();
 });
+
+test("Scenarios: Sign in and Already signed in are marked; the password never comes to Glass", async () => {
+  const LOGIN = "screen:login:eeeeeeeeeeeeeeee";
+  const signed = {
+    ...SCENARIOS,
+    scenarios: [
+      { ...SCENARIOS.scenarios[1], scenarioId: "sc_0123456789abcdef03", kind: "sign-in", title: "Sign in", route: [HOME, LOGIN, SETTINGS], endScreenId: SETTINGS, steps: 2 },
+      { ...SCENARIOS.scenarios[1], scenarioId: "sc_0123456789abcdef04", kind: "signed-in", title: "Already signed in" },
+      { ...SCENARIOS.scenarios[1], kind: "boss" },
+    ],
+  };
+  const parsed = parseScenarios(signed, GM);
+  assert.deepEqual(parsed.scenarios.map((s) => s.kind), ["sign-in", "signed-in", "reach"]);
+  const { page } = open("scenarios", { "GET /v1/devices/d1/apps/scenarios": () => signed });
+  await flush();
+  const text = page.element.textContent;
+  assert.match(text, /Sign in/);
+  assert.match(text, /Already signed in/);
+  assert.match(text, /No login/);
+  assert.match(text, /fills the login from its Vault/);
+});

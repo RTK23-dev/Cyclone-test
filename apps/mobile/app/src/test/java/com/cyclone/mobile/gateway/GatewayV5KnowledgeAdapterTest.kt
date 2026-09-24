@@ -91,6 +91,35 @@ class GatewayV5KnowledgeAdapterTest {
     }
 
     @Test
+    fun appsWithALoginRoomGetSignInAndAlreadySignedInScenariosFirst() {
+        val login = "screen:login:eeeeeeeeeeeeeeee"
+        map(v2, 1_000,
+            Triple(home, inbox, "door:inbox:3333333333333333"),
+            Triple(home, menu, "door:menu:1111111111111111"),
+            Triple(menu, login, "door:login:5555555555555555"),
+            Triple(login, settings, "door:signin:6666666666666666"),
+        )
+        install(v2, listOf(RunWalk("ai-run-4", "completed", 4_000, gmail, listOf(home, menu, login, settings))))
+        val list = GatewayV5KnowledgeAdapter.scenarios(JSONObject().put("placeId", gmail)).getJSONArray("scenarios")
+        val scenarios = (0 until list.length()).map { list.getJSONObject(it) }
+        val signIn = scenarios[0]
+        assertEquals("sign-in", signIn.getString("kind"))
+        assertEquals("Sign in", signIn.getString("title"))
+        assertEquals(listOf(home, menu, login, settings), (0 until signIn.getJSONArray("route").length()).map { signIn.getJSONArray("route").getString(it) })
+        assertEquals("passing", signIn.getString("health"))
+        val signedIn = scenarios[1]
+        assertEquals("signed-in", signedIn.getString("kind"))
+        assertEquals(listOf(home, inbox), (0 until signedIn.getJSONArray("route").length()).map { signedIn.getJSONArray("route").getString(it) })
+        assertTrue(scenarios.drop(2).all { it.getString("kind") == "reach" })
+        assertEquals(scenarios.size, scenarios.map { it.getString("scenarioId") }.toSet().size)
+
+        val noLogin = GatewayV5KnowledgeAdapter.signInScenarios(
+            com.cyclone.mobile.brain.graphv2.GraphNodeId(home), emptyMap(), emptyList(), emptyMap(),
+        )
+        assertTrue(noLogin.isEmpty())
+    }
+
+    @Test
     fun healthRulesAndRequestValidation() {
         assertEquals("untested", GatewayV5KnowledgeAdapter.health(emptyList()))
         assertEquals("warning", GatewayV5KnowledgeAdapter.health(listOf(RunWalk("a", "failed", 2, gmail, emptyList()), RunWalk("b", "completed", 1, gmail, emptyList()))))

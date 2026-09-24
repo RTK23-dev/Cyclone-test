@@ -780,6 +780,15 @@ def test_glass_alpha5_versions_and_scenarios_come_from_the_phone():
     ]
 
 
+def test_scenarios_may_say_they_are_sign_in_scenarios():
+    signed = {**SCENARIOS, "scenarios": [
+        {**SCENARIOS["scenarios"][0], "kind": "sign-in", "title": "Sign in"},
+        {**SCENARIOS["scenarios"][0], "kind": "signed-in", "title": "Already signed in", "scenarioId": "sc_0123456789abcdef02"},
+    ]}
+    svc = V5ContractService(FakeFleet(KnowledgeBridge(scenarios=signed)))
+    assert svc.scenarios_list("phone-1", GM) == signed
+
+
 @pytest.mark.parametrize("call", [
     lambda s: s.atlas_versions("phone-1", "chrome:https://example.com"),
     lambda s: s.scenarios_list("phone-1", GM, "boss"),
@@ -799,6 +808,7 @@ def test_glass_alpha5_bad_knowledge_requests_never_reach_the_phone(call):
     (None, {**SCENARIOS, "scenarios": [{**SCENARIOS["scenarios"][0], "health": "great"}]}),
     (None, {**SCENARIOS, "scenarios": [{**SCENARIOS["scenarios"][0], "steps": 5}]}),
     (None, {**SCENARIOS, "scenarios": [{**SCENARIOS["scenarios"][0], "title": "password: hunter2"}]}),
+    (None, {**SCENARIOS, "scenarios": [{**SCENARIOS["scenarios"][0], "kind": "pay"}]}),
 ])
 def test_glass_alpha5_malformed_knowledge_is_rejected(versions, scenarios):
     svc = V5ContractService(FakeFleet(KnowledgeBridge(versions=versions, scenarios=scenarios)))

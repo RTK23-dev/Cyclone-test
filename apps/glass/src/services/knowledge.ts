@@ -8,9 +8,12 @@ import type { GatewayClient } from "./gateway.js";
 import type { RunStatus } from "./runs.js";
 
 export type ScenarioHealth = "passing" | "warning" | "critical" | "untested";
+/** `sign-in` walks through the app's login room; `signed-in` reaches the app without one; `reach` is any other room. */
+export type ScenarioKind = "reach" | "sign-in" | "signed-in";
 
 export interface Scenario {
   scenarioId: string;
+  kind: ScenarioKind;
   title: string;
   startScreenId: string;
   endScreenId: string;
@@ -58,6 +61,7 @@ export interface AppVersions {
 }
 
 const SCREEN = /^(?:page|screen):[A-Za-z0-9._:-]{1,173}$/;
+const KINDS = new Set<ScenarioKind>(["reach", "sign-in", "signed-in"]);
 const HEALTH = new Set<ScenarioHealth>(["passing", "warning", "critical", "untested"]);
 const RUN_STATUS = new Set<RunStatus>(["running", "suspended", "completed", "failed", "cancelled"]);
 
@@ -91,6 +95,7 @@ function parseScenario(raw: unknown): Scenario | null {
   if (typeof r.scenarioId !== "string" || route.length < 2) return null;
   return {
     scenarioId: r.scenarioId,
+    kind: KINDS.has(r.kind as ScenarioKind) ? (r.kind as ScenarioKind) : "reach",
     title: str(r.title) || "Reach a screen",
     startScreenId: route[0]!,
     endScreenId: route[route.length - 1]!,
@@ -144,6 +149,13 @@ export function parseVersions(raw: unknown, placeId: string): AppVersions {
           }))
       : [],
   };
+}
+
+/** The chip that marks the two login scenarios; none for ordinary routes. */
+export function kindLabel(kind: ScenarioKind): string | null {
+  if (kind === "sign-in") return "Login";
+  if (kind === "signed-in") return "No login";
+  return null;
 }
 
 export function healthLabel(health: ScenarioHealth): string {

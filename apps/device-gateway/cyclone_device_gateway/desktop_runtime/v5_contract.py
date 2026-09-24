@@ -602,6 +602,7 @@ SCENARIO_KEYS = frozenset({
     "scenarioId", "title", "startScreenId", "endScreenId", "route", "steps", "danger", "health", "lastVerifiedAt", "appVersion", "runs",
 })
 SCENARIO_HEALTH = frozenset({"passing", "warning", "critical", "untested"})
+SCENARIO_KINDS = frozenset({"reach", "sign-in", "signed-in"})
 SCENARIO_ID = re.compile(r"^sc_[0-9a-f]{18}$")
 
 
@@ -655,8 +656,10 @@ def _validate_scenarios(value: dict[str, Any], args: dict[str, Any]) -> None:
     if not isinstance(scenarios, list) or len(scenarios) > 24:
         raise _bad_knowledge("scenarios")
     for scenario in scenarios:
-        if not isinstance(scenario, dict) or set(scenario) != SCENARIO_KEYS:
+        if not isinstance(scenario, dict) or set(scenario) - {"kind"} != SCENARIO_KEYS:
             raise _bad_knowledge("scenario")
+        if "kind" in scenario and scenario["kind"] not in SCENARIO_KINDS:  # alpha.15+: sign-in scenarios
+            raise _bad_knowledge("scenario kind")
         if not isinstance(scenario["scenarioId"], str) or not SCENARIO_ID.match(scenario["scenarioId"]):
             raise _bad_knowledge("scenario id")
         if not _short_text(scenario["title"], 80) or scenario["health"] not in SCENARIO_HEALTH or not isinstance(scenario["danger"], bool):

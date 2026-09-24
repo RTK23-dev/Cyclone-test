@@ -11,6 +11,7 @@ import {
   getScenarios,
   getVersions,
   healthLabel,
+  kindLabel,
   healthTone,
   versionText,
   type AppVersions,
@@ -258,6 +259,8 @@ export function createAppKnowledgePage(
         mini.type = "button";
         mini.dataset.scenarioId = scenario.scenarioId;
         mini.append(el("strong", undefined, scenario.title), chip(healthLabel(scenario.health), healthTone(scenario.health)));
+        const kind = kindLabel(scenario.kind);
+        if (kind) mini.append(chip(kind, "accent"));
         if (scenario.danger) mini.append(chip("Guarded", "warning"));
         mini.addEventListener("click", () => showMap(scenario.route));
         column.append(mini);
@@ -276,6 +279,8 @@ export function createAppKnowledgePage(
     meta.append(el("span", "muted", `${scenario.steps} ${scenario.steps === 1 ? "door" : "doors"}`));
     if (scenario.appVersion) meta.append(el("span", "muted", `version ${scenario.appVersion}`));
     if (scenario.lastVerifiedAt) meta.append(el("span", "muted", `last worked ${relativeTime(scenario.lastVerifiedAt)}`));
+    const kind = kindLabel(scenario.kind);
+    if (kind) meta.append(chip(kind, "accent"));
     if (scenario.danger) meta.append(chip("Passes a guarded door", "warning"));
     const rooms = el("ol", "route-rooms");
     scenario.route.forEach((room, index) => {
@@ -287,7 +292,11 @@ export function createAppKnowledgePage(
     const show = actionButton("Show on the map", { icon: "map" });
     show.addEventListener("click", () => showMap(scenario.route));
     actions.append(show);
-    node.append(top, meta, rooms, actions);
+    node.append(top, meta, rooms);
+    if (scenario.kind === "sign-in") {
+      node.append(el("p", "muted knowledge-note", "The phone fills the login from its Vault. Glass never sees the password."));
+    }
+    node.append(actions);
     if (scenario.runs.length) {
       const runs = el("ul", "scenario-runs");
       for (const run of scenario.runs) {

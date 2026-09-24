@@ -39,6 +39,9 @@ internal data class RunWalk(
  */
 internal object GatewayV5KnowledgeAdapter {
     const val MAX_SCENARIOS = 24
+    const val KIND_REACH = "reach"
+    const val KIND_SIGN_IN = "sign-in"
+    const val KIND_SIGNED_IN = "signed-in"
     const val MAX_STALE_DOORS = 20
     private const val MAX_VERSIONS = 12
     private const val RUNS_CONSIDERED = 60
@@ -161,36 +164,74 @@ internal object GatewayV5KnowledgeAdapter {
         val meta = snap.edgeMetadata.associateBy { it.key }
         val runWalks = runCatching { walks(placeId) }.getOrDefault(emptyList()).sortedByDescending { it.startedAt }
 
-        val scenarios = if (entry == null) emptyList() else shortestRoutes(entry, doors).entries
+        fun scenario(kind: String, title: String, start: GraphNodeId, path: List<TemporalKnowledgeEdge>): JSONObject {
+            val room = path.last().key.to
+            val route = listOf(start.value) + path.map { it.key.to.value }
+            val used = runWalks.filter { room.value in it.rooms }
+            val danger = path.any { (meta[it.key]?.danger ?: AtlasDanger.NONE) != AtlasDanger.NONE } ||
+                (screens[room]?.danger ?: AtlasDanger.NONE) != AtlasDanger.NONE
+            val verified = path.mapNotNull { it.evidence.lastSucceededAtEpochMillis }.maxOrNull()
+            return JSONObject()
+                .put("scenarioId", scenarioId(placeId, persona, if (kind == KIND_REACH) room.value else "$kind|${room.value}"))
+                .put("kind", kind)
+                .put("title", title)
+                .put("startScreenId", start.value)
+                .put("endScreenId", room.value)
+                .put("route", JSONArray(route))
+                .put("steps", path.size)
+                .put("danger", danger)
+                .put("health", health(used))
+                .put("lastVerifiedAt", verified ?: JSONObject.NULL)
+                .put("appVersion", path.lastOrNull()?.evidence?.appVersion?.versionName?.take(64) ?: JSONObject.NULL)
+                .put("runs", JSONArray(used.take(5).map { walk ->
+                    JSONObject().put("runId", walk.runId).put("status", walk.status).put("startedAt", walk.startedAt)
+                }))
+        }
+
+        val routes = if (entry == null) emptyMap() else shortestRoutes(entry, doors)
+        val signIn = if (entry == null) emptyList() else signInScenarios(entry, routes, doors, screens.mapValues { it.value.purpose })
+            .map { (kind, path) -> scenario(kind, if (kind == KIND_SIGN_IN) "Sign in" else "Already signed in", entry, path) }
+        val reach = routes.entries
             .filter { (room, path) -> room != entry && path.isNotEmpty() }
             .sortedWith(compareBy({ it.value.size }, { it.key.value }))
-            .take(MAX_SCENARIOS)
-            .map { (room, path) ->
-                val route = listOf(entry.value) + path.map { it.key.to.value }
-                val used = runWalks.filter { room.value in it.rooms }
-                val danger = path.any { (meta[it.key]?.danger ?: AtlasDanger.NONE) != AtlasDanger.NONE } ||
-                    (screens[room]?.danger ?: AtlasDanger.NONE) != AtlasDanger.NONE
-                val verified = path.mapNotNull { it.evidence.lastSucceededAtEpochMillis }.maxOrNull()
-                JSONObject()
-                    .put("scenarioId", scenarioId(placeId, persona, room.value))
-                    .put("title", "Reach ${title(screens[room]?.purpose)}")
-                    .put("startScreenId", entry.value)
-                    .put("endScreenId", room.value)
-                    .put("route", JSONArray(route))
-                    .put("steps", path.size)
-                    .put("danger", danger)
-                    .put("health", health(used))
-                    .put("lastVerifiedAt", verified ?: JSONObject.NULL)
-                    .put("appVersion", path.lastOrNull()?.evidence?.appVersion?.versionName?.take(64) ?: JSONObject.NULL)
-                    .put("runs", JSONArray(used.take(5).map { walk ->
-                        JSONObject().put("runId", walk.runId).put("status", walk.status).put("startedAt", walk.startedAt)
-                    }))
-            }
+            .take(MAX_SCENARIOS - signIn.size)
+            .map { (room, path) -> scenario(KIND_REACH, "Reach ${title(screens[room]?.purpose)}", entry!!, path) }
+        val scenarios = signIn + reach
         return JSONObject()
             .put("placeId", placeId)
             .put("persona", persona.wireValue)
             .put("entryScreenId", entry?.value ?: JSONObject.NULL)
             .put("scenarios", JSONArray(scenarios))
+    }
+
+    /**
+     * The two scenarios every app with a login room gets (Glass 1.0 exit criterion 4):
+     * **Sign in** walks from the entry through the nearest login room and out of its first door that leads away from login;
+     * **Already signed in** is the shortest route from the entry to a room that is not a login room without passing one.
+     * Room purposes are structural words (never page content), so this never reads what was typed.
+     */
+    internal fun signInScenarios(
+        entry: GraphNodeId,
+        routes: Map<GraphNodeId, List<TemporalKnowledgeEdge>>,
+        doors: List<TemporalKnowledgeEdge>,
+        purposes: Map<GraphNodeId, String?>,
+    ): List<Pair<String, List<TemporalKnowledgeEdge>>> {
+        fun login(room: GraphNodeId) = purposes[room].equals("login", ignoreCase = true)
+        val result = mutableListOf<Pair<String, List<TemporalKnowledgeEdge>>>()
+        val wall = routes.entries.filter { login(it.key) }.minWithOrNull(compareBy({ it.value.size }, { it.key.value }))
+        if (wall != null) {
+            val out = doors.filter { it.key.from == wall.key && !login(it.key.to) }
+                .sortedWith(compareByDescending<TemporalKnowledgeEdge> { it.evidence.confidence }.thenBy { it.key.to.value })
+                .firstOrNull()
+            if (out != null) result += KIND_SIGN_IN to (wall.value + out)
+        }
+        if (!login(entry)) {
+            routes.entries
+                .filter { (room, path) -> room != entry && path.isNotEmpty() && path.none { login(it.key.to) } }
+                .minWithOrNull(compareBy({ it.value.size }, { it.key.value }))
+                ?.let { result += KIND_SIGNED_IN to it.value }
+        }
+        return if (wall == null) emptyList() else result
     }
 
     /** passing: the latest run through here finished; critical: the last two failed; warning: mixed; untested: none. */
