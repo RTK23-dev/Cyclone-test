@@ -411,6 +411,15 @@ internal object GatewayDispatcher {
             GatewayV5MappingAdapter.dispatch(context, request.op, request.args)
         "ask.start", "ask.status" -> GatewayV5AskAdapter.dispatch(request.op, request.args)
         "apps.list" -> GatewayV5AppsAdapter.dispatch(request.op, request.args)
+        "share.status" -> {
+            if (request.args.length() != 0) throw GatewayProtocolException("INVALID_REQUEST", "share.status takes no arguments.", request.id)
+            com.cyclone.mobile.share.LanShareRuntime.status(context)
+        }
+        "share.request" -> {
+            val extra = request.args.keys().asSequence().filter { it != "pcLabel" }.toList()
+            if (extra.isNotEmpty()) throw GatewayProtocolException("INVALID_REQUEST", "share.request takes only pcLabel.", request.id)
+            com.cyclone.mobile.share.LanShareRuntime.request(context, request.args.optString("pcLabel").takeIf { it.isNotBlank() })
+        }
         "atlas.here" -> {
             if (request.args.length() != 0) throw GatewayProtocolException("INVALID_REQUEST", "atlas.here takes no arguments.", request.id)
             com.cyclone.mobile.mapping.crawl.StepLocation.here(context)

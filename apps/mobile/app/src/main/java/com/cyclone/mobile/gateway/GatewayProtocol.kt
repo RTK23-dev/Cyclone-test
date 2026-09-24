@@ -68,6 +68,7 @@ internal object GatewayProtocol {
         "scenarios.list",
         "knowledge.get",
         "atlas.here",
+        "share.status",
         "brain.recall",
         "teach.status",
         "debug.snapshot",
@@ -133,6 +134,8 @@ internal object GatewayProtocol {
         "scenarios.list",
         "knowledge.get",
         "atlas.here",
+        "share.status",
+        "share.request",
     )
 
     fun parse(line: String): GatewayRequest {

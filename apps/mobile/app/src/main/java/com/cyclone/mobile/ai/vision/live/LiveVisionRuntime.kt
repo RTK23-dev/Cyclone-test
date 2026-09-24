@@ -91,6 +91,21 @@ object LiveVisionRuntime {
         if (scaled === source) source.copy(Bitmap.Config.ARGB_8888, false) else scaled
     }
 
+    /**
+     * Wi-Fi screen share copy: the newest whole-display frame after [afterFrameId], scaled to [maxLongEdge]. Like
+     * [preview] it takes no new capture and has no side effects. Caller recycles the bitmap.
+     */
+    fun streamFrame(sessionId: String, afterFrameId: Long, maxLongEdge: Int): Pair<Long, Bitmap>? = synchronized(lock) {
+        if (!healthy(sessionId)) return null
+        val frame = broker.latest(sessionId) ?: return null
+        if (frame.frameId <= afterFrameId) return null
+        val source = pixels[frame.payloadHandle] ?: return null
+        val scale = minOf(1f, maxLongEdge.toFloat() / maxOf(source.width, source.height).coerceAtLeast(1))
+        val copy = if (scale >= 1f) source.copy(Bitmap.Config.ARGB_8888, false)
+        else Bitmap.createScaledBitmap(source, (source.width * scale).toInt().coerceAtLeast(1), (source.height * scale).toInt().coerceAtLeast(1), true)
+        frame.frameId to copy
+    }
+
     fun capture(cacheDir: File, crop: UiBounds? = null,
                 sessionId: String = ExecutionSession.DEFAULT_FOREGROUND_SESSION_ID,
                 waitMs: Long = 800, minCapturedAtMonotonicMs: Long? = null): CycloneAccessibilityService.ScreenshotArtifact? {

@@ -395,6 +395,20 @@ private fun GatewayControlCenter(
                                     )
                                 }
                             }
+                            val share by com.cyclone.mobile.capture.LiveCaptureSessionManager.state.collectAsState()
+                            val sharingScreen = share.scope == com.cyclone.mobile.capture.CaptureScope.WHOLE_DISPLAY &&
+                                share.phase in setOf(com.cyclone.mobile.capture.ScreenSharePhase.STARTING, com.cyclone.mobile.capture.ScreenSharePhase.LIVE)
+                            if (sharingScreen) {
+                                OutlinedButton(
+                                    onClick = { com.cyclone.mobile.capture.LiveCaptureService.stop(context); refreshTick++ },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text("Stop sharing screen with PCs") }
+                            } else {
+                                Button(
+                                    onClick = { com.cyclone.mobile.capture.LiveScreenShare.start(context, revealOverlay = false) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text("Share screen with PC (Wi-Fi)") }
+                            }
                             linkedPcs.forEach { pc ->
                                 val active = remember(refreshTick, pc.trustId) { GatewayV33TrustManager.isSessionActive(context, pc.trustId) }
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
