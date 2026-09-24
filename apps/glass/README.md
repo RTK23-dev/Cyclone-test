@@ -39,10 +39,10 @@ Development with hot reload: `npm run dev` (Vite on `127.0.0.1:5178`, proxying `
 | Page | What it shows (all computed on the phone) |
 |---|---|
 | **Home** | Phone version, apps mapped, runs and failures today, runs over the last 7 days, apps that need attention (critical scenarios, failed last run, updated since mapped), latest runs, knowledge at a glance |
-| **Devices** | Connect with a six-digit code + Allow on the phone, reconnect, disconnect |
-| **Apps** → one app | **Map** (board, inspector, start mapping at a depth, live cursor, teach), **Screens**, **Scenarios** (Sign in / Already signed in first; cards or board; mapping pass or your teaching), **Versions**, **Runs** |
-| **Runs** | Every run with filters, or grouped by **Goals** (how often each sentence worked). The inspector shows steps, rooms, map vs model, cause of death with a fix link, the route on the map, scenarios reached, a comparison with the last good run, and **Ask again** |
-| **Knowledge** | Vault slots as set / not set, **Never pressed** (guarded doors per app), skills, automations, Atlas totals |
+| **Devices** | Connect with a six-digit code + Allow on the phone, reconnect, disconnect; shows the name the phone uses for this PC (log it out on the phone under PC Gateway → Linked PCs) |
+| **Apps** → one app | **Map** (board, inspector, start mapping at a depth, live cursor, teach), **Screens**, **Scenarios** (Sign in / Already signed in first; cards or board; mapping pass or your teaching), **Versions**, **Runs**, **Issues** (every open problem with its fix) |
+| **Runs** | Every run with filters, or grouped by **Goals** (how often each sentence worked). The inspector shows steps, rooms, map vs model, cause of death with a fix link, the route on the map, scenarios reached, a comparison with the last good run, and **Ask again**; running runs update live. **Export CSV** of the runs in view |
+| **Knowledge** | Vault slots as set / not set, **Never pressed** (guarded doors per app, Show on the map), skills, automations, Atlas totals |
 | **Phone** | Live view, take control, tap / type / scroll, Ask (a finished Ask links to its run), You are here |
 | **Settings** | Connection, phones, Safety rules, keyboard shortcuts |
 
