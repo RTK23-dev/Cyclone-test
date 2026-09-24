@@ -15,6 +15,7 @@ release passed exact-source CI (phone build + tests, Windows installer build, Gl
 | [v5.0.0-alpha.15.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.15.dev1) | 5.0.0-alpha.15.dev1 | 1.6.0-alpha.15 | 1.0.0-alpha.8 | Home, Sign in scenarios, Never pressed |
 | [v5.0.0-alpha.16.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.16.dev1) | 5.0.0-alpha.16.dev1 | 1.6.0-alpha.16 | 1.0.0-alpha.9 | Linked PCs, wrong room, compare with the last good run |
 | [v5.0.0-alpha.17.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.17.dev1) | 5.0.0-alpha.17.dev1 | 1.6.0-alpha.17 | 1.0.0-alpha.10 | App Issues tab, live runs, PC connected notice |
+| [v5.0.0-alpha.18.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.18.dev1) (morning, after the first device test) | 5.0.0-alpha.18.dev1 | 1.6.0-alpha.18 | 1.0.0-alpha.11 | Self-healing live view, real USB reasons, Glass shows its Cyclone build |
 
 Another session works on the same version line: it published alpha.9 (Teal Matrix redesign) and claimed alpha.12 (calmer
 Trace Field, no release tag). Their branches were merged in, not overwritten, so every release above contains that work.
