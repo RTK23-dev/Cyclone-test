@@ -138,7 +138,7 @@ export function createAppKnowledgePage(
       statTile("Critical", String(counts.critical), counts.critical ? "danger" : "neutral"),
       statTile("Warnings", String(counts.warning), counts.warning ? "warning" : "neutral"),
       statTile("Notes", String(counts.info)),
-      statTile("Checked", "map · scenarios · runs"),
+      statTile("Open issues", String(issues.length)),
     );
     const list = el("div", "issue-list");
     for (const issue of issues) {
