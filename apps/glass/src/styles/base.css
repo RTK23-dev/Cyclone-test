@@ -70,3 +70,8 @@ code {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* `hidden` must win over component display rules (cards are flex). */
+[hidden] {
+  display: none !important;
+}
