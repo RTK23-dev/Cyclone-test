@@ -95,19 +95,27 @@ export function createAskPanel(deps: AskPanelDeps): AskPanel {
   let busy = false;
   let askedAt: number | null = null;
   let runLink: { askedAt: number; runId: string } | null = null;
+  let looking = false;
   const now = deps.now ?? Date.now;
 
   /** Once per Ask: find its run so the link opens the inspector, not the whole list. */
   const findRun = (): void => {
     const since = askedAt;
-    if (since === null || !deps.latestRun || runLink?.askedAt === since) return;
-    void deps.latestRun(since - 5_000).then((runId) => {
+    if (since === null || !deps.latestRun || runLink?.askedAt === since || looking) return;
+    looking = true;
+    void deps.latestRun(since - 5_000).finally(() => {
+      looking = false;
+    }).then((runId) => {
       if (destroyed || !runId || askedAt !== since) return;
       runLink = { askedAt: since, runId };
+      const terminal = TERMINAL.has((hud.dataset.state ?? "idle") as AskStatusView["state"]);
       const current = hud.querySelector(".ask-runs-link") as HTMLAnchorElement | null;
+      const text = terminal ? "Open this run" : "Watch it step by step";
       if (current) {
-        current.textContent = "Open this run";
+        current.textContent = text;
         current.href = `#/runs/${encodeURIComponent(runId)}`;
+      } else if (hud.children.length) {
+        hud.append(link(text, `#/runs/${encodeURIComponent(runId)}`, "ask-runs-link"));
       }
     }).catch(() => undefined);
   };
@@ -132,14 +140,14 @@ export function createAskPanel(deps: AskPanelDeps): AskPanel {
       status.milestones.length ? steps : null,
       status.supportingCopy ? el("p", "ask-copy", status.supportingCopy) : null,
       status.outcomeCopy ? el("p", "ask-outcome", status.outcomeCopy) : null,
-      TERMINAL.has(status.state)
-        ? runLink && runLink.askedAt === askedAt
-          ? link("Open this run", `#/runs/${encodeURIComponent(runLink.runId)}`, "ask-runs-link")
-          : link("See every step in Runs", "#/runs", "ask-runs-link")
-        : null,
+      runLink && runLink.askedAt === askedAt
+        ? link(TERMINAL.has(status.state) ? "Open this run" : "Watch it step by step", `#/runs/${encodeURIComponent(runLink.runId)}`, "ask-runs-link")
+        : TERMINAL.has(status.state)
+          ? link("See every step in Runs", "#/runs", "ask-runs-link")
+          : null,
     );
     hud.dataset.state = status.state;
-    if (TERMINAL.has(status.state)) findRun();
+    findRun();
   };
 
   const schedule = (): void => {

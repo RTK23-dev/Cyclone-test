@@ -214,3 +214,18 @@ test("recent sentences fill the Ask box without sending", async () => {
   assert.equal(fake.gateway.calls.filter((c) => c.path.endsWith("/ask/start")).length, 0, "choosing a sentence never sends it");
   page.destroy();
 });
+
+test("while an Ask is working, Glass links to its live run", async () => {
+  const fake = phone();
+  const { page } = open(fake);
+  await flush();
+  fake.state.runs = [{ runId: "ai-run-live", goal: "open clock", model: "m", status: "running", startedAt: Date.now() + 10, endedAt: null, durationMs: 1, decisions: 1, stepCount: 1, metrics: {}, cause: null }];
+  page.element.querySelector(".ask-input").value = "open clock";
+  page.element.querySelector(".ask-form").dispatchEvent({ type: "submit" });
+  await flush();
+  await flush();
+  const live = page.element.querySelector(".ask-runs-link");
+  assert.equal(live.textContent, "Watch it step by step");
+  assert.equal(live.href ?? live.getAttribute("href"), "#/runs/ai-run-live");
+  page.destroy();
+});
