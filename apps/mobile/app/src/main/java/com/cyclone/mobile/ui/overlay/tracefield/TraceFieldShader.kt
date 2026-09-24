@@ -46,6 +46,7 @@ layout(color) uniform half4 warm;
 layout(color) uniform half4 ink;
 layout(color) uniform half4 accent;
 
+// Seeded hash: only for effects that may legitimately vary per page (none flicker per frame).
 float h21(float2 p) {
     p = fract(p * float2(123.34, 456.21) + float2(seed * 0.0137, seed * 0.0071));
     p += dot(p, p + 45.32);
@@ -62,32 +63,35 @@ float atlasA(float g, float2 local, float row) {
     return float(atlas.eval(float2(g * cell.x + l.x, row * cell.y + l.y)).a);
 }
 
+// Seed-free hash. Layout, timing and glyph identity all use it, so a new page fingerprint never
+// reshuffles the whole field in one frame (that full-field jump read as violent flicker).
+float n21(float2 p) {
+    p = fract(p * float2(233.34, 851.73));
+    p += dot(p, p + 23.45);
+    return fract(p.x * p.y);
+}
+
 // Resolves the glyph cell under xy. Returns false for empty cells.
 bool cellAt(float2 xy, float2 size, float layer, float shift, float colGate,
             out float2 local, out float g, out float gPrev, out float age) {
     float col = floor(xy.x / size.x);
-    float colRate = 0.6 + 0.8 * h21(float2(col, layer * 17.0 + 3.0));
+    float colRate = 0.6 + 0.8 * n21(float2(col, layer * 17.0 + 3.0));
     float2 p = float2(xy.x, xy.y - shift * colRate);
     float2 c = floor(p / size);
     local = (p - c * size) * (cell / size);
     g = 0.0; gPrev = 0.0; age = 0.0;
     // Column rhythm plus sparse cells: the field reads as fine streams, never a wall of text.
-    if (h21(float2(col, layer * 5.0 + 11.0)) < colGate) return false;
-    if (h21(c + layer * 31.0) < 0.5 + layer * 0.2) return false;
-    float rate = 5.0 + 9.0 * h21(c + 3.1) + scramble * 30.0;
-    float phase = clock * rate + h21(c + 7.7) * 10.0;
+    if (n21(float2(col, layer * 5.0 + 11.0)) < colGate) return false;
+    if (n21(c + layer * 31.0) < 0.5 + layer * 0.2) return false;
+    // Calm cadence: each digit changes every ~1-4 s (recovery only doubles it) and cross-fades,
+    // so the field breathes instead of strobing.
+    float rate = 0.25 + 0.7 * n21(c + 3.1) + scramble * 0.9;
+    float phase = clock * rate + n21(c + 7.7) * 10.0;
     float tick = floor(phase);
     age = phase - tick;
-    g = floor(h21(c + tick * 0.618) * glyphCount);
-    gPrev = floor(h21(c + (tick - 1.0) * 0.618) * glyphCount);
+    g = floor(n21(c + tick * 0.618) * glyphCount);
+    gPrev = floor(n21(c + (tick - 1.0) * 0.618) * glyphCount);
     return true;
-}
-
-// Seed-free hash: the aurora must not jump when a new page fingerprint reseeds the digits.
-float n21(float2 p) {
-    p = fract(p * float2(233.34, 851.73));
-    p += dot(p, p + 23.45);
-    return fract(p.x * p.y);
 }
 
 float vnoise(float2 p) {
@@ -143,16 +147,27 @@ half4 main(float2 xy) {
     float coreR = 0.0;
     float coreB = 0.0;
     bool hasCell = cellAt(q, cell, 0.0, flow, colGate, local, g, gPrev, age);
+    float swap = 1.0;
     if (hasCell) {
+        // Cross-fade from the previous digit over the first 40% of each tick: no hard cuts.
+        swap = smoothstep(0.0, 0.4, age);
         core = atlasA(g, local, 0.0);
         halo = atlasA(g, local, 1.0);
+        if (swap < 1.0) {
+            core = mix(atlasA(gPrev, local, 0.0), core, swap);
+            halo = mix(atlasA(gPrev, local, 1.0), halo, swap);
+        }
     }
     float far = 0.0;
     float2 localF; float gF; float gPrevF; float ageF;
     bool chameleon = style > 1.5 && style < 2.5;
     if (cellAt(q + float2(cell.x * 0.37, cell.y * 0.21), cell * 0.72, 1.0, flow * 0.6, colGate, localF, gF, gPrevF, ageF)) {
         // Chameleon uses the blurred row: real depth of field.
-        far = atlasA(gF, localF, chameleon ? 2.0 : 0.0) * (chameleon ? 0.4 : 0.24);
+        float rowF = chameleon ? 2.0 : 0.0;
+        float swapF = smoothstep(0.0, 0.4, ageF);
+        float farNow = atlasA(gF, localF, rowF);
+        if (swapF < 1.0) farNow = mix(atlasA(gPrevF, localF, rowF), farNow, swapF);
+        far = farNow * (chameleon ? 0.4 : 0.24);
     }
     if (hasCell && style > 0.5 && style < 1.5) {
         // Forge: the previous digit lingers as a cooling afterglow.
@@ -209,7 +224,8 @@ half4 main(float2 xy) {
     float mask = max(m, e);
     if (mask < 0.004) return half4(0.0);
 
-    float twinkle = 0.45 + 0.55 * h21(floor(q / cell) + floor(clock * 2.0));
+    // Slow continuous shimmer per cell (was a random brightness step twice a second).
+    float twinkle = 0.72 + 0.28 * sin(clock * 1.1 + n21(floor(q / cell)) * 6.28318);
     coreR = core;
     coreB = core;
     if (hasCell && style < 0.5) {

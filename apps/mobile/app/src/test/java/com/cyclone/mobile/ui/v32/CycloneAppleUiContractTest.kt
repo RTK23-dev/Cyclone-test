@@ -148,7 +148,14 @@ class CycloneAppleUiContractTest {
             File("src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"),
             File("apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/OverlayChrome.kt"),
         ).first { it.isFile }.readText()
-        assertTrue(overlayChrome.contains("ComposerAccessory.MODEL -> OverlayAppleGlass("))
+        // Model & intelligence now lives in the bottom tools drawer, never inside the work panel.
+        val sheet = sequenceOf(
+            File("src/main/java/com/cyclone/mobile/ui/overlay/OverlayToolsSheet.kt"),
+            File("apps/mobile/app/src/main/java/com/cyclone/mobile/ui/overlay/OverlayToolsSheet.kt"),
+        ).first { it.isFile }.readText()
+        assertTrue(sheet.contains("ComposerAccessory.MODEL -> Box("))
+        assertTrue(sheet.contains("CycloneModelIntelligencePanel("))
+        assertFalse(overlayChrome.contains("ComposerAccessory.MODEL ->"))
         assertFalse(overlayChrome.contains("ComposerAccessory.MODEL -> CycloneLiquidPanel("))
     }
 

@@ -179,7 +179,7 @@ class OverlayChromeController(
     private fun lockScreenBlocked() = OverlayLockScreenPolicy.blocked(screenOff, keyguard.isKeyguardLocked, power.isInteractive)
     private fun hideLockedWindows(): Boolean {
         if (!lockScreenBlocked()) return false
-        val attached = listOfNotNull(root, haloRoot, shareRoot, activeBorder)
+        val attached = listOfNotNull(root, haloRoot, shareRoot, sheetRoot)
         if (attached.any { it.visibility == View.VISIBLE }) speechRecognizer?.cancel()
         attached.forEach { it.visibility = View.GONE }
         return true
@@ -248,10 +248,14 @@ class OverlayChromeController(
     private val idleActivation = OverlayIdleActivationTracker()
     private var root: ComposeView? = null
     private var params: WindowManager.LayoutParams? = null
-    private var activeBorder: View? = null
     private var shareRoot: ComposeView? = null
     private var haloRoot: ComposeView? = null
     private var haloParams: WindowManager.LayoutParams? = null
+    private var sheetRoot: android.widget.FrameLayout? = null
+    private var sheetCompose: ComposeView? = null
+    private var sheetParams: WindowManager.LayoutParams? = null
+    private var sheetCloseRequests by mutableStateOf(0)
+    private var sheetLastPage = com.cyclone.mobile.ui.overlay.ComposerAccessory.ATTACHMENTS
     private var latest by mutableStateOf(OverlayChromeSnapshot())
     private var aiSettings by mutableStateOf(OverlayAiSettings())
     private var idleVisualState by mutableStateOf(OverlayIdleVisualState())
@@ -292,6 +296,8 @@ class OverlayChromeController(
                 setContent {
                     val externalActive by OverlayExternalInteraction.active.collectAsState()
                     val secretCardState by com.cyclone.mobile.secrets.SecretsCardRuntime.state.collectAsState()
+                    val sheetPage by com.cyclone.mobile.ui.overlay.OverlayToolsSheetState.page.collectAsState()
+                    LaunchedEffect(sheetPage) { syncToolsSheet(sheetPage) }
                     LaunchedEffect(externalActive, secretCardState?.visible) {
                         aiSettings = getAiSettings()
                         applyLayout(latest)
@@ -393,9 +399,12 @@ class OverlayChromeController(
             latest = OverlayChromeSnapshot(idleChipVisible = false)
             backgroundTask = null
             windows.clear()
-            listOfNotNull(root, haloRoot, shareRoot).forEach { it.disposeComposition() }
+            listOfNotNull(root, haloRoot, shareRoot, sheetCompose).forEach { it.disposeComposition() }
+            sheetCompose = null
+            com.cyclone.mobile.ui.overlay.OverlayToolsSheetState.close()
+            sheetRoot = null
+            sheetParams = null
             shareRoot = null
-            activeBorder = null
             root = null
             params = null
             haloRoot = null
@@ -423,7 +432,7 @@ class OverlayChromeController(
             share.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             share.visibility = if (yieldHost || OverlayExternalInteraction.active.value) View.GONE else View.VISIBLE
         }
-        renderActiveBorder(snapshot)
+        sheetRoot?.visibility = if (yieldHost) View.GONE else View.VISIBLE
         val view = root ?: return
         val layout = params ?: return
         val secretVisible = com.cyclone.mobile.secrets.SecretsCardRuntime.state.value?.visible == true
@@ -476,44 +485,109 @@ class OverlayChromeController(
         hostGestureYielded = yieldHost
     }
 
-    /** Decoration never owns touch/focus and yields with every explicit external interaction. */
-    private fun renderActiveBorder(snapshot: OverlayChromeSnapshot) {
-        if (OverlayGesturePassthrough.active() ||
-            com.cyclone.mobile.secrets.SecretsCardRuntime.state.value?.visible == true
-        ) {
-            activeBorder?.visibility = View.GONE
+    /**
+     * The + tools drawer: a full-screen window above the Ask overlay. It blurs everything behind it
+     * (cross-window blur, animated with the sheet) and owns focus only so Back closes it.
+     */
+    private fun syncToolsSheet(page: com.cyclone.mobile.ui.overlay.ComposerAccessory) {
+        if (page == com.cyclone.mobile.ui.overlay.ComposerAccessory.NONE) {
+            sheetRoot?.let { windows.remove(it) }
+            sheetCompose?.disposeComposition()
+            sheetCompose = null
+            sheetRoot = null
+            sheetParams = null
             return
         }
-        val active = !OverlayExternalInteraction.active.value &&
-            !snapshot.userPaused &&
-            snapshot.state in setOf(OverlayChromeState.WORKING, OverlayChromeState.LIVE)
-        if (!active) {
-            activeBorder?.let { windows.remove(it) }
-            activeBorder = null
-            return
+        sheetLastPage = page
+        if (sheetRoot != null || root == null || lockScreenBlocked()) return
+        val blurAvailable = runCatching { wm.isCrossWindowBlurEnabled }.getOrDefault(false)
+        val maxBlurPx = com.cyclone.mobile.ui.overlay.OverlayToolsSheetPhysics.BLUR_DP * service.resources.displayMetrics.density
+        val content = ComposeView(service).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val current by com.cyclone.mobile.ui.overlay.OverlayToolsSheetState.page.collectAsState()
+                val sharing by LiveCaptureSessionManager.state.collectAsState()
+                com.cyclone.mobile.ui.v32.CycloneV32Theme(drawBackground = false) {
+                    com.cyclone.mobile.ui.overlay.OverlayToolsSheet(
+                        page = if (current == com.cyclone.mobile.ui.overlay.ComposerAccessory.NONE) sheetLastPage else current,
+                        sharingActive = sharing.active,
+                        aiSettings = aiSettings,
+                        onAiSettingsChanged = { next ->
+                            aiSettings = next
+                            onAiSettingsChanged(next)
+                        },
+                        actions = com.cyclone.mobile.ui.overlay.OverlayToolsSheetActions(
+                            onCamera = { launchFromSheet(Intent(service, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java).putExtra("camera", true)) },
+                            onPhotos = { launchFromSheet(Intent(service, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java).putExtra("photos", true)) },
+                            onFiles = { launchFromSheet(Intent(service, com.cyclone.mobile.ui.overlay.OverlayAttachmentActivity::class.java)) },
+                            onShareScreen = { launchFromSheet(Intent(service, com.cyclone.mobile.capture.LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true)) },
+                            onCrossAppShare = { launchFromSheet(Intent(service, com.cyclone.mobile.capture.LiveCaptureConsentActivity::class.java).putExtra("wholeDisplay", true)) },
+                        ),
+                        blurAvailable = blurAvailable,
+                        onBlurFraction = { fraction -> setSheetBlur((fraction * maxBlurPx).toInt(), blurAvailable) },
+                        closeRequests = sheetCloseRequests,
+                        onClosed = { com.cyclone.mobile.ui.overlay.OverlayToolsSheetState.close() },
+                    )
+                }
+            }
         }
-        activeBorder?.visibility = View.VISIBLE
-        if (activeBorder != null) return
-        val border = object : View(service) {
-            private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                style = android.graphics.Paint.Style.STROKE
-                strokeWidth = 2f * resources.displayMetrics.density
+        // ComposeView is final; a thin host catches Back so it runs the same smooth close as a drag.
+        val sheet = object : android.widget.FrameLayout(service) {
+            override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+                if (event.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                    if (event.action == android.view.KeyEvent.ACTION_UP) sheetCloseRequests++
+                    return true
+                }
+                return super.dispatchKeyEvent(event)
             }
-            override fun onDraw(canvas: android.graphics.Canvas) {
-                super.onDraw(canvas)
-                val inset = paint.strokeWidth / 2
-                paint.shader = android.graphics.LinearGradient(0f, 0f, width.toFloat(), height.toFloat(),
-                    intArrayOf(0xFFA5C8FF.toInt(), 0xFFC4B8FF.toInt(), 0xFF8DE3D2.toInt()), null,
-                    android.graphics.Shader.TileMode.CLAMP)
-                canvas.drawRoundRect(inset, inset, width - inset, height - inset,
-                    24f * resources.displayMetrics.density, 24f * resources.displayMetrics.density, paint)
-            }
-        }.apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
-        val layout = WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+        }.apply {
+            setViewTreeLifecycleOwner(lifecycle)
+            setViewTreeViewModelStoreOwner(lifecycle)
+            setViewTreeSavedStateRegistryOwner(lifecycle)
+            addView(content)
+        }
+        val layout = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT)
-        runCatching { addWindow(border, layout); activeBorder = border }
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                (if (blurAvailable) WindowManager.LayoutParams.FLAG_BLUR_BEHIND else 0),
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+            fitInsetsTypes = 0
+            if (blurAvailable) blurBehindRadius = 0
+        }
+        sheetCloseRequests = 0
+        sheetParams = layout
+        sheetRoot = sheet
+        sheetCompose = content
+        runCatching { addWindow(sheet, layout) }.onFailure {
+            content.disposeComposition()
+            sheetCompose = null
+            sheetRoot = null
+            sheetParams = null
+            com.cyclone.mobile.ui.overlay.OverlayToolsSheetState.close()
+        }
+    }
+
+    private fun setSheetBlur(radiusPx: Int, blurAvailable: Boolean) {
+        if (!blurAvailable) return
+        val view = sheetRoot ?: return
+        val layout = sheetParams ?: return
+        if (kotlin.math.abs(layout.blurBehindRadius - radiusPx) < 2 && radiusPx != 0) return
+        layout.blurBehindRadius = radiusPx.coerceAtLeast(0)
+        runCatching { wm.updateViewLayout(view, layout) }
+    }
+
+    /** Opening a picker/consent screen closes the drawer at once and yields the Ask overlay. */
+    private fun launchFromSheet(intent: Intent) {
+        com.cyclone.mobile.ui.overlay.OverlayToolsSheetState.close()
+        OverlayExternalInteraction.active.value = true
+        runCatching { service.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            .onFailure {
+                OverlayExternalInteraction.active.value = false
+                Toast.makeText(service, "This action is unavailable.", Toast.LENGTH_SHORT).show()
+            }
     }
 
     private fun overlayParams(snapshot: OverlayChromeSnapshot): WindowManager.LayoutParams =

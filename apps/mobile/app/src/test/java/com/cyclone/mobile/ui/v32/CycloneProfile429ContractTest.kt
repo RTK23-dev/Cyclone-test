@@ -97,7 +97,8 @@ class CycloneProfile429ContractTest {
         assertTrue(controls.contains("models.forEachIndexed"))
         assertFalse(controls.contains("DropdownMenu("))
         assertFalse(controls.contains("OpenRouterModelPresets.all.forEach"))
-        assertTrue(overlay.contains("CycloneModelIntelligencePanel("))
+        assertTrue(overlay.contains("OverlayToolsSheetState"))
+        assertTrue(source("ui/overlay/OverlayToolsSheet.kt").contains("CycloneModelIntelligencePanel("))
     }
 
     @Test fun inAppComposerUsesPlusMenuAndSharedModelIntelligenceSheet() {

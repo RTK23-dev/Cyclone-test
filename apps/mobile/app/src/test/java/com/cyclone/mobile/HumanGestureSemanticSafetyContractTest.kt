@@ -123,7 +123,7 @@ class HumanGestureSemanticSafetyContractTest {
         val flagsFor = slice(controller, "private fun flagsFor", "fun syncHostGesturePassthrough")
         assertTrue("OverlayGesturePassthrough.active()" in flagsFor)
         assertTrue("withHostGesturePassthrough" in flagsFor)
-        val applyLayout = slice(controller, "private fun applyLayout", "/** Decoration never owns")
+        val applyLayout = slice(controller, "private fun applyLayout", "private fun syncToolsSheet")
         assertTrue("OverlayGesturePassthrough.active()" in applyLayout)
         assertTrue("View.GONE" in applyLayout)
         assertTrue("IMPORTANT_FOR_ACCESSIBILITY_NO" in applyLayout)
