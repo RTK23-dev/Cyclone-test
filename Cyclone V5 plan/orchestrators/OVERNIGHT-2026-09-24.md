@@ -17,6 +17,8 @@ release passed exact-source CI (phone build + tests, Windows installer build, Gl
 | [v5.0.0-alpha.17.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.17.dev1) | 5.0.0-alpha.17.dev1 | 1.6.0-alpha.17 | 1.0.0-alpha.10 | App Issues tab, live runs, PC connected notice |
 | [v5.0.0-alpha.18.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.18.dev1) (morning, after the first device test) | 5.0.0-alpha.18.dev1 | 1.6.0-alpha.18 | 1.0.0-alpha.11 | Self-healing live view, real USB reasons, Glass shows its Cyclone build |
 | [v5.0.0-alpha.19.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.19.dev1) | 5.0.0-alpha.19.dev1 | 1.6.0-alpha.19 | 1.0.0-alpha.12 | Wi-Fi screen share (AnyDesk-style, phase 1) |
+| [v5.0.0-alpha.20.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.20.dev1) (other session) | 5.0.0-alpha.20.dev1 | 1.6.0-alpha.20 | 1.0.0-alpha.12 | Teal Matrix v2 phone visuals |
+| [v5.0.0-alpha.21.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.21.dev1) | 5.0.0-alpha.21.dev1 | 1.6.0-alpha.21 | 1.0.0-alpha.13 | Multi-app navigation (v5/navigation, reviewed and fixed) + Teal Matrix v2 |
 
 Another session works on the same version line: it published alpha.9 (Teal Matrix redesign) and claimed alpha.12 (calmer
 Trace Field, no release tag). Their branches were merged in, not overwritten, so every release above contains that work.
@@ -35,6 +37,21 @@ Trace Field, no release tag). Their branches were merged in, not overwritten, so
   health from real runs, board view, mapping pass or your teaching, stale flag), Versions (needs remap), Runs.
 - **Knowledge**: Vault slots as set / not set, **Never pressed** (guarded pay / send / delete doors per app), skills,
   automations. Settings has a Safety card and the keyboard shortcuts.
+
+## alpha.21: multi-app navigation
+
+Another agent built `v5/navigation` from [`HANDOFF-navigation-multi-app.md`](HANDOFF-navigation-multi-app.md) (draft PR #178)
+and ran out of usage before closing two gaps it had found. A review confirmed both and found a third; all three are fixed
+in alpha.21 with tests (`NavigationHardeningTest`):
+
+- Learned App Learner routes could click an account-creation submit without approval → they now pass the same clause
+  boundary as model taps.
+- Screens captured during a mapping pass were labelled live → observations now record their producer; only ordinary live
+  captures feed the task ledger, clause proof and people memory.
+- Every sentence naming an app took the clause route and lost Stage 1 Fast Path and compiled skills → clause runs are
+  used only when a sentence needs them; single-clause runs may replay skills, and clause proof still decides completion.
+
+Test it with the five sentences in [`12-navigation-eval.md`](../12-navigation-eval.md) and record results there.
 
 ## Left for the owner (not done on purpose)
 
