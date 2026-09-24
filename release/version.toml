@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.19 dev1 + Cyclone Glass 1.0.0-alpha.12: Wi-Fi screen share (AnyDesk-style, phase 1): the phone streams its
-# own screen to a trusted PC over an encrypted Wi-Fi channel; live view prefers it and falls back to USB.
+# own screen to a trusted PC over an encrypted Wi-Fi channel; live view prefers it and falls back to USB. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.19.dev1"
 channel = "development"
