@@ -101,6 +101,21 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
 
   element.append(header, tabs, bar, board);
 
+  // Run inspector v2: "Show on the map" lights up the rooms a run walked through, in order.
+  if (route.route?.length) {
+    canvas.setRoute(route.route);
+    const banner = el("div", "route-banner");
+    banner.setAttribute("role", "status");
+    banner.append(
+      el("span", "route-banner-dot"),
+      el("span", undefined, `Showing the route of a run: ${route.route.length} ${route.route.length === 1 ? "room" : "rooms"}, numbered in order.`),
+    );
+    if (route.runId) banner.append(link("Back to the run", `#/runs/${encodeURIComponent(route.runId)}`, "route-banner-link"));
+    const clear = link("Hide route", `#/apps/${encodeURIComponent(placeId)}/map`, "route-banner-link");
+    banner.append(clear);
+    element.insertBefore(banner, board);
+  }
+
   const watcher: MappingWatcher = createMappingWatcher({
     ops: phone,
     onJob: (next) => {

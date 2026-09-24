@@ -3,7 +3,7 @@ export type AppTab = "map";
 
 export type Route =
   | { name: "apps" }
-  | { name: "app"; placeId: string; tab: AppTab }
+  | { name: "app"; placeId: string; tab: AppTab; route?: string[]; runId?: string }
   | { name: "runs" }
   | { name: "run"; runId: string }
   | { name: "phone" }
@@ -12,13 +12,25 @@ export type Route =
 
 export const DEFAULT_ROUTE: Route = { name: "apps" };
 
+const ROOM_ID = /^screen:[a-z_]{1,40}:[0-9a-f]{8,64}$/;
+
 export function parseRoute(hash: string): Route {
-  const path = hash.replace(/^#/, "").split(/[?&]/, 1)[0] ?? "";
+  const raw = hash.replace(/^#/, "");
+  const path = raw.split(/[?&]/, 1)[0] ?? "";
+  const query = new URLSearchParams(raw.includes("?") ? raw.slice(raw.indexOf("?") + 1) : "");
   const parts = path.split("/").filter(Boolean);
   if (parts[0] === "apps" && parts.length >= 2) {
     const placeId = safeDecode(parts[1] ?? "");
-    if (placeId) return { name: "app", placeId, tab: "map" };
-    return DEFAULT_ROUTE;
+    if (!placeId) return DEFAULT_ROUTE;
+    const route = (query.get("route") ?? "").split(",").filter((id) => ROOM_ID.test(id)).slice(0, 60);
+    const runId = query.get("run") ?? "";
+    return {
+      name: "app",
+      placeId,
+      tab: "map",
+      ...(route.length ? { route } : {}),
+      ...(/^[A-Za-z0-9_-]{4,120}$/.test(runId) ? { runId } : {}),
+    };
   }
   if (parts[0] === "runs" && parts.length >= 2) {
     const runId = safeDecode(parts[1] ?? "");
@@ -35,8 +47,14 @@ export function routeHref(route: Route): string {
   switch (route.name) {
     case "apps":
       return "#/apps";
-    case "app":
-      return `#/apps/${encodeURIComponent(route.placeId)}/${route.tab}`;
+    case "app": {
+      const base = `#/apps/${encodeURIComponent(route.placeId)}/${route.tab}`;
+      const query = new URLSearchParams();
+      if (route.route?.length) query.set("route", route.route.join(","));
+      if (route.runId) query.set("run", route.runId);
+      const text = query.toString();
+      return text ? `${base}?${text}` : base;
+    }
     case "runs":
       return "#/runs";
     case "run":

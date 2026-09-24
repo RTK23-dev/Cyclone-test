@@ -124,6 +124,16 @@ class MiniNode {
     this.children.push(node);
     return node;
   }
+  insertBefore(node, reference) {
+    if (!reference) return this.appendChild(node);
+    node.remove?.();
+    node.parentNode = this;
+    node.parentElement = this;
+    node.ownerDocument = this.ownerDocument;
+    const at = this.children.indexOf(reference);
+    this.children.splice(at < 0 ? this.children.length : at, 0, node);
+    return node;
+  }
   replaceChildren(...nodes) {
     this.children.splice(0).forEach((child) => {
       child.parentNode = null;

@@ -447,3 +447,32 @@ internal object MappingStructuralProjection {
     private val BACK = Regex("""\b(back|close|dismiss)\b""")
     private val HOME = Regex("""\bhome\b""")
 }
+
+/**
+ * Where a run step happened, for the run inspector (run record v2): the structural room key, the app and its
+ * installed version. Structural only: no labels, text or values. Chrome pages report the browser package.
+ */
+internal object StepLocation {
+    private val versions = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    fun detail(context: android.content.Context, sessionId: String, after: Boolean): String? = runCatching {
+        val current = GatewayObservationStore.current(sessionId) ?: return null
+        val room = StructuralRoomClassifier.nodeKey(MappingStructuralProjection.fromGateway(current))
+        if (after) return "roomAfter=$room"
+        val pkg = current.page.packageName.takeIf { PACKAGE.matches(it) }
+        listOfNotNull(
+            "room=$room",
+            pkg?.let { "place=package:$it" },
+            pkg?.let { name -> versionOf(context, name)?.let { "appv=$it" } },
+        ).joinToString(" · ")
+    }.getOrNull()
+
+    private fun versionOf(context: android.content.Context, packageName: String): String? =
+        versions[packageName] ?: runCatching {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(packageName, 0).versionName
+        }.getOrNull()?.replace(Regex("[^A-Za-z0-9._+-]"), "")?.take(40)?.takeIf { it.isNotBlank() }
+            ?.also { versions[packageName] = it }
+
+    private val PACKAGE = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
+}

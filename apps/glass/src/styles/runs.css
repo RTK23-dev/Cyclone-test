@@ -88,6 +88,10 @@ a.run-row:hover {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+.stats-7 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
 .cause-card {
   border-left: 4px solid var(--warning);
 }
@@ -313,7 +317,8 @@ a.run-row:hover {
     grid-template-columns: 1fr;
   }
 
-  .stats-6 {
+  .stats-6,
+  .stats-7 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -322,4 +327,67 @@ a.run-row:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+}
+
+/* Run inspector v2: the run's route and where each step was. */
+.timeline-source {
+  margin-left: auto;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.route-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.route-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.route-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.route-rooms {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.route-room {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+  font-size: var(--text-sm);
+}
+
+.route-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 600;
 }

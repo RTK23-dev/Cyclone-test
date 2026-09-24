@@ -425,3 +425,45 @@
     position: static;
   }
 }
+
+/* A run's route drawn on the map (run inspector v2). */
+.map-edge.on-route {
+  stroke: var(--accent);
+  stroke-width: 3.5;
+  stroke-opacity: 1;
+}
+
+.map-card.on-route {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-md);
+}
+
+.map-card .route-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+}
+
+.route-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+}
+
+.route-banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+.route-banner-link {
+  font-weight: 600;
+  color: var(--accent-text);
+}

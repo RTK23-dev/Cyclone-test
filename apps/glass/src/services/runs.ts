@@ -38,6 +38,17 @@ export interface RunSummary {
   stepCount: number;
   metrics: RunMetrics;
   cause: RunCause | null;
+  /** Run record v2 (phone alpha.11+). Null on older phones. */
+  mapSteps: number | null;
+  modelSteps: number | null;
+  places: RunPlace[];
+}
+
+export interface RunPlace {
+  placeId: string;
+  appVersion: string | null;
+  /** Structural rooms in the order the run walked through them (same ids as the app's Map). */
+  route: string[];
 }
 
 export interface RunEvent {
@@ -62,6 +73,11 @@ export interface RunStep {
   vision: boolean;
   eventsTruncated: boolean;
   events: RunEvent[];
+  roomId: string | null;
+  roomAfter: string | null;
+  placeId: string | null;
+  appVersion: string | null;
+  decisionSource: "map" | "model" | null;
 }
 
 export interface RunDetail extends RunSummary {
@@ -72,6 +88,9 @@ export interface RunDetail extends RunSummary {
 
 const STATUSES = new Set<RunStatus>(["running", "suspended", "completed", "failed", "cancelled"]);
 const OUTCOMES = new Set<StepOutcome>(["ok", "failed", "unverified", "recovered", "info"]);
+const ROOM = /^screen:[a-z_]{1,40}:[0-9a-f]{8,64}$/;
+const PLACE = /^package:[A-Za-z][A-Za-z0-9_.]{1,150}$/;
+const VERSION = /^[A-Za-z0-9._+-]{1,40}$/;
 
 export async function listRuns(client: GatewayClient, deviceId: string, filter: RunFilter = "all", limit = 100, signal?: AbortSignal): Promise<RunSummary[]> {
   const body = await client.get<{ runs?: unknown }>(
@@ -121,7 +140,47 @@ export function parseRunSummary(raw: unknown): RunSummary | null {
           fix: str(cause.fix),
         }
       : null,
+    mapSteps: typeof r.mapSteps === "number" ? r.mapSteps : null,
+    modelSteps: typeof r.modelSteps === "number" ? r.modelSteps : null,
+    places: Array.isArray(r.places) ? r.places.map(parsePlace).filter((place): place is RunPlace => place !== null) : [],
   };
+}
+
+function parsePlace(raw: unknown): RunPlace | null {
+  const r = record(raw);
+  const placeId = str(r.placeId);
+  if (!PLACE.test(placeId)) return null;
+  return {
+    placeId,
+    appVersion: match(r.appVersion, VERSION),
+    route: Array.isArray(r.route) ? r.route.filter((room): room is string => typeof room === "string" && ROOM.test(room)).slice(0, 60) : [],
+  };
+}
+
+function match(value: unknown, pattern: RegExp): string | null {
+  return typeof value === "string" && pattern.test(value) ? value : null;
+}
+
+/** "screen:list:3fa2…" → "List screen · 3fa2". The phone keeps rooms structural; Glass only names the shape. */
+export function roomLabel(roomId: string): string {
+  const [, purpose = "screen", digest = ""] = roomId.split(":");
+  const words = purpose.replace(/_/g, " ");
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)} screen · ${digest.slice(0, 4)}`;
+}
+
+export function appName(placeId: string): string {
+  const pkg = placeId.replace(/^package:/, "");
+  const known: Record<string, string> = {
+    "com.google.android.gm": "Gmail",
+    "com.android.chrome": "Chrome",
+    "com.facebook.katana": "Facebook",
+    "com.instagram.android": "Instagram",
+    "com.whatsapp": "WhatsApp",
+    "com.spotify.music": "Spotify",
+    "com.google.android.deskclock": "Clock",
+    "com.google.android.youtube": "YouTube",
+  };
+  return known[pkg] ?? pkg.split(".").filter((part) => !["com", "android", "google", "app"].includes(part)).pop() ?? pkg;
 }
 
 export function parseRunDetail(raw: unknown): RunDetail | null {
@@ -160,6 +219,11 @@ function parseStep(raw: unknown): RunStep | null {
           };
         })
       : [],
+    roomId: match(r.roomId, ROOM),
+    roomAfter: match(r.roomAfter, ROOM),
+    placeId: match(r.placeId, PLACE),
+    appVersion: match(r.appVersion, VERSION),
+    decisionSource: r.decisionSource === "map" || r.decisionSource === "model" ? r.decisionSource : null,
   };
 }
 

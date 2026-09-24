@@ -687,3 +687,39 @@ def test_glass_alpha2_run_not_found_is_named():
     with pytest.raises(DesktopRuntimeError) as error:
         svc.runs_get("phone-1", "ai-missing")
     assert error.value.code == "RUN_NOT_FOUND"
+
+
+RUN_V2_SUMMARY = {
+    **RUN_SUMMARY,
+    "mapSteps": 1,
+    "modelSteps": 1,
+    "places": [{"placeId": "package:com.facebook.katana", "appVersion": "512.0.0", "route": ["screen:home:0123456789abcdef", "screen:list:aaaaaaaaaaaaaaaa"]}],
+}
+RUN_V2_STEP = {**RUN_STEP, "roomId": "screen:home:0123456789abcdef", "roomAfter": None, "placeId": "package:com.facebook.katana", "appVersion": "512.0.0", "decisionSource": "map"}
+
+
+def test_glass_alpha4_run_record_v2_passes_and_v1_phones_still_work():
+    detail = {**RUN_V2_SUMMARY, "result": "x", "stepsTruncated": False, "steps": [RUN_V2_STEP]}
+    svc = V5ContractService(FakeFleet(RunsBridge(listing={"runs": [RUN_V2_SUMMARY, RUN_SUMMARY]}, detail=detail)))
+    assert svc.runs_list("phone-1")["runs"][0]["mapSteps"] == 1
+    assert svc.runs_get("phone-1", "ai-run-1")["steps"][0]["decisionSource"] == "map"
+
+
+@pytest.mark.parametrize(
+    "listing, detail",
+    [
+        ({"runs": [{**RUN_SUMMARY, "mapSteps": 1}]}, None),  # half a v2 record
+        ({"runs": [{**RUN_V2_SUMMARY, "places": [{**RUN_V2_SUMMARY["places"][0], "route": ["Inbox of alice@example.com"]}]}]}, None),
+        ({"runs": [{**RUN_V2_SUMMARY, "places": [{**RUN_V2_SUMMARY["places"][0], "placeId": "https://evil"}]}]}, None),
+        (None, {**RUN_V2_SUMMARY, "result": "x", "stepsTruncated": False, "steps": [{**RUN_V2_STEP, "decisionSource": "vibes"}]}),
+        (None, {**RUN_V2_SUMMARY, "result": "x", "stepsTruncated": False, "steps": [{**RUN_V2_STEP, "roomId": "password: x"}]}),
+    ],
+)
+def test_glass_alpha4_malformed_run_record_v2_is_rejected(listing, detail):
+    svc = V5ContractService(FakeFleet(RunsBridge(listing=listing, detail=detail)))
+    with pytest.raises(DesktopRuntimeError) as error:
+        if listing is not None:
+            svc.runs_list("phone-1")
+        else:
+            svc.runs_get("phone-1", "ai-run-1")
+    assert error.value.code in {"PROTOCOL_MISMATCH", "INVALID_REQUEST"}

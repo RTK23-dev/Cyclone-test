@@ -160,3 +160,57 @@ test("a finished run shows its result; a missing run is named", async () => {
   await flush();
   assert.match(page.element.textContent, /Run not found/);
 });
+
+const FB = "package:com.facebook.katana";
+const HOME = "screen:home:0123456789abcdef";
+const LIST = "screen:list:aaaaaaaaaaaaaaaa";
+const V2 = {
+  ...DETAIL,
+  mapSteps: 1,
+  modelSteps: 1,
+  places: [{ placeId: FB, appVersion: "512.0.0", route: [HOME, LIST] }],
+  steps: [
+    DETAIL.steps[0],
+    { ...DETAIL.steps[1], roomId: HOME, roomAfter: LIST, placeId: FB, appVersion: "512.0.0", decisionSource: "map" },
+    { ...DETAIL.steps[2], roomId: LIST, roomAfter: null, placeId: FB, appVersion: "512.0.0", decisionSource: "model" },
+  ],
+};
+
+test("run record v2: rooms, app version and map vs model per step; the route opens on the app's map", async () => {
+  installMiniDom();
+  const navigated = [];
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs/ai-run-1": () => V2 });
+  const context = { ...ctx(gateway.fetch), navigate: (route) => navigated.push(route) };
+  const page = createRunPage(context, { name: "run", runId: "ai-run-1" });
+  await flush();
+  const text = page.element.textContent;
+  assert.match(text, /From the map/);
+  assert.match(text, /1 of 2/);
+  assert.match(text, /Route on the map/);
+  assert.match(text, /Facebook/);
+  assert.match(text, /version 512\.0\.0/);
+  assert.match(text, /Home screen · 0123/);
+  assert.equal(page.element.querySelectorAll(".timeline-source").length, 1, "only the map-chosen step carries the map badge");
+
+  page.element.querySelectorAll(".timeline-button")[1].click();
+  const detail = page.element.querySelector(".step-detail").textContent;
+  assert.match(detail, /A known route \(no model call\)/);
+  assert.match(detail, /List screen · aaaa/);
+
+  [...page.element.querySelectorAll(".route-card .btn")].find((b) => /Show on the map/.test(b.textContent)).click();
+  assert.deepEqual(navigated.at(-1), { name: "app", placeId: FB, tab: "map", route: [HOME, LIST], runId: "ai-run-1" });
+  [...page.element.querySelectorAll(".step-detail .btn")].find((b) => /Open this room/.test(b.textContent)).click();
+  assert.deepEqual(navigated.at(-1).route, [HOME, LIST]);
+  page.destroy();
+});
+
+test("v2 parsing drops rooms and places that are not structural; app routes carry the route", () => {
+  const parsed = parseRunDetail({ ...V2, places: [{ placeId: "https://evil", route: [] }, { placeId: FB, appVersion: "x y", route: [HOME, "Inbox of alice"] }] });
+  assert.equal(parsed.places.length, 1);
+  assert.deepEqual(parsed.places[0].route, [HOME]);
+  assert.equal(parsed.places[0].appVersion, null);
+  assert.equal(parseRunSummary(FAILED).mapSteps, null, "older phones have no map/model split");
+  const href = routeHref({ name: "app", placeId: FB, tab: "map", route: [HOME, LIST], runId: "ai-run-1" });
+  assert.deepEqual(parseRoute(href), { name: "app", placeId: FB, tab: "map", route: [HOME, LIST], runId: "ai-run-1" });
+  assert.deepEqual(parseRoute(`#/apps/${encodeURIComponent(FB)}/map?route=bad,${HOME}`).route, [HOME]);
+});

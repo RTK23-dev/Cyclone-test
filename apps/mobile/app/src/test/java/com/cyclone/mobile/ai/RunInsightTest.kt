@@ -170,4 +170,53 @@ class RunInsightTest {
         assertEquals("RUN_NOT_FOUND", code(JSONObject().put("runId", "ai-missing"), "runs.get"))
         assertTrue(setOf("runs.list", "runs.get").all { it in GatewayProtocol.operations && it in GatewayProtocol.legacyReadOnlyOperations })
     }
+
+    @Test
+    fun runRecordV2CarriesRoomsAppVersionAndDecisionSource() {
+        val events = mutableListOf(
+            ev("START", "Starting task", "task.start"),
+            ev("TOOL_REQUESTED", "Opening Gmail", "tool.requested",
+                detail = "action=open_app:com.google.android.gm · room=screen:home:0123456789abcdef · place=package:com.google.android.gm · appv=2026.09.14"),
+            ev("VERIFY", "verify", "verify.progress", ok = true, detail = "roomAfter=screen:list:aaaaaaaaaaaaaaaa"),
+            ev("TOOL_REQUESTED", "Known door: Inbox", "tool.requested",
+                detail = "action=graph:door-7 · room=screen:list:aaaaaaaaaaaaaaaa · place=package:com.google.android.gm · appv=2026.09.14"),
+            ev("VERIFY", "verify", "verify.progress", ok = true, detail = "roomAfter=screen:detail:bbbbbbbbbbbbbbbb"),
+            ev("TOOL_REQUESTED", "Bad room", "tool.requested", detail = "action=click:x · room=Inbox of alice@example.com"),
+        )
+        val steps = RunInsight.steps(events)
+        assertEquals("screen:home:0123456789abcdef", steps[1].roomId)
+        assertEquals("screen:list:aaaaaaaaaaaaaaaa", steps[1].roomAfter)
+        assertEquals("package:com.google.android.gm", steps[1].placeId)
+        assertEquals("2026.09.14", steps[1].appVersion)
+        assertEquals("model", steps[1].decisionSource)
+        assertEquals("map", steps[2].decisionSource)
+        assertNull("a non-structural room value is dropped", steps[3].roomId)
+        assertNull(steps[0].decisionSource)
+
+        val detail = RunInsight.detailJson(session("COMPLETED"), events)
+        assertEquals(1, detail.getInt("mapSteps"))
+        assertEquals(2, detail.getInt("modelSteps"))
+        val place = detail.getJSONArray("places").getJSONObject(0)
+        assertEquals("package:com.google.android.gm", place.getString("placeId"))
+        assertEquals(3, place.getJSONArray("route").length())
+        assertEquals("map", detail.getJSONArray("steps").getJSONObject(2).getString("decisionSource"))
+        assertTrue(detail.getJSONArray("steps").getJSONObject(3).isNull("roomId"))
+    }
+
+    @Test
+    fun aFailedMappedDoorIsAStaleDoorWithTheAppVersion() {
+        val events = opening().apply {
+            add(ev("TOOL_REQUESTED", "Known door: Messages", "tool.requested",
+                detail = "action=graph:door-3 · room=screen:home:0123456789abcdef · place=package:com.facebook.katana · appv=512.0.0"))
+            add(ev("ANDROID_EXECUTION", "Tap failed", "executor.failed", ok = false))
+            add(ev("NON_CONVERGENCE", "non convergence", "convergence.stale_target", ok = false))
+        }
+        val cause = RunInsight.causeOfDeath(session("FAILED"), events)!!
+        assertEquals("stale-door", cause.kind)
+        assertEquals(3, cause.stepIndex)
+        assertTrue(cause.headline.contains("512.0.0"))
+        // The same failure chosen by the model stays a model/screen problem.
+        val model = opening().apply { add(ev("NON_CONVERGENCE", "non convergence", "convergence.stale_target", ok = false)) }
+        assertEquals("element-not-found", RunInsight.causeOfDeath(session("FAILED"), model)!!.kind)
+    }
 }

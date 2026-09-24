@@ -1108,6 +1108,14 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     event.span?.let { "spanSchema=${it.schema} decision=${it.decisionId} span=${it.spanId} phase=${it.phase} startMs=${it.startMs} durationMs=${it.durationMs} result=${it.result}" },
                     event.pageIdentity?.let { "page=${it.takeLast(16)}" },
                     event.actionSignature?.let { "action=${it.take(120)}" },
+                    // Run record v2: the room and app before each decision turn, the room after each check.
+                    when (event.type) {
+                        CycloneTraceEventType.TOOL_REQUESTED ->
+                            com.cyclone.mobile.mapping.crawl.StepLocation.detail(context, execution.sessionId, after = false)
+                        CycloneTraceEventType.VERIFY ->
+                            com.cyclone.mobile.mapping.crawl.StepLocation.detail(context, execution.sessionId, after = true)
+                        else -> null
+                    },
                     event.safeMessage?.let { "reason=${TracePrivacy.clean(it).take(500)}" },
                 ).joinToString(" · ").takeIf { it.isNotBlank() },
             )

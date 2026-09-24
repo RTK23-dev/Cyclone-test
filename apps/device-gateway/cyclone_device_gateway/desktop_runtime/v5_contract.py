@@ -456,6 +456,15 @@ RUN_STEP_KEYS = frozenset({
     "eventsTruncated", "events",
 })
 RUN_EVENT_KEYS = frozenset({"at", "kind", "text", "code", "ok", "detail"})
+# Run record v2 (Glass alpha.4): optional so phones from alpha.8-alpha.10 keep working.
+RUN_SUMMARY_V2_KEYS = frozenset({"mapSteps", "modelSteps", "places"})
+RUN_STEP_V2_KEYS = frozenset({"roomId", "roomAfter", "placeId", "appVersion", "decisionSource"})
+RUN_PLACE_KEYS = frozenset({"placeId", "appVersion", "route"})
+ROOM_ID = re.compile(r"^screen:[a-z_]{1,40}:[0-9a-f]{8,64}$")
+RUN_PLACE_ID = re.compile(r"^package:[A-Za-z][A-Za-z0-9_.]{1,150}$")
+APP_VERSION = re.compile(r"^[A-Za-z0-9._+-]{1,40}$")
+MAX_RUN_PLACES = 8
+MAX_ROUTE_ROOMS = 60
 STEP_OUTCOMES = frozenset({"ok", "failed", "unverified", "recovered", "info"})
 MAX_RUNS = 200
 MAX_RUN_STEPS = 200
@@ -472,9 +481,33 @@ def _short_text(value: Any, limit: int, *, nullable: bool = False) -> bool:
     return isinstance(value, str) and len(value) <= limit
 
 
+def _optional_match(value: Any, pattern: re.Pattern[str]) -> bool:
+    return value is None or (isinstance(value, str) and bool(pattern.match(value)))
+
+
 def _validate_run_summary(run: Any, keys: frozenset[str]) -> None:
-    if not isinstance(run, dict) or set(run) != keys:
+    if not isinstance(run, dict) or not keys <= set(run) <= keys | RUN_SUMMARY_V2_KEYS:
         raise _bad_run("summary")
+    if RUN_SUMMARY_V2_KEYS & set(run):
+        if set(run) & RUN_SUMMARY_V2_KEYS != RUN_SUMMARY_V2_KEYS:
+            raise _bad_run("record v2")
+        if not _is_int(run["mapSteps"]) or not _is_int(run["modelSteps"]):
+            raise _bad_run("map/model steps")
+        places = run["places"]
+        if not isinstance(places, list) or len(places) > MAX_RUN_PLACES:
+            raise _bad_run("places")
+        for place in places:
+            if not isinstance(place, dict) or set(place) != RUN_PLACE_KEYS:
+                raise _bad_run("place")
+            if not isinstance(place["placeId"], str) or not RUN_PLACE_ID.match(place["placeId"]):
+                raise _bad_run("place id")
+            if not _optional_match(place["appVersion"], APP_VERSION):
+                raise _bad_run("app version")
+            route = place["route"]
+            if not isinstance(route, list) or len(route) > MAX_ROUTE_ROOMS or not all(
+                isinstance(room, str) and ROOM_ID.match(room) for room in route
+            ):
+                raise _bad_run("route")
     if not isinstance(run["runId"], str) or not RUN_ID.match(run["runId"]) or run["status"] not in RUN_STATUSES:
         raise _bad_run("identity")
     if not _short_text(run["goal"], 500) or not _short_text(run["model"], 120):
@@ -516,8 +549,18 @@ def _validate_run_detail(value: dict[str, Any], args: dict[str, Any]) -> None:
     if not isinstance(steps, list) or len(steps) > MAX_RUN_STEPS:
         raise _bad_run("steps")
     for step in steps:
-        if not isinstance(step, dict) or set(step) != RUN_STEP_KEYS or step["outcome"] not in STEP_OUTCOMES:
+        if not isinstance(step, dict) or not RUN_STEP_KEYS <= set(step) <= RUN_STEP_KEYS | RUN_STEP_V2_KEYS:
             raise _bad_run("step")
+        if step["outcome"] not in STEP_OUTCOMES:
+            raise _bad_run("step")
+        if RUN_STEP_V2_KEYS & set(step):
+            if set(step) & RUN_STEP_V2_KEYS != RUN_STEP_V2_KEYS:
+                raise _bad_run("step record v2")
+            if not (_optional_match(step["roomId"], ROOM_ID) and _optional_match(step["roomAfter"], ROOM_ID)
+                    and _optional_match(step["placeId"], RUN_PLACE_ID) and _optional_match(step["appVersion"], APP_VERSION)):
+                raise _bad_run("step location")
+            if step["decisionSource"] not in (None, "map", "model"):
+                raise _bad_run("decision source")
         if not all(_is_int(step[key]) for key in ("index", "startedAt", "endedAt")) or not isinstance(step["vision"], bool):
             raise _bad_run("step numbers")
         if not _short_text(step["title"], 200) or not all(

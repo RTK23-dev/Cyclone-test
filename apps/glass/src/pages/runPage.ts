@@ -9,10 +9,13 @@ import {
   causeTone,
   formatDuration,
   getRun,
+  appName,
   outcomeLabel,
+  roomLabel,
   statusLabel,
   statusTone,
   type RunDetail,
+  type RunPlace,
   type RunStep,
 } from "../services/runs.js";
 import { el, link, setChildren } from "../ui/dom.js";
@@ -92,6 +95,11 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       statTile("Recoveries", String(run.metrics.recoveries), run.metrics.recoveries ? "accent" : "neutral"),
       statTile("Vision checks", String(run.metrics.visionChecks)),
     );
+    if (run.mapSteps != null && run.modelSteps != null) {
+      const decided = run.mapSteps + run.modelSteps;
+      stats.className = "stats stats-7";
+      stats.append(statTile("From the map", decided ? `${run.mapSteps} of ${decided}` : "—", run.mapSteps ? "success" : "neutral"));
+    }
 
     const parts: Array<HTMLElement | null> = [header, stats];
     if (run.cause) {
@@ -114,6 +122,8 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       done.append(el("span", "cause-kicker", "Finished"), el("p", "cause-detail", run.result || "Cyclone reported the goal as done."));
       parts.push(done);
     }
+
+    if (run.places.length) parts.push(routeCard(run));
 
     const layout = el("div", "run-layout");
     const left = el("section", "timeline-card");
@@ -138,6 +148,7 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
             el("span", "timeline-text", step.title),
           );
           if (step.action) button.append(el("span", "timeline-action", step.action));
+          if (step.decisionSource === "map") button.append(el("span", "timeline-source", "map"));
           button.addEventListener("click", () => select(step.index));
           item.append(button);
           return item;
@@ -157,6 +168,10 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       const facts = keyValue(
         [
           ["Action", step.action ?? "—"],
+          ["Chosen by", step.decisionSource === "map" ? "A known route (no model call)" : step.decisionSource === "model" ? "The model" : "—"],
+          ["App", step.placeId ? `${appName(step.placeId)}${step.appVersion ? ` · version ${step.appVersion}` : ""}` : "—"],
+          ["Room", step.roomId ? roomLabel(step.roomId) : "not recorded"],
+          ["Room after", step.roomAfter ? roomLabel(step.roomAfter) : "—"],
           ["Screen", step.pageId ? `page …${step.pageId}` : "not recorded"],
           ["Verification", step.verification ?? "—"],
           ["Recovery", step.recovery ?? "—"],
@@ -182,9 +197,48 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
         el("h3", "inspector-section", "What happened"),
         events,
         step.eventsTruncated ? el("p", "muted", "Later events in this step were trimmed.") : null,
-        el("p", "muted inspector-note", "Rooms on the map and before/after screenshots for each step arrive in the next alpha."),
+        openRoom(step),
+        el(
+          "p",
+          "muted inspector-note",
+          step.roomId ? "Before/after screenshots for each step arrive in a later alpha." : "This phone did not record rooms for this step (older Cyclone, or the step had no screen).",
+        ),
       );
     };
+
+    const openRoom = (step: RunStep): HTMLElement | null => {
+      const rooms = [step.roomId, step.roomAfter].filter((room): room is string => !!room);
+      if (!step.placeId || !rooms.length) return null;
+      const go = actionButton("Open this room on the map", { icon: "map" });
+      go.addEventListener("click", () => ctx.navigate({ name: "app", placeId: step.placeId!, tab: "map", route: rooms, runId: run.runId }));
+      return go;
+    };
+
+    function routeCard(detail: RunDetail): HTMLElement {
+      const node = card("route-card");
+      node.append(el("h2", "card-title", "Route on the map"));
+      for (const place of detail.places) node.append(placeRoute(detail, place));
+      return node;
+    }
+
+    function placeRoute(detail: RunDetail, place: RunPlace): HTMLElement {
+      const row = el("div", "route-row");
+      const head = el("div", "route-head");
+      head.append(el("strong", undefined, appName(place.placeId)), el("span", "muted", place.appVersion ? `version ${place.appVersion}` : "version not recorded"));
+      const rooms = el("ol", "route-rooms");
+      place.route.forEach((room, index) => {
+        const item = el("li", "route-room");
+        item.append(el("span", "route-badge", String(index + 1)), el("span", undefined, roomLabel(room)));
+        rooms.append(item);
+      });
+      row.append(head, place.route.length ? rooms : el("p", "muted", "No rooms recorded in this app."));
+      if (place.route.length) {
+        const show = actionButton("Show on the map", { icon: "map", variant: "primary" });
+        show.addEventListener("click", () => ctx.navigate({ name: "app", placeId: place.placeId, tab: "map", route: place.route, runId: detail.runId }));
+        row.append(show);
+      }
+      return row;
+    }
 
     const select = (index: number): void => {
       selected = index;

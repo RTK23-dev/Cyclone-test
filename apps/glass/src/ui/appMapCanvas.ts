@@ -37,6 +37,8 @@ export interface AppMapCanvasHandle {
   setSelectedEdgeId(edgeId: string | null): void;
   /** The room the phone is standing in during a mapping pass (pulses). Null clears it. */
   setCursorScreenId(screenId: string | null): void;
+  /** Rooms a run walked through, in order (run inspector v2). Rooms and the doors between them light up. */
+  setRoute(screenIds: string[]): void;
   fitAll(): CanvasTransform;
   getTransform(): CanvasTransform;
   getSelectedScreenId(): string | null;
@@ -250,12 +252,17 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
   };
 
   let cursorScreenId: string | null = null;
+  let routeIds: string[] = [];
+  const routeSteps = (): Map<string, number> => new Map(routeIds.map((id, index) => [id, index] as [string, number]).reverse());
+  const routeEdge = (from: string, to: string): boolean =>
+    routeIds.some((id, index) => index > 0 && routeIds[index - 1] === from && id === to);
 
   const paintSelection = (): void => {
     for (const card of world.querySelectorAll(".map-card")) {
       const button = card as HTMLElement;
       button.classList.toggle("selected", button.getAttribute("data-screen-id") === selectedScreenId);
       button.classList.toggle("mapping-cursor", cursorScreenId != null && button.getAttribute("data-screen-id") === cursorScreenId);
+      button.classList.toggle("on-route", routeIds.includes(button.getAttribute("data-screen-id") ?? ""));
     }
     for (const path of world.querySelectorAll(".map-edge")) {
       const node = path as HTMLElement;
@@ -342,7 +349,10 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
       const end = cardAnchor(to, from);
       const path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", edgePath(start.x - bounds.x, start.y - bounds.y, end.x - bounds.x, end.y - bounds.y));
-      path.setAttribute("class", `map-edge${edge.risk.danger ? " danger" : ""}${edge.edgeId === selectedEdgeId ? " selected" : ""}`);
+      path.setAttribute(
+        "class",
+        `map-edge${edge.risk.danger ? " danger" : ""}${edge.edgeId === selectedEdgeId ? " selected" : ""}${routeEdge(edge.fromScreenId, edge.toScreenId) ? " on-route" : ""}`,
+      );
       path.setAttribute("data-edge-id", edge.edgeId);
       const opacity = 0.28 + 0.72 * (Number.isFinite(edge.confidence) ? edge.confidence : 0);
       path.setAttribute("stroke-opacity", String(Math.max(0.2, Math.min(1, opacity))));
@@ -375,6 +385,11 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
       });
       // A redraw during a live crawl must keep the pulse on the room the phone is in.
       if (cursorScreenId != null && screen.screenId === cursorScreenId) card.classList.add("mapping-cursor");
+      const order = routeSteps().get(screen.screenId);
+      if (order != null) {
+        card.classList.add("on-route");
+        card.append(el("span", "route-badge", String(order + 1)));
+      }
       world.append(card);
     }
   };
@@ -479,6 +494,12 @@ export function createAppMapCanvas(options: AppMapCanvasOptions = {}): AppMapCan
       if (cursorScreenId === screenId) return;
       cursorScreenId = screenId;
       paintSelection();
+    },
+    setRoute(screenIds): void {
+      const next = screenIds.filter((id) => typeof id === "string" && id.length > 0).slice(0, 60);
+      if (next.join("|") === routeIds.join("|")) return;
+      routeIds = next;
+      renderWorld();
     },
     fitAll,
     getTransform(): CanvasTransform {

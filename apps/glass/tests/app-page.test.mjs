@@ -120,12 +120,12 @@ function manualTimer() {
   };
 }
 
-function open(phone, timer = manualTimer(), placeId = PLACE) {
+function open(phone, timer = manualTimer(), placeId = PLACE, extra = {}) {
   installMiniDom();
   const client = new GatewayClient({ token: "t", fetch: phone.gateway.fetch });
   const devices = [parseDevice(READY_DEVICE)];
   const ctx = { client, version: "1.0.0-alpha.1", devices, device: devices[0], devicesError: null, navigate() {}, selectDevice() {}, refreshDevices: async () => {} };
-  const page = createAppPage(ctx, { name: "app", placeId, tab: "map" }, { fetch: phone.gateway.fetch, setTimer: timer.setTimer, clearTimer: timer.clearTimer });
+  const page = createAppPage(ctx, { name: "app", placeId, tab: "map", ...extra }, { fetch: phone.gateway.fetch, setTimer: timer.setTimer, clearTimer: timer.clearTimer });
   return { page, timer };
 }
 
@@ -208,5 +208,19 @@ test("web places show the board but cannot start mapping yet", async () => {
   const start = page.element.querySelector(".mapping-controls .btn");
   assert.equal(start.disabled, true);
   assert.match(start.title, /Websites come later/);
+  page.destroy();
+});
+
+test("a run's route lights up its rooms in order, with the doors between them", async () => {
+  const phone = fakePhone({ rooms: [ROOM(1), ROOM(2), ROOM(3)] });
+  const { page } = open(phone, manualTimer(), PLACE, { route: [ROOM(1), ROOM(3)], runId: "ai-run-1" });
+  await flush();
+  const onRoute = page.element.querySelectorAll(".map-card.on-route");
+  assert.equal(onRoute.length, 2);
+  assert.deepEqual(onRoute.map((card) => card.querySelector(".route-badge").textContent), ["1", "2"]);
+  assert.equal(page.element.querySelectorAll(".map-edge.on-route").length, 1, "only the door ROOM(1) → ROOM(3) is on the route");
+  const banner = page.element.querySelector(".route-banner").textContent;
+  assert.match(banner, /2 rooms/);
+  assert.match(banner, /Back to the run/);
   page.destroy();
 });

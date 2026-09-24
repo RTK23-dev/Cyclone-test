@@ -44,6 +44,14 @@ object RunInsight {
         val recovery: String?,
         val vision: Boolean,
         val events: List<AiTraceEvent>,
+        /** Run record v2: structural Atlas room before the action and after its check (mapping `screen:` keys). */
+        val roomId: String? = null,
+        val roomAfter: String? = null,
+        /** Canonical Atlas place (`package:…`) and the app version installed when the step ran. */
+        val placeId: String? = null,
+        val appVersion: String? = null,
+        /** `map` when a known route/door chose the action without asking the model, `model` when the model chose. */
+        val decisionSource: String? = null,
     )
 
     data class Cause(
@@ -105,7 +113,26 @@ object RunInsight {
             recovery = recovery?.let { (it.code ?: it.displayText).take(80) },
             vision = group.any { it.kind == "VISION" || it.kind == "VISION_ESCALATION" },
             events = group,
+            roomId = detailField(group, "room")?.takeIf { ROOM.matches(it) },
+            roomAfter = group.asReversed().firstNotNullOfOrNull { event ->
+                Regex("(?:^|\\s)roomAfter=([^\\s·]+)").find(event.detail.orEmpty())?.groupValues?.get(1)
+            }?.takeIf { ROOM.matches(it) },
+            placeId = detailField(group, "place")?.takeIf { PLACE.matches(it) },
+            appVersion = detailField(group, "appv")?.takeIf { VERSION.matches(it) },
+            decisionSource = decisionSource(head, detailField(group, "action")),
         )
+    }
+
+    private val ROOM = Regex("^screen:[a-z_]{1,40}:[0-9a-f]{8,64}$")
+    private val PLACE = Regex("^package:[A-Za-z][A-Za-z0-9_.]{1,150}$")
+    private val VERSION = Regex("^[A-Za-z0-9._+-]{1,40}$")
+
+    /** Known routes are recorded as `graph:` (App Graph door) or `compiled-skill:` actions; everything else was the model. */
+    fun decisionSource(head: AiTraceEvent, action: String?): String? = when {
+        head.kind !in BOUNDARY -> null
+        action == null -> "model"
+        action.startsWith("graph:") || action.startsWith("compiled-skill:") -> "map"
+        else -> "model"
     }
 
     private fun detailField(group: List<AiTraceEvent>, key: String): String? =
@@ -114,7 +141,30 @@ object RunInsight {
         }
 
     /** Null for a finished or still-running run. */
-    fun causeOfDeath(session: AiTraceSession, events: List<AiTraceEvent>, steps: List<Step> = steps(events)): Cause? {
+    fun causeOfDeath(session: AiTraceSession, events: List<AiTraceEvent>, steps: List<Step> = steps(events)): Cause? =
+        classify(session, events, steps)?.let { cause -> staleDoor(cause, steps) ?: cause }
+
+    /**
+     * A known door that no longer works is a map problem, not a model problem: when the failing step came from the map
+     * (`decisionSource = map`) and the failure is about the target or the screen, name it `stale-door`.
+     */
+    private fun staleDoor(cause: Cause, steps: List<Step>): Cause? {
+        if (cause.kind !in setOf("element-not-found", "unchanged", "wrong-room", "unknown")) return null
+        val step = cause.stepIndex?.let { index -> steps.firstOrNull { it.index == index } } ?: return null
+        val mapStep = if (step.decisionSource == "map") step else steps.getOrNull(step.index - 1)?.takeIf {
+            it.decisionSource == "map" && it.outcome in setOf(StepOutcome.FAILED, StepOutcome.UNVERIFIED)
+        } ?: return null
+        val version = mapStep.appVersion?.let { " on version $it" }.orEmpty()
+        return Cause(
+            kind = "stale-door",
+            stepIndex = mapStep.index,
+            headline = "A mapped door stopped working$version",
+            detail = cause.detail,
+            fix = "Remap this room for the installed app version, or teach the door again.",
+        )
+    }
+
+    private fun classify(session: AiTraceSession, events: List<AiTraceEvent>, steps: List<Step>): Cause? {
         val status = session.status.uppercase()
         if (status == "COMPLETED" || status == "RUNNING") return null
         val stepOf = { event: AiTraceEvent? ->
@@ -239,7 +289,30 @@ object RunInsight {
                 .put("visionChecks", metrics.visionChecks)
                 .put("verifiedActions", metrics.verifiedActions))
             .put("cause", cause?.let(::causeJson) ?: JSONObject.NULL)
+            .put("mapSteps", steps.count { it.decisionSource == "map" })
+            .put("modelSteps", steps.count { it.decisionSource == "model" })
+            .put("places", JSONArray(places(steps)))
     }
+
+    /** Apps the run entered, in order, with the version seen and the rooms it walked through (consecutive repeats merged). */
+    fun places(steps: List<Step>): List<JSONObject> {
+        val order = linkedMapOf<String, Pair<String?, MutableList<String>>>()
+        steps.forEach { step ->
+            val place = step.placeId ?: return@forEach
+            val entry = order.getOrPut(place) { step.appVersion to mutableListOf() }
+            listOfNotNull(step.roomId, step.roomAfter).forEach { room ->
+                if (entry.second.lastOrNull() != room && entry.second.size < MAX_ROUTE) entry.second += room
+            }
+        }
+        return order.entries.take(8).map { (place, value) ->
+            JSONObject()
+                .put("placeId", place)
+                .put("appVersion", value.first ?: JSONObject.NULL)
+                .put("route", JSONArray(value.second))
+        }
+    }
+
+    private const val MAX_ROUTE = 60
 
     private fun causeJson(cause: Cause): JSONObject = JSONObject()
         .put("kind", cause.kind)
@@ -259,6 +332,11 @@ object RunInsight {
         .put("verification", step.verification?.let { wireText(it, 80) } ?: JSONObject.NULL)
         .put("recovery", step.recovery?.let { wireText(it, 80) } ?: JSONObject.NULL)
         .put("vision", step.vision)
+        .put("roomId", step.roomId ?: JSONObject.NULL)
+        .put("roomAfter", step.roomAfter ?: JSONObject.NULL)
+        .put("placeId", step.placeId ?: JSONObject.NULL)
+        .put("appVersion", step.appVersion ?: JSONObject.NULL)
+        .put("decisionSource", step.decisionSource ?: JSONObject.NULL)
         .put("eventsTruncated", step.events.size > MAX_EVENTS_PER_STEP)
         .put("events", JSONArray(step.events.take(MAX_EVENTS_PER_STEP).map { event ->
             JSONObject()
