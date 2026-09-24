@@ -50,6 +50,34 @@ export function attentionList(apps: PhoneApp[], runs: RunSummary[]): Attention[]
     .map(({ rank: _rank, ...row }) => row);
 }
 
+export interface DayBar {
+  label: string;
+  finished: number;
+  failed: number;
+  other: number;
+}
+
+/** Runs per local day for the last `days` days, oldest first. Expected runs count as other, not failed. */
+export function runsPerDay(runs: RunSummary[], now: number, days = 7): DayBar[] {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const bars: DayBar[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const from = new Date(start);
+    from.setDate(start.getDate() - i);
+    const to = new Date(from);
+    to.setDate(from.getDate() + 1);
+    const inDay = runs.filter((run) => run.startedAt >= from.getTime() && run.startedAt < to.getTime());
+    bars.push({
+      label: i === 0 ? "Today" : from.toLocaleDateString(undefined, { weekday: "short" }),
+      finished: inDay.filter((run) => run.status === "completed").length,
+      failed: inDay.filter((run) => run.status === "failed" && run.expected !== true).length,
+      other: inDay.filter((run) => run.status !== "completed" && !(run.status === "failed" && run.expected !== true)).length,
+    });
+  }
+  return bars;
+}
+
 function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
@@ -68,9 +96,11 @@ export function createHomePage(ctx: GlassContext): GlassPage {
   const attention = card("home-attention");
   const recent = card("home-runs");
   const known = card("home-knowledge");
+  const trend = card("home-trend");
+  trend.hidden = true;
   const grid = el("div", "home-grid");
   grid.append(attention, recent, known);
-  element.append(stats, grid);
+  element.append(stats, trend, grid);
   let controller = new AbortController();
 
   const load = async (): Promise<void> => {
@@ -89,8 +119,38 @@ export function createHomePage(ctx: GlassContext): GlassPage {
     renderStats(apps, runs);
     renderAttention(apps, runs);
     renderRuns(runs);
+    renderTrend(runs);
     renderKnowledge(knowledge);
   };
+
+  function renderTrend(runs: RunSummary[] | null): void {
+    if (!runs?.length) {
+      trend.hidden = true;
+      return;
+    }
+    const bars = runsPerDay(runs, Date.now());
+    const most = Math.max(1, ...bars.map((bar) => bar.finished + bar.failed + bar.other));
+    const chart = el("div", "trend-chart");
+    chart.setAttribute("role", "img");
+    chart.setAttribute("aria-label", bars.map((b) => `${b.label}: ${b.finished} finished, ${b.failed} failed`).join("; "));
+    for (const bar of bars) {
+      const column = el("div", "trend-day");
+      const stack = el("div", "trend-stack");
+      for (const [kind, count] of [["other", bar.other], ["failed", bar.failed], ["finished", bar.finished]] as const) {
+        if (!count) continue;
+        const segment = el("div", `trend-seg trend-${kind}`);
+        segment.style.height = `${Math.round((count / most) * 100)}%`;
+        segment.title = `${count} ${kind === "other" ? "stopped or expected" : kind}`;
+        stack.append(segment);
+      }
+      column.append(stack, el("span", "trend-label", bar.label));
+      chart.append(column);
+    }
+    const legend = el("div", "trend-legend");
+    legend.append(chip("Finished", "success"), chip("Failed", "danger"), chip("Stopped or expected", "neutral"));
+    setChildren(trend, el("h2", "card-title", "Runs, last 7 days"), chart, legend);
+    trend.hidden = false;
+  }
 
   function renderStats(apps: PhoneApp[] | null, runs: RunSummary[] | null): void {
     const mapped = apps?.filter((a) => a.mapStatus !== "unmapped").length;

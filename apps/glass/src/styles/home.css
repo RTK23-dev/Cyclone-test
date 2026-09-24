@@ -68,3 +68,59 @@
 .page-settings .card > .btn {
   align-self: flex-start;
 }
+
+.trend-chart {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-3);
+  height: 140px;
+  align-items: end;
+}
+
+.trend-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  height: 100%;
+}
+
+.trend-stack {
+  flex: 1;
+  width: 100%;
+  max-width: 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: var(--radius-md);
+  background: var(--surface-2, transparent);
+  overflow: hidden;
+}
+
+.trend-seg {
+  width: 100%;
+  min-height: 3px;
+}
+
+.trend-finished {
+  background: var(--success, #16a34a);
+}
+
+.trend-failed {
+  background: var(--danger, #dc2626);
+}
+
+.trend-other {
+  background: var(--border);
+}
+
+.trend-label {
+  font-size: 0.75rem;
+  color: var(--text-muted, inherit);
+}
+
+.trend-legend {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

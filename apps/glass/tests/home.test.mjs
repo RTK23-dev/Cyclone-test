@@ -81,3 +81,23 @@ test("Home: an older phone without runs or knowledge still shows its apps", asyn
   assert.match(text, /Update Cyclone on the phone/);
   page.destroy();
 });
+
+import { runsPerDay } from "../.test-dist/pages/homePage.js";
+
+test("runs per day: seven days oldest first, expected failures are not failures", () => {
+  const now = new Date(2026, 8, 24, 12, 0, 0).getTime();
+  const day = 86_400_000;
+  const runs = [
+    run("ai-run-a", "completed", CLOCK, now - 1000),
+    run("ai-run-b", "failed", CLOCK, now - 2000),
+    run("ai-run-c", "failed", CLOCK, now - 3000, { expected: true }),
+    run("ai-run-d", "completed", CLOCK, now - 2 * day),
+    run("ai-run-e", "completed", CLOCK, now - 30 * day),
+  ].map(parseRunSummary);
+  const bars = runsPerDay(runs, now);
+  assert.equal(bars.length, 7);
+  assert.equal(bars[6].label, "Today");
+  assert.deepEqual([bars[6].finished, bars[6].failed, bars[6].other], [1, 1, 1]);
+  assert.equal(bars[4].finished, 1);
+  assert.equal(bars.reduce((sum, b) => sum + b.finished + b.failed + b.other, 0), 4, "runs older than a week are left out");
+});
