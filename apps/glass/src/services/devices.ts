@@ -78,6 +78,9 @@ export function deviceReadiness(device: GlassDevice): DeviceReadiness {
   if (device.state === "DISCONNECTED" || device.state === "UNAUTHORIZED") {
     return { ready: false, reason: "disconnected", message: "The phone is not connected to this PC. Check the USB cable or wireless debugging." };
   }
+  if (device.aiTrust === "REVOKED") {
+    return { ready: false, reason: "unpaired", message: "The phone logged this PC out. Connect again: Glass shows a code, you tap Allow on the phone." };
+  }
   if (!device.paired) {
     return { ready: false, reason: "unpaired", message: "Connect this phone in Devices: Glass shows a code, you tap Allow on the phone." };
   }

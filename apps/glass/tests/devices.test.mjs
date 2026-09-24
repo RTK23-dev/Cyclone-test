@@ -46,3 +46,10 @@ test("device picking keeps the chosen phone, else prefers a ready one", () => {
   assert.equal(pickDevice([old], null).id, "old");
   assert.equal(pickDevice([], "x"), null);
 });
+
+test("a PC the phone logged out is told so and offered Connect", () => {
+  const revoked = parseDevice({ deviceId: "d1", name: "Pixel", state: "READY", paired: true, planes: { aiTrust: "REVOKED" }, mobileVersion: "5.0.0-alpha.16.dev1" });
+  const readiness = deviceReadiness(revoked);
+  assert.equal(readiness.reason, "unpaired");
+  assert.match(readiness.message, /logged this PC out/);
+});
