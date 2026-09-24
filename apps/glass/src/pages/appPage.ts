@@ -17,7 +17,7 @@ import {
 } from "../maps/atlasViewModel.js";
 import { createMappingWatcher, isActiveMapping, mappingStatusLine, type MappingWatcher } from "../maps/mappingWatcher.js";
 import type { MappingDepth, MappingJobView } from "../services/atlasClient.js";
-import { loadApps, statusLabel, statusTone, versionLabel, type PhoneApp } from "../services/apps.js";
+import { loadApps, scenarioSummary, statusLabel, statusTone, versionLabel, type PhoneApp } from "../services/apps.js";
 import { mappingErrorCopy, phoneClient } from "../services/phone.js";
 import { el, link, setChildren } from "../ui/dom.js";
 import { actionButton, chip, emptyState, errorState, loadingState, segmented } from "../ui/components.js";
@@ -151,6 +151,8 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
       for (const version of app.mappedVersions.slice(0, 4)) facts.append(chip(`Mapped on ${versionLabel(version)}`, "neutral"));
       if (app.needsRemap) facts.append(chip("Map learned on an older version", "warning"));
       if (app.installed === false) facts.append(chip("No longer installed", "neutral"));
+      const scenarios = scenarioSummary(app);
+      if (scenarios) facts.append(chip(scenarios.text, scenarios.tone));
     }
     setChildren(header, title, facts);
   };

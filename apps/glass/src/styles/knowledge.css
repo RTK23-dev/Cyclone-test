@@ -329,9 +329,6 @@ button.scenario-mini:hover {
   display: none;
 }
 
-.app-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+.app-names > .app-facts {
   margin-top: var(--space-2);
 }
