@@ -5,6 +5,7 @@ export type ControlBody =
   | { kind: "tap"; x: number; y: number }
   | { kind: "swipe"; x1: number; y1: number; x2: number; y2: number; duration_ms: number }
   | { kind: "back" | "home" | "wake" | "scroll_up" | "scroll_down" }
+  | { kind: "text"; text: string }
   | { kind: "take_human" | "yield_ai"; sessionId?: string };
 
 export interface ControlResult {

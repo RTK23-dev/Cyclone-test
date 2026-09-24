@@ -171,3 +171,24 @@ test("You are here: the app, version and room on the phone now, with a way to th
   assert.deepEqual(navigated.at(-1), { name: "app", placeId: here.placeId, tab: "map", route: [here.roomId] });
   page.destroy();
 });
+
+test("typing and scrolling from the PC only while you have control; the text is not kept", async () => {
+  const fake = phone();
+  const { page, controls } = open(fake);
+  await flush();
+  const form = page.element.querySelector("form.phone-type");
+  assert.equal(form.hidden, true, "hidden while Cyclone has control");
+  page.element.querySelector(".phone-controls .btn").click();
+  await flush();
+  assert.equal(form.hidden, false);
+  const input = form.querySelector("input");
+  input.value = "hello from the PC";
+  form.dispatchEvent({ type: "submit", preventDefault() {} });
+  await flush();
+  assert.deepEqual(controls().at(-1), { kind: "text", text: "hello from the PC" });
+  assert.equal(input.value, "", "typed text is cleared once sent");
+  [...page.element.querySelectorAll(".phone-keys .btn")].find((b) => /Scroll down/.test(b.textContent)).click();
+  await flush();
+  assert.deepEqual(controls().at(-1), { kind: "scroll_down" });
+  page.destroy();
+});

@@ -71,7 +71,31 @@ export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): Gl
   back.addEventListener("click", () => void run({ kind: "back" }));
   home.addEventListener("click", () => void run({ kind: "home" }));
   wake.addEventListener("click", () => void run({ kind: "wake" }));
-  keys.append(back, home, wake);
+  const scrollUp = actionButton("Scroll up", { variant: "ghost" });
+  const scrollDown = actionButton("Scroll down", { variant: "ghost" });
+  scrollUp.addEventListener("click", () => void run({ kind: "scroll_up" }));
+  scrollDown.addEventListener("click", () => void run({ kind: "scroll_down" }));
+  keys.append(back, home, scrollUp, scrollDown, wake);
+
+  // Typing from the PC while you have control. Sent once to the focused field on the phone, then cleared; never stored.
+  const typing = el("form", "phone-type");
+  const typeInput = el("input", "phone-type-input");
+  typeInput.type = "text";
+  typeInput.placeholder = "Type into the focused field on the phone";
+  typeInput.setAttribute("aria-label", "Type on the phone");
+  typeInput.setAttribute("autocomplete", "off");
+  typeInput.maxLength = 4096;
+  const typeSend = actionButton("Type", { icon: "send" });
+  typeSend.type = "submit";
+  typing.append(typeInput, typeSend);
+  const typeNote = el("p", "muted phone-type-note", "Passwords belong in the phone's Secrets Card, not here.");
+  typing.addEventListener("submit", (event) => {
+    event.preventDefault?.();
+    const text = typeInput.value;
+    if (!text || owner !== "HUMAN") return;
+    typeInput.value = "";
+    void run({ kind: "text", text });
+  });
 
   const render = (): void => {
     const human = owner === "HUMAN";
@@ -80,7 +104,10 @@ export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): Gl
     toggle.addEventListener("click", () => void (human ? giveBack() : takeControl()));
     setChildren(controls, toggle);
     live.setInteractive(human);
-    for (const key of [back, home]) key.disabled = !human;
+    for (const key of [back, home, scrollUp, scrollDown, typeSend]) key.disabled = !human;
+    typeInput.disabled = !human;
+    typing.hidden = !human;
+    typeNote.hidden = !human;
   };
 
   const takeControl = async (): Promise<void> => {
@@ -104,7 +131,7 @@ export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): Gl
   const stage = el("section", "phone-stage");
   const bar = el("div", "phone-bar");
   bar.append(ownerChip, controls);
-  stage.append(bar, live.element, keys, note);
+  stage.append(bar, live.element, keys, typing, typeNote, note);
   const here = el("section", "card here-card");
   here.setAttribute("role", "status");
   here.hidden = true;
