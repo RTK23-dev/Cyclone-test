@@ -145,6 +145,22 @@ export const GLASS_MAPPING_BUDGET = Object.freeze({
   maxAttemptsPerDoor: 2,
 });
 
+export type MappingDepth = "quick" | "standard" | "deep";
+
+/** How far one mapping pass may go. Quick is the alpha default; the phone enforces every limit itself. */
+export interface MappingBudgetShape {
+  readonly maxNewScreens: number;
+  readonly maxElapsedMs: number;
+  readonly maxConsecutiveNonProgress: number;
+  readonly maxAttemptsPerDoor: number;
+}
+
+export const MAPPING_DEPTHS: Readonly<Record<MappingDepth, MappingBudgetShape>> = Object.freeze({
+  quick: GLASS_MAPPING_BUDGET,
+  standard: Object.freeze({ maxNewScreens: 30, maxElapsedMs: 480_000, maxConsecutiveNonProgress: 8, maxAttemptsPerDoor: 2 }),
+  deep: Object.freeze({ maxNewScreens: 80, maxElapsedMs: 1_200_000, maxConsecutiveNonProgress: 12, maxAttemptsPerDoor: 3 }),
+});
+
 export type AskStatusState = "idle" | "working" | "action-needed" | "needs-secret" | "done" | "failed";
 export type AskMilestoneState = "pending" | "active" | "done" | "action-needed" | "failed";
 
@@ -176,7 +192,7 @@ export interface AtlasClient {
     reason: string,
   ): Promise<SecretsRequestResult>;
   atlasDiff(placeId: PlaceId, persona: Persona, since: string | null): Promise<AtlasDiffView>;
-  mappingStart(placeId: PlaceId): Promise<MappingJobView>;
+  mappingStart(placeId: PlaceId, depth?: MappingDepth): Promise<MappingJobView>;
   mappingResume(mappingJobId: string): Promise<MappingJobView>;
   mappingPause(mappingJobId: string): Promise<MappingJobView>;
   mappingStop(mappingJobId: string): Promise<MappingJobView>;
@@ -333,13 +349,13 @@ export function createAtlasClient(options: AtlasClientOptions): AtlasClient {
       );
       return parseAtlasDiff(payload);
     },
-    async mappingStart(placeId: PlaceId): Promise<MappingJobView> {
+    async mappingStart(placeId: PlaceId, depth: MappingDepth = "quick"): Promise<MappingJobView> {
       assertPlacePersona(placeId, "mapping");
       if (!placeId.startsWith("package:")) {
         throw new AtlasClientError("PLACE_NOT_LAUNCHABLE", "Glass maps installed apps in this alpha; websites come later.");
       }
       requireRealPhone();
-      return mappingCall("start", { placeId, persona: "mapping", budget: { ...GLASS_MAPPING_BUDGET } });
+      return mappingCall("start", { placeId, persona: "mapping", budget: { ...(MAPPING_DEPTHS[depth] ?? GLASS_MAPPING_BUDGET) } });
     },
     async mappingResume(mappingJobId: string): Promise<MappingJobView> {
       requireRealPhone();

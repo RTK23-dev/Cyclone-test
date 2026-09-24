@@ -395,3 +395,13 @@ test("atlas.diff passes the phone cursor and parses structural changes", async (
   assert.equal(diff.changes.length, 1);
   assert.equal(diff.changes[0].entity, "screen");
 });
+
+test("mapping depth picks a bounded budget inside the phone's limits", async () => {
+  for (const [depth, screens] of [["quick", 12], ["standard", 30], ["deep", 80]]) {
+    const { atlas, calls } = foregroundClient(JOB);
+    await atlas.mappingStart(PLACE, depth);
+    const budget = JSON.parse(calls[0].init.body).budget;
+    assert.equal(budget.maxNewScreens, screens);
+    assert.ok(budget.maxNewScreens <= 500 && budget.maxElapsedMs <= 7_200_000 && budget.maxAttemptsPerDoor <= 20);
+  }
+});

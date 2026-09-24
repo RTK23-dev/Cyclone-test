@@ -467,3 +467,7 @@
   font-weight: 600;
   color: var(--accent-text);
 }
+
+.depth-select {
+  width: auto;
+}

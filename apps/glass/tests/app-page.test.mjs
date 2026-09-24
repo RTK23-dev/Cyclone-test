@@ -140,7 +140,7 @@ test("app header shows phone facts; the board shows the phone's rooms and doors"
   assert.equal(page.element.querySelectorAll(".map-card").length, 2);
   assert.match(page.element.querySelector(".board-coverage").textContent, /2 rooms · 1 door/);
   assert.match(page.element.querySelector(".inspector").textContent, /Click a room/);
-  assert.equal(page.element.querySelector(".mapping-controls").textContent.trim(), "Remap");
+  assert.equal(page.element.querySelector(".mapping-controls .btn").textContent.trim(), "Remap");
   page.destroy();
 });
 
@@ -222,5 +222,16 @@ test("a run's route lights up its rooms in order, with the doors between them", 
   const banner = page.element.querySelector(".route-banner").textContent;
   assert.match(banner, /2 rooms/);
   assert.match(banner, /Back to the run/);
+  page.destroy();
+});
+
+test("the map offers a mapping depth next to Start mapping", async () => {
+  const phone = fakePhone({ rooms: [] });
+  const { page } = open(phone);
+  await flush();
+  const select = page.element.querySelector("select.depth-select");
+  assert.ok(select, "depth picker shown when not mapping");
+  assert.match(select.textContent, /Quick · 12 rooms/);
+  assert.match(select.textContent, /Deep · 80 rooms/);
   page.destroy();
 });

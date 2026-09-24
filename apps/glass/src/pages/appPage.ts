@@ -16,7 +16,7 @@ import {
   type Persona,
 } from "../maps/atlasViewModel.js";
 import { createMappingWatcher, isActiveMapping, mappingStatusLine, type MappingWatcher } from "../maps/mappingWatcher.js";
-import type { MappingJobView } from "../services/atlasClient.js";
+import type { MappingDepth, MappingJobView } from "../services/atlasClient.js";
 import { loadApps, statusLabel, statusTone, versionLabel, type PhoneApp } from "../services/apps.js";
 import { mappingErrorCopy, phoneClient } from "../services/phone.js";
 import { el, link, setChildren } from "../ui/dom.js";
@@ -54,6 +54,7 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
   let model: AtlasViewModel | null = null;
   let job: MappingJobView | null = null;
   let selection: { kind: "screen" | "edge"; id: string } | null = null;
+  let depth: MappingDepth = "quick";
   let destroyed = false;
   let loadSeq = 0;
 
@@ -159,8 +160,21 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
       const start = actionButton(model && model.screens.length ? "Remap" : "Start mapping", { icon: "play", variant: "primary" });
       start.disabled = otherPlaceBusy || !placeId.startsWith("package:") || app?.installed === false;
       if (!placeId.startsWith("package:")) start.title = mappingErrorCopy("PLACE_NOT_LAUNCHABLE");
-      start.addEventListener("click", () => void command(() => watcher.start(placeId), true));
-      buttons.push(start);
+      start.addEventListener("click", () => void command(() => watcher.start(placeId, depth), true));
+      const depthSelect = el("select", "picker-select depth-select");
+      depthSelect.setAttribute("aria-label", "Mapping depth");
+      depthSelect.title = "How far one pass may go. The phone enforces the limits and never pays, sends, deletes or grants.";
+      for (const [id, label] of [["quick", "Quick · 12 rooms"], ["standard", "Standard · 30 rooms"], ["deep", "Deep · 80 rooms"]] as Array<[MappingDepth, string]>) {
+        const option = el("option", undefined, label);
+        option.value = id;
+        option.selected = id === depth;
+        depthSelect.append(option);
+      }
+      depthSelect.disabled = start.disabled;
+      depthSelect.addEventListener("change", () => {
+        depth = (depthSelect.value as MappingDepth) || "quick";
+      });
+      buttons.push(depthSelect, start);
     } else {
       const paused = job?.state === "paused" || job?.state === "human-control";
       const toggle = actionButton(paused ? "Resume" : "Pause", { icon: paused ? "play" : "pause" });

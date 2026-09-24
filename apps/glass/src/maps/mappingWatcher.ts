@@ -14,7 +14,7 @@ import {
 
 export interface MappingOps {
   atlasDiff(placeId: string, persona: "mapping", since: string | null): Promise<AtlasDiffView>;
-  mappingStart(placeId: string): Promise<MappingJobView>;
+  mappingStart(placeId: string, depth?: import("../services/atlasClient.js").MappingDepth): Promise<MappingJobView>;
   mappingResume(mappingJobId: string): Promise<MappingJobView>;
   mappingPause(mappingJobId: string): Promise<MappingJobView>;
   mappingStop(mappingJobId: string): Promise<MappingJobView>;
@@ -35,7 +35,7 @@ export interface MappingWatcherOptions {
 
 export interface MappingWatcher {
   /** Start a new pass on this place and follow it. */
-  start(placeId: string): Promise<void>;
+  start(placeId: string, depth?: import("../services/atlasClient.js").MappingDepth): Promise<void>;
   /** Follow whatever job currently owns the foreground plane, if any. */
   attach(): Promise<void>;
   pause(): Promise<void>;
@@ -110,11 +110,11 @@ export function createMappingWatcher(options: MappingWatcherOptions): MappingWat
   }
 
   return {
-    async start(target: string): Promise<void> {
+    async start(target: string, depth = "quick" as import("../services/atlasClient.js").MappingDepth): Promise<void> {
       placeId = target;
       // Take the cursor before the phone can write, so no first room is missed.
       cursor = (await options.ops.atlasDiff(target, "mapping", null)).cursor;
-      const started = await options.ops.mappingStart(target);
+      const started = await options.ops.mappingStart(target, depth);
       await follow(started);
     },
     async attach(): Promise<void> {
