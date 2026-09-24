@@ -315,3 +315,32 @@ test("a map-caused death offers the room on the map and, for a stale door, the a
   assert.deepEqual(navigated.at(-1), { name: "app", placeId: FB, tab: "versions" });
   page.destroy();
 });
+
+import { lastGoodRun, routeSplits } from "../.test-dist/services/runs.js";
+
+test("compare: the last good run of the same goal and where the routes split", async () => {
+  const SET = "screen:settings:cccccccccccccccc";
+  const MENU = "screen:menu:bbbbbbbbbbbbbbbb";
+  const failed = { ...V2, goal: "Open  Facebook settings", status: "failed", startedAt: 5_000_000, places: [{ placeId: FB, appVersion: "1", route: [HOME, LIST] }] };
+  const good = { ...DONE, runId: "ai-run-good", goal: "open facebook settings", startedAt: 4_000_000, places: [{ placeId: FB, appVersion: "1", route: [HOME, MENU, SET] }] };
+  const older = { ...good, runId: "ai-run-older", startedAt: 1_000_000 };
+  const other = { ...good, runId: "ai-run-other", goal: "open clock", startedAt: 4_500_000 };
+  const later = { ...good, runId: "ai-run-later", startedAt: 6_000_000 };
+  const summaries = [older, good, other, later].map(parseRunSummary);
+  assert.equal(lastGoodRun(parseRunSummary(failed), summaries).runId, "ai-run-good");
+  assert.deepEqual(routeSplits(parseRunSummary(failed), parseRunSummary(good)), [{ placeId: FB, shared: [HOME], goodNext: MENU, thisNext: LIST }]);
+
+  installMiniDom();
+  const navigated = [];
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs/ai-run-1": () => failed, "GET /v1/devices/d1/runs": () => ({ runs: [older, good, other, later] }) });
+  const page = createRunPage({ ...ctx(gateway.fetch), navigate: (r) => navigated.push(r) }, { name: "run", runId: "ai-run-1" });
+  await flush();
+  await flush();
+  const card = page.element.querySelector(".compare-card");
+  assert.match(card.textContent, /Compared with the last good run/);
+  assert.match(card.textContent, /The good run went on to Menu screen · bbbb; this run went to List screen · aaaa instead/);
+  assert.equal(gateway.calls.find((c) => c.path === "/v1/devices/d1/runs").query.filter, "completed");
+  [...card.querySelectorAll(".btn")].find((b) => /Show the split/.test(b.textContent)).click();
+  assert.deepEqual(navigated.at(-1), { name: "app", placeId: FB, tab: "map", route: [HOME, MENU, LIST], runId: "ai-run-1" });
+  page.destroy();
+});

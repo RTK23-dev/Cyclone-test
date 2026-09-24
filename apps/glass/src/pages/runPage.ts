@@ -9,7 +9,10 @@ import {
   causeTone,
   formatDuration,
   getRun,
+  lastGoodRun,
+  listRuns,
   markRun,
+  routeSplits,
   appName,
   outcomeLabel,
   roomLabel,
@@ -17,6 +20,7 @@ import {
   statusTone,
   type RunDetail,
   type RunPlace,
+  type RunSummary,
   type RunStep,
 } from "../services/runs.js";
 import { getScenarios, healthLabel, healthTone, type Scenario } from "../services/knowledge.js";
@@ -164,6 +168,12 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
     }
 
     if (run.places.length) parts.push(routeCard(run));
+    if (run.status === "failed" || run.status === "cancelled") {
+      const compare = card("compare-card");
+      compare.hidden = true;
+      parts.push(compare);
+      void compareWithLastGood(run, compare);
+    }
 
     const layout = el("div", "run-layout");
     const left = el("section", "timeline-card");
@@ -281,6 +291,43 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
         void scenariosReached(place, touched);
       }
       return row;
+    }
+
+    /** A failed run next to the last finished run of the same goal: where did the routes split? */
+    async function compareWithLastGood(detail: RunDetail, into: HTMLElement): Promise<void> {
+      let good: RunSummary | null;
+      try {
+        good = lastGoodRun(detail, await listRuns(ctx.client, deviceId, "completed", 100, controller.signal));
+      } catch {
+        return;
+      }
+      if (!good || controller.signal.aborted) return;
+      const splits = routeSplits(detail, good).filter((split) => split.shared.length || split.goodNext);
+      const head = el("div", "cause-top");
+      head.append(el("span", "cause-kicker", "Compared with the last good run"), chip("Finished", "success"));
+      const open = link(`Open the good run (${relativeTime(good.startedAt)})`, `#/runs/${encodeURIComponent(good.runId)}`, "compare-open");
+      setChildren(into, head);
+      if (!splits.length) {
+        into.append(el("p", "muted", "The good run did not record rooms, so the routes cannot be compared."), open);
+      }
+      for (const split of splits) {
+        const row = el("div", "compare-row");
+        row.append(el("strong", undefined, appName(split.placeId)));
+        const text =
+          split.goodNext === null
+            ? "This run walked every room the good run did."
+            : `Both runs reached ${split.shared.length ? roomLabel(split.shared.at(-1)!) : "the app"}. The good run went on to ${roomLabel(split.goodNext)}; this run ${split.thisNext ? `went to ${roomLabel(split.thisNext)} instead` : "stopped there"}.`;
+        row.append(el("p", "compare-text", text));
+        if (split.goodNext) {
+          const rooms = [...split.shared.slice(-1), split.goodNext, ...(split.thisNext ? [split.thisNext] : [])];
+          const show = actionButton("Show the split on the map", { icon: "map" });
+          show.addEventListener("click", () => ctx.navigate({ name: "app", placeId: split.placeId, tab: "map", route: rooms, runId: detail.runId }));
+          row.append(show);
+        }
+        into.append(row);
+      }
+      if (splits.length) into.append(open);
+      into.hidden = false;
     }
 
     /** Scenarios whose destination this run reached (Glass matches ids; the phone computed both). */

@@ -333,3 +333,40 @@ function str(value: unknown): string {
 function num(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
+
+export interface RouteSplit {
+  placeId: string;
+  /** Rooms both runs walked, in order, before they went different ways. */
+  shared: string[];
+  /** Where the good run went next; null when this run reached every room the good run did. */
+  goodNext: string | null;
+  /** Where this run went instead; null when it stopped there. */
+  thisNext: string | null;
+}
+
+/** The latest finished run with the same goal (case and spaces ignored), started before this one. */
+export function lastGoodRun(run: RunSummary, runs: RunSummary[]): RunSummary | null {
+  const goal = normalizeGoal(run.goal);
+  if (!goal) return null;
+  return (
+    runs
+      .filter((other) => other.runId !== run.runId && other.status === "completed" && other.startedAt < run.startedAt && normalizeGoal(other.goal) === goal)
+      .sort((a, b) => b.startedAt - a.startedAt)[0] ?? null
+  );
+}
+
+/** Per app both runs entered: the shared prefix of their room routes and where each went next. */
+export function routeSplits(run: RunSummary, good: RunSummary): RouteSplit[] {
+  const splits: RouteSplit[] = [];
+  for (const place of good.places) {
+    const mine = run.places.find((p) => p.placeId === place.placeId)?.route ?? [];
+    let i = 0;
+    while (i < mine.length && i < place.route.length && mine[i] === place.route[i]) i++;
+    splits.push({ placeId: place.placeId, shared: place.route.slice(0, i), goodNext: place.route[i] ?? null, thisNext: mine[i] ?? null });
+  }
+  return splits;
+}
+
+function normalizeGoal(goal: string): string {
+  return goal.trim().toLowerCase().replace(/\s+/g, " ");
+}
