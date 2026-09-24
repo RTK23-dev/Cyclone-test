@@ -24,6 +24,8 @@ import com.cyclone.mobile.agent.CycloneToolResult
 import com.cyclone.mobile.agent.CycloneTraceEventType
 import com.cyclone.mobile.agent.CycloneVerificationResult
 import com.cyclone.mobile.agent.contract.*
+import com.cyclone.mobile.agent.nav.AtlasNavigator
+import com.cyclone.mobile.agent.nav.LiveAtlasTargets
 import com.cyclone.mobile.agent.integration.CyclonePcParityBridge
 import com.cyclone.mobile.agent.recovery.ActionOutcomePolicy
 import com.cyclone.mobile.agent.recovery.ProgressClassification
@@ -143,6 +145,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         var pendingAutofill: Boolean = false,
         var pendingLoginAutofill: Boolean = false,
         var atlasAnnounced: Boolean = false,
+        val atlasNavigator: AtlasNavigator = AtlasNavigator(),
+        var atlasStep: AtlasNavigator.Step? = null,
         var splashWaits: Int = 0,
         /** Raw observed account for this run only. Never copied into traces or consumer stages. */
         var observedAccountRaw: String? = null,
@@ -768,7 +772,22 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     }
                 }
 
-                val compiled = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) { if (session.adaptiveMode == "FREE") null
+                session.atlasStep = null
+                val atlasNeedsLook = session.atlasNavigator.needsLook
+                val atlasStep = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) {
+                    if (session.adaptiveMode == "FREE") null else knownAtlasAction(session, goal)
+                }
+                if (atlasStep != null) {
+                    session.atlasStep = atlasStep
+                    session.atlasNavigator.dispatched(atlasStep)
+                    return CyclonePlanResult.Valid(CycloneModelTurn(
+                        directive = CycloneModelDirective.ACT,
+                        actionSignature = "atlas:${atlasStep.edgeId}",
+                        payload = atlasStep,
+                    ))
+                }
+
+                val compiled = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) { if (atlasNeedsLook || session.adaptiveMode == "FREE") null
                 else SkillRuntime.match(
                     packageName = session.state.page.packageName,
                     goal = goal,
@@ -794,7 +813,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     )
                 }
 
-                val graphAction = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) { if (session.adaptiveMode == "FREE") null
+                val graphAction = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) { if (atlasNeedsLook || session.adaptiveMode == "FREE") null
                 else knownAppGraphAction(session.state.page, goal, session.graphAttempts) }
                 if (graphAction != null) {
                     session.graphAttempts += "${session.state.page.pageKey}|${graphAction.id}"
@@ -959,6 +978,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     )
                 }
                 val execution = when (val payload = turn.payload) {
+                    is AtlasNavigator.Step -> executeAtlasStep(session, payload, onProgress)
                     is CompiledSkillRoute -> executeCompiledSkill(session, payload, onProgress)
                     is LearnedAction -> executeGraphAction(session, payload, onProgress)
                     is PageAgentDecision -> {
@@ -1111,7 +1131,11 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     // Run record v2: the room and app before each decision turn, the room after each check.
                     when (event.type) {
                         CycloneTraceEventType.TOOL_REQUESTED ->
-                            com.cyclone.mobile.mapping.crawl.StepLocation.detail(context, execution.sessionId, after = false)
+                            listOfNotNull(
+                                com.cyclone.mobile.mapping.crawl.StepLocation.detail(context, execution.sessionId, after = false),
+                                session.atlasStep?.takeIf { event.actionSignature?.startsWith("atlas:") == true }
+                                    ?.let { "expectRoom=${it.expectedRoom}" },
+                            ).joinToString(" · ")
                         CycloneTraceEventType.VERIFY ->
                             com.cyclone.mobile.mapping.crawl.StepLocation.detail(context, execution.sessionId, after = true)
                         else -> null
@@ -1712,6 +1736,54 @@ class OpenRouterAdaptiveAgent(private val context: Context,
     }
 
 
+    private fun knownAtlasAction(session: LocalSessionContext, goal: String): AtlasNavigator.Step? = runCatching {
+        val card = session.bridge.currentPage()?.takeIf { it.actionable } ?: return null
+        val capture = com.cyclone.mobile.gateway.GatewayObservationStore.current(execution) ?: return null
+        if (card.observationId != capture.id) return null
+        val place = com.cyclone.mobile.places.PlaceResolver.resolveCurrent(card) ?: return null
+        val room = com.cyclone.mobile.mapping.crawl.CurrentRoom.key(execution.sessionId) ?: return null
+        val waypoint = session.trajectory.current
+        val destination = com.cyclone.mobile.agent.plan.TaskDifficulty.assess(goal).destinations.firstOrNull {
+            (it.kind == "app" && place.packageName == it.value) ||
+                (it.kind == "host" && place.origin?.substringAfter("://")?.removePrefix("www.") == it.value.removePrefix("www."))
+        }
+        val clause = destination?.let { com.cyclone.mobile.agent.plan.DestinationAuthority.clauseFor(goal, it) } ?: goal
+        val objective = if (waypoint?.until == com.cyclone.mobile.agent.plan.DestinationAuthority.UNTIL_ACCOUNT_OBSERVED)
+            "account signed in email FIND_SIGNED_IN_IDENTITY" else clause
+        session.atlasNavigator.next(com.cyclone.mobile.applearner.graphv2.AtlasRuntime.store,
+            place.id, room, objective, capture.id, LiveAtlasTargets.from(capture))
+    }.getOrNull()
+
+    private fun executeAtlasStep(
+        session: LocalSessionContext,
+        step: AtlasNavigator.Step,
+        onProgress: (String) -> Unit,
+    ): LocalExecution {
+        val card = session.bridge.currentPage()
+        if (card == null || card.observationId != step.observationId ||
+            com.cyclone.mobile.places.PlaceResolver.resolveCurrent(card)?.id != step.placeId ||
+            com.cyclone.mobile.mapping.crawl.CurrentRoom.key(execution.sessionId) != step.fromRoom) {
+            session.atlasNavigator.verified(step, null, null, false)
+            return LocalExecution(session.state, false, false, cycloneObservation(session.state).evidenceIdentity,
+                staleTarget = true, message = "Atlas door no longer matches the current observation.")
+        }
+        val result = executeDecisionActions(session, PageAgentDecision(
+            "act", session.state.page.title, "Following the mapped route",
+            listOf(PageAgentAction("phone.click", step.elementId,
+                JSONObject().put("observationId", step.observationId), true, "Following the mapped route")),
+            null, null), onProgress)
+        val after = session.bridge.currentPage()
+        val actualRoom = com.cyclone.mobile.mapping.crawl.CurrentRoom.key(execution.sessionId)
+        val matched = session.atlasNavigator.verified(step,
+            after?.let { com.cyclone.mobile.places.PlaceResolver.resolveCurrent(it)?.id }, actualRoom,
+            result.ok && after?.observationId != step.observationId)
+        AgentTraceRuntime.event(context, session.traceId, "VERIFICATION",
+            if (matched) "Mapped destination verified" else "Mapped door missed; inspecting the live screen",
+            code = if (matched) "atlas.room_verified" else "atlas.wrong_room", ok = matched,
+            detail = "expectRoom=${step.expectedRoom} · roomAfter=${actualRoom.orEmpty()}")
+        return result.copy(ok = result.ok && matched, progress = result.progress && matched, complete = false)
+    }
+
     private fun knownAppGraphAction(page: PageContext, goal: String, attempted: Set<String>): LearnedAction? {
         val graph = AppLearnerRuntime.graph(page.packageName) ?: return null
         val current = graph.screens.firstOrNull { it.recognition.semanticFingerprint == page.pageKey }
@@ -1800,7 +1872,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
 
     /**
      * V5: the phone's Atlas as a hint in the model context (rooms, doors, you-are-here, a suggested
-     * route). Never executed; the next action is still chosen from the live screen.
+     * route). The one-door AtlasNavigator path executes separately, using the same live screen.
      */
     private fun atlasSketchFor(session: LocalSessionContext, goal: String): JSONObject? = runCatching {
         AppLearnerRuntime.initialize(context)

@@ -132,7 +132,7 @@ object RunInsight {
         head.kind !in BOUNDARY -> null
         action == null -> "model"
         action.startsWith("mapper:") -> null // the mapper explores; neither a known route nor the model chose
-        action.startsWith("graph:") || action.startsWith("compiled-skill:") -> "map"
+        action.startsWith("atlas:") || action.startsWith("graph:") || action.startsWith("compiled-skill:") -> "map"
         else -> "model"
     }
 
