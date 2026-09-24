@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.13 dev1 + Cyclone Glass 1.0.0-alpha.6: App Screens / Runs tabs, Scenarios board, Knowledge page,
-# mapping passes as runs, Mark as expected, You are here, fix links. Includes the alpha.12 Trace Field / tools drawer fix.
+# mapping passes as runs, Mark as expected, You are here, fix links. Includes the alpha.12 Trace Field / tools drawer fix. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.13.dev1"
 channel = "development"
