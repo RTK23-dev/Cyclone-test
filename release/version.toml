@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.17 dev1 + Cyclone Glass 1.0.0-alpha.10: App Issues tab, live runs, PC connected notice, Never pressed
-# on the map, runs CSV, Screens search, this PC's name in Devices.
+# on the map, runs CSV, Screens search, this PC's name in Devices. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.17.dev1"
 channel = "development"
