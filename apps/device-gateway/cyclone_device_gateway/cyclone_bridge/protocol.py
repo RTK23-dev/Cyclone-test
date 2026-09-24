@@ -17,6 +17,7 @@ ALLOWED_OPS = {
     "ask.start", "ask.status",
     "apps.list",
     "runs.list", "runs.get",
+    "atlas.versions", "scenarios.list",
 }
 UNAUTHENTICATED_OPS = {
     "trust.negotiate", "trust.begin", "trust.complete", "trust.session.begin", "trust.session.complete",

@@ -14,6 +14,7 @@ import { createRunsPage } from "./pages/runsPage.js";
 import { createRunPage } from "./pages/runPage.js";
 import { createSettingsPage } from "./pages/settingsPage.js";
 import { createDevicesPage } from "./pages/devicesPage.js";
+import { createAppKnowledgePage } from "./pages/appKnowledgePage.js";
 
 export const DEVICE_STORAGE_KEY = "cyclone.glass.device.v1";
 const DEVICE_REFRESH_MS = 5_000;
@@ -46,7 +47,10 @@ type PageFactory = (ctx: GlassContext, route: Route) => GlassPage;
 
 const PAGES: Record<Route["name"], PageFactory> = {
   apps: (ctx, route) => createAppsPage(ctx, route),
-  app: (ctx, route) => createAppsPage(ctx, route),
+  app: (ctx, route) =>
+    route.name === "app" && route.tab !== "map"
+      ? createAppKnowledgePage(ctx, route as Extract<Route, { name: "app" }> & { tab: "scenarios" | "versions" })
+      : createAppsPage(ctx, route),
   runs: (ctx) => createRunsPage(ctx),
   run: (ctx, route) => createRunPage(ctx, route as Extract<Route, { name: "run" }>),
   phone: (ctx) => createPhonePage(ctx),
@@ -137,7 +141,7 @@ export class GlassApp {
   }
 
   private routeKey(): string {
-    return `${this.route.name}:${this.route.name === "app" ? this.route.placeId : this.route.name === "run" ? this.route.runId : ""}`;
+    return `${this.route.name}:${this.route.name === "app" ? `${this.route.placeId}/${this.route.tab}/${this.route.route?.join(",") ?? ""}` : this.route.name === "run" ? this.route.runId : ""}`;
   }
 
   private deviceSignature(): string {

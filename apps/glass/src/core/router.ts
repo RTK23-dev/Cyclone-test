@@ -1,5 +1,6 @@
 /** Hash routes. Hash routing keeps the gateway's static mount trivial (one index.html under /glass/). */
-export type AppTab = "map";
+export type AppTab = "map" | "scenarios" | "versions";
+const APP_TABS: AppTab[] = ["map", "scenarios", "versions"];
 
 export type Route =
   | { name: "apps" }
@@ -24,10 +25,11 @@ export function parseRoute(hash: string): Route {
     if (!placeId) return DEFAULT_ROUTE;
     const route = (query.get("route") ?? "").split(",").filter((id) => ROOM_ID.test(id)).slice(0, 60);
     const runId = query.get("run") ?? "";
+    const tab = APP_TABS.includes(parts[2] as AppTab) ? (parts[2] as AppTab) : "map";
     return {
       name: "app",
       placeId,
-      tab: "map",
+      tab,
       ...(route.length ? { route } : {}),
       ...(/^[A-Za-z0-9_-]{4,120}$/.test(runId) ? { runId } : {}),
     };

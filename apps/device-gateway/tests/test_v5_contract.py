@@ -723,3 +723,88 @@ def test_glass_alpha4_malformed_run_record_v2_is_rejected(listing, detail):
         else:
             svc.runs_get("phone-1", "ai-run-1")
     assert error.value.code in {"PROTOCOL_MISMATCH", "INVALID_REQUEST"}
+
+
+GM = "package:com.google.android.gm"
+VERSIONS = {
+    "placeId": GM,
+    "installedVersion": {"versionName": "2026.09.14", "versionCode": 120},
+    "needsRemap": False,
+    "versions": [{"versionName": "2026.09.14", "versionCode": 120, "installed": True, "doors": 3, "rooms": 4, "failingDoors": 0, "lastSeenAt": 5}],
+    "staleDoorCount": 1,
+    "staleDoors": [{"edgeId": "edge:abc", "fromScreenId": "screen:home:aaaaaaaaaaaaaaaa", "toScreenId": "screen:menu:bbbbbbbbbbbbbbbb", "versionName": "2026.08.01", "versionCode": 100}],
+}
+SCENARIOS = {
+    "placeId": GM,
+    "persona": "mapping",
+    "entryScreenId": "screen:home:aaaaaaaaaaaaaaaa",
+    "scenarios": [{
+        "scenarioId": "sc_0123456789abcdef01",
+        "title": "Reach Settings",
+        "startScreenId": "screen:home:aaaaaaaaaaaaaaaa",
+        "endScreenId": "screen:settings:cccccccccccccccc",
+        "route": ["screen:home:aaaaaaaaaaaaaaaa", "screen:settings:cccccccccccccccc"],
+        "steps": 1,
+        "danger": False,
+        "health": "passing",
+        "lastVerifiedAt": 5,
+        "appVersion": "2026.09.14",
+        "runs": [{"runId": "ai-run-1", "status": "completed", "startedAt": 4}],
+    }],
+}
+
+
+class KnowledgeBridge(FakeBridge):
+    def __init__(self, versions=None, scenarios=None):
+        super().__init__()
+        self.versions = versions if versions is not None else VERSIONS
+        self.scenarios = scenarios if scenarios is not None else SCENARIOS
+
+    def request(self, op, args, request_id=None):
+        if op in {"atlas.versions", "scenarios.list"}:
+            self.calls.append((op, dict(args), request_id))
+            return self.versions if op == "atlas.versions" else self.scenarios
+        return super().request(op, args, request_id)
+
+
+def test_glass_alpha5_versions_and_scenarios_come_from_the_phone():
+    bridge = KnowledgeBridge()
+    svc = V5ContractService(FakeFleet(bridge))
+    assert svc.atlas_versions("phone-1", GM) == VERSIONS
+    assert svc.scenarios_list("phone-1", GM) == SCENARIOS
+    assert svc.forward("phone-1", "scenarios.list", {"placeId": GM, "persona": "live"}) == SCENARIOS
+    assert [call[:2] for call in bridge.calls] == [
+        ("atlas.versions", {"placeId": GM}),
+        ("scenarios.list", {"placeId": GM, "persona": "mapping"}),
+        ("scenarios.list", {"placeId": GM, "persona": "live"}),
+    ]
+
+
+@pytest.mark.parametrize("call", [
+    lambda s: s.atlas_versions("phone-1", "chrome:https://example.com"),
+    lambda s: s.scenarios_list("phone-1", GM, "boss"),
+    lambda s: s.forward("phone-1", "atlas.versions", {"placeId": GM, "extra": 1}),
+])
+def test_glass_alpha5_bad_knowledge_requests_never_reach_the_phone(call):
+    bridge = KnowledgeBridge()
+    with pytest.raises(DesktopRuntimeError) as error:
+        call(V5ContractService(FakeFleet(bridge)))
+    assert error.value.code == "INVALID_REQUEST"
+    assert bridge.calls == []
+
+
+@pytest.mark.parametrize("versions, scenarios", [
+    ({**VERSIONS, "labels": ["Inbox"]}, None),
+    ({**VERSIONS, "staleDoors": [{**VERSIONS["staleDoors"][0], "fromScreenId": "Inbox of alice"}]}, None),
+    (None, {**SCENARIOS, "scenarios": [{**SCENARIOS["scenarios"][0], "health": "great"}]}),
+    (None, {**SCENARIOS, "scenarios": [{**SCENARIOS["scenarios"][0], "steps": 5}]}),
+    (None, {**SCENARIOS, "scenarios": [{**SCENARIOS["scenarios"][0], "title": "password: hunter2"}]}),
+])
+def test_glass_alpha5_malformed_knowledge_is_rejected(versions, scenarios):
+    svc = V5ContractService(FakeFleet(KnowledgeBridge(versions=versions, scenarios=scenarios)))
+    with pytest.raises(DesktopRuntimeError) as error:
+        if versions is not None:
+            svc.atlas_versions("phone-1", GM)
+        else:
+            svc.scenarios_list("phone-1", GM)
+    assert error.value.code in {"PROTOCOL_MISMATCH", "INVALID_REQUEST"}

@@ -172,7 +172,11 @@ object MappingDriverRuntime {
             val pm = appContext.packageManager
             pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
         }.getOrDefault(packageName)
-        val atlas = AtlasStoreMappingPort(AtlasRuntime.store, job.placeId, label)
+        val version = runCatching {
+            val info = appContext.packageManager.getPackageInfo(packageName, 0)
+            com.cyclone.mobile.brain.graphv2.AppVersionEvidence(packageName, info.versionName, info.longVersionCode)
+        }.getOrNull()
+        val atlas = AtlasStoreMappingPort(AtlasRuntime.store, job.placeId, label, appVersion = version)
         val session = ControllerSessionPort(controller, job.mappingJobId)
         val secrets = Run1MappingSecretsPort(appContext) { resolution ->
             if (resolution.taskMayResume) resume(appContext, job.mappingJobId)

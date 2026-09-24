@@ -26,6 +26,7 @@ import { icon } from "../ui/icons.js";
 import { plural, relativeTime } from "../ui/format.js";
 import { deviceGate } from "./deviceGate.js";
 import type { GlassPage } from "./page.js";
+import { appTabs } from "./appKnowledgePage.js";
 
 export interface AppPageDeps {
   fetch?: typeof fetch;
@@ -73,10 +74,7 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
       void loadAtlas(true);
     },
   );
-  const tabs = el("nav", "tabs");
-  const mapTab = el("span", "tab active", "Map");
-  mapTab.setAttribute("aria-current", "page");
-  tabs.append(mapTab);
+  const tabs = appTabs(placeId, "map");
 
   const coverage = el("div", "board-coverage");
   const bar = el("div", "board-bar");

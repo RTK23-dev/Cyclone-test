@@ -1,6 +1,7 @@
 package com.cyclone.mobile.mapping.run
 
 import com.cyclone.mobile.brain.graphv2.AppNode
+import com.cyclone.mobile.brain.graphv2.AppVersionEvidence
 import com.cyclone.mobile.brain.graphv2.AtlasDanger
 import com.cyclone.mobile.brain.graphv2.AtlasEdgeMetadata
 import com.cyclone.mobile.brain.graphv2.AtlasGraphIds
@@ -45,6 +46,8 @@ class AtlasStoreMappingPort(
     private val placeId: String,
     placeLabel: String,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Installed app version during this pass; every door learned is stamped with it (Glass Versions, needs-remap). */
+    private val appVersion: AppVersionEvidence? = null,
 ) : MappingAtlasPort {
     private val packageName = placeId.removePrefix("package:")
     private val key = AtlasPlaceKey(placeId, AtlasPersona.MAPPING)
@@ -221,7 +224,7 @@ class AtlasStoreMappingPort(
         lastFailedAtEpochMillis = null,
         successCount = 1,
         failureCount = 0,
-        appVersion = null,
+        appVersion = appVersion,
         verificationState = GraphVerificationState.OBSERVED,
         verificationScope = GraphVerificationScope.NONE,
         staleness = GraphStaleness.CURRENT,

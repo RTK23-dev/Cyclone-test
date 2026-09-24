@@ -163,6 +163,7 @@ function match(value: unknown, pattern: RegExp): string | null {
 
 /** "screen:list:3fa2…" → "List screen · 3fa2". The phone keeps rooms structural; Glass only names the shape. */
 export function roomLabel(roomId: string): string {
+  if (roomId.startsWith("page:")) return `Taught screen · ${roomId.slice(-4)}`;
   const [, purpose = "screen", digest = ""] = roomId.split(":");
   const words = purpose.replace(/_/g, " ");
   return `${words.charAt(0).toUpperCase()}${words.slice(1)} screen · ${digest.slice(0, 4)}`;

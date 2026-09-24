@@ -24,6 +24,8 @@ V5_OPS = frozenset({
     "apps.list",
     "runs.list",
     "runs.get",
+    "atlas.versions",
+    "scenarios.list",
 })
 ASK_STATES = frozenset({"idle", "working", "action-needed", "needs-secret", "done", "failed"})
 ASK_MILESTONE_STATES = frozenset({"pending", "active", "done", "action-needed", "failed"})
@@ -581,6 +583,91 @@ def _validate_run_detail(value: dict[str, Any], args: dict[str, Any]) -> None:
                 raise _bad_run("event ok")
 
 
+KNOWLEDGE_PLACE_ID = re.compile(r"^package:[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$")
+VERSION_ROW_KEYS = frozenset({"versionName", "versionCode", "installed", "doors", "rooms", "failingDoors", "lastSeenAt"})
+STALE_DOOR_KEYS = frozenset({"edgeId", "fromScreenId", "toScreenId", "versionName", "versionCode"})
+SCENARIO_KEYS = frozenset({
+    "scenarioId", "title", "startScreenId", "endScreenId", "route", "steps", "danger", "health", "lastVerifiedAt", "appVersion", "runs",
+})
+SCENARIO_HEALTH = frozenset({"passing", "warning", "critical", "untested"})
+SCENARIO_ID = re.compile(r"^sc_[0-9a-f]{18}$")
+
+
+def _bad_knowledge(message: str) -> DesktopRuntimeError:
+    return DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, f"Android {message} is malformed.")
+
+
+def _version_fields(value: dict[str, Any]) -> bool:
+    return _short_text(value.get("versionName"), 64, nullable=True) and (
+        value.get("versionCode") is None or _is_int(value.get("versionCode"))
+    )
+
+
+def _validate_atlas_versions(value: dict[str, Any], args: dict[str, Any]) -> None:
+    """Version facts and structural ids only: no labels, selectors or screen content."""
+    keys = {"placeId", "installedVersion", "needsRemap", "versions", "staleDoorCount", "staleDoors"}
+    if set(value) != keys or value["placeId"] != args.get("placeId") or not isinstance(value["needsRemap"], bool):
+        raise _bad_knowledge("atlas.versions")
+    installed = value["installedVersion"]
+    if installed is not None and (not isinstance(installed, dict) or set(installed) != {"versionName", "versionCode"} or not _version_fields(installed)):
+        raise _bad_knowledge("installed version")
+    versions = value["versions"]
+    if not isinstance(versions, list) or len(versions) > 12:
+        raise _bad_knowledge("versions")
+    for row in versions:
+        if not isinstance(row, dict) or set(row) != VERSION_ROW_KEYS or not _version_fields(row) or not isinstance(row["installed"], bool):
+            raise _bad_knowledge("version row")
+        if not all(_is_int(row[key]) for key in ("doors", "rooms", "failingDoors", "lastSeenAt")):
+            raise _bad_knowledge("version counts")
+    stale = value["staleDoors"]
+    if not _is_int(value["staleDoorCount"]) or not isinstance(stale, list) or len(stale) > 20:
+        raise _bad_knowledge("stale doors")
+    for door in stale:
+        if not isinstance(door, dict) or set(door) != STALE_DOOR_KEYS or not _version_fields(door):
+            raise _bad_knowledge("stale door")
+        if not EDGE_ID.fullmatch(str(door["edgeId"])) or not all(
+            isinstance(door[key], str) and SCREEN_ID.fullmatch(door[key]) for key in ("fromScreenId", "toScreenId")
+        ):
+            raise _bad_knowledge("stale door ids")
+
+
+def _validate_scenarios(value: dict[str, Any], args: dict[str, Any]) -> None:
+    if set(value) != {"placeId", "persona", "entryScreenId", "scenarios"} or value["placeId"] != args.get("placeId"):
+        raise _bad_knowledge("scenarios.list")
+    if value["persona"] not in {"live", "mapping"}:
+        raise _bad_knowledge("scenario persona")
+    entry = value["entryScreenId"]
+    if entry is not None and (not isinstance(entry, str) or not SCREEN_ID.fullmatch(entry)):
+        raise _bad_knowledge("entry room")
+    scenarios = value["scenarios"]
+    if not isinstance(scenarios, list) or len(scenarios) > 24:
+        raise _bad_knowledge("scenarios")
+    for scenario in scenarios:
+        if not isinstance(scenario, dict) or set(scenario) != SCENARIO_KEYS:
+            raise _bad_knowledge("scenario")
+        if not isinstance(scenario["scenarioId"], str) or not SCENARIO_ID.match(scenario["scenarioId"]):
+            raise _bad_knowledge("scenario id")
+        if not _short_text(scenario["title"], 80) or scenario["health"] not in SCENARIO_HEALTH or not isinstance(scenario["danger"], bool):
+            raise _bad_knowledge("scenario fields")
+        route = scenario["route"]
+        if not isinstance(route, list) or not 2 <= len(route) <= 40 or not all(isinstance(room, str) and SCREEN_ID.fullmatch(room) for room in route):
+            raise _bad_knowledge("scenario route")
+        if route[0] != scenario["startScreenId"] or route[-1] != scenario["endScreenId"] or scenario["steps"] != len(route) - 1:
+            raise _bad_knowledge("scenario ends")
+        if scenario["lastVerifiedAt"] is not None and not _is_int(scenario["lastVerifiedAt"]):
+            raise _bad_knowledge("scenario verified")
+        if not _short_text(scenario["appVersion"], 64, nullable=True):
+            raise _bad_knowledge("scenario version")
+        runs = scenario["runs"]
+        if not isinstance(runs, list) or len(runs) > 5:
+            raise _bad_knowledge("scenario runs")
+        for run in runs:
+            if not isinstance(run, dict) or set(run) != {"runId", "status", "startedAt"}:
+                raise _bad_knowledge("scenario run")
+            if not isinstance(run["runId"], str) or not RUN_ID.match(run["runId"]) or run["status"] not in RUN_STATUSES or not _is_int(run["startedAt"]):
+                raise _bad_knowledge("scenario run fields")
+
+
 def validate_android_response(op: str, value: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
     """Keep a phone bug from turning into PC/model secret or mapping authority."""
     if op == "secrets.slots":
@@ -620,6 +707,12 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
     if op == "runs.get":
         _validate_run_detail(value, args)
         return value
+    if op == "atlas.versions":
+        _validate_atlas_versions(value, args)
+        return value
+    if op == "scenarios.list":
+        _validate_scenarios(value, args)
+        return value
     raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
 
 
@@ -650,6 +743,16 @@ class V5ContractService:
         if not isinstance(run_id, str) or not RUN_ID.match(run_id):
             raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runId is malformed.")
         return self._call(device_id, "runs.get", {"runId": run_id})
+
+    def atlas_versions(self, device_id: str, place_id: str) -> dict[str, Any]:
+        if not isinstance(place_id, str) or not KNOWLEDGE_PLACE_ID.match(place_id) or len(place_id) > 200:
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Versions are for apps (package:…).")
+        return self._call(device_id, "atlas.versions", {"placeId": place_id})
+
+    def scenarios_list(self, device_id: str, place_id: str, persona: str = "mapping") -> dict[str, Any]:
+        if not isinstance(place_id, str) or not KNOWLEDGE_PLACE_ID.match(place_id) or len(place_id) > 200 or persona not in {"live", "mapping"}:
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Scenarios are for apps (package:…) and a known persona.")
+        return self._call(device_id, "scenarios.list", {"placeId": place_id, "persona": persona})
 
     def atlas_get(self, device_id: str, place_id: str, persona: str) -> dict[str, Any]:
         args = {"placeId": place_id, "persona": persona}
@@ -725,6 +828,14 @@ class V5ContractService:
             if set(args) != {"runId"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.get takes runId only.")
             return self.runs_get(device_id, args["runId"])
+        if op == "atlas.versions":
+            if set(args) != {"placeId"}:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.versions takes placeId only.")
+            return self.atlas_versions(device_id, args["placeId"])
+        if op == "scenarios.list":
+            if not {"placeId"} <= set(args) <= {"placeId", "persona"}:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "scenarios.list takes placeId and persona only.")
+            return self.scenarios_list(device_id, args["placeId"], args.get("persona", "mapping"))
         if op == "atlas.get":
             if set(args) != {"placeId", "persona"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.get requires placeId/persona only.")

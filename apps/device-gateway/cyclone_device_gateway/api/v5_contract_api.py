@@ -24,6 +24,18 @@ def create_v5_contract_router(runtime: Any, token: str) -> APIRouter:
     def apps_list(device_id: str):
         return _call(lambda: service.apps_list(device_id))
 
+    @router.get("/v1/devices/{device_id}/apps/versions", dependencies=[Depends(auth)])
+    def atlas_versions(device_id: str, placeId: str = Query(min_length=9, max_length=200)):
+        return _call(lambda: service.atlas_versions(device_id, placeId))
+
+    @router.get("/v1/devices/{device_id}/apps/scenarios", dependencies=[Depends(auth)])
+    def scenarios_list(
+        device_id: str,
+        placeId: str = Query(min_length=9, max_length=200),
+        persona: Literal["live", "mapping"] = Query(default="mapping"),
+    ):
+        return _call(lambda: service.scenarios_list(device_id, placeId, persona))
+
     @router.get("/v1/devices/{device_id}/runs", dependencies=[Depends(auth)])
     def runs_list(
         device_id: str,
