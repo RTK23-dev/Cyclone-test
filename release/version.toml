@@ -1,4 +1,4 @@
-# Cyclone V5 alpha.22 dev1: fast analytic Teal glass (no layer refraction noise, 24 fps field, background shader warm-up) on alpha.21.
+# Cyclone V5 alpha.22 dev1: fast analytic Teal glass (no layer refraction noise, 24 fps field, background shader warm-up) on alpha.21 (CI guard updated for the no-capture glass contract).
 # Owner-requested developer candidate; physical phone acceptance UNVERIFIED. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.22.dev1"
