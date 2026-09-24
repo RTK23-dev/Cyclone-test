@@ -1399,7 +1399,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 detail = PageAgentProtocol.diagnosticActionDetail(action),
             )
 
+            val beforeCapture = com.cyclone.mobile.gateway.GatewayObservationStore.current(execution)
             val envelope = session.bridge.act(action, state.page, session.goal)
+            com.cyclone.mobile.agent.settle.SettleRecorder.take(execution.sessionId)?.let { traceSettle(session, it) }
+            val deferred = deferredProof(session, action, envelope, beforeCapture)
             AgentTraceRuntime.event(
                 context, session.traceId, if (envelope.executorInvoked) "ANDROID_EXECUTION" else "ACTION_REJECTED",
                 if (!envelope.executorInvoked) "Action rejected before the canonical executor"
@@ -1443,9 +1446,9 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 )
             }
 
-            val verified = envelope.verification.passed
-            val accepted = AgentProgressAcceptance.acceptedForExecution(envelope)
-            val madeProgress = AgentProgressAcceptance.madeProgress(envelope, progress.classification)
+            val verified = envelope.verification.passed || deferred
+            val accepted = AgentProgressAcceptance.acceptedForExecution(envelope) || deferred
+            val madeProgress = AgentProgressAcceptance.madeProgress(envelope, progress.classification) || deferred
             session.executedActions.record(action, actionScene, envelope.androidExecutionOk, madeProgress)
             val previousMode = session.adaptiveMode
             if (madeProgress) {
@@ -1804,6 +1807,60 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         else -> null
     }
 
+
+    /**
+     * Deferred proof: Android accepted a page-changing action but its after-state was not captured in time (a slow
+     * launch, a splash). The step is pending, not failed: settle again on the live screen and verify the same
+     * expectation before any recovery, free mode or model turn is spent on it.
+     */
+    private fun deferredProof(
+        session: LocalSessionContext,
+        action: PageAgentAction,
+        envelope: com.cyclone.mobile.agent.contract.AgentActionEnvelope,
+        before: com.cyclone.mobile.gateway.GatewayObservation?,
+    ): Boolean {
+        if (!envelope.androidExecutionOk || envelope.after != null || action.tool !in DEFERRED_PROOF_TOOLS ||
+            envelope.verification.status != com.cyclone.mobile.agent.contract.AgentVerificationStatus.DEGRADED) return false
+        val launch = action.tool == "phone.open_app" || action.tool == "phone.launch_intent"
+        val adapter = com.cyclone.mobile.gateway.GatewayV33ActionAdapter
+        val outcome = com.cyclone.mobile.agent.settle.SettleController.run(
+            beforeFingerprint = before?.payload?.optString("accessibilityFingerprint"),
+            budget = com.cyclone.mobile.agent.settle.SettleBudget(fastMs = 1_500L, extendedMs = 6_000L),
+            capture = { com.cyclone.mobile.gateway.GatewayObservationAdapter.capture(context, scoped()) },
+            sample = { adapter.settleSample(it, launch) },
+            targetReached = { after ->
+                adapter.verifiedByAfterState(
+                    action.tool,
+                    action.params.optString("package"),
+                    before?.page?.pageKey.orEmpty(),
+                    before?.payload?.optString("accessibilityFingerprint").orEmpty(),
+                    after.page.packageName,
+                    after.page.pageKey,
+                    after.payload.optString("accessibilityFingerprint"),
+                    expectedUri = action.params.optString("uri"),
+                    afterHaystack = adapter.observationHaystack(after),
+                )
+            },
+            requireStable = launch,
+            cancelled = { !ownsInput() },
+        )
+        traceSettle(session, outcome, deferred = true)
+        AgentTraceRuntime.event(context, session.traceId, "VERIFICATION",
+            if (outcome.ready) "Deferred proof: the expected screen arrived" else "Deferred proof: the expected screen did not arrive",
+            code = if (outcome.ready) "verify.deferred" else "verify.deferred_missing", ok = outcome.ready,
+            detail = outcome.toJson().toString())
+        return outcome.ready
+    }
+
+    private fun traceSettle(session: LocalSessionContext, outcome: com.cyclone.mobile.agent.settle.SettleOutcome<*>, deferred: Boolean = false) {
+        if (!deferred && !outcome.extended && outcome.captureErrors == 0 && outcome.waitedMs < 1_000L) return
+        val seconds = "%.1f".format(java.util.Locale.ROOT, outcome.waitedMs / 1000.0)
+        AgentTraceRuntime.event(context, session.traceId, "WAIT",
+            "Waited $seconds s for the screen (${outcome.state.wire})",
+            code = "settle.${outcome.state.wire}", ok = outcome.ready,
+            detail = outcome.toJson().put("deferred", deferred).toString())
+        if (outcome.extended && outcome.ready) session.progress("The screen took $seconds s to load")
+    }
 
     private fun observeTaskFacts(session: LocalSessionContext) {
         if (session.navigation != null && session.navigation.current?.capability != NavCapability.FIND_SIGNED_IN_IDENTITY) return
@@ -2391,6 +2448,7 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
     }
 
     companion object {
+        private val DEFERRED_PROOF_TOOLS = setOf("phone.open_app", "phone.launch_intent", "phone.click", "phone.back")
         private const val API_KEY_BLOCKER = "runtime.api_key_missing"
         private val HUMAN_BOUNDARY_MARKERS = listOf(
             "captcha",

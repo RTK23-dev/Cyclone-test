@@ -267,28 +267,56 @@ internal object GatewayV33ActionAdapter {
     ): GatewayObservation? {
         val identity = bound ?: ExecutionRequestScope.bind(params)
         val captureArgs = ExecutionRequestScope.attach(JSONObject(params.toString()), identity)
-        val deadline = System.currentTimeMillis() + pageTransitionSettleMs(tool)
-        var after = runCatching { GatewayObservationAdapter.capture(context, captureArgs) }.getOrNull()
-        while (
-            after != null &&
-            tool in pageTransitionTools &&
-            !verifiedByAfterState(
-                tool,
-                params.optString("package"),
-                before?.page?.pageKey.orEmpty(),
-                before?.payload?.optString("accessibilityFingerprint").orEmpty(),
-                after.page.packageName,
-                after.page.pageKey,
-                after.payload.optString("accessibilityFingerprint"),
-                expectedUri = params.optString("uri"),
-                afterHaystack = observationHaystack(after),
-            ) &&
-            System.currentTimeMillis() < deadline
-        ) {
-            Thread.sleep(120L)
-            after = runCatching { GatewayObservationAdapter.capture(context, captureArgs) }.getOrNull()
+        val capture = { GatewayObservationAdapter.capture(context, captureArgs) }
+        if (tool !in pageTransitionTools) {
+            // No page change expected: one good capture is enough, but a capture refused mid-change is retried.
+            repeat(4) { attempt ->
+                runCatching(capture).getOrNull()?.let { return it }
+                if (attempt < 3) Thread.sleep(120L)
+            }
+            return null
         }
-        return after
+        val launch = tool == "phone.open_app" || tool == "phone.launch_intent"
+        val outcome = com.cyclone.mobile.agent.settle.SettleController.run(
+            beforeFingerprint = before?.payload?.optString("accessibilityFingerprint"),
+            budget = com.cyclone.mobile.agent.settle.SettleBudget(fastMs = pageTransitionSettleMs(tool)),
+            capture = capture,
+            sample = { settleSample(it, launch) },
+            targetReached = { after ->
+                verifiedByAfterState(
+                    tool,
+                    params.optString("package"),
+                    before?.page?.pageKey.orEmpty(),
+                    before?.payload?.optString("accessibilityFingerprint").orEmpty(),
+                    after.page.packageName,
+                    after.page.pageKey,
+                    after.payload.optString("accessibilityFingerprint"),
+                    expectedUri = params.optString("uri"),
+                    afterHaystack = observationHaystack(after),
+                )
+            },
+            // A launch passes through splash and first layout; a tap is judged on its first changed frame.
+            requireStable = launch,
+        )
+        com.cyclone.mobile.agent.settle.SettleRecorder.record(identity.sessionId, outcome)
+        return outcome.value
+    }
+
+    internal fun settleSample(observation: GatewayObservation, launch: Boolean): com.cyclone.mobile.agent.settle.SettleSample {
+        val elements = observation.elements.values.map { element ->
+            Triple(element.role, element.evidence.optString("resourceId"), element.label)
+        }
+        val actionable = observation.elements.values.count { element ->
+            element.evidence.optBoolean("clickable") || element.evidence.optBoolean("editable") ||
+                element.evidence.optBoolean("scrollable") || element.evidence.optBoolean("longClickable")
+        }
+        return com.cyclone.mobile.agent.settle.SettleSample(
+            packageName = observation.page.packageName,
+            fingerprint = observation.payload.optString("accessibilityFingerprint").ifBlank { observation.page.pageKey },
+            actionableControls = actionable,
+            loadingEvidence = com.cyclone.mobile.agent.settle.ScreenStateClassifier.loadingEvidence(
+                observation.page.packageName, elements, actionable, launch),
+        )
     }
 
     internal fun verifyAfterState(
