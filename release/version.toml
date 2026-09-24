@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.10 dev1 + Cyclone Glass 1.0.0-alpha.3: Devices. Connect a phone from Glass with a six-digit code and
-# Allow on the phone ("Connect this PC?" notification), disconnect any time. Includes the alpha.9 Teal Matrix redesign.
+# Allow on the phone ("Connect this PC?" notification), disconnect any time. Includes the alpha.9 Teal Matrix redesign. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.10.dev1"
 channel = "development"
