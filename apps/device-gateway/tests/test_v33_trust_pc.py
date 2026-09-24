@@ -275,6 +275,7 @@ def test_pc_trust_requires_phone_confirmation_and_never_persists_session_secret(
     assert begun["phoneConfirmation"] == "Allow this PC"
     assert len(begun["matchCode"]) == 6 and begun["matchCode"].isdigit()
     assert coordinator.status("dev_test")["matchCode"] == begun["matchCode"]
+    assert coordinator.status("dev_test")["pcLabel"] == coordinator.pc_label
     assert session.credential is None
 
     waiting = coordinator.complete("dev_test")

@@ -18,6 +18,8 @@ export interface GlassDevice {
   sessionReady: boolean;
   /** Six digits shown on the phone while it is being connected. */
   matchCode: string | null;
+  /** The name the phone shows for this PC (Linked PCs, "Connect <name>?"). */
+  pcLabel: string | null;
   /** Gateway's own words for why a trusted phone is not usable yet (phone locked, gateway off, …). */
   problem: string | null;
 }
@@ -56,6 +58,7 @@ export function parseDevice(raw: unknown): GlassDevice | null {
     transport: text(record.source) || "USB",
     sessionReady: trust.sessionReady === true,
     matchCode: /^\d{6}$/.test(matchCode) ? matchCode : null,
+    pcLabel: text(trust.pcLabel).slice(0, 80) || null,
     problem: gatewayProblem(record, trust),
   };
 }

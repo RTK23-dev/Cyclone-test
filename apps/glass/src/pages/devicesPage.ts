@@ -229,7 +229,7 @@ export function createDevicesPage(initial: GlassContext, deps: DevicesPageDeps =
         const code = el("div", "connect-code", flow.code ? formatMatchCode(flow.code) : "······");
         const steps = el("ol", "connect-steps");
         steps.append(
-          el("li", undefined, `On ${device.name}, open the "Connect this PC?" notification (or Cyclone → Settings → PC Gateway).`),
+          el("li", undefined, `On ${device.name}, open the "Connect ${device.pcLabel ?? "this PC"}?" notification (or Cyclone → Settings → PC Gateway).`),
           el("li", undefined, "Check the phone shows the same code."),
           el("li", undefined, "Tap Allow. Unlock the phone first if it is locked."),
         );
@@ -295,6 +295,7 @@ function deviceCard(device: GlassDevice, status: HTMLElement): HTMLElement {
     .filter(Boolean)
     .join(" · ");
   names.append(el("span", "device-name", device.name), el("span", "muted", meta));
+  if (device.paired && device.pcLabel) names.append(el("span", "muted device-linked-as", `The phone lists this PC as “${device.pcLabel}”`));
   top.append(badge, names, status);
   card.append(top);
   return card;

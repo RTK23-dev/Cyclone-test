@@ -365,6 +365,7 @@ class PCTrustCoordinator:
             "sessionReady": active_ready,
             "sessionExpiresAtEpochMs": active.expires_at_ms if active_ready and active else None,
             "pcId": self.identity.pc_id,
+            "pcLabel": self.pc_label,
             "pcIdentityStorage": self.store.security_mode,
             "sessionSecretPersisted": False,
             "lastSafeError": last_error,

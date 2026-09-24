@@ -295,6 +295,8 @@ def enrich_device_public(session: Any, trust_status: dict[str, Any] | None = Non
         "sessionReady": bool(status.get("sessionReady")),
         "matchCode": status.get("matchCode") if isinstance(status.get("matchCode"), str) else None,
         "lastSafeError": str(status.get("lastSafeError"))[:240] if status.get("lastSafeError") else None,
+        # The name the phone shows for this PC under Linked PCs.
+        "pcLabel": str(status.get("pcLabel"))[:80] if isinstance(status.get("pcLabel"), str) and status.get("pcLabel") else None,
     }
     public["readiness"] = readiness_cards(discovery, media, bridge, trust)
     public["health"] = {

@@ -53,3 +53,9 @@ test("a PC the phone logged out is told so and offered Connect", () => {
   assert.equal(readiness.reason, "unpaired");
   assert.match(readiness.message, /logged this PC out/);
 });
+
+test("the name the phone shows for this PC is parsed and bounded", () => {
+  const device = parseDevice({ deviceId: "d1", name: "Pixel", state: "READY", paired: true, planes: { aiTrust: "TRUSTED" }, trust: { pcLabel: "DESK-PC" } });
+  assert.equal(device.pcLabel, "DESK-PC");
+  assert.equal(parseDevice({ deviceId: "d1", name: "Pixel", state: "READY", paired: true, planes: {}, trust: { pcLabel: 5 } }).pcLabel, null);
+});
