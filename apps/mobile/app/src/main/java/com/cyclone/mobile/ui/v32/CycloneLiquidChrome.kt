@@ -3,6 +3,9 @@ package com.cyclone.mobile.ui.v32
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -58,11 +61,15 @@ internal val LocalCycloneInsideLiquidHost = compositionLocalOf { false }
 internal val LocalCycloneOverlayChrome = compositionLocalOf { false }
 
 @Composable
-internal fun cycloneGlassIsDark(): Boolean = LocalCycloneOverlayChrome.current || isSystemInDarkTheme()
+internal fun cycloneGlassIsDark(): Boolean =
+    LocalCycloneSignatureTheme.current || LocalCycloneOverlayChrome.current || isSystemInDarkTheme()
 
-/** Apple Regular glass: milky white in light, dense charcoal in dark. Never a clear window. */
+/** Teal Matrix glass inside the app; milky white / dense charcoal only outside the Cyclone theme. */
 @Composable
 internal fun cycloneGlassFill(panel: Boolean): Color {
+    if (LocalCycloneSignatureTheme.current) {
+        return Color(0xFF0A2E34).copy(alpha = if (panel) 0.92f else 0.88f)
+    }
     val dark = cycloneGlassIsDark()
     return if (dark) {
         Color(0xFF1C1C1E).copy(alpha = if (panel) 0.90f else 0.86f)
@@ -78,6 +85,18 @@ internal fun CycloneLiquidTray(
     contentPadding: Dp = 4.dp,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    if (LocalCycloneSignatureTheme.current) {
+        // Same optical material as the Ask Cyclone capsule, minus its dotted whorls.
+        CycloneSignatureGlass(
+            modifier.height(height).fillMaxWidth(),
+            textured = false,
+            solidBacking = true,
+            cornerRadius = height / 2,
+        ) {
+            Box(Modifier.fillMaxSize().padding(contentPadding), contentAlignment = Alignment.Center, content = content)
+        }
+        return
+    }
     val backdrop = LocalCycloneLiquidBackdrop.current
     val container = cycloneGlassFill(panel = false)
     val shape = ContinuousCapsule
@@ -193,6 +212,19 @@ internal fun CycloneLiquidSelectionLens(
     val dark = cycloneGlassIsDark()
     val frost = if (dark) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.62f)
     val base = modifier.offset(x = targetOffset).width(lensWidth).height(height)
+
+    if (LocalCycloneSignatureTheme.current) {
+        // Teal lens: a lit inner capsule that slides inside the tray.
+        Box(
+            base
+                .background(
+                    Brush.verticalGradient(listOf(SignatureTeal.copy(alpha = .26f), SignatureTeal.copy(alpha = .10f))),
+                    ContinuousCapsule,
+                )
+                .border(.8.dp, SignatureTeal.copy(alpha = .42f), ContinuousCapsule),
+        )
+        return
+    }
 
     if (backdrop == null) {
         Box(base.background(frost, ContinuousCapsule))

@@ -79,10 +79,11 @@ internal fun CycloneSignatureTheme(enabled: Boolean = true, content: @Composable
 internal fun CycloneSignatureCard(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 24.dp,
+    accent: Color = SignatureTeal,
     content: @Composable BoxScope.() -> Unit,
 ) {
     CycloneSignatureGlass(modifier, textured = false, cornerRadius = cornerRadius,
-        solidBacking = true, content = content)
+        solidBacking = true, accent = accent, content = content)
 }
 
 /**
@@ -99,9 +100,12 @@ internal fun CycloneSignatureGlass(
     textured: Boolean = true,
     cornerRadius: Dp = 33.dp,
     solidBacking: Boolean = false,
+    accent: Color = SignatureTeal,
+    focused: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val voiceLight = animateFloatAsState(if (listening) 1f else 0f, label = "Voice glass light")
+    val focusLight = animateFloatAsState(if (focused) 1f else 0f, label = "Focus glass light")
     CompositionLocalProvider(
         LocalCycloneInsideLiquidHost provides true,
         LocalCycloneOverlayChrome provides true,
@@ -118,9 +122,24 @@ internal fun CycloneSignatureGlass(
                     ))
                     val rim = Brush.verticalGradient(
                         0f to Color(0xFFB4EEEA).copy(alpha = .56f),
-                        .22f to SignatureTeal.copy(alpha = .14f),
-                        .55f to SignatureTeal.copy(alpha = .035f),
-                        1f to SignatureTeal.copy(alpha = .57f),
+                        .22f to accent.copy(alpha = .14f),
+                        .55f to accent.copy(alpha = .035f),
+                        1f to accent.copy(alpha = .57f),
+                    )
+                    // Teal Matrix upgrade: a thin specular sweep across the upper edge and a soft
+                    // bloom along the lower edge make the capsule read as lit glass, not a flat pill.
+                    val specular = Brush.horizontalGradient(
+                        0f to Color.Transparent,
+                        .30f to Color.White.copy(alpha = .30f),
+                        .55f to Color.White.copy(alpha = .12f),
+                        1f to Color.Transparent,
+                    )
+                    val bloom = Brush.verticalGradient(
+                        .55f to Color.Transparent,
+                        1f to accent.copy(alpha = .20f),
+                    )
+                    val focusRim = Brush.horizontalGradient(
+                        listOf(accent.copy(alpha = .15f), Color(0xFF41D7CB), accent.copy(alpha = .15f)),
                     )
                     // Concentric dotted ridges bend into each capsule end, then fade before
                     // the text field. The asymmetric whorls are a material signature, not a
@@ -152,11 +171,11 @@ internal fun CycloneSignatureGlass(
                         }
                     }
                     val leftMist = Brush.radialGradient(
-                        listOf(SignatureTeal.copy(alpha = .19f), Color.Transparent),
+                        listOf(accent.copy(alpha = .19f), Color.Transparent),
                         center = Offset(radius * .6f, size.height * .78f), radius = radius * 1.9f,
                     )
                     val rightMist = Brush.radialGradient(
-                        listOf(SignatureTeal.copy(alpha = .12f), Color.Transparent),
+                        listOf(accent.copy(alpha = .12f), Color.Transparent),
                         center = Offset(size.width - radius * .65f, size.height * .75f), radius = radius * 1.9f,
                     )
                     val voiceHalo = Brush.radialGradient(
@@ -181,9 +200,23 @@ internal fun CycloneSignatureGlass(
                                     style = Stroke(1.5.dp.toPx()),
                                 )
                             }
-                            dots.forEach { drawCircle(SignatureTeal.copy(alpha = it.alpha), it.radius, it.center) }
+                            dots.forEach { drawCircle(accent.copy(alpha = it.alpha), it.radius, it.center) }
+                            drawRect(bloom)
+                            drawLine(
+                                specular,
+                                Offset(radius * .6f, 1.2.dp.toPx()),
+                                Offset(size.width - radius * .6f, 1.2.dp.toPx()),
+                                strokeWidth = 1.dp.toPx(),
+                                cap = StrokeCap.Round,
+                            )
                             drawRect(voiceHalo, alpha = voiceLight.value)
                             drawRoundRect(rim, cornerRadius = CornerRadius(radius), style = Stroke(.7.dp.toPx()))
+                            if (focusLight.value > 0f) {
+                                drawRoundRect(
+                                    focusRim, cornerRadius = CornerRadius(radius),
+                                    style = Stroke(1.2.dp.toPx()), alpha = focusLight.value * .85f,
+                                )
+                            }
                         }
                     }
                 }.clip(RoundedCornerShape(cornerRadius)),

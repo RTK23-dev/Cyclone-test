@@ -97,6 +97,12 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
             ) { progressExpanded = !progressExpanded }
             .border(.8.dp, outline, RoundedCornerShape(CycloneConversationTokens.taskRadius)),
         cornerRadius = CycloneConversationTokens.taskRadius,
+        // Teal Matrix state tint: attention glows coral, done glows mint, working stays teal.
+        accent = when (visualState) {
+            CycloneTaskVisualState.WORKING -> MatrixTone.ACTIVE.accent
+            CycloneTaskVisualState.ACTION_NEEDED, CycloneTaskVisualState.FAILED -> MatrixTone.ATTENTION.accent
+            CycloneTaskVisualState.DONE -> MatrixTone.SUCCESS.accent
+        },
     ) {
         Column(
             Modifier.fillMaxWidth().padding(

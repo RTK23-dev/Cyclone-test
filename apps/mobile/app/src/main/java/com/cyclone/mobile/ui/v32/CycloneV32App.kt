@@ -2,6 +2,7 @@ package com.cyclone.mobile.ui.v32
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +18,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -71,6 +76,7 @@ fun CycloneMobileV32App() {
         val task by com.cyclone.mobile.runtime.background.WorkspaceTasks.state.collectAsState()
         val routinesRevision by AutomationRuntime.store.revision.collectAsState()
         LaunchedEffect(destination, settingsOpen, task?.taskId, task?.phase, routinesRevision) { refreshTick++ }
+        LaunchedEffect(task) { CycloneRecentActivity.record(task) }
 
         DisposableEffect(context) {
             val lifecycle = (context as? LifecycleOwner)?.lifecycle
@@ -82,10 +88,11 @@ fun CycloneMobileV32App() {
         }
 
         val phoneReady = v32AccessibilityEnabled(context)
-        CycloneSignatureSystemBars(enabled = destination == V32Destination.AI && !settingsOpen)
+        // Teal Matrix owns every destination, so the system bars always match the teal canvas.
+        CycloneSignatureSystemBars(enabled = true)
         CycloneSignatureTheme(enabled = destination == V32Destination.AI && !settingsOpen) {
             Scaffold(
-                containerColor = MaterialTheme.colorScheme.background,
+                containerColor = androidx.compose.ui.graphics.Color.Transparent,
                 topBar = {
                     if (settingsOpen) {
                         CycloneV32TopBar(
@@ -144,7 +151,9 @@ private fun V32HomePage(
 ) {
     val ready = CyclonePermissionSetup.phoneControlSnapshot(context)
     val task by com.cyclone.mobile.runtime.background.WorkspaceTasks.state.collectAsState()
+    val recent by CycloneRecentActivity.items.collectAsState()
     val routines = remember(refreshTick) { AutomationRuntime.store.listAutomations() }
+    var seed by remember { mutableStateOf(0 to "") }
     val greeting = when (LocalTime.now().hour) {
         in 5..11 -> "Good morning"
         in 12..17 -> "Good afternoon"
@@ -156,93 +165,151 @@ private fun V32HomePage(
         else -> "Setup"
     }
     val readinessBody = when {
-        ready.ready -> "Ready when you are"
+        ready.ready -> "What would you like to do today?"
         ready.needsRepair -> "Phone control needs a moment"
         else -> "A few steps to get set up"
     }
+    val live = task?.takeIf { it.phase != TaskPhase.STOPPED }
+    // The live task is already shown as the full card; recent rows list everything else.
+    val history = recent.filter { it.taskId != live?.taskId }
 
-    LazyColumn(
-        contentPadding = cyclonePageInsets(),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        item {
-            CyclonePageHeader(
-                title = greeting,
-                subtitle = readinessBody,
-                trailing = {
-                    Box(
-                        Modifier
-                            .clickable(onClick = onSettings)
-                            .semantics { contentDescription = "Settings, $readinessLabel" }
-                            .heightIn(min = 44.dp)
-                            .padding(horizontal = 2.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CycloneStatusPill(readinessLabel, positive = ready.ready)
+    Column(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = cyclonePageInsets(),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                CycloneMatrixAppBar(
+                    onLeading = onSettings,
+                    leadingDescription = "Settings",
+                    onMark = onAi,
+                    markDescription = "Open Ask Cyclone",
+                )
+            }
+
+            item {
+                CyclonePageHeader(
+                    title = greeting,
+                    subtitle = readinessBody,
+                    modifier = Modifier.padding(top = 18.dp, bottom = 6.dp),
+                    centered = true,
+                    trailing = {
+                        if (!ready.ready) {
+                            Box(
+                                Modifier
+                                    .clickable(onClick = onSettings)
+                                    .semantics { contentDescription = "Settings, $readinessLabel" }
+                                    .heightIn(min = 44.dp)
+                                    .padding(horizontal = 2.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CycloneStatusPill(readinessLabel, positive = ready.ready)
+                            }
+                        }
+                    },
+                )
+            }
+
+            item {
+                HomeQuickActions(
+                    onSeed = { seed = (seed.first + 1) to it },
+                    onRoutines = onRoutines,
+                )
+            }
+
+            live?.let { current ->
+                item { CycloneMatrixSectionHeader("Current task") }
+                item { CycloneAskTaskPanel(current) }
+            }
+
+            if (history.isNotEmpty()) {
+                item { CycloneMatrixSectionHeader("Recent activity", "Open chat", onAi) }
+                items(history, key = { "recent-${it.taskId}" }) { HomeRecentRow(it, onAi) }
+            }
+
+            item { CycloneMatrixSectionHeader("Your routines", "See all", onRoutines) }
+
+            if (routines.isEmpty()) {
+                item {
+                    CycloneMatrixCard(Modifier.fillMaxWidth(), cornerRadius = 20.dp, onClick = onRoutines, contentPadding = 14.dp) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            CycloneMatrixIconTile(size = 42.dp) {
+                                Icon(Icons.Rounded.Bolt, null, Modifier.size(21.dp), tint = TealMatrix.Teal)
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("Create your first routine", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    "Describe it to Cyclone or teach it by doing.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Icon(Icons.Rounded.ChevronRight, null, Modifier.size(19.dp), tint = TealMatrix.Muted.copy(alpha = .7f))
+                        }
                     }
-                },
-            )
+                }
+            } else {
+                items(routines.take(5), key = { it.id }) { routine ->
+                    HomeRoutineRow(routine, onRoutines)
+                }
+            }
         }
 
-        item {
-            CycloneHomeComposer { request ->
+        // One Ask Cyclone capsule, pinned above the tab bar exactly like the reference.
+        Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 4.dp, bottom = 6.dp)) {
+            CycloneHomeComposer(seed = seed) { request ->
                 V39AiChatSessionRuntime.pendingRequest = request
                 onAi()
             }
         }
+    }
+}
 
-        task?.takeIf { it.phase != TaskPhase.STOPPED }?.let { current ->
-            item { CycloneSectionTitle("Current task") }
-            item { CycloneAskTaskPanel(current) }
+@Composable
+internal fun HomeQuickActions(onSeed: (String) -> Unit, onRoutines: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CycloneMatrixQuickAction(Icons.Rounded.CalendarMonth, "Plan my day", { onSeed("Plan my day") }, Modifier.weight(1f))
+            CycloneMatrixQuickAction(Icons.Rounded.Search, "Research a topic", { onSeed("Research ") }, Modifier.weight(1f))
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CycloneMatrixQuickAction(Icons.Rounded.Apps, "Open an app", { onSeed("Open ") }, Modifier.weight(1f))
+            CycloneMatrixQuickAction(Icons.Rounded.AutoAwesome, "Create a routine", onRoutines, Modifier.weight(1f))
+        }
+    }
+}
 
-        item {
-            CycloneSectionTitle("Your routines") {
+@Composable
+internal fun HomeRecentRow(item: RecentActivityItem, onOpen: () -> Unit) {
+    val tone = when (item.state) {
+        CycloneTaskVisualState.ACTION_NEEDED, CycloneTaskVisualState.FAILED -> MatrixTone.ATTENTION
+        else -> MatrixTone.NEUTRAL
+    }
+    CycloneMatrixCard(Modifier.fillMaxWidth(), tone = tone, cornerRadius = 18.dp, onClick = onOpen, contentPadding = 12.dp) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            CycloneMatrixIconTile(size = 40.dp) {
+                CycloneAppIcon(item.packageName.takeIf(String::isNotBlank), Modifier.size(28.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "See all",
-                    modifier = Modifier
-                        .clickable(onClick = onRoutines)
-                        .heightIn(min = 44.dp)
-                        .padding(horizontal = 4.dp, vertical = 12.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    CycloneRecentActivity.statusLine(item),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (item.state == CycloneTaskVisualState.DONE) TealMatrix.Success else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
                 )
             }
-        }
-
-        if (routines.isEmpty()) {
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = 0.dp,
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().clickable(onClick = onRoutines).padding(15.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Surface(shape = RoundedCornerShape(13.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                            Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Rounded.Bolt, null, Modifier.size(21.dp), tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("Create your first routine", style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                "Describe it to Cyclone or teach it by doing.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Icon(Icons.Rounded.ChevronRight, null, Modifier.size(19.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .7f))
-                    }
-                }
-            }
-        } else {
-            items(routines.take(5), key = { it.id }) { routine ->
-                HomeRoutineRow(routine, onRoutines)
+            when (item.state) {
+                CycloneTaskVisualState.DONE -> CycloneMatrixCheck()
+                CycloneTaskVisualState.WORKING -> CycloneMatrixRing(item.progress)
+                else -> CycloneMatrixAttention()
             }
         }
     }
@@ -250,19 +317,13 @@ private fun V32HomePage(
 
 @Composable
 private fun HomeRoutineRow(routine: AutomationDefinition, onOpen: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 0.dp,
-    ) {
+    CycloneMatrixCard(Modifier.fillMaxWidth(), cornerRadius = 18.dp, onClick = onOpen, contentPadding = 12.dp) {
         Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                CycloneAppIcon(routine.appPackages.firstOrNull(), Modifier.padding(6.dp).size(31.dp))
+            CycloneMatrixIconTile(size = 40.dp) {
+                CycloneAppIcon(routine.appPackages.firstOrNull(), Modifier.size(28.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(routine.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -275,11 +336,9 @@ private fun HomeRoutineRow(routine: AutomationDefinition, onOpen: () -> Unit) {
                 )
             }
             if (routine.enabled) {
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
-                    Box(Modifier.size(8.dp))
-                }
+                Box(Modifier.size(8.dp).background(TealMatrix.Success, CircleShape))
             }
-            Icon(Icons.Rounded.ChevronRight, null, Modifier.size(19.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .7f))
+            Icon(Icons.Rounded.ChevronRight, null, Modifier.size(19.dp), tint = TealMatrix.Muted.copy(alpha = .7f))
         }
     }
 }

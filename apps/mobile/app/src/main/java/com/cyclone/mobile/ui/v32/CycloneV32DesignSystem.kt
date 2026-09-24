@@ -3,7 +3,6 @@ package com.cyclone.mobile.ui.v32
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,23 +21,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.border
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -49,60 +45,16 @@ import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
-private val Ink = Color(0xFF0A1830)
-private val InkMuted = Color(0xFF5F7188)
-private val Accent = Color(0xFF1A73FF)
-private val AccentSoft = Color(0xFFE7F1FF)
-private val Canvas = Color(0xFFF5F9FE)
-private val SoftSurface = Color(0xFFEEF4FB)
-
-private val CycloneV32LightColors = lightColorScheme(
-    primary = Accent,
-    onPrimary = Color.White,
-    primaryContainer = AccentSoft,
-    onPrimaryContainer = Color(0xFF0B3C7A),
-    secondary = Color(0xFF168653),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE1F5EA),
-    onSecondaryContainer = Color(0xFF123A2E),
-    tertiary = Color(0xFF8A6418),
-    tertiaryContainer = Color(0xFFFFEFC3),
-    onTertiaryContainer = Color(0xFF493606),
-    background = Canvas,
-    onBackground = Ink,
-    surface = Color.White,
-    onSurface = Ink,
-    surfaceVariant = SoftSurface,
-    onSurfaceVariant = InkMuted,
-    outline = Color(0xFFB8C7D9),
-    outlineVariant = Color(0xFFDDE8F4),
-    error = Color(0xFFB73C4D),
-    errorContainer = Color(0xFFFFE4E8),
-    onErrorContainer = Color(0xFF5B1721),
-)
-
-private val CycloneV32DarkColors = darkColorScheme(
-    primary = Color(0xFF78ADFF),
-    onPrimary = Color(0xFF002F67),
-    primaryContainer = Color(0xFF123D72),
-    onPrimaryContainer = Color(0xFFD9E9FF),
-    secondary = Color(0xFF8AD8B7),
-    secondaryContainer = Color(0xFF173F31),
-    onSecondaryContainer = Color(0xFFD8FFED),
-    tertiary = Color(0xFFFFD78A),
-    tertiaryContainer = Color(0xFF4B3C20),
-    onTertiaryContainer = Color(0xFFFFEFC7),
-    background = Color(0xFF07101F),
-    onBackground = Color(0xFFF2F7FF),
-    surface = Color(0xFF0E1A2B),
-    onSurface = Color(0xFFF2F7FF),
-    surfaceVariant = Color(0xFF15263A),
-    onSurfaceVariant = Color(0xFFAABBD0),
-    outline = Color(0xFF6D8098),
-    outlineVariant = Color(0xFF253A52),
-    error = Color(0xFFFFB5BF),
-    errorContainer = Color(0xFF5C2731),
-    onErrorContainer = Color(0xFFFFE0E4),
+/**
+ * Teal Matrix is the only in-app palette. Light device settings no longer produce a white/blue
+ * variant: every screen, activity and overlay shares the Ask Cyclone teal material.
+ */
+private val CycloneTealMatrixColors = SignatureScheme.copy(
+    surfaceTint = SignatureTeal,
+    inverseSurface = SignatureInk,
+    inverseOnSurface = TealMatrix.Deep,
+    inversePrimary = Color(0xFF1B6E70),
+    scrim = Color(0xFF010809),
 )
 
 private val CycloneV32Shapes = Shapes(
@@ -179,13 +131,12 @@ val CycloneTypography = Typography(
 )
 
 /**
- * Shared Cyclone theme.
+ * Shared Cyclone theme: Teal Matrix.
  *
- * Normal in-app screens own one full-canvas optical backdrop. A floating accessibility overlay is a
- * different window and cannot sample pixels owned by the host app, so transparent mode deliberately
- * owns no backdrop layer at all. Liquid components already have a translucent fallback when the
- * backdrop local is null. This keeps a WRAP_CONTENT overlay content-sized and prevents both the old
- * full-screen measurement bug and a fake white/blue optical wash over the app underneath it.
+ * Normal in-app screens own one full-canvas optical backdrop (the teal dot-matrix field), which the
+ * liquid chrome may refract. A floating accessibility overlay is a different window and cannot sample
+ * pixels owned by the host app, so transparent mode deliberately owns no backdrop layer at all and
+ * stays content-sized (WRAP_CONTENT) over the app underneath it.
  */
 @Composable
 fun CycloneTheme(
@@ -193,37 +144,26 @@ fun CycloneTheme(
     content: @Composable () -> Unit,
 ) {
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) CycloneV32DarkColors else CycloneV32LightColors,
+        colorScheme = CycloneTealMatrixColors,
         shapes = CycloneV32Shapes,
         typography = CycloneTypography,
     ) {
-        if (drawBackground) {
-            val liquidBackdrop = rememberLayerBackdrop()
-            val dark = isSystemInDarkTheme()
-            val background = MaterialTheme.colorScheme.background
-            val opticalSource = Brush.verticalGradient(
-                listOf(
-                    background,
-                    MaterialTheme.colorScheme.primary.copy(alpha = if (dark) .10f else .045f),
-                    background,
-                    MaterialTheme.colorScheme.secondary.copy(alpha = if (dark) .05f else .02f),
-                    background,
-                ),
-            )
-            CompositionLocalProvider(LocalCycloneLiquidBackdrop provides liquidBackdrop) {
-                Box(Modifier.fillMaxSize()) {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .layerBackdrop(liquidBackdrop)
-                            .background(opticalSource),
-                    )
-                    content()
+        CompositionLocalProvider(
+            LocalCycloneSignatureTheme provides true,
+            LocalContentColor provides SignatureInk,
+        ) {
+            if (drawBackground) {
+                val liquidBackdrop = rememberLayerBackdrop()
+                CompositionLocalProvider(LocalCycloneLiquidBackdrop provides liquidBackdrop) {
+                    Box(Modifier.fillMaxSize()) {
+                        TealMatrixBackdrop(Modifier.fillMaxSize().layerBackdrop(liquidBackdrop))
+                        content()
+                    }
                 }
-            }
-        } else {
-            CompositionLocalProvider(LocalCycloneLiquidBackdrop provides null) {
-                Box(Modifier.wrapContentSize()) { content() }
+            } else {
+                CompositionLocalProvider(LocalCycloneLiquidBackdrop provides null) {
+                    Box(Modifier.wrapContentSize()) { content() }
+                }
             }
         }
     }
@@ -248,29 +188,15 @@ fun CycloneHeroCard(
     tone: CyclonePastel = CyclonePastel.PRIMARY,
     action: (@Composable () -> Unit)? = null,
 ) {
-    val colors = cyclonePastel(tone)
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = colors.container, contentColor = colors.content),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.primary,
-            ) {
-                Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                    Icon(icon, null, modifier = Modifier.size(22.dp))
-                }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(title, style = MaterialTheme.typography.titleLarge)
-                Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            action?.invoke()
+    CycloneMatrixCard(modifier = modifier.fillMaxWidth(), cornerRadius = 24.dp, contentPadding = 18.dp) {
+        CycloneMatrixIconTile(size = 44.dp) {
+            Icon(icon, null, modifier = Modifier.size(22.dp), tint = SignatureTeal)
         }
+        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        action?.invoke()
     }
 }
 
@@ -288,18 +214,18 @@ fun CycloneSectionTitle(title: String, action: (@Composable () -> Unit)? = null)
 
 @Composable
 fun CycloneStatusPill(label: String, positive: Boolean = true) {
-    val container = if (positive) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer
-    val content = if (positive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer
-    val dot = if (positive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error
-    Surface(shape = RoundedCornerShape(999.dp), color = container, contentColor = content) {
-        Row(
-            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Surface(modifier = Modifier.size(6.dp), shape = CircleShape, color = dot) {}
-            Text(label, style = MaterialTheme.typography.labelMedium)
-        }
+    val accent = if (positive) TealMatrix.Success else TealMatrix.Caution
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(accent.copy(alpha = .12f))
+            .border(.7.dp, accent.copy(alpha = .38f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.size(6.dp).background(accent, CircleShape))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = SignatureInk)
     }
 }
 
@@ -308,20 +234,13 @@ fun CycloneSimpleCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
-    }
+    CycloneMatrixCard(modifier = modifier, cornerRadius = 20.dp, content = content)
 }
 
 @Composable
 fun CyclonePageIntro(eyebrow: String, title: String, body: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(eyebrow, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        Text(eyebrow, style = MaterialTheme.typography.labelMedium, color = SignatureTeal)
         Text(title, style = MaterialTheme.typography.headlineMedium)
         Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(2.dp))
@@ -333,8 +252,26 @@ fun CyclonePageHeader(
     title: String,
     subtitle: String,
     modifier: Modifier = Modifier,
+    centered: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    if (centered) {
+        Column(
+            modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Normal, textAlign = TextAlign.Center)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            trailing?.invoke()
+        }
+        return
+    }
     Row(
         modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -374,7 +311,7 @@ fun CycloneHairline(modifier: Modifier = Modifier) {
         modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f)),
+            .background(TealMatrix.Hairline.copy(alpha = .55f)),
     )
 }
 
@@ -385,9 +322,9 @@ fun CycloneV32Theme(
 ) = CycloneTheme(drawBackground = drawBackground, content = content)
 
 object CycloneColors {
-    val Blue = Accent
-    val Cyan = Color(0xFF4FCBFF)
-    val Success = Color(0xFF168653)
+    val Blue = SignatureTeal
+    val Cyan = Color(0xFF41D7CB)
+    val Success = Color(0xFF4FD9B4)
 }
 
 object CycloneSpacing {
@@ -410,29 +347,24 @@ fun cyclonePageInsets(top: androidx.compose.ui.unit.Dp = 14.dp) = PaddingValues(
 
 @Composable
 fun CycloneSurface(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        content = content,
-    )
+    CycloneSignatureGlass(modifier = modifier, textured = false, solidBacking = true, cornerRadius = 20.dp) {
+        Box { content() }
+    }
 }
 
 /**
  * Calm content surface. Interactive navigation/action chrome must use CycloneLiquid* components;
- * this intentionally stays a restrained content container rather than pretending to be glass.
+ * this intentionally stays a restrained teal glass container.
  */
 @Composable
 fun CycloneGlassSurface(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(
-        modifier = modifier
-            .animateContentSize()
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = .94f)),
+    CycloneSignatureGlass(
+        modifier = modifier.animateContentSize(),
+        textured = false,
+        solidBacking = true,
+        cornerRadius = 24.dp,
     ) {
-        content()
+        Box { content() }
     }
 }
 

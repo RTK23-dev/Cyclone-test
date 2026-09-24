@@ -83,8 +83,9 @@ class CycloneAppleUiContractTest {
         assertTrue(design.contains("fun CycloneBackRow("))
         assertTrue(design.contains("fun CycloneHairline("))
         assertTrue(design.contains("headlineLarge = TextStyle(fontSize = 32.sp"))
-        assertTrue(design.contains("defaultElevation = 0.dp"))
-        assertTrue(design.contains("shadowElevation = 0.dp"))
+        // Cards are flat Teal Matrix glass: no Material elevation or shadow.
+        assertTrue(design.contains("CycloneMatrixCard(modifier = modifier, cornerRadius = 20.dp"))
+        assertFalse(design.contains("shadowElevation"))
         assertFalse(design.contains("eyebrow.uppercase()"))
 
         listOf(
