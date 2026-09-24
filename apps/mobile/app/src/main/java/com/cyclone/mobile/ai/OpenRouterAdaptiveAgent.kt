@@ -363,7 +363,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             progress = onProgress,
             navigation = ClauseCompiler.compile(goal) { pkg ->
                 InstalledAppInventory.snapshot.takeIf { it.isNotEmpty() }?.any { it.packageName in com.cyclone.mobile.fastpath.FastPathLanding.launchCandidates(pkg) }
-            }.takeIf { clauses -> clauses.any { it.place != null } }?.let { ClauseRun(goal, it) },
+            }.takeIf(ClauseCompiler::needsClauseRun)?.let { ClauseRun(goal, it) },
         )
         session.navigation?.let { session.trajectory = it.trajectory(null) }
         fun publishTrajectory() {
@@ -819,7 +819,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     ))
                 }
 
-                val compiled = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) { if (session.navigation != null || atlasNeedsLook || session.adaptiveMode == "FREE") null
+                val compiled = decisionPhase(session, ExecutionPhase.ROUTE_RECALL) {
+                    // A compiled skill replays one app's saved route; with several clauses it could not know which
+                    // clause it serves. Clause proof, not the skill, still decides completion.
+                    if ((session.navigation?.clauses()?.size ?: 1) > 1 || atlasNeedsLook || session.adaptiveMode == "FREE") null
                 else SkillRuntime.match(
                     packageName = session.state.page.packageName,
                     goal = goal,
@@ -1669,6 +1672,15 @@ class OpenRouterAdaptiveAgent(private val context: Context,
         onProgress: (String) -> Unit,
     ): LocalExecution {
         val before = session.state
+        if (session.navigation != null) {
+            NavigationActionPolicy.learnedRoute(session.navigation.current, graphAction, navigationScreen(session))?.let {
+                AgentTraceRuntime.event(context, session.traceId, "BOUNDARY", "Learned route stopped at a clause boundary",
+                    code = "nav.$it", ok = false)
+                return LocalExecution(before, false, false, cycloneObservation(before).evidenceIdentity,
+                    policyAllowed = false, gateRequired = true,
+                    message = "Account creation submit needs approval on the phone.")
+            }
+        }
         onProgress("Using verified app map: ${graphAction.label}")
         AgentTraceRuntime.event(
             context, session.traceId, "KNOWN_ROUTE_LOOKUP",
@@ -1830,7 +1842,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
             }
         }
         traceLedger(session)
-        session.navigation.current?.let { session.progress("${navigation.index + 1}/${navigation.clauses().size} · ${it.text}") }
+        session.navigation.current?.let {
+            val line = "${navigation.index + 1}/${navigation.clauses().size} · ${it.text}"
+            if (session.clauseTrace.put("progress", line) != line) session.progress(line)
+        }
     }
 
     private fun navigationAnswer(session: LocalSessionContext): String {

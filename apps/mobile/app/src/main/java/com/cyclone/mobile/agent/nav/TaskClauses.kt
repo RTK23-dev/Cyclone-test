@@ -25,6 +25,16 @@ data class TaskClause(
 
 /** Bind meanings and evidence, never a click script. Unknown meanings keep the user's clause. */
 object ClauseCompiler {
+    /**
+     * Clause runs are for sentences that need them: several clauses, or one clause whose proof is stronger than the
+     * ordinary goal contract (identity, account, DM, timer, network). A plain "open X" keeps Stage 1 Fast Path and the
+     * existing completion contract.
+     */
+    fun needsClauseRun(clauses: List<TaskClause>): Boolean = clauses.any { it.place != null } &&
+        (clauses.size > 1 || clauses.any { it.capability !in PLAIN })
+
+    private val PLAIN = setOf(NavCapability.OPEN_PLACE, NavCapability.OPEN_WIFI, NavCapability.USER_GOAL)
+
     fun compile(goal: String, nativeAvailable: (String) -> Boolean? = { null }): List<TaskClause> {
         var previousPlace: String? = null
         val pieces = SPLIT.split(goal).map { it.trim().trimEnd(',', ';').trim() }.filter(String::isNotBlank)

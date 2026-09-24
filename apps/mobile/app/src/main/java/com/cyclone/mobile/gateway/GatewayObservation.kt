@@ -48,6 +48,12 @@ internal data class GatewayObservation(
     val elements: Map<String, GatewayElement>,
     val execution: ExecutionContext = ExecutionContext.DEFAULT,
     val generation: Long = 0,
+    /**
+     * Who produced this screen: [AtlasPersona.LIVE] only for an ordinary capture with no mapping pass running on the
+     * plane; [AtlasPersona.MAPPING] while a mapping pass is active; null when that could not be established. Live
+     * fact readers (task ledger, clause proof, people memory) accept only LIVE.
+     */
+    val persona: AtlasPersona? = null,
 )
 
 internal object GatewayObservationStore {
@@ -389,16 +395,22 @@ internal object GatewayObservationAdapter {
             throw captureChanged()
         }
         payload = SessionContract.attach(payload, plane)
+        val activeMapping = runCatching {
+            MappingSessionRuntime.controller(context).statusForPlane(
+                MappingPlaneRequest(plane.sessionId, plane.displayId,
+                    plane.workspaceId, plane.workspaceGeneration),
+            )
+        }
+        val job = activeMapping.getOrNull()
+        val observedPersona = when {
+            activeMapping.isFailure -> null
+            job != null && !job.state.terminal -> AtlasPersona.MAPPING
+            catalogPersona == AtlasPersona.LIVE -> AtlasPersona.LIVE
+            else -> null
+        }
         resolvedPlace?.let { place ->
             // Session status, rather than caller JSON, decides which Atlas persona receives a
             // catalog entry. An internal mapping capture without an active job stays unresolved.
-            val activeMapping = runCatching {
-                MappingSessionRuntime.controller(context).statusForPlane(
-                    MappingPlaneRequest(plane.sessionId, plane.displayId,
-                        plane.workspaceId, plane.workspaceGeneration),
-                )
-            }
-            val job = activeMapping.getOrNull()
             val persona = when {
                 activeMapping.isFailure -> null
                 job != null && !job.state.terminal -> runCatching { AtlasPersona.fromWire(job.persona) }.getOrNull()
@@ -409,7 +421,8 @@ internal object GatewayObservationAdapter {
             persona?.let { runCatching { AtlasRuntime.catalog.recordObserved(place, it) } }
         }
         elements.values.forEach { it.evidence.put("sessionId", execution.sessionId).put("displayId", execution.displayId) }
-        return GatewayObservationStore.replace(GatewayObservation(observationId, snapshot.timestampMs, page, payload, elements, execution))
+        return GatewayObservationStore.replace(GatewayObservation(observationId, snapshot.timestampMs, page, payload, elements, execution,
+            persona = observedPersona))
     }
 
     private fun captureChanged() = GatewayProtocolException("OBSERVATION_CHANGED_DURING_CAPTURE",

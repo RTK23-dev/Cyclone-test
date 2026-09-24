@@ -55,9 +55,7 @@ object ClauseProof {
                 val seconds = clause.target?.toLongOrNull() ?: return null
                 val timer = page.title.contains("timer", true) || page.controls.any { it.label.equals("timer", true) }
                 val running = page.controls.any { it.label.trim().lowercase() in setOf("pause", "pause timer", "stop timer", "pauzeren") }
-                val times = page.controls.flatMap { COUNTDOWN.findAll(it.label).map { m ->
-                    m.groupValues[1].toLong() * 60 + m.groupValues[2].toLong()
-                }.toList() }.distinct()
+                val times = page.controls.flatMap { countdowns(it.label) }.distinct()
                 if (timer && running && times.singleOrNull()?.let { it in maxOf(1, seconds - 15)..seconds } == true)
                     "Requested timer is running" else null
             }
@@ -96,6 +94,16 @@ object ClauseProof {
         return names.singleOrNull()
     }
 
+    /** Remaining seconds shown as h:mm:ss or m:ss (clock apps switch to h:mm:ss at one hour). */
+    internal fun countdowns(label: String): List<Long> {
+        val hours = HMS.findAll(label).map { m ->
+            m.groupValues[1].toLong() * 3600 + m.groupValues[2].toLong() * 60 + m.groupValues[3].toLong()
+        }.toList()
+        if (hours.isNotEmpty()) return hours
+        return COUNTDOWN.findAll(label).map { m -> m.groupValues[1].toLong() * 60 + m.groupValues[2].toLong() }.toList()
+    }
+
+    private val HMS = Regex("(?<![0-9:])(\\d{1,2}):([0-5]\\d):([0-5]\\d)(?![0-9:])")
     private val CONNECTED = Regex("(?i)\\bconnected\\b|\\bverbonden\\b")
     private val COUNTDOWN = Regex("(?<![0-9:])(\\d{1,3}):([0-5]\\d)(?![0-9:])")
 }
