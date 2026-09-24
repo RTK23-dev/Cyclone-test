@@ -34,6 +34,7 @@ object PhoneToolExecutor {
         "phone.click", "phone.long_press", "phone.tap", "phone.type", "phone.replace_text",
         "phone.scroll", "phone.swipe", "phone.back", "phone.home", "phone.open_app",
         "phone.open_notification", "phone.set_clipboard", "phone.share", "phone.launch_intent",
+        "phone.set_alarm", "phone.set_timer",
     )
     private val touchHumanizeTools = setOf("phone.tap", "phone.long_press", "phone.swipe", "phone.scroll")
     private val humanizeAwareTools = touchHumanizeTools + "phone.click"
@@ -658,6 +659,37 @@ object PhoneToolExecutor {
                 val eventGeneration = DeviceState.uiGeneration()
                 context.startActivity(intent)
                 launchedOutcome(service, before, p, eventGeneration, JSONObject().put("uri", uri).put("started", true))
+            }
+            "phone.set_alarm", "phone.set_timer" -> {
+                // Android's own AlarmClock contract: the clock app creates the alarm/timer and shows it (never
+                // SKIP_UI), so the owner sees what was set and the agent proves it on the live Clock screen.
+                val intent = if (request.tool == "phone.set_alarm") {
+                    val hour = p.optInt("hour", -1)
+                    val minute = p.optInt("minute", -1)
+                    if (hour !in 0..23 || minute !in 0..59) {
+                        return errorResult(PhoneToolErrorCode.INVALID_REQUEST, "hour 0-23 and minute 0-59 are required")
+                    }
+                    Intent(android.provider.AlarmClock.ACTION_SET_ALARM)
+                        .putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+                        .putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                } else {
+                    val seconds = p.optInt("seconds", -1)
+                    if (seconds !in 1..86_400) return errorResult(PhoneToolErrorCode.INVALID_REQUEST, "seconds 1-86400 is required")
+                    Intent(android.provider.AlarmClock.ACTION_SET_TIMER)
+                        .putExtra(android.provider.AlarmClock.EXTRA_LENGTH, seconds)
+                }
+                intent.putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                p.optString("label").trim().take(60).takeIf { it.isNotBlank() }
+                    ?.let { intent.putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, it) }
+                val eventGeneration = DeviceState.uiGeneration()
+                try {
+                    context.startActivity(intent)
+                } catch (_: android.content.ActivityNotFoundException) {
+                    return errorResult(PhoneToolErrorCode.APP_NOT_FOUND, "No clock app on this phone accepts this request")
+                } catch (_: SecurityException) {
+                    return errorResult(PhoneToolErrorCode.SECURITY_RESTRICTION, "The clock app refused the request")
+                }
+                launchedOutcome(service, before, p, eventGeneration, JSONObject().put("started", true).put("tool", request.tool))
             }
             "phone.wait_for" -> waitFor(service, p, assertOnly = false)
             "phone.assert" -> waitFor(service, p, assertOnly = true)

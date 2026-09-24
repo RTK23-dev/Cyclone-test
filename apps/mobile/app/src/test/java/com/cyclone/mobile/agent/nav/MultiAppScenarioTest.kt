@@ -81,7 +81,9 @@ class MultiAppScenarioTest {
 
     @Test fun fiveMinuteTimerNeedsRunningCountdown() {
         val fake = FakeRun(SCENARIOS[2])
-        val pkg = fake.run.current!!.place!!.removePrefix("package:")
+        // Clock clauses are proven in whichever clock app the phone has, so they carry no fixed package.
+        assertEquals(NavCapability.SET_TIMER, fake.run.current!!.capability)
+        val pkg = "com.google.android.deskclock"
         fake.see(page(pkg, "Timer", "5:00", "Start"))
         assertFalse(fake.run.complete)
         fake.see(page(pkg, "Timer", "4:59", "Pause"))

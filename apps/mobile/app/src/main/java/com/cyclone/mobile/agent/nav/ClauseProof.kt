@@ -53,11 +53,19 @@ object ClauseProof {
             NavCapability.SEARCH_PERSON -> null // finding a label alone never proves a conversation opened
             NavCapability.SET_TIMER -> {
                 val seconds = clause.target?.toLongOrNull() ?: return null
-                val timer = page.title.contains("timer", true) || page.controls.any { it.label.equals("timer", true) }
-                val running = page.controls.any { it.label.trim().lowercase() in setOf("pause", "pause timer", "stop timer", "pauzeren") }
-                val times = page.controls.flatMap { countdowns(it.label) }.distinct()
-                if (timer && running && times.singleOrNull()?.let { it in maxOf(1, seconds - 15)..seconds } == true)
+                if (com.cyclone.mobile.agent.contract.PhoneIntents.isClockApp(page.packageName) &&
+                    com.cyclone.mobile.agent.contract.PhoneIntents.timerRunning(page.controls.map { it.label } + page.title, seconds))
                     "Requested timer is running" else null
+            }
+            NavCapability.SET_ALARM -> {
+                val (hour, minute) = clause.target?.split(':')?.mapNotNull(String::toIntOrNull)?.takeIf { it.size == 2 } ?: return null
+                val alarm = com.cyclone.mobile.agent.contract.PhoneIntents.Alarm(hour, minute, null)
+                val rows = page.controls.map { control ->
+                    com.cyclone.mobile.agent.contract.PhoneIntents.Row(control.label,
+                        if (control.selector.has("checked")) control.selector.optBoolean("checked") else null)
+                }
+                if (com.cyclone.mobile.agent.contract.PhoneIntents.alarmVisible(page.packageName, rows, alarm))
+                    "Enabled alarm at ${alarm.hhmm} observed" else null
             }
             NavCapability.OPEN_WIFI -> if (wifiScreen(page)) "Wi-Fi settings observed" else null
             NavCapability.READ_NETWORK -> {
@@ -95,15 +103,7 @@ object ClauseProof {
     }
 
     /** Remaining seconds shown as h:mm:ss or m:ss (clock apps switch to h:mm:ss at one hour). */
-    internal fun countdowns(label: String): List<Long> {
-        val hours = HMS.findAll(label).map { m ->
-            m.groupValues[1].toLong() * 3600 + m.groupValues[2].toLong() * 60 + m.groupValues[3].toLong()
-        }.toList()
-        if (hours.isNotEmpty()) return hours
-        return COUNTDOWN.findAll(label).map { m -> m.groupValues[1].toLong() * 60 + m.groupValues[2].toLong() }.toList()
-    }
+    internal fun countdowns(label: String): List<Long> = com.cyclone.mobile.agent.contract.PhoneIntents.countdowns(label)
 
-    private val HMS = Regex("(?<![0-9:])(\\d{1,2}):([0-5]\\d):([0-5]\\d)(?![0-9:])")
     private val CONNECTED = Regex("(?i)\\bconnected\\b|\\bverbonden\\b")
-    private val COUNTDOWN = Regex("(?<![0-9:])(\\d{1,3}):([0-5]\\d)(?![0-9:])")
 }

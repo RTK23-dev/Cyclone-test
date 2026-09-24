@@ -15,6 +15,10 @@ enum class GoalRequirementKind {
     VERIFIED_TARGET_INTERACTION,
     GENERIC_SEMANTIC_EVIDENCE,
     NAMED_APP,
+    /** An enabled alarm at `value` (HH:MM) is visible in a clock app. */
+    ALARM_SET,
+    /** A timer of `value` seconds is counting down. */
+    TIMER_RUNNING,
 }
 
 data class GoalRequirement(
@@ -75,6 +79,12 @@ data class GoalContractEvaluation(
  * defines what independently verifiable success means.
  */
 object GoalContractCompiler {
+    const val ACTION_OUTCOME = "ACTION"
+    private val NAVIGATION_ONLY_TOOLS = setOf(
+        "phone.open_app", "phone.launch_intent", "phone.back", "phone.home", "phone.scroll", "phone.swipe",
+        "phone.wait_for", "phone.assert", "phone.observe", "phone.screenshot",
+    )
+
     /** Only complete simple navigation locally; compound/content goals still need model decisions. */
     fun isSimpleWebNavigation(goal: String): Boolean = NavigationIntent.parse(goal) != null
 
@@ -170,9 +180,20 @@ object GoalContractCompiler {
             )
         }
 
+        PhoneIntents.alarm(clean)?.let { alarm ->
+            requirements.removeAll { it.kind == GoalRequirementKind.NAMED_APP }
+            requirements += GoalRequirement(GoalRequirementKind.ALARM_SET, alarm.hhmm)
+        } ?: PhoneIntents.timer(clean)?.let { timer ->
+            requirements.removeAll { it.kind == GoalRequirementKind.NAMED_APP }
+            requirements += GoalRequirement(GoalRequirementKind.TIMER_RUNNING, timer.seconds.toString())
+        }
+
         if (requirements.isEmpty()) {
+            // An action goal ("set", "turn on", "add"…) cannot complete on page words alone: it also needs a verified
+            // non-navigation action. Opening the right app is never the outcome of an action goal.
             requirements += GoalRequirement(
                 GoalRequirementKind.GENERIC_SEMANTIC_EVIDENCE,
+                value = if (CompletionClaimAudit.isActionGoal(clean)) ACTION_OUTCOME else null,
                 terms = significantTerms(finalGoalSegment(clean)),
             )
         }
@@ -333,6 +354,15 @@ object GoalContractCompiler {
             GoalRequirementKind.GENERIC_SEMANTIC_EVIDENCE -> {
                 val pageMatch = currentPage?.let { pageMatchesTerms(it, requirement.terms) } == true
                 val verifiedMutation = successful.isNotEmpty()
+                if (requirement.value == ACTION_OUTCOME) {
+                    val acted = successful.any { it.tool !in NAVIGATION_ONLY_TOOLS }
+                    val matched = acted && (pageMatch || requirement.terms.isEmpty())
+                    return GoalRequirementResult(requirement, matched, when {
+                        matched -> "a verified action changed the task surface and the scene shows the goal's evidence"
+                        !acted -> "an action goal needs a verified action; opening or showing the app is not the outcome"
+                        else -> "goal evidence is not yet present in the current scene"
+                    })
+                }
                 GoalRequirementResult(
                     requirement,
                     pageMatch || (requirement.terms.isEmpty() && verifiedMutation),
@@ -342,6 +372,27 @@ object GoalContractCompiler {
                         else -> "goal evidence is not yet present in the current scene"
                     },
                 )
+            }
+            GoalRequirementKind.ALARM_SET -> {
+                val parts = requirement.value.orEmpty().split(':')
+                val alarm = PhoneIntents.Alarm(parts.getOrNull(0)?.toIntOrNull() ?: -1, parts.getOrNull(1)?.toIntOrNull() ?: -1, null)
+                val rows = currentPage?.controls.orEmpty().map { control ->
+                    PhoneIntents.Row(control.label, if (control.evidence.has("checked") &&
+                        (control.evidence.optBoolean("checkable") || control.role in setOf("switch", "checkbox")))
+                        control.evidence.optBoolean("checked") else null)
+                }
+                val matched = currentPage != null && alarm.hour in 0..23 && alarm.minute in 0..59 &&
+                    PhoneIntents.alarmVisible(currentPage.packageName, rows, alarm)
+                GoalRequirementResult(requirement, matched,
+                    if (matched) "an enabled alarm at ${alarm.hhmm} is visible in the clock app"
+                    else "no enabled alarm at ${requirement.value} is visible; opening Clock is not setting an alarm")
+            }
+            GoalRequirementKind.TIMER_RUNNING -> {
+                val seconds = requirement.value?.toLongOrNull() ?: 0L
+                val matched = currentPage != null && seconds > 0 && PhoneIntents.isClockApp(currentPage.packageName) &&
+                    PhoneIntents.timerRunning(currentPage.controls.map { it.label }, seconds)
+                GoalRequirementResult(requirement, matched,
+                    if (matched) "a timer of the requested length is counting down" else "no running timer of the requested length is visible")
             }
         }
     }

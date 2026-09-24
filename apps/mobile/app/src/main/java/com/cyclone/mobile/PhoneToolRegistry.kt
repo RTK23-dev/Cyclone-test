@@ -59,6 +59,8 @@ object PhoneToolRegistry {
         PhoneToolDefinition("phone.set_clipboard", true, "clipboard", "Write clipboard text"),
         PhoneToolDefinition("phone.share", true, "intent_launch", "Open Android ACTION_SEND for text, optionally scoped to a package"),
         PhoneToolDefinition("phone.launch_intent", true, "intent_launch", "Planner landing: open an allowlisted URI with ACTION_VIEW before hunting a browser icon"),
+        PhoneToolDefinition("phone.set_alarm", true, "intent_launch", "Ask the clock app to create an alarm (hour 0-23, minute 0-59, optional label) and show it; prove it on the Clock screen"),
+        PhoneToolDefinition("phone.set_timer", true, "intent_launch", "Ask the clock app to start a timer (seconds 1-86400, optional label) and show it; prove the countdown on the Clock screen"),
         PhoneToolDefinition("phone.capabilities", false, null, "Return runtime capability availability and missing-permission states"),
     )
 

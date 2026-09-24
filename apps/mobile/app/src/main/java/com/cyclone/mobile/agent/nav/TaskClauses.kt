@@ -5,7 +5,7 @@ import com.cyclone.mobile.fastpath.FastPathLanding
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class NavCapability { OPEN_PLACE, FIND_SIGNED_IN_IDENTITY, CREATE_ACCOUNT, OPEN_DM, SEARCH_PERSON, SET_TIMER, OPEN_WIFI, READ_NETWORK, USER_GOAL }
+enum class NavCapability { OPEN_PLACE, FIND_SIGNED_IN_IDENTITY, CREATE_ACCOUNT, OPEN_DM, SEARCH_PERSON, SET_TIMER, SET_ALARM, OPEN_WIFI, READ_NETWORK, USER_GOAL }
 enum class ClauseStatus(val wire: String) { PENDING("pending"), ACTIVE("active"), VERIFIED("verified"), NEEDS_APPROVAL("needs-approval"), FAILED("failed") }
 
 data class TaskClause(
@@ -30,9 +30,11 @@ object ClauseCompiler {
      * ordinary goal contract (identity, account, DM, timer, network). A plain "open X" keeps Stage 1 Fast Path and the
      * existing completion contract.
      */
-    fun needsClauseRun(clauses: List<TaskClause>): Boolean = clauses.any { it.place != null } &&
+    fun needsClauseRun(clauses: List<TaskClause>): Boolean =
+        clauses.any { it.place != null || it.capability in CLOCK_CAPABILITIES } &&
         (clauses.size > 1 || clauses.any { it.capability !in PLAIN })
 
+    private val CLOCK_CAPABILITIES = setOf(NavCapability.SET_ALARM, NavCapability.SET_TIMER)
     private val PLAIN = setOf(NavCapability.OPEN_PLACE, NavCapability.OPEN_WIFI, NavCapability.USER_GOAL)
 
     fun compile(goal: String, nativeAvailable: (String) -> Boolean? = { null }): List<TaskClause> {
@@ -50,12 +52,18 @@ object ClauseCompiler {
                     place = "chrome:${origin.trimEnd('/')}"
                 }
             }
-            previousPlace = place
+            val clockIntent = com.cyclone.mobile.agent.contract.PhoneIntents.timer(text) != null ||
+                com.cyclone.mobile.agent.contract.PhoneIntents.alarm(text) != null
+            // Alarms and timers are proven in whichever clock app the phone has (Google, Samsung…), so the clause is
+            // not bound to one package; the clock intent route opens the right app itself.
+            if (clockIntent) place = null
+            previousPlace = place ?: previousPlace
             val capability = when {
                 IDENTITY.containsMatchIn(text) && (text.contains("gmail", true) || text.contains("email", true)) -> NavCapability.FIND_SIGNED_IN_IDENTITY
                 SIGNUP.containsMatchIn(text) -> NavCapability.CREATE_ACCOUNT
                 DM.containsMatchIn(text) -> NavCapability.OPEN_DM
-                TIMER.containsMatchIn(text) -> NavCapability.SET_TIMER
+                com.cyclone.mobile.agent.contract.PhoneIntents.timer(text) != null -> NavCapability.SET_TIMER
+                com.cyclone.mobile.agent.contract.PhoneIntents.alarm(text) != null -> NavCapability.SET_ALARM
                 NETWORK.containsMatchIn(text) -> NavCapability.READ_NETWORK
                 WIFI.containsMatchIn(text) -> NavCapability.OPEN_WIFI
                 TaskDifficulty.isNamedAppOpenOnly(text) || com.cyclone.mobile.agent.contract.GoalContractCompiler.isSimpleWebNavigation(text) -> NavCapability.OPEN_PLACE
@@ -63,11 +71,8 @@ object ClauseCompiler {
             }
             val target = when (capability) {
                 NavCapability.OPEN_DM, NavCapability.SEARCH_PERSON -> person(text)
-                NavCapability.SET_TIMER -> TIMER.find(text)?.let { match ->
-                    val number = match.groupValues[1].toLongOrNull() ?: return@let null
-                    (number * if (match.groupValues[2].startsWith("hour", true)) 3600 else if (match.groupValues[2].startsWith("min", true)) 60 else 1)
-                        .takeIf { it in 1..86400 }?.toString()
-                }
+                NavCapability.SET_TIMER -> com.cyclone.mobile.agent.contract.PhoneIntents.timer(text)?.seconds?.toString()
+                NavCapability.SET_ALARM -> com.cyclone.mobile.agent.contract.PhoneIntents.alarm(text)?.hhmm
                 else -> null
             }
             TaskClause("clause-${index + 1}", text, place, capability, when (capability) {
@@ -76,6 +81,7 @@ object ClauseCompiler {
                 NavCapability.OPEN_DM -> "named conversation open with a message composer"
                 NavCapability.SEARCH_PERSON -> "named person found in current results"
                 NavCapability.SET_TIMER -> "requested duration running in the timer UI"
+                NavCapability.SET_ALARM -> "enabled alarm at the requested time listed in Clock"
                 NavCapability.OPEN_WIFI -> "Wi-Fi settings visible"
                 NavCapability.READ_NETWORK -> "connected-network read from current Wi-Fi UI"
                 NavCapability.OPEN_PLACE -> "requested app or origin visible"
@@ -93,7 +99,6 @@ object ClauseCompiler {
     private val IDENTITY = Regex("(?i)which|signed[- ]?in|logged[- ]?in|current.*(?:email|account)")
     private val SIGNUP = Regex("(?i)sign[- ]?up|register|(?:create|make)\\s+(?:an?\\s+|new\\s+)?(?:[a-z]+\\s+)?account")
     private val DM = Regex("(?i)\\b(dm|direct message|conversation|thread|chat)\\b")
-    private val TIMER = Regex("(?i)\\b(?:timer.*?)(\\d+)\\s*(minutes?|mins?|seconds?|secs?|hours?)\\b")
     private val NETWORK = Regex("(?i)connected.*network|network.*name|(?:which|what).*wi[- ]?fi")
     private val WIFI = Regex("(?i)wi[- ]?fi|wireless settings")
 }

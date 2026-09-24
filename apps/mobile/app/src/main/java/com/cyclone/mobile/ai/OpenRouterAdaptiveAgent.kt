@@ -631,6 +631,10 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     }
                 }
 
+                clockIntentAction(session, goal)?.let { decision ->
+                    onProgress(decision.displaySummary)
+                    return planFromDecision(decision, session.state.page.pageKey)
+                }
                 val landing = currentLanding(session, goal)
                 if (landing?.tool == "phone.launch_intent" && !landing.uri.isNullOrBlank()) {
                     val landingKey = "fastpath:${landing.uri}"
@@ -1051,7 +1055,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                             payload
                         }
                         if (decision.status != "act") {
-                            val complete = decision.status == "done" && (session.navigation?.complete ?: session.bridge.completionEvidence(goal))
+                            val complete = decision.status == "done" && (session.navigation?.complete ?: session.bridge.completionEvidence(goal)) &&
+                                !claimIsNavigationOnly(session, decision)
                             val providerMessage = ProviderFailure.message(decision.reason.orEmpty())
                             return CycloneToolResult(
                                 ok = complete,
@@ -1143,7 +1148,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                     ?: return CycloneVerificationResult(false, false)
                 // One authoritative completion contract. A second keyword matcher on the legacy
                 // page rejects valid short hosts (ad.nl) and already-satisfied navigation goals.
-                val verified = decision.status == "done" && (session.navigation?.complete ?: session.bridge.completionEvidence(goal))
+                val verified = decision.status == "done" && (session.navigation?.complete ?: session.bridge.completionEvidence(goal)) &&
+                    !claimIsNavigationOnly(session, decision)
                 return CycloneVerificationResult(
                     verified = verified,
                     progress = verified,
@@ -1813,6 +1819,43 @@ class OpenRouterAdaptiveAgent(private val context: Context,
      * launch, a splash). The step is pending, not failed: settle again on the live screen and verify the same
      * expectation before any recovery, free mode or model turn is spent on it.
      */
+    /**
+     * Alarms and timers go through Android's AlarmClock request first (one deterministic step, no model turn); the
+     * clock app shows what it created and the clause/contract proof reads it from the live screen. One attempt per
+     * run: if it does not verify, the model works from the Clock screen like any other task.
+     */
+    private fun clockIntentAction(session: LocalSessionContext, goal: String): PageAgentDecision? {
+        val clause = session.navigation?.current
+        if (session.navigation != null && clause?.capability !in setOf(NavCapability.SET_ALARM, NavCapability.SET_TIMER)) return null
+        val text = clause?.text ?: goal
+        val alarm = com.cyclone.mobile.agent.contract.PhoneIntents.alarm(text)
+        val timer = if (alarm == null) com.cyclone.mobile.agent.contract.PhoneIntents.timer(text) else null
+        val (tool, params, summary) = when {
+            alarm != null -> Triple("phone.set_alarm", JSONObject().put("hour", alarm.hour).put("minute", alarm.minute),
+                "Setting an alarm for ${alarm.hhmm}")
+            timer != null -> Triple("phone.set_timer", JSONObject().put("seconds", timer.seconds), "Starting a ${timer.summary}")
+            else -> return null
+        }
+        val key = "intent:$tool:$params"
+        if (key in session.compiledAttempts) return null
+        session.compiledAttempts += key
+        return PageAgentDecision("act", session.state.page.title, summary,
+            listOf(PageAgentAction(tool, null, params, true, summary)), null, null)
+    }
+
+    /** "X is open" is never the outcome of an action goal, whatever a keyword contract says. */
+    private fun claimIsNavigationOnly(session: LocalSessionContext, decision: PageAgentDecision): Boolean {
+        if (session.navigation?.complete == true) return false // every clause already has its own live proof
+        val claim = listOfNotNull(decision.answer, decision.displaySummary).joinToString(" ")
+        val rejected = com.cyclone.mobile.agent.contract.CompletionClaimAudit.navigationOnly(session.goal, claim)
+        if (rejected && session.clauseTrace.put("claim-audit", claim.take(80)) == null) {
+            AgentTraceRuntime.event(context, session.traceId, "VERIFY",
+                "The model reported only navigation for an action goal; not accepted as done",
+                code = "completion.claim_is_navigation", ok = false)
+        }
+        return rejected
+    }
+
     private fun deferredProof(
         session: LocalSessionContext,
         action: PageAgentAction,
@@ -1821,7 +1864,7 @@ class OpenRouterAdaptiveAgent(private val context: Context,
     ): Boolean {
         if (!envelope.androidExecutionOk || envelope.after != null || action.tool !in DEFERRED_PROOF_TOOLS ||
             envelope.verification.status != com.cyclone.mobile.agent.contract.AgentVerificationStatus.DEGRADED) return false
-        val launch = action.tool == "phone.open_app" || action.tool == "phone.launch_intent"
+        val launch = action.tool in com.cyclone.mobile.gateway.GatewayV33ActionAdapter.LAUNCH_TOOLS
         val adapter = com.cyclone.mobile.gateway.GatewayV33ActionAdapter
         val outcome = com.cyclone.mobile.agent.settle.SettleController.run(
             beforeFingerprint = before?.payload?.optString("accessibilityFingerprint"),
@@ -2448,7 +2491,7 @@ Prefer observation-scoped controlId/elementId from PC_AGENT_CONTEXT.pageCard.con
     }
 
     companion object {
-        private val DEFERRED_PROOF_TOOLS = setOf("phone.open_app", "phone.launch_intent", "phone.click", "phone.back")
+        private val DEFERRED_PROOF_TOOLS = setOf("phone.open_app", "phone.launch_intent", "phone.click", "phone.back", "phone.set_alarm", "phone.set_timer")
         private const val API_KEY_BLOCKER = "runtime.api_key_missing"
         private val HUMAN_BOUNDARY_MARKERS = listOf(
             "captcha",

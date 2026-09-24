@@ -58,8 +58,11 @@ internal object GatewayV33ActionAdapter {
         "phone.set_clipboard",
     )
 
+    internal val LAUNCH_TOOLS = setOf("phone.open_app", "phone.launch_intent", "phone.set_alarm", "phone.set_timer")
+
     private val pageTransitionTools = setOf(
         "phone.click", "phone.long_press", "phone.back", "phone.home", "phone.open_app", "phone.launch_intent",
+        "phone.set_alarm", "phone.set_timer",
     )
 
     internal fun requiresMutationObservation(tool: String): Boolean = tool in mutatingTools
@@ -276,7 +279,7 @@ internal object GatewayV33ActionAdapter {
             }
             return null
         }
-        val launch = tool == "phone.open_app" || tool == "phone.launch_intent"
+        val launch = tool in LAUNCH_TOOLS
         val outcome = com.cyclone.mobile.agent.settle.SettleController.run(
             beforeFingerprint = before?.payload?.optString("accessibilityFingerprint"),
             budget = com.cyclone.mobile.agent.settle.SettleBudget(fastMs = pageTransitionSettleMs(tool)),

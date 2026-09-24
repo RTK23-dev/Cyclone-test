@@ -58,7 +58,9 @@ class NavigationHardeningTest {
         fun needs(goal: String) = ClauseCompiler.needsClauseRun(ClauseCompiler.compile(goal) { true })
         assertFalse(needs("open YouTube"))
         assertFalse(needs("open Settings"))
-        assertFalse(needs("set a timer for 5 minutes"))
+        // Timers and alarms always get a clause run: a typed live proof and the one-step clock intent route.
+        assertTrue(needs("set a timer for 5 minutes"))
+        assertTrue(needs("open clock and set an alarm for 5 minutes"))
         SCENARIOS.forEach { assertTrue(it, needs(it)) }
     }
 
@@ -68,8 +70,8 @@ class NavigationHardeningTest {
         assertEquals(listOf(3725L), ClauseProof.countdowns("Remaining 1:02:05"))
         val clause = ClauseCompiler.compile("open the clock app and set a timer for 1 hour") { true }.single()
         assertEquals("3600", clause.target)
-        val pkg = clause.place!!.removePrefix("package:")
-        val running = NavigationScreen(clause.place, "screen:timer:aaaaaaaaaaaaaaaa", page(pkg, "Timer", "0:59:58", "Pause"), "obs-2", 20)
+        val pkg = "com.google.android.deskclock"
+        val running = NavigationScreen("package:$pkg", "screen:timer:aaaaaaaaaaaaaaaa", page(pkg, "Timer", "0:59:58", "Pause"), "obs-2", 20)
         assertTrue(ClauseProof.check(clause, running, TaskLedger(0), false) != null)
     }
 

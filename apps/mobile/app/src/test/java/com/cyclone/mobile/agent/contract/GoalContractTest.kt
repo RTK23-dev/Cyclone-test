@@ -273,6 +273,52 @@ class GoalContractTest {
         assertFalse(result.satisfied)
     }
 
+    @Test fun alpha22AlarmRunIsNotCompleteOnTheAlarmsList() {
+        // The alarm run on 2026-09-24 was accepted as done with Clock merely open on its Alarms tab.
+        val goal = "open clock and set an alarm for 5 minutes"
+        val contract = GoalContractCompiler.compile(goal)
+        val alarm = contract.requirements.single { it.kind == GoalRequirementKind.ALARM_SET }
+        assertFalse(contract.requirements.any { it.kind == GoalRequirementKind.GENERIC_SEMANTIC_EVIDENCE })
+        val listed = page("com.google.android.deskclock", "Alarms", listOf(
+            control("Alarm Monday to Friday 08:30 Alarm is currently disabled.", "button"),
+            control("Alarm Sunday 09:00 Alarm is currently enabled.", "button"),
+            control("Alarm Not scheduled 12:10 Alarm is currently disabled.", "button"),
+            control("Alarms", "tab"),
+        ))
+        assertFalse(GoalContractCompiler.evaluate(contract, listed, emptyList()).satisfied)
+        val set = listed.copy(controls = listed.controls + control("Alarm Today ${alarm.value} Alarm is currently enabled.", "button"))
+        assertTrue(GoalContractCompiler.evaluate(contract, set, emptyList()).satisfied)
+        val off = listed.copy(controls = listed.controls + control("Alarm Today ${alarm.value} Alarm is currently disabled.", "button"))
+        assertFalse(GoalContractCompiler.evaluate(contract, off, emptyList()).satisfied)
+        assertFalse("another app showing the time is not an alarm",
+            GoalContractCompiler.evaluate(contract, set.copy(packageName = "com.android.chrome"), emptyList()).satisfied)
+    }
+
+    @Test fun actionGoalsNeedAVerifiedActionNotJustWords() {
+        val goal = "open settings and turn on dark theme"
+        val contract = GoalContractCompiler.compile(goal)
+        val generic = contract.requirements.single { it.kind == GoalRequirementKind.GENERIC_SEMANTIC_EVIDENCE }
+        assertTrue(generic.value == GoalContractCompiler.ACTION_OUTCOME)
+        val home = page("com.android.launcher", "Home")
+        val screen = page("com.android.settings", "Dark theme settings", listOf(control("Dark theme", "switch")))
+        assertFalse("words on screen after only opening the app", GoalContractCompiler.evaluate(contract, screen,
+            listOf(outcome("phone.open_app", goal, home, screen))).satisfied)
+        assertTrue(GoalContractCompiler.evaluate(contract, screen,
+            listOf(outcome("phone.open_app", goal, home, screen), outcome("phone.click", goal, screen, screen, "CHECKED_CHANGED"))).satisfied)
+        // Pure look-up goals keep the ordinary evidence rule.
+        val lookup = GoalContractCompiler.compile("show me the weather in Amsterdam")
+        assertFalse(lookup.requirements.any { it.value == GoalContractCompiler.ACTION_OUTCOME })
+    }
+
+    @Test fun timerGoalsRequireARunningCountdown() {
+        val contract = GoalContractCompiler.compile("set a 5 minute timer")
+        assertTrue(contract.requirements.any { it.kind == GoalRequirementKind.TIMER_RUNNING && it.value == "300" })
+        val stopped = page("com.google.android.deskclock", "Timer", listOf(control("5:00", "text"), control("Start", "button")))
+        assertFalse(GoalContractCompiler.evaluate(contract, stopped, emptyList()).satisfied)
+        val running = page("com.google.android.deskclock", "Timer", listOf(control("4:41", "text"), control("Pause", "button")))
+        assertTrue(GoalContractCompiler.evaluate(contract, running, emptyList()).satisfied)
+    }
+
     private fun outcome(
         tool: String,
         goal: String,

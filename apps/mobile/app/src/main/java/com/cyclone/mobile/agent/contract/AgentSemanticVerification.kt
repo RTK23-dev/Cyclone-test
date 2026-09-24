@@ -57,6 +57,8 @@ object AgentSemanticVerifier {
         "phone.open_app",
         "phone.launch_intent",
         "phone.set_clipboard",
+        "phone.set_alarm",
+        "phone.set_timer",
     )
 
     // PhoneToolExecutor evaluates params.expect only for actionWithConfirmation tools.
@@ -123,6 +125,18 @@ object AgentSemanticVerifier {
                     detail = "The requested app package was not the authoritative after-state package.",
                 )
             }
+        }
+
+        if (tool == "phone.set_alarm" || tool == "phone.set_timer") {
+            // The tool's own check is only "a clock app took the request"; the goal proof (an enabled alarm row, a
+            // running countdown) is separate and never inferred from this.
+            return if (PhoneIntents.isClockApp(after.packageName)) passed("CLOCK_APP_FOREGROUND") else AgentSemanticVerification(
+                status = AgentVerificationStatus.OBSERVED,
+                passed = false,
+                semanticSuccessClaimed = false,
+                basis = "CLOCK_APP_NOT_OBSERVED",
+                detail = "Android accepted the clock intent, but no clock app is the authoritative after-state.",
+            )
         }
 
         val expectedHttpHost = expectedHttpHost(expectedUri)
