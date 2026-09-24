@@ -37,6 +37,7 @@ class RunInsightTest {
         GatewayV5RunsAdapter.session = { null }
         GatewayV5RunsAdapter.events = { emptyList() }
         GatewayV5RunsAdapter.marks = com.cyclone.mobile.gateway.RunMarks.InMemory()
+        GatewayV5RunsAdapter.doorsOut = { _, _ -> null }
     }
 
     @Test
@@ -236,5 +237,26 @@ class RunInsightTest {
         assertEquals("INVALID_REQUEST", code(JSONObject().put("runId", run).put("expected", "yes")))
         assertEquals("RUN_NOT_FOUND", code(JSONObject().put("runId", "ai-missing").put("expected", true)))
         assertTrue("runs.mark" in GatewayProtocol.operations && "runs.mark" !in GatewayProtocol.legacyReadOnlyOperations)
+    }
+
+    @Test
+    fun givingUpInAMappedRoomWithNoDoorOnwardIsDoorMissing() {
+        val events = opening().apply {
+            add(ev("TOOL_REQUESTED", "Looking around", "tool.requested",
+                detail = "action=click:x · room=screen:list:aaaaaaaaaaaaaaaa · place=package:com.facebook.katana · appv=512.0.0"))
+            add(ev("NON_CONVERGENCE", "non convergence", "classifier.non_convergence", ok = false))
+        }
+        GatewayV5RunsAdapter.sessions = { listOf(session("FAILED")) }
+        GatewayV5RunsAdapter.session = { session("FAILED") }
+        GatewayV5RunsAdapter.events = { events }
+        GatewayV5RunsAdapter.doorsOut = { place, room -> if (place == "package:com.facebook.katana" && room == "screen:list:aaaaaaaaaaaaaaaa") 0 else null }
+        val cause = GatewayV5RunsAdapter.dispatch("runs.get", JSONObject().put("runId", run)).getJSONObject("cause")
+        assertEquals("door-missing", cause.getString("kind"))
+        assertEquals(3, cause.getInt("stepIndex"))
+        // A room with doors, or a room the map does not know, keeps the model's cause.
+        GatewayV5RunsAdapter.doorsOut = { _, _ -> 2 }
+        assertEquals("model-gave-up", GatewayV5RunsAdapter.dispatch("runs.list", JSONObject()).getJSONArray("runs").getJSONObject(0).getJSONObject("cause").getString("kind"))
+        GatewayV5RunsAdapter.doorsOut = { _, _ -> null }
+        assertEquals("model-gave-up", GatewayV5RunsAdapter.dispatch("runs.get", JSONObject().put("runId", run)).getJSONObject("cause").getString("kind"))
     }
 }

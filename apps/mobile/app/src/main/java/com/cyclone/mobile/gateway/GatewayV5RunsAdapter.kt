@@ -36,8 +36,48 @@ internal object GatewayV5RunsAdapter {
      */
     @Volatile internal var marks: RunMarks = RunMarks.InMemory()
 
+    /** Doors out of a room in the mapping pass, or null when the room is not on the map (seam; Atlas in production). */
+    @Volatile internal var doorsOut: (placeId: String, roomId: String) -> Int? = { _, _ -> null }
+
     fun install(context: android.content.Context) {
         if (marks is RunMarks.InMemory) marks = RunMarks.Prefs(context.applicationContext)
+        doorsOut = { placeId, roomId ->
+            runCatching {
+                com.cyclone.mobile.applearner.graphv2.AtlasRuntime.initialize(context.applicationContext)
+                val snapshot = com.cyclone.mobile.applearner.graphv2.AtlasRuntime.store.snapshot(
+                    com.cyclone.mobile.brain.graphv2.AtlasPlaceKey(placeId, com.cyclone.mobile.brain.graphv2.AtlasPersona.MAPPING),
+                ) ?: return@runCatching null
+                val room = com.cyclone.mobile.brain.graphv2.GraphNodeId(roomId)
+                if (snapshot.screens.none { it.screenId == room }) return@runCatching null
+                snapshot.edges.count { it.key.from == room && it.key.type in NAVIGATION }
+            }.getOrNull()
+        }
+    }
+
+    private val NAVIGATION = setOf(
+        com.cyclone.mobile.brain.graphv2.GraphEdgeType.NAVIGATES_TO,
+        com.cyclone.mobile.brain.graphv2.GraphEdgeType.OPENS,
+        com.cyclone.mobile.brain.graphv2.GraphEdgeType.SUBMITS,
+    )
+
+    /**
+     * `door-missing` (plan 11): the run gave up or ran out of time in a room the map knows but that has no door onward.
+     * Needs the Atlas, so it is decided here rather than in [RunInsight].
+     */
+    fun withMapCause(summary: JSONObject, steps: List<RunInsight.Step>): JSONObject {
+        val cause = summary.optJSONObject("cause") ?: return summary
+        if (cause.optString("kind") !in setOf("model-gave-up", "timeout", "unknown", "verification-failed")) return summary
+        val last = steps.lastOrNull { it.placeId != null && (it.roomAfter ?: it.roomId) != null } ?: return summary
+        val room = last.roomAfter ?: last.roomId ?: return summary
+        val doors = runCatching { doorsOut(last.placeId!!, room) }.getOrNull() ?: return summary
+        if (doors > 0) return summary
+        summary.put("cause", JSONObject()
+            .put("kind", "door-missing")
+            .put("stepIndex", last.index)
+            .put("headline", "The map has no door onward from this room")
+            .put("detail", cause.optString("detail"))
+            .put("fix", "Map this room (Remap) or teach the way on, so Cyclone knows where to go next."))
+        return summary
     }
 
     fun dispatch(op: String, args: JSONObject): JSONObject = when (op) {
@@ -58,7 +98,10 @@ internal object GatewayV5RunsAdapter {
         val filter = (args.opt("filter") as? String ?: "all").takeIf { it in filters }
             ?: throw GatewayProtocolException("INVALID_REQUEST", "filter must be one of $filters.")
         val runs = sessions(MAX_LIMIT)
-            .map { RunInsight.summaryJson(it, events(it.id)).put("expected", marks.isExpected(it.id)) }
+            .map { session ->
+                val events = events(session.id)
+                withMapCause(RunInsight.summaryJson(session, events), RunInsight.steps(events)).put("expected", marks.isExpected(session.id))
+            }
             .filter { run ->
                 when (filter) {
                     "failed" -> run.getString("status") == "failed"
@@ -76,7 +119,8 @@ internal object GatewayV5RunsAdapter {
         val id = (args.opt("runId") as? String)?.takeIf { runId.matches(it) }
             ?: throw GatewayProtocolException("INVALID_REQUEST", "runId is malformed.")
         val found = session(id) ?: throw GatewayProtocolException("RUN_NOT_FOUND", "No run with that id on this phone.")
-        return RunInsight.detailJson(found, events(id)).put("expected", marks.isExpected(id))
+        val events = events(id)
+        return withMapCause(RunInsight.detailJson(found, events), RunInsight.steps(events)).put("expected", marks.isExpected(id))
     }
 
     fun mark(args: JSONObject): JSONObject {
