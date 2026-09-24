@@ -72,6 +72,7 @@ export function createAppKnowledgePage(
   setChildren(body, loadingState(`Loading ${route.tab} from the phone…`));
   let scenarioView: "cards" | "board" = "cards";
   let screensPersona: Persona = "mapping";
+  let scenariosPersona: Persona = "mapping";
 
   function renderHeader(app: PhoneApp | null): void {
     const title = el("div", "app-title-row");
@@ -90,7 +91,7 @@ export function createAppKnowledgePage(
       .then((catalog) => renderHeader(catalog.apps.find((app) => app.placeId === placeId) ?? null))
       .catch(() => undefined);
     try {
-      if (route.tab === "scenarios") renderScenarios(await getScenarios(ctx.client, deviceId, placeId, "mapping", controller.signal));
+      if (route.tab === "scenarios") renderScenarios(await getScenarios(ctx.client, deviceId, placeId, scenariosPersona, controller.signal));
       else if (route.tab === "versions") renderVersions(await getVersions(ctx.client, deviceId, placeId, controller.signal));
       else if (route.tab === "screens") await loadScreens();
       else await loadRuns();
@@ -193,11 +194,29 @@ export function createAppKnowledgePage(
   }
 
   function renderScenarios(list: ScenarioList): void {
+    const persona = segmented<Persona>(
+      [
+        { id: "mapping", label: "Mapping pass" },
+        { id: "live", label: "Your teaching" },
+      ],
+      scenariosPersona,
+      (id) => {
+        scenariosPersona = id;
+        setChildren(body, loadingState("Loading scenarios from the phone…"));
+        void getScenarios(ctx.client, deviceId, placeId, scenariosPersona, controller.signal)
+          .then(renderScenarios)
+          .catch((error) => {
+            if ((error as { name?: string })?.name !== "AbortError") setChildren(body, knowledgeError(error, () => void load()));
+          });
+      },
+    );
+    persona.element.classList.add("persona-toggle");
     if (!list.scenarios.length) {
       const map = actionButton("Open the map", { icon: "map", variant: "primary" });
       map.addEventListener("click", () => ctx.navigate({ name: "app", placeId, tab: "map" }));
       setChildren(
         body,
+        persona.element,
         emptyState({
           icon: "map",
           title: "No scenarios yet",
@@ -232,13 +251,15 @@ export function createAppKnowledgePage(
         renderScenarios(list);
       },
     );
+    const toggles = el("div", "scenario-toggles");
+    toggles.append(persona.element, view.element);
     if (scenarioView === "board") {
-      setChildren(body, stats, view.element, note, scenarioBoard(list));
+      setChildren(body, stats, toggles, note, scenarioBoard(list));
       return;
     }
     const grid = el("div", "scenario-grid");
     grid.append(...list.scenarios.map(scenarioCard));
-    setChildren(body, stats, view.element, note, grid);
+    setChildren(body, stats, toggles, note, grid);
   }
 
   /** Minitap-style: the entry room on the left, then one column per number of doors away. */

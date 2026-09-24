@@ -306,3 +306,14 @@ button.scenario-mini:hover {
 .knowledge-body > .segmented {
   align-self: flex-start;
 }
+
+.scenario-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-self: flex-start;
+}
+
+.knowledge-body > .persona-toggle {
+  align-self: flex-start;
+}

@@ -226,3 +226,17 @@ test("Scenarios: Sign in and Already signed in are marked; the password never co
   assert.match(text, /No login/);
   assert.match(text, /fills the login from its Vault/);
 });
+
+test("Scenarios: switch between the mapping pass and your teaching", async () => {
+  const { page, gateway } = open("scenarios", {
+    "GET /v1/devices/d1/apps/scenarios": (req) => (req.query.persona === "live" ? { ...SCENARIOS, persona: "live", scenarios: [] } : SCENARIOS),
+  });
+  await flush();
+  assert.equal(page.element.querySelectorAll(".scenario-card").length, 2);
+  const teach = [...page.element.querySelectorAll(".persona-toggle button")].find((b) => /Your teaching/.test(b.textContent));
+  teach.click();
+  await flush();
+  assert.deepEqual(gateway.calls.filter((c) => c.path.endsWith("/apps/scenarios")).map((c) => c.query.persona), ["mapping", "live"]);
+  assert.match(page.element.textContent, /No scenarios yet/);
+  assert.ok(page.element.querySelector(".persona-toggle"), "the switch stays so you can go back");
+});
