@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.18 dev1 + Cyclone Glass 1.0.0-alpha.11: live view heals itself and says the real USB reason; Glass
-# shows which Cyclone build it is in.
+# shows which Cyclone build it is in. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.18.dev1"
 channel = "development"
