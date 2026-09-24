@@ -27,8 +27,14 @@ export interface LiveViewOptions {
   onState?(state: StreamUiState): void;
   rendererFactory?: (input: VideoRendererFactoryInput) => VideoRenderer;
   /** The specific reason to show when the stream is unavailable (defaults to a generic hint). */
-  unavailableMessage?: () => string | null;
+  unavailableMessage?: (state: StreamUiState) => string | null;
+  /** Retry timer (tests); live view never gives up while the page is open. */
+  setTimer?: (fn: () => void, ms: number) => unknown;
+  clearTimer?: (handle: unknown) => void;
 }
+
+/** How long to wait before reopening a live view the gateway could not serve. */
+export const LIVE_RETRY_MS = 5_000;
 
 export interface LiveView {
   element: HTMLElement;
@@ -65,12 +71,26 @@ export function createLiveView(options: LiveViewOptions): LiveView {
   let pointer: { clientX: number; clientY: number; startedAtMs: number } | null = null;
   const factory = options.rendererFactory ?? ((input) => new WebCodecsH264Renderer(input));
 
+  const setTimer = options.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
+  const clearTimer = options.clearTimer ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+  let retry: unknown = null;
+  let destroyed = false;
+
   const setState = (state: StreamUiState): void => {
     current = state;
-    overlay.textContent = (state === "UNAVAILABLE" ? options.unavailableMessage?.() : null) || STATE_COPY[state];
+    const reason = state === "UNAVAILABLE" || state === "RECONNECTING" ? options.unavailableMessage?.(state) : null;
+    overlay.textContent =
+      state === "UNAVAILABLE" ? `${reason || STATE_COPY.UNAVAILABLE} Retrying on its own…` : state === "RECONNECTING" && reason ? `Reconnecting… ${reason}` : STATE_COPY[state];
     overlay.hidden = state === "LIVE";
     element.dataset.state = state.toLowerCase();
     options.onState?.(state);
+    // Like a remote-desktop client: an unavailable stream is reopened on its own until the page closes.
+    if (state === "UNAVAILABLE" && retry === null && !destroyed) {
+      retry = setTimer(() => {
+        retry = null;
+        if (!destroyed) start();
+      }, LIVE_RETRY_MS);
+    }
   };
 
   const start = (): void => {
@@ -131,6 +151,9 @@ export function createLiveView(options: LiveViewOptions): LiveView {
     },
     state: () => current,
     destroy() {
+      destroyed = true;
+      if (retry !== null) clearTimer(retry);
+      retry = null;
       renderer?.stop();
       renderer = null;
     },

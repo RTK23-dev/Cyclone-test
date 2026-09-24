@@ -229,3 +229,33 @@ test("while an Ask is working, Glass links to its live run", async () => {
   assert.equal(live.href ?? live.getAttribute("href"), "#/runs/ai-run-live");
   page.destroy();
 });
+
+import { createLiveView } from "../.test-dist/ui/liveView.js";
+
+test("live view never gives up: an unavailable stream is reopened on its own and says why", () => {
+  installMiniDom();
+  const timers = [];
+  const renderers = [];
+  const view = createLiveView({
+    client: new GatewayClient({ token: "t", fetch: async () => new Response("{}") }),
+    deviceId: "d1",
+    origin: "http://127.0.0.1:8765",
+    onGesture() {},
+    unavailableMessage: () => "This PC does not see the phone over USB.",
+    rendererFactory: (input) => {
+      const renderer = { input, start() {}, stop() {} };
+      renderers.push(renderer);
+      return renderer;
+    },
+    setTimer: (fn) => timers.push(fn),
+    clearTimer: () => (timers.length = 0),
+  });
+  renderers[0].input.callbacks.onState("UNAVAILABLE");
+  assert.match(view.element.textContent, /does not see the phone over USB\. Retrying on its own/);
+  assert.equal(timers.length, 1);
+  timers.shift()();
+  assert.equal(renderers.length, 2, "a new stream was opened");
+  renderers[1].input.callbacks.onState("LIVE");
+  assert.equal(timers.length, 0);
+  view.destroy();
+});

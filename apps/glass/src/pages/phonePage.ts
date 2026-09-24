@@ -58,7 +58,11 @@ export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): Gl
     deviceId: device.id,
     origin: deps.origin ?? globalThis.location?.origin ?? "http://127.0.0.1:8765",
     rendererFactory: deps.rendererFactory,
-    unavailableMessage: () => liveViewProblem(ctx.devices.find((d) => d.id === device.id) ?? device),
+    unavailableMessage: (state) => {
+      const current = ctx.devices.find((d) => d.id === device.id) ?? device;
+      // While reconnecting with USB fine, "Reconnecting…" alone is the truth; otherwise say what is wrong.
+      return state === "RECONNECTING" && current.usb === "USB_AUTHORIZED" ? null : liveViewProblem(current);
+    },
     onGesture: (gesture) => {
       if (gesture.type === "tap") void run({ kind: "tap", x: gesture.x, y: gesture.y });
       else void run({ kind: "swipe", x1: gesture.x, y1: gesture.y, x2: gesture.x2 ?? gesture.x, y2: gesture.y2 ?? gesture.y, duration_ms: gesture.durationMs ?? 300 });

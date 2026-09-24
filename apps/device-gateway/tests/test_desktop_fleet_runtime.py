@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from pathlib import Path
 import time
 import zipfile
@@ -762,6 +764,26 @@ def test_frozen_http_and_websocket_routes_are_authenticated(tmp_path):
         ).status_code == 422
         with client.websocket_connect("/v1/fleet/events", headers=headers) as websocket:
             assert websocket.receive_json()["event"] == "FLEET_SNAPSHOT"
+
+
+def test_live_view_heals_itself_when_usb_is_not_ready_yet(tmp_path):
+    fleet, _, _ = make_fleet([ADBDevice("SERIAL-USB-9876", "device")])
+    fleet.refresh_once()
+    install_fake_bridges(fleet)
+    settings = Settings("pc-secret", None, "adb", tmp_path)
+    runtime = DesktopRuntime(settings, fleet=fleet)
+    device_id = fleet.list_public()[0]["deviceId"]
+    session = fleet.get(device_id)
+    session.video = VideoStreamController(session, runtime.video_limiter, media_backend=unavailable_media_backend())
+    app = create_desktop_app(settings, runtime)
+    headers = {"Authorization": "Bearer pc-secret"}
+    with TestClient(app) as client:
+        fleet.stop() if hasattr(fleet, "stop") else None
+        session.adb_device = ADBDevice("SERIAL-USB-9876", "unauthorized")
+        with client.websocket_connect(f"/v1/devices/{device_id}/video?profile=thumbnail", headers=headers) as video:
+            first = json.loads(video.receive_text())
+            assert first == {"type": "stream.error", "code": "USB_UNAUTHORIZED", "retryable": True}
+            assert "stream.init" in video.receive_text(), "the producer keeps trying instead of closing the door"
 
 
 def test_connection_debug_flow_records_client_server_timeline_and_creates_sendable_zip(tmp_path):

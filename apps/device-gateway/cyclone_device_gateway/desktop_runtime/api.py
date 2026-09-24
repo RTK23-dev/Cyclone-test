@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import hashlib
 import hmac
 import queue
@@ -691,21 +692,21 @@ def create_desktop_router(runtime: DesktopRuntime, token: str) -> APIRouter:
             return
         try:
             session = runtime.fleet.get(device_id)
-            adb_state = str(getattr(getattr(session, "adb_device", None), "state", "") or "")
-            if adb_state != "device":
-                raise DesktopRuntimeError(
-                    RuntimeErrorCode.DEVICE_UNAUTHORIZED if adb_state == "unauthorized" else RuntimeErrorCode.DEVICE_DISCONNECTED,
-                    "ADB authorization is required for live display.",
-                    retryable=True,
-                )
             controller = session.video
             if controller is None:
                 raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Video runtime is unavailable.")
-        except DesktopRuntimeError as exc:
-            close_code = 4403 if exc.code == RuntimeErrorCode.DEVICE_UNAUTHORIZED.value else 4404
-            await websocket.close(code=close_code)
+        except DesktopRuntimeError:
+            await websocket.close(code=4404)
             return
         await websocket.accept(subprotocol=_accepted_subprotocol(websocket))
+        # Self-healing live view: a phone that is known but not ready over USB right now (cable moved, debugging prompt
+        # pending, ADB restarting) gets a retryable reason instead of a closed door. The producer keeps capturing and
+        # frames flow again as soon as ADB is back, like a remote-desktop client that reconnects on its own.
+        adb_state = str(getattr(getattr(session, "adb_device", None), "state", "") or "")
+        if adb_state != "device":
+            reason = {"unauthorized": "USB_UNAUTHORIZED", "offline": "USB_OFFLINE"}.get(adb_state, "USB_ABSENT")
+            runtime.live_diagnostics.mark(device_id, "server.ws.usb_not_ready", details={"profile": profile, "code": reason})
+            await websocket.send_text(json.dumps({"type": "stream.error", "code": reason, "retryable": True}, separators=(",", ":")))
         if profile == "focus":
             session.input_owner = "HUMAN"
         q = controller.subscribe(profile)
