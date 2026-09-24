@@ -192,20 +192,23 @@ test("Knowledge: the never-pay list shows guarded doors per app, with unknown da
     automations: [],
     atlas: { places: 1, rooms: 3, doors: 2 },
     guarded: [
-      { placeId: "package:com.example.shop", label: "Shop", persona: "mapping", danger: "payment", doors: 2, rooms: 1 },
+      { placeId: "package:com.example.shop", label: "Shop", persona: "mapping", danger: "payment", doors: 2, rooms: 1, roomIds: ["screen:list:bbbbbbbbbbbbbbbb", "Buy now"] },
       { placeId: "package:com.example.shop", label: "Shop", persona: "mapping", danger: "delete-account", doors: 1, rooms: 0 },
       { placeId: "package:com.example.shop", label: "Shop", persona: "mapping", danger: "hack", doors: 9, rooms: 9 },
     ],
   };
+  const navigated = [];
   const gateway = fakeGateway({ "GET /v1/devices/d1/knowledge": () => summary });
   const devices = [parseDevice({ ...READY_DEVICE, mobileVersion: "5.0.0-alpha.15.dev1" })];
-  const page = createKnowledgePage({ client: new GatewayClient({ token: "t", fetch: gateway.fetch }), version: "x", devices, device: devices[0], devicesError: null, navigate() {}, selectDevice() {}, refreshDevices: async () => {} });
+  const page = createKnowledgePage({ client: new GatewayClient({ token: "t", fetch: gateway.fetch }), version: "x", devices, device: devices[0], devicesError: null, navigate: (r) => navigated.push(r), selectDevice() {}, refreshDevices: async () => {} });
   await flush();
   const text = page.element.textContent;
   assert.match(text, /Never pressed/);
   assert.match(text, /Pay or buy · 3/);
   assert.match(text, /Delete · 1/);
   assert.doesNotMatch(text, /hack|· 18/);
+  [...page.element.querySelectorAll(".guarded-card .btn")].find((b) => /Show on the map/.test(b.textContent)).click();
+  assert.deepEqual(navigated.at(-1), { name: "app", placeId: "package:com.example.shop", tab: "map", route: ["screen:list:bbbbbbbbbbbbbbbb"] });
   const link = page.element.querySelector(".guarded-app");
   assert.equal(link.getAttribute("href") ?? link.href, `#/apps/${encodeURIComponent("package:com.example.shop")}/screens`);
   page.destroy();

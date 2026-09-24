@@ -727,8 +727,11 @@ def _validate_knowledge_summary(value: dict[str, Any]) -> None:
         if not isinstance(guarded, list) or len(guarded) > 200:
             raise _bad_knowledge("guarded")
         for row in guarded:
-            if not isinstance(row, dict) or set(row) != {"placeId", "label", "persona", "danger", "doors", "rooms"}:
+            if not isinstance(row, dict) or set(row) - {"roomIds"} != {"placeId", "label", "persona", "danger", "doors", "rooms"}:
                 raise _bad_knowledge("guarded row")
+            rooms = row.get("roomIds", [])
+            if not isinstance(rooms, list) or len(rooms) > 10 or not all(isinstance(room, str) and SCREEN_ID.fullmatch(room) for room in rooms):
+                raise _bad_knowledge("guarded rooms")
             if not isinstance(row["placeId"], str) or not SLOT_PLACE_ID.match(row["placeId"]) or row["persona"] not in {"live", "mapping"}:
                 raise _bad_knowledge("guarded place")
             if row["danger"] not in GUARDED_DANGERS or not _short_text(row["label"], 80):

@@ -73,7 +73,8 @@ class GatewayV5KnowledgeSummaryAdapterTest {
             assertEquals(shop, guarded.getString("placeId"))
             assertEquals("Shop", guarded.getString("label"))
             assertEquals("payment", guarded.getString("danger"))
-            assertEquals(setOf("placeId", "label", "persona", "danger", "doors", "rooms"), guarded.keys().asSequence().toSet())
+            assertEquals(setOf("placeId", "label", "persona", "danger", "doors", "rooms", "roomIds"), guarded.keys().asSequence().toSet())
+            assertEquals("screen:list:bbbbbbbbbbbbbbbb", guarded.getJSONArray("roomIds").getString(0))
         } finally {
             dir.deleteRecursively()
         }

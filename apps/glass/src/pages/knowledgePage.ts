@@ -118,6 +118,12 @@ export function createKnowledgePage(ctx: GlassContext): GlassPage {
         chips.append(chip(`${dangerLabel(row.danger)} · ${count}`, row.danger === "permission" ? "warning" : "danger"));
       }
       item.append(chips);
+      const rooms = [...new Set(placeRows.flatMap((row) => row.roomIds))].slice(0, 10);
+      if (rooms.length) {
+        const show = actionButton("Show on the map", { icon: "map", variant: "ghost" });
+        show.addEventListener("click", () => ctx.navigate({ name: "app", placeId, tab: "map", route: rooms }));
+        item.append(show);
+      }
       list.append(item);
     }
     node.append(list);

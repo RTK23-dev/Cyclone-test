@@ -851,7 +851,7 @@ GUARDED = {"placeId": "package:com.example.shop", "label": "Shop", "persona": "m
 
 
 def test_glass_knowledge_summary_may_carry_the_never_pay_list():
-    summary = {**KNOWLEDGE, "guarded": [GUARDED]}
+    summary = {**KNOWLEDGE, "guarded": [GUARDED, {**GUARDED, "danger": "delete-account", "roomIds": ["screen:settings:cccccccccccccccc"]}]}
     assert V5ContractService(FakeFleet(SummaryBridge(summary))).knowledge_summary("phone-1") == summary
 
 
@@ -863,6 +863,7 @@ def test_glass_knowledge_summary_may_carry_the_never_pay_list():
     {**KNOWLEDGE, "guarded": [{**GUARDED, "danger": "authentication"}]},
     {**KNOWLEDGE, "guarded": [{**GUARDED, "selector": "Buy now"}]},
     {**KNOWLEDGE, "guarded": [{**GUARDED, "doors": -1}]},
+    {**KNOWLEDGE, "guarded": [{**GUARDED, "roomIds": ["Buy now button"]}]},
 ])
 def test_glass_knowledge_summary_rejects_values_and_extras(summary):
     svc = V5ContractService(FakeFleet(SummaryBridge(summary)))

@@ -39,16 +39,32 @@ internal object GatewayV5KnowledgeSummaryAdapter {
     @Volatile internal var guarded: () -> List<GuardedCount> = { emptyList() }
 
     /** One row of the never-pay list. */
-    internal data class GuardedCount(val placeId: String, val label: String, val persona: AtlasPersona, val danger: AtlasDanger, val doors: Int, val rooms: Int)
+    internal data class GuardedCount(
+        val placeId: String,
+        val label: String,
+        val persona: AtlasPersona,
+        val danger: AtlasDanger,
+        val doors: Int,
+        val rooms: Int,
+        /** Structural room ids (the guarded rooms and the rooms guarded doors leave from), for Show on the map. */
+        val roomIds: List<String> = emptyList(),
+    )
 
     val NEVER = listOf(AtlasDanger.PAYMENT, AtlasDanger.SEND_PUBLIC, AtlasDanger.DELETE_ACCOUNT, AtlasDanger.LOGOUT_ALL, AtlasDanger.PERMISSION)
     const val MAX_GUARDED = 200
+    const val MAX_GUARDED_ROOMS = 10
+    private val ROOM_ID = Regex("^screen:[a-z_]{1,40}:[0-9a-f]{8,64}$")
 
     /** Counts guarded doors and rooms in one Atlas snapshot; never labels or selectors. */
     internal fun guardedCounts(place: AtlasPlace, snapshot: AtlasGraphSnapshot): List<GuardedCount> = NEVER.mapNotNull { danger ->
-        val doors = snapshot.edgeMetadata.count { it.danger == danger }
-        val rooms = snapshot.screens.count { it.danger == danger }
-        if (doors + rooms == 0) null else GuardedCount(place.id, place.label, place.persona, danger, doors, rooms)
+        val guardedDoors = snapshot.edgeMetadata.filter { it.danger == danger }
+        val guardedRooms = snapshot.screens.filter { it.danger == danger }
+        if (guardedDoors.size + guardedRooms.size == 0) return@mapNotNull null
+        val roomIds = (guardedRooms.map { it.screenId.value } + guardedDoors.map { it.key.from.value })
+            .filter { ROOM_ID.matches(it) }
+            .distinct()
+            .take(MAX_GUARDED_ROOMS)
+        GuardedCount(place.id, place.label, place.persona, danger, guardedDoors.size, guardedRooms.size, roomIds)
     }
 
     fun install(context: Context) {
@@ -122,6 +138,7 @@ internal object GatewayV5KnowledgeSummaryAdapter {
                     .put("danger", row.danger.wireValue)
                     .put("doors", row.doors)
                     .put("rooms", row.rooms)
+                    .put("roomIds", JSONArray(row.roomIds))
             }))
     }
 

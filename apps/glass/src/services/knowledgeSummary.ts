@@ -30,7 +30,11 @@ export interface GuardedRow {
   danger: GuardedDanger;
   doors: number;
   rooms: number;
+  /** Structural room ids to light up on the map (phone alpha.17+); empty on older phones. */
+  roomIds: string[];
 }
+
+const ROOM_ID = /^screen:[a-z_]{1,40}:[0-9a-f]{8,64}$/;
 
 const DANGERS: Record<GuardedDanger, string> = {
   payment: "Pay or buy",
@@ -83,6 +87,7 @@ export function parseKnowledge(raw: unknown): KnowledgeSummary {
             danger: g.danger as GuardedDanger,
             doors: num(g.doors),
             rooms: num(g.rooms),
+            roomIds: Array.isArray(g.roomIds) ? g.roomIds.filter((id): id is string => typeof id === "string" && ROOM_ID.test(id)).slice(0, 10) : [],
           }))
       : null,
   };
