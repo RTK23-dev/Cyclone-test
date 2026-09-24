@@ -1,5 +1,7 @@
 # Handoff — physical-device test of Cyclone Glass alpha.2 + Mobile alpha.8
 
+> **Superseded** by [`HANDOFF-device-test-alpha13.md`](HANDOFF-device-test-alpha13.md) (alpha.13 + Glass alpha.6). Use that one.
+
 **For:** a coding agent running on the owner's Windows PC, phone connected over USB.
 **From:** the Glass front-runner session, 2026-09-23.
 **Goal:** prove on real hardware what CI could not. Install the latest builds, run the test matrix below, and return
