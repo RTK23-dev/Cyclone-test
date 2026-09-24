@@ -311,6 +311,13 @@ def test_real_fleet_exposes_only_authenticated_mobile_version_and_rechecks_it(tm
         bridge.request = original_request
         fleet.refresh_once()
         assert public_device()["mobileVersion"] == "5.0.0-alpha.2.dev2"
+        # Trust restore re-confirms the same session token; that must not hide the version (Glass "Waiting for Cyclone").
+        fleet.remember_credential(session, "H" * 43)
+        assert public_device()["mobileVersion"] == "5.0.0-alpha.2.dev2"
+        fleet.remember_credential(session, "N" * 43)
+        assert "mobileVersion" not in public_device()
+        fleet.refresh_once()
+        assert public_device()["mobileVersion"] == "5.0.0-alpha.2.dev2"
         fleet.remember_credential(session, None)
         assert "mobileVersion" not in public_device()
 

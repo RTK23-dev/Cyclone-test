@@ -737,8 +737,11 @@ class DeviceFleetManager:
 
     def remember_credential(self, session: DeviceSession, credential: str | None) -> None:
         with self._lock:
+            # Re-confirming the same credential (trust restore, refresh) must not forget the version the
+            # phone already reported over it; only a new or cleared credential starts from unknown.
+            if credential != session.credential:
+                session.mobile_version = None
             session.credential = credential
-            session.mobile_version = None
             if credential:
                 session.bridge_ok = None
                 session.reconnect_attempts = 0

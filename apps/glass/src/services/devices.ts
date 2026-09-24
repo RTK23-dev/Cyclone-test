@@ -12,12 +12,22 @@ export interface GlassDevice {
   connectionLabel: string;
   aiTrust: AiTrust;
   mobileVersion: string | null;
+  /** USB, LAN or VIRTUAL. */
+  transport: string;
+  /** Trusted phone session is open right now (not only remembered). */
+  sessionReady: boolean;
+  /** Six digits shown on the phone while it is being connected. */
+  matchCode: string | null;
+  /** Gateway's own words for why a trusted phone is not usable yet (phone locked, gateway off, …). */
+  problem: string | null;
 }
 
 /** Glass features that read the Atlas need Cyclone Mobile 5.x. Unknown version fails closed. */
 export type DeviceReadiness =
   | { ready: true }
-  | { ready: false; reason: "disconnected" | "unpaired" | "needs-update" | "version-unknown"; message: string };
+  | { ready: false; reason: NotReadyReason; message: string };
+
+export type NotReadyReason = "disconnected" | "unpaired" | "connecting" | "needs-update" | "version-unknown";
 
 export async function listDevices(client: GatewayClient, signal?: AbortSignal): Promise<GlassDevice[]> {
   const body = await client.get<{ devices?: unknown }>("/v1/fleet", signal);
@@ -32,6 +42,8 @@ export function parseDevice(raw: unknown): GlassDevice | null {
   if (!id) return null;
   const planes = (record.planes && typeof record.planes === "object" ? record.planes : {}) as Record<string, unknown>;
   const model = text(record.model);
+  const trust = (record.trust && typeof record.trust === "object" ? record.trust : {}) as Record<string, unknown>;
+  const matchCode = text(trust.matchCode);
   return {
     id,
     name: text(record.name) || model || "Android phone",
@@ -41,7 +53,25 @@ export function parseDevice(raw: unknown): GlassDevice | null {
     connectionLabel: text(record.connectionLabel),
     aiTrust: text(planes.aiTrust) || "UNPAIRED",
     mobileVersion: text(record.mobileVersion) || null,
+    transport: text(record.source) || "USB",
+    sessionReady: trust.sessionReady === true,
+    matchCode: /^\d{6}$/.test(matchCode) ? matchCode : null,
+    problem: gatewayProblem(record, trust),
   };
+}
+
+/** First concrete reason the gateway gives for a phone that is present but not usable. */
+function gatewayProblem(record: Record<string, unknown>, trust: Record<string, unknown>): string | null {
+  const trustError = text(trust.lastSafeError);
+  if (trustError) return trustError;
+  const health = (record.health && typeof record.health === "object" ? record.health : {}) as Record<string, unknown>;
+  const planes = (health.planes && typeof health.planes === "object" ? health.planes : {}) as Record<string, unknown>;
+  for (const name of ["gateway", "accessibility", "tokenSession"]) {
+    const plane = planes[name] as Record<string, unknown> | undefined;
+    if (plane && plane.ready === false && text(plane.message)) return text(plane.message);
+  }
+  const connection = (record.connectionHealth && typeof record.connectionHealth === "object" ? record.connectionHealth : {}) as Record<string, unknown>;
+  return text(connection.lastError) || text(record.lastSafeError) || null;
 }
 
 export function deviceReadiness(device: GlassDevice): DeviceReadiness {
@@ -49,10 +79,19 @@ export function deviceReadiness(device: GlassDevice): DeviceReadiness {
     return { ready: false, reason: "disconnected", message: "The phone is not connected to this PC. Check the USB cable or wireless debugging." };
   }
   if (!device.paired) {
-    return { ready: false, reason: "unpaired", message: "Pair this phone with Cyclone One first. Pairing moves into Glass in a later alpha." };
+    return { ready: false, reason: "unpaired", message: "Connect this phone in Devices: Glass shows a code, you tap Allow on the phone." };
   }
   const major = majorVersion(device.mobileVersion);
   if (major === null) {
+    if (!device.sessionReady || device.problem) {
+      return {
+        ready: false,
+        reason: "connecting",
+        message: device.problem
+          ? `Connected before, not reachable right now: ${device.problem}`
+          : "Connected before; Cyclone is reopening the session with the phone. Unlock the phone if it is locked.",
+      };
+    }
     return { ready: false, reason: "version-unknown", message: "Cyclone on the phone has not reported its version yet." };
   }
   if (major < 5) {

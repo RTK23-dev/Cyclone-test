@@ -44,7 +44,7 @@ test("code exchange stores the bearer for this tab only and drops the code from 
     },
   });
   assert.deepEqual(result, { state: "ready", token: "bearer-1" });
-  assert.equal(hash, "#/apps", "code removed before the exchange completes");
+  assert.equal(hash, "#/", "code removed before the exchange completes");
   assert.equal(calls[0].url, "/v1/glass/session");
   assert.deepEqual(JSON.parse(calls[0].init.body), { code: CODE });
   assert.equal(calls[0].init.credentials, "omit");

@@ -247,8 +247,13 @@ private fun GatewayControlCenter(
                                     ) {
                                         Text("Allow ${pendingTrust.pcLabel}?", fontWeight = FontWeight.SemiBold)
                                         Text(
-                                            "This PC is asking for Cyclone AI trust.",
+                                            "Check that ${pendingTrust.pcLabel} shows the same code, then allow it.",
                                             style = MaterialTheme.typography.bodySmall,
+                                        )
+                                        Text(
+                                            GatewayTrustPrompt.formatCode(GatewayTrustProtocolV33.matchCode(pendingTrust)),
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.SemiBold,
                                         )
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Button(

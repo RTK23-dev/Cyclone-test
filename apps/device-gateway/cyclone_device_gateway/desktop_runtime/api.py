@@ -867,6 +867,7 @@ def _call(fn):
             RuntimeErrorCode.TRUST_REVOKED.value: 403,
             RuntimeErrorCode.TRUST_EXPIRED.value: 401,
             RuntimeErrorCode.TRUST_AUTH_FAILED.value: 403,
+            RuntimeErrorCode.TRUST_REJECTED.value: 403,
             RuntimeErrorCode.PROTOCOL_MISMATCH.value: 426,
             RuntimeErrorCode.PHONE_LOCKED.value: 423,
             RuntimeErrorCode.HUMAN_HAS_CONTROL.value: 409,

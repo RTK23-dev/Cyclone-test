@@ -10,7 +10,7 @@ export function deviceGate(ctx: GlassContext): HTMLElement | null {
         icon: "plug",
         tone: "warning",
         title: "This Glass session has ended",
-        body: "The local gateway restarted or the session expired. Run `cyclone-device-gateway glass` again to open a fresh session.",
+        body: "Cyclone One restarted or the session expired. Open Glass again from Cyclone One → Settings → Open Cyclone Glass.",
       });
     }
     const retry = actionButton("Try again", { icon: "refresh" });
@@ -25,8 +25,8 @@ export function deviceGate(ctx: GlassContext): HTMLElement | null {
   }
   const device = ctx.device;
   if (!device) {
-    const retry = actionButton("Look again", { icon: "refresh" });
-    retry.addEventListener("click", () => void ctx.refreshDevices());
+    const retry = actionButton("Open Devices", { icon: "plug", variant: "primary" });
+    retry.addEventListener("click", () => ctx.navigate({ name: "devices" }));
     return emptyState({
       icon: "phone",
       title: "No phone connected",
@@ -36,10 +36,18 @@ export function deviceGate(ctx: GlassContext): HTMLElement | null {
   }
   const readiness = deviceReadiness(device);
   if (readiness.ready) return null;
+  const toDevices = actionButton(readiness.reason === "unpaired" ? "Connect this phone" : "Open Devices", { icon: "plug", variant: "primary" });
+  toDevices.addEventListener("click", () => ctx.navigate({ name: "devices" }));
   return emptyState({
     icon: "alert",
     tone: readiness.reason === "disconnected" ? "danger" : "warning",
-    title: readiness.reason === "needs-update" ? "Update Cyclone on the phone" : `${device.name} is not ready`,
+    title:
+      readiness.reason === "needs-update"
+        ? "Update Cyclone on the phone"
+        : readiness.reason === "unpaired"
+          ? `${device.name} is not connected to Glass yet`
+          : `${device.name} is not ready`,
     body: readiness.message,
+    action: readiness.reason === "needs-update" ? undefined : toDevices,
   });
 }

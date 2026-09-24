@@ -3,7 +3,7 @@
  * Glass has no intelligence: everything below reads from or commands the phone through the local gateway.
  */
 import { parseRoute, routeHref, sectionOf, type Route } from "./core/router.js";
-import { deviceReadiness, listDevices, pickDevice, type GlassDevice } from "./services/devices.js";
+import { deviceReadiness, listDevices, pickDevice, type GlassDevice, type NotReadyReason } from "./services/devices.js";
 import { GatewayError, type GatewayClient } from "./services/gateway.js";
 import { el, setChildren } from "./ui/dom.js";
 import { icon, type IconName } from "./ui/icons.js";
@@ -13,6 +13,7 @@ import { createPhonePage } from "./pages/phonePage.js";
 import { createRunsPage } from "./pages/runsPage.js";
 import { createRunPage } from "./pages/runPage.js";
 import { createSettingsPage } from "./pages/settingsPage.js";
+import { createDevicesPage } from "./pages/devicesPage.js";
 
 export const DEVICE_STORAGE_KEY = "cyclone.glass.device.v1";
 const DEVICE_REFRESH_MS = 5_000;
@@ -49,10 +50,12 @@ const PAGES: Record<Route["name"], PageFactory> = {
   runs: (ctx) => createRunsPage(ctx),
   run: (ctx, route) => createRunPage(ctx, route as Extract<Route, { name: "run" }>),
   phone: (ctx) => createPhonePage(ctx),
+  devices: (ctx) => createDevicesPage(ctx),
   settings: (ctx) => createSettingsPage(ctx),
 };
 
-const NAV: Array<{ section: "apps" | "runs" | "phone"; label: string; icon: IconName; route: Route }> = [
+const NAV: Array<{ section: "apps" | "runs" | "phone" | "devices"; label: string; icon: IconName; route: Route }> = [
+  { section: "devices", label: "Devices", icon: "plug", route: { name: "devices" } },
   { section: "apps", label: "Apps", icon: "apps", route: { name: "apps" } },
   { section: "runs", label: "Runs", icon: "runs", route: { name: "runs" } },
   { section: "phone", label: "Phone", icon: "phone", route: { name: "phone" } },
@@ -73,10 +76,13 @@ export class GlassApp {
   private timer: unknown = null;
   private unlistenHash: (() => void) | null = null;
   private refreshing: Promise<void> | null = null;
+  private firstLoad = true;
+  private readonly hadRoute: boolean;
 
   constructor(options: GlassAppOptions) {
     this.options = options;
     this.route = parseRoute(options.location.hash);
+    this.hadRoute = /^#\/[a-z]/.test(options.location.hash);
     this.deviceId = readStorage(options.storage, DEVICE_STORAGE_KEY);
   }
 
@@ -113,9 +119,25 @@ export class GlassApp {
     }
     const chosen = pickDevice(this.devices, this.deviceId);
     this.deviceId = chosen?.id ?? this.deviceId;
+    if (this.firstLoad) {
+      this.firstLoad = false;
+      // Like WhatsApp Web: with nothing connected yet, open on Devices instead of an empty dashboard.
+      if (!this.hadRoute && !this.devices.some((device) => deviceReadiness(device).ready)) {
+        this.options.setHash(routeHref({ name: "devices" }));
+        this.route = { name: "devices" };
+      }
+    }
     this.renderPicker();
+    if (this.page?.update && this.pageKey === this.routeKey()) {
+      this.page.update(this.context());
+      return;
+    }
     // Re-mount only when something a page depends on changed; polling must not reset a board mid-pan.
     if (this.deviceSignature() !== before || !this.page) this.renderPage(true);
+  }
+
+  private routeKey(): string {
+    return `${this.route.name}:${this.route.name === "app" ? this.route.placeId : this.route.name === "run" ? this.route.runId : ""}`;
   }
 
   private deviceSignature(): string {
@@ -208,7 +230,7 @@ export class GlassApp {
   }
 
   private renderPage(force: boolean): void {
-    const key = `${this.route.name}:${this.route.name === "app" ? this.route.placeId : this.route.name === "run" ? this.route.runId : ""}`;
+    const key = this.routeKey();
     if (!force && key === this.pageKey && this.page) return;
     this.page?.destroy();
     this.pageKey = key;
@@ -223,12 +245,14 @@ export class GlassApp {
   }
 }
 
-function shortReason(reason: "disconnected" | "unpaired" | "needs-update" | "version-unknown"): string {
+function shortReason(reason: NotReadyReason): string {
   switch (reason) {
     case "disconnected":
       return "Not connected";
     case "unpaired":
-      return "Not paired";
+      return "Not connected to Glass";
+    case "connecting":
+      return "Reconnecting";
     case "needs-update":
       return "Update Cyclone";
     case "version-unknown":

@@ -89,3 +89,22 @@ test("choosing a phone is remembered for the tab", async () => {
   assert.equal(storage.get("cyclone.glass.device.v1"), "d2");
   assert.match(root.querySelector(".device-picker").textContent, /Pixel 7/);
 });
+
+test("like WhatsApp Web: with no connected phone, Glass opens on Devices; with one, on Apps", async () => {
+  let s = start({ devices: [{ deviceId: "d2", name: "Galaxy", state: "UNPAIRED", paired: false }], hash: "#/" });
+  await s.app.start();
+  assert.equal(s.location.hash, "#/devices");
+  assert.match(s.root.querySelector(".page-title").textContent, /Devices/);
+  assert.equal(s.root.querySelector(".nav-item.active").dataset.section, "devices");
+  s.app.stop();
+  s = start({ hash: "#/" });
+  await s.app.start();
+  assert.match(s.root.querySelector(".page-title").textContent, /Apps/);
+  s.app.stop();
+  // A phone that is not connected yet sends the user to Devices from any page.
+  s = start({ devices: [{ deviceId: "d2", name: "Galaxy", state: "UNPAIRED", paired: false }], hash: "#/apps" });
+  await s.app.start();
+  assert.match(s.root.textContent, /not connected to Glass yet/);
+  assert.match(s.root.textContent, /Connect this phone/);
+  s.app.stop();
+});

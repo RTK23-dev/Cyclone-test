@@ -7,6 +7,7 @@ export type Route =
   | { name: "runs" }
   | { name: "run"; runId: string }
   | { name: "phone" }
+  | { name: "devices" }
   | { name: "settings" };
 
 export const DEFAULT_ROUTE: Route = { name: "apps" };
@@ -26,6 +27,7 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === "runs") return { name: "runs" };
   if (parts[0] === "phone") return { name: "phone" };
   if (parts[0] === "settings") return { name: "settings" };
+  if (parts[0] === "devices") return { name: "devices" };
   return DEFAULT_ROUTE;
 }
 
@@ -41,13 +43,15 @@ export function routeHref(route: Route): string {
       return `#/runs/${encodeURIComponent(route.runId)}`;
     case "phone":
       return "#/phone";
+    case "devices":
+      return "#/devices";
     case "settings":
       return "#/settings";
   }
 }
 
 /** Sidebar section that owns a route. */
-export function sectionOf(route: Route): "apps" | "runs" | "phone" | "settings" {
+export function sectionOf(route: Route): "apps" | "runs" | "phone" | "devices" | "settings" {
   if (route.name === "app") return "apps";
   if (route.name === "run") return "runs";
   return route.name;

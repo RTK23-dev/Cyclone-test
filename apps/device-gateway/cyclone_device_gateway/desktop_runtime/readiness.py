@@ -287,6 +287,15 @@ def enrich_device_public(session: Any, trust_status: dict[str, Any] | None = Non
         "bridge": bridge.value,
         "aiTrust": trust.value,
     }
+    status = trust_status or {}
+    # Bounded, secret-free trust facts so a client can say *why* a trusted phone is not usable yet
+    # (for example the phone is locked while the session restores) and show the connect match code.
+    public["trust"] = {
+        "state": trust.value,
+        "sessionReady": bool(status.get("sessionReady")),
+        "matchCode": status.get("matchCode") if isinstance(status.get("matchCode"), str) else None,
+        "lastSafeError": str(status.get("lastSafeError"))[:240] if status.get("lastSafeError") else None,
+    }
     public["readiness"] = readiness_cards(discovery, media, bridge, trust)
     public["health"] = {
         "version": "cyclone.device-health.v1",

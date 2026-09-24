@@ -1,4 +1,4 @@
-/** Settings: connection facts. Read-only in alpha.1; pairing stays in Cyclone One for now. */
+/** Settings: connection facts. Connecting and disconnecting phones lives in Devices. */
 import type { GlassContext } from "../app.js";
 import { deviceReadiness } from "../services/devices.js";
 import { el } from "../ui/dom.js";
@@ -44,8 +44,11 @@ export function createSettingsPage(ctx: GlassContext): GlassPage {
   }
 
   const pairing = card();
-  pairing.append(el("h2", "card-title", "Pairing"));
-  pairing.append(el("p", "muted", "Pair and unpair phones in Cyclone One for now. Glass picks up paired phones automatically."));
+  pairing.append(el("h2", "card-title", "Connecting phones"));
+  pairing.append(el("p", "muted", "Connect and disconnect phones in Devices: Glass shows a code, you tap Allow on the phone."));
+  const open = actionButton("Open Devices", { icon: "plug" });
+  open.addEventListener("click", () => ctx.navigate({ name: "devices" }));
+  pairing.append(open);
 
   element.append(connection, phones, pairing);
   return { element, destroy() {} };

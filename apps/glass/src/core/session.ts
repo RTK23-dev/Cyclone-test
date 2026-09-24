@@ -35,7 +35,7 @@ export function readLaunchCode(hash: string): string | null {
 export async function establishSession(env: SessionEnv): Promise<SessionResult> {
   const code = readLaunchCode(env.hash);
   if (code) {
-    env.replaceHash("#/apps");
+    env.replaceHash("#/");
     let response: Response;
     try {
       response = await env.fetch("/v1/glass/session", {

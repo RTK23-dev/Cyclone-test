@@ -168,7 +168,10 @@ internal object GatewayV33TrustManager {
 
     fun beginTrust(context: Context, args: JSONObject): JSONObject {
         requirePhoneAvailable(context)
-        return engine(context).beginTrust(args)
+        val engine = engine(context)
+        val response = engine.beginTrust(args)
+        engine.pendingForUser()?.let { GatewayTrustPrompt.show(context, it) }
+        return response
     }
 
     fun completeTrust(context: Context, args: JSONObject): JSONObject {
@@ -208,8 +211,10 @@ internal object GatewayV33TrustManager {
 
     fun pendingForUser(context: Context): GatewayPendingTrust? = engine(context).pendingForUser()
 
-    fun decideTrust(context: Context, challengeId: String, allow: Boolean): Boolean =
-        engine(context).decideTrust(challengeId, allow)
+    fun decideTrust(context: Context, challengeId: String, allow: Boolean): Boolean {
+        GatewayTrustPrompt.clear(context)
+        return engine(context).decideTrust(challengeId, allow)
+    }
 
     fun disconnectSessions(context: Context) {
         engine(context).disconnectSessions()

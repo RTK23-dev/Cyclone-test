@@ -11,13 +11,26 @@ test("parses the gateway device shape and ignores rows without an id", () => {
   assert.equal(device.id, "d1");
   assert.equal(device.aiTrust, "TRUSTED");
   assert.equal(parseDevice({ id: "x" }).name, "Android phone");
+  const connecting = parseDevice({ ...base, source: "LAN", trust: { sessionReady: true, matchCode: "173715" } });
+  assert.equal(connecting.transport, "LAN");
+  assert.equal(connecting.sessionReady, true);
+  assert.equal(connecting.matchCode, "173715");
+  assert.equal(parseDevice({ ...base, trust: { matchCode: "12ab" } }).matchCode, null);
 });
 
 test("readiness fails closed: disconnected, unpaired, unknown and old versions", () => {
   assert.deepEqual(deviceReadiness(parseDevice(base)), { ready: true });
   assert.equal(deviceReadiness(parseDevice({ ...base, state: "DISCONNECTED" })).reason, "disconnected");
   assert.equal(deviceReadiness(parseDevice({ ...base, paired: false })).reason, "unpaired");
-  assert.equal(deviceReadiness(parseDevice({ ...base, mobileVersion: undefined })).reason, "version-unknown");
+  assert.equal(deviceReadiness(parseDevice({ ...base, mobileVersion: undefined, trust: { sessionReady: true } })).reason, "version-unknown");
+  // Trusted before but the session is not open: say why, in the gateway's words (the "Waiting for Cyclone" bug).
+  const locked = deviceReadiness(parseDevice({ ...base, mobileVersion: undefined, trust: { state: "TRUSTED", sessionReady: false, lastSafeError: "Unlock the phone to restore AI/Codex access." } }));
+  assert.equal(locked.reason, "connecting");
+  assert.match(locked.message, /Unlock the phone/);
+  const reopening = deviceReadiness(parseDevice({ ...base, mobileVersion: undefined }));
+  assert.equal(reopening.reason, "connecting");
+  const gatewayOff = parseDevice({ ...base, mobileVersion: undefined, trust: { sessionReady: true }, health: { planes: { gateway: { ready: false, message: "Cyclone Mobile gateway is reconnecting." } } } });
+  assert.match(deviceReadiness(gatewayOff).message, /gateway is reconnecting/);
   const old = deviceReadiness(parseDevice({ ...base, mobileVersion: "4.8.0" }));
   assert.equal(old.reason, "needs-update");
   assert.match(old.message, /4\.8\.0/);
