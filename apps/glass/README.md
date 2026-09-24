@@ -34,6 +34,20 @@ Glass opens on Devices whenever no phone is ready. Pay, send, delete and sign-in
 Development with hot reload: `npm run dev` (Vite on `127.0.0.1:5178`, proxying `/v1` to `CYCLONE_GATEWAY_URL`, default
 `http://127.0.0.1:8765`). Open the launch link the CLI prints with `--print-url` and swap in the dev port.
 
+## Pages
+
+| Page | What it shows (all computed on the phone) |
+|---|---|
+| **Home** | Phone version, apps mapped, runs and failures today, runs over the last 7 days, apps that need attention (critical scenarios, failed last run, updated since mapped), latest runs, knowledge at a glance |
+| **Devices** | Connect with a six-digit code + Allow on the phone, reconnect, disconnect |
+| **Apps** → one app | **Map** (board, inspector, start mapping at a depth, live cursor, teach), **Screens**, **Scenarios** (Sign in / Already signed in first; cards or board; mapping pass or your teaching), **Versions**, **Runs** |
+| **Runs** | Every run with filters, or grouped by **Goals** (how often each sentence worked). The inspector shows steps, rooms, map vs model, cause of death with a fix link, the route on the map, scenarios reached, a comparison with the last good run, and **Ask again** |
+| **Knowledge** | Vault slots as set / not set, **Never pressed** (guarded doors per app), skills, automations, Atlas totals |
+| **Phone** | Live view, take control, tap / type / scroll, Ask (a finished Ask links to its run), You are here |
+| **Settings** | Connection, phones, Safety rules, keyboard shortcuts |
+
+Keyboard: `g` then `h` `d` `a` `r` `k` `p` `s` jumps to a page; `/` focuses search.
+
 ## Layout
 
 | Path | What |
