@@ -11,13 +11,13 @@ import argparse
 import os
 import secrets
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 from . import release as rel
 from .install import SETUP_NAME, UPDATE_EXIT_CODE
 
-BANNER = "Cyclone"
 
 
 class TerminalIO:
@@ -76,8 +76,17 @@ def check_for_update(io: TerminalIO, *, force: bool, installed: str, runtime_dir
     return UPDATE_EXIT_CODE
 
 
-def launch_target(io: TerminalIO):
-    """(url, stop) for Glass: Cyclone One's gateway when it runs, else a gateway owned by this terminal."""
+@dataclass
+class Launch:
+    url: str
+    stop: Callable[[], None]
+    base_url: str
+    token: str
+    runtime: str
+
+
+def launch_target(io: TerminalIO) -> Launch:
+    """Glass launch link: Cyclone One's gateway when it runs, else a gateway owned by this terminal."""
     from ..glass.launcher import request_launch_code
     from ..tooling_seam import load_connection
 
@@ -85,8 +94,7 @@ def launch_target(io: TerminalIO):
     if connection and connection.get("token") and connection.get("url"):
         target = request_launch_code(connection["url"], connection["token"])
         if target is not None:
-            io.out("Using the Cyclone One runtime that is already running.")
-            return target.url, (lambda: None)
+            return Launch(target.url, lambda: None, connection["url"], connection["token"], "Cyclone One (already running)")
     return _gateway_for_this_terminal(io)
 
 
@@ -120,14 +128,13 @@ def _gateway_for_this_terminal(io: TerminalIO):
         time.sleep(0.05)
     if not server.started:
         raise RuntimeError(f"the local gateway did not start; is another program using port {settings.port}?")
-    io.out("Started Cyclone's local runtime for this terminal.")
-
     def stop() -> None:
         server.should_exit = True
         thread.join(5.0)
 
     code = app.state.glass_codes.issue()
-    return f"http://{settings.host}:{settings.port}/glass/#code={code}", stop
+    base = f"http://{settings.host}:{settings.port}"
+    return Launch(f"{base}/glass/#code={code}", stop, base, settings.token, "started for this terminal")
 
 
 def run_terminal(argv: list[str], io: TerminalIO | None = None) -> int:
@@ -142,7 +149,10 @@ def run_terminal(argv: list[str], io: TerminalIO | None = None) -> int:
     if args.command == "version":
         io.out(f"Cyclone {installed}")
         return 0
-    io.out(f"{BANNER} {installed}")
+    from .banner import Overview, enable_color, fetch_phones, render
+
+    color = enable_color()
+    view = Overview(version=installed)
     if args.command == "update" or not args.no_update:
         code = check_for_update(io, force=args.command == "update", installed=installed,
                                 runtime_dir=one_runtime_dir(), updates_dir=one_install_dir() / "updates")
@@ -150,26 +160,31 @@ def run_terminal(argv: list[str], io: TerminalIO | None = None) -> int:
             return code
         if args.command == "update":
             return 0
+        view.update = "up to date"
     try:
-        url, stop_gateway = launch_target(io)
+        launch = launch_target(io)
     except Exception as exc:
         io.out(f"Could not start Glass: {exc}. Open Cyclone One once, then try again.")
         return 2
-    window = open_glass_window(url, one_install_dir() / "glass-window") if not args.browser else None
+    view.runtime, view.address = launch.runtime, launch.base_url
+    view.phones = fetch_phones(launch.base_url, launch.token)
+    window = None if args.browser else open_glass_window(launch.url, one_install_dir() / "glass-window")
     if window is None or not window.owned:
         if window is None:
             import webbrowser
 
-            webbrowser.open(url)
-        io.out("Glass is open in your browser. Press Ctrl+C or close this terminal to stop.")
+            webbrowser.open(launch.url)
+        view.glass = "open in your browser"
     else:
-        io.out("Glass is open. Close this terminal (or the Glass window) to stop.")
+        view.glass = "open in its own window · closes with this terminal"
+    for line in render(view, color):
+        io.out(line)
     stop = threading.Event()
 
     def cleanup() -> None:
         if window is not None:
             window.close()
-        stop_gateway()
+        launch.stop()
 
     on_terminal_close(stop, cleanup)
     try:

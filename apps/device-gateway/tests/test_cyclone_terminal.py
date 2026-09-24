@@ -133,3 +133,27 @@ def test_terminal_arguments():
 
 def test_installed_version_comes_from_the_release_metadata_in_a_checkout():
     assert rel.version_key(rel.installed_version()) is not None
+
+
+def test_overview_names_runtime_phones_and_glass_without_color_codes_when_plain():
+    from cyclone_device_gateway.terminal.banner import Overview, phone_lines, render
+
+    phones = phone_lines([{"name": "Pixel 8", "connectionLabel": "Ready", "transport": {"endpoint": "usb"}}, "junk"])
+    assert phones == ["Pixel 8 · Ready · USB"]
+    lines = render(Overview("5.0.0-alpha.24.dev1", "up to date", "Cyclone One (already running)", "http://127.0.0.1:8765",
+                            phones, "open in its own window · closes with this terminal"), color=False)
+    text = "\n".join(lines)
+    assert "\x1b[" not in text
+    for expected in ("5.0.0-alpha.24.dev1", "up to date", "Cyclone One", "127.0.0.1:8765", "Pixel 8 · Ready · USB", "own window"):
+        assert expected in text
+    empty = "\n".join(render(Overview("5.0.0"), color=True))
+    assert "none yet" in empty and "\x1b[" in empty
+
+
+def test_phone_list_is_empty_not_an_error_when_the_gateway_is_slow():
+    from cyclone_device_gateway.terminal.banner import fetch_phones
+
+    def slow(*_a, **_k):
+        raise TimeoutError()
+
+    assert fetch_phones("http://127.0.0.1:1", "t", opener=slow) == []

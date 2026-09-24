@@ -44,5 +44,9 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=False,
+    # Console subsystem so `cyclone` in a terminal gets real output, questions and close events; the bootloader
+    # hides a console it owns (Cyclone One, installer hooks) before Python starts, so users never see a window.
+    # A windowed one-file build cannot print: its Python child's parent is the console-less bootloader.
+    console=True,
+    hide_console="hide-early",
 )
