@@ -22,6 +22,8 @@ export interface GlassDevice {
   pcLabel: string | null;
   /** Gateway's own words for why a trusted phone is not usable yet (phone locked, gateway off, …). */
   problem: string | null;
+  /** USB/ADB state for live view (the gateway's usbAuthorization plane); null when not reported. */
+  usb: "USB_AUTHORIZED" | "USB_UNAUTHORIZED" | "USB_OFFLINE" | "USB_ABSENT" | null;
 }
 
 /** Glass features that read the Atlas need Cyclone Mobile 5.x. Unknown version fails closed. */
@@ -60,7 +62,37 @@ export function parseDevice(raw: unknown): GlassDevice | null {
     matchCode: /^\d{6}$/.test(matchCode) ? matchCode : null,
     pcLabel: text(trust.pcLabel).slice(0, 80) || null,
     problem: gatewayProblem(record, trust),
+    usb: usbState(record),
   };
+}
+
+function usbState(record: Record<string, unknown>): GlassDevice["usb"] {
+  const health = (record.health && typeof record.health === "object" ? record.health : {}) as Record<string, unknown>;
+  const planes = (health.planes && typeof health.planes === "object" ? health.planes : {}) as Record<string, unknown>;
+  const usb = (planes.usbAuthorization && typeof planes.usbAuthorization === "object" ? planes.usbAuthorization : {}) as Record<string, unknown>;
+  const code = text(usb.reasonCode);
+  return code === "USB_AUTHORIZED" || code === "USB_UNAUTHORIZED" || code === "USB_OFFLINE" || code === "USB_ABSENT" ? code : null;
+}
+
+/**
+ * Why live view cannot start, in plain words. Live view is the phone's screen video over USB (ADB); the trusted session
+ * that answers Ask and You are here does not need it, so a phone can be connected while live view is not.
+ */
+export function liveViewProblem(device: GlassDevice): string {
+  switch (device.usb) {
+    case "USB_UNAUTHORIZED":
+      return "This PC is not allowed to use USB debugging yet. Unplug and replug the cable, then tap Allow on the phone's “Allow USB debugging?” prompt (tick Always allow).";
+    case "USB_OFFLINE":
+      return "The phone is offline to USB debugging. Replug the cable, or turn USB debugging off and on in Developer options.";
+    case "USB_ABSENT":
+      return device.transport === "LAN"
+        ? "The phone is connected over Wi‑Fi. Live view needs the USB cable: plug it in with a data cable and allow USB debugging."
+        : "This PC does not see the phone over USB. Use a data cable (not charge-only), set USB mode to File transfer, and close Android Studio, scrcpy or other ADB tools that can hold the phone.";
+    case "USB_AUTHORIZED":
+      return "The PC sees the phone over USB, but the live video did not start. Close and reopen Cyclone One; if it stays, wake and unlock the phone and press Reconnect in Devices.";
+    default:
+      return "Live view is unavailable. Check that the phone is plugged in by USB with USB debugging allowed for this PC.";
+  }
 }
 
 /** First concrete reason the gateway gives for a phone that is present but not usable. */

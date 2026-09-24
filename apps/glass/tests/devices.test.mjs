@@ -59,3 +59,17 @@ test("the name the phone shows for this PC is parsed and bounded", () => {
   assert.equal(device.pcLabel, "DESK-PC");
   assert.equal(parseDevice({ deviceId: "d1", name: "Pixel", state: "READY", paired: true, planes: {}, trust: { pcLabel: 5 } }).pcLabel, null);
 });
+
+import { liveViewProblem } from "../.test-dist/services/devices.js";
+
+test("live view explains the real USB reason, not a generic one", () => {
+  const withUsb = (reasonCode, source = "USB") =>
+    parseDevice({ deviceId: "d1", name: "Pixel", state: "READY", paired: true, source, planes: { aiTrust: "TRUSTED" }, health: { planes: { usbAuthorization: { ready: reasonCode === "USB_AUTHORIZED", reasonCode } } } });
+  assert.equal(withUsb("USB_ABSENT").usb, "USB_ABSENT");
+  assert.match(liveViewProblem(withUsb("USB_UNAUTHORIZED")), /Allow USB debugging/);
+  assert.match(liveViewProblem(withUsb("USB_OFFLINE")), /offline/);
+  assert.match(liveViewProblem(withUsb("USB_ABSENT")), /data cable/);
+  assert.match(liveViewProblem(withUsb("USB_ABSENT", "LAN")), /Wi‑Fi/);
+  assert.match(liveViewProblem(withUsb("USB_AUTHORIZED")), /video did not start/);
+  assert.equal(parseDevice({ deviceId: "d1", state: "READY" }).usb, null);
+});

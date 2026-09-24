@@ -13,6 +13,7 @@ import { createLiveView, type LiveView, type LiveViewOptions } from "../ui/liveV
 import { createAskPanel, type AskPanelDeps } from "./askPanel.js";
 import { listRuns, normalizeGoal } from "../services/runs.js";
 import { deviceGate } from "./deviceGate.js";
+import { liveViewProblem } from "../services/devices.js";
 import type { GlassPage } from "./page.js";
 
 export interface PhonePageDeps {
@@ -57,6 +58,7 @@ export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): Gl
     deviceId: device.id,
     origin: deps.origin ?? globalThis.location?.origin ?? "http://127.0.0.1:8765",
     rendererFactory: deps.rendererFactory,
+    unavailableMessage: () => liveViewProblem(ctx.devices.find((d) => d.id === device.id) ?? device),
     onGesture: (gesture) => {
       if (gesture.type === "tap") void run({ kind: "tap", x: gesture.x, y: gesture.y });
       else void run({ kind: "swipe", x1: gesture.x, y1: gesture.y, x2: gesture.x2 ?? gesture.x, y2: gesture.y2 ?? gesture.y, duration_ms: gesture.durationMs ?? 300 });

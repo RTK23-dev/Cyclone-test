@@ -26,6 +26,8 @@ export interface LiveViewOptions {
   onGesture(gesture: LiveGesture): void;
   onState?(state: StreamUiState): void;
   rendererFactory?: (input: VideoRendererFactoryInput) => VideoRenderer;
+  /** The specific reason to show when the stream is unavailable (defaults to a generic hint). */
+  unavailableMessage?: () => string | null;
 }
 
 export interface LiveView {
@@ -65,7 +67,7 @@ export function createLiveView(options: LiveViewOptions): LiveView {
 
   const setState = (state: StreamUiState): void => {
     current = state;
-    overlay.textContent = STATE_COPY[state];
+    overlay.textContent = (state === "UNAVAILABLE" ? options.unavailableMessage?.() : null) || STATE_COPY[state];
     overlay.hidden = state === "LIVE";
     element.dataset.state = state.toLowerCase();
     options.onState?.(state);
