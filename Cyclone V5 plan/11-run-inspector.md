@@ -56,7 +56,12 @@ today: `cancelled` (stopped by the user), `provider-error` (model provider faile
 **Built in Glass alpha.4** (run record v2): each decision turn records the structural room (`room=`), the app (`place=package:…`)
 and its installed version (`appv=`); each check records `roomAfter=`. `decisionSource` is `map` for `graph:` / `compiled-skill:`
 actions and `model` otherwise. `stale-door` = a map-chosen step failed on the target or screen (named with the app version).
-Still to come: `expectedRoomId` (needs the planned route per step), `door-missing`, redacted frames, `scenarioId` per run.
+Still to come: `expectedRoomId` recorded by the agent per step, redacted frames.
+
+**Built since (alpha.7–alpha.16):** `door-missing` (gave up in a mapped room with no door onward) and `wrong-room` (a
+map-chosen step left a mapped room for a room none of its doors lead to), both computed on the phone from the Atlas after the
+run. The inspector lists the **scenarios a run reached**, **compares** a failed run with the last good run of the same goal
+(where the routes split), and offers **Ask again**. Runs has a **Goals** view (success rate per sentence).
 
 **Built in Glass alpha.6:** mapping passes are written to the same trace (door steps with a `mapper:` action, neither map nor
 model), so Runs lists them and the classifier explains how they ended. **Mark as expected** (`runs.mark`) keeps a run in Runs but
