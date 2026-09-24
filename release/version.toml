@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.14 dev1 + Cyclone Glass 1.0.0-alpha.7: mapping depth, type + scroll from the PC, scenario health per
-# app, door-missing cause, Teach on the phone from the app map.
+# app, door-missing cause, Teach on the phone from the app map. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.14.dev1"
 channel = "development"
