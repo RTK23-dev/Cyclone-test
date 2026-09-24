@@ -13,6 +13,7 @@ import { el, setChildren } from "../ui/dom.js";
 import { relativeTime } from "../ui/format.js";
 import { icon } from "../ui/icons.js";
 import { deviceGate } from "./deviceGate.js";
+import { saveWithBlob } from "./runPage.js";
 import type { GlassPage } from "./page.js";
 
 export interface Attention {
@@ -82,10 +83,57 @@ function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
-export function createHomePage(ctx: GlassContext): GlassPage {
+export interface HomeReport {
+  kind: "cyclone-glass-home-report";
+  version: 1;
+  glass: string;
+  phone: { name: string; mobileVersion: string | null };
+  createdAt: string;
+  apps: Array<{ placeId: string; label: string; mapStatus: string; rooms: number; doors: number; needsRemap: boolean; scenarios: PhoneApp["scenarios"] }> | null;
+  attention: Attention[] | null;
+  runs: Array<{ runId: string; goal: string; status: string; cause: string | null; startedAt: number; expected: boolean | null }> | null;
+  knowledge: { atlas: KnowledgeSummary["atlas"]; secretsSet: number; secretSlots: number; skills: number; automations: number; guarded: KnowledgeSummary["guarded"] } | null;
+}
+
+/** A shareable snapshot of Home: structure, counts and run outcomes. Secret slots appear only as counts. */
+export function homeReport(glass: string, phone: { name: string; mobileVersion: string | null }, apps: PhoneApp[] | null, runs: RunSummary[] | null, knowledge: KnowledgeSummary | null, now: number): HomeReport {
+  return {
+    kind: "cyclone-glass-home-report",
+    version: 1,
+    glass,
+    phone,
+    createdAt: new Date(now).toISOString(),
+    apps: apps?.map((a) => ({ placeId: a.placeId, label: a.label, mapStatus: a.mapStatus, rooms: a.rooms, doors: a.doors, needsRemap: a.needsRemap, scenarios: a.scenarios })) ?? null,
+    attention: apps ? attentionList(apps, runs ?? []) : null,
+    runs: runs?.map((r) => ({ runId: r.runId, goal: r.goal, status: r.status, cause: r.cause?.kind ?? null, startedAt: r.startedAt, expected: r.expected })) ?? null,
+    knowledge: knowledge
+      ? {
+          atlas: knowledge.atlas,
+          secretsSet: knowledge.vault.setCount,
+          secretSlots: knowledge.vault.slotCount,
+          skills: knowledge.skills.length,
+          automations: knowledge.automations.length,
+          guarded: knowledge.guarded,
+        }
+      : null,
+  };
+}
+
+export interface HomePageDeps {
+  saveFile?: (name: string, text: string) => void;
+}
+
+export function createHomePage(ctx: GlassContext, deps: HomePageDeps = {}): GlassPage {
   const element = el("div", "page page-home");
   const refresh = actionButton("Refresh", { icon: "refresh" });
-  element.append(pageHeader("Home", "The phone at a glance. Cyclone decides on the phone; this is what it knows and did.", [refresh]));
+  const download = actionButton("Download report", { icon: "download" });
+  download.disabled = true;
+  element.append(pageHeader("Home", "The phone at a glance. Cyclone decides on the phone; this is what it knows and did.", [download, refresh]));
+  let latest: HomeReport | null = null;
+  download.addEventListener("click", () => {
+    if (!latest) return;
+    (deps.saveFile ?? saveWithBlob)(`cyclone-home-${latest.createdAt.slice(0, 10)}.json`, JSON.stringify(latest, null, 2));
+  });
   const gate = deviceGate(ctx);
   if (gate || !ctx.device) {
     element.append(gate ?? el("div"));
@@ -116,6 +164,8 @@ export function createHomePage(ctx: GlassContext): GlassPage {
       getKnowledge(ctx.client, device.id, signal).catch(() => null),
     ]);
     if (signal.aborted) return;
+    latest = homeReport(ctx.version, { name: device.name, mobileVersion: device.mobileVersion ?? null }, apps, runs, knowledge, Date.now());
+    download.disabled = false;
     renderStats(apps, runs);
     renderAttention(apps, runs);
     renderRuns(runs);

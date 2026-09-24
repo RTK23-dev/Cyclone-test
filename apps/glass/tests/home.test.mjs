@@ -101,3 +101,30 @@ test("runs per day: seven days oldest first, expected failures are not failures"
   assert.equal(bars[4].finished, 1);
   assert.equal(bars.reduce((sum, b) => sum + b.finished + b.failed + b.other, 0), 4, "runs older than a week are left out");
 });
+
+test("Home report: counts and outcomes, never slot names or values", async () => {
+  installMiniDom();
+  const saved = [];
+  const gateway = fakeGateway({
+    "GET /v1/devices/d1/apps": () => APPS,
+    "GET /v1/devices/d1/runs": () => RUNS,
+    "GET /v1/devices/d1/knowledge": () => ({
+      vault: { slotCount: 1, setCount: 1, slots: [{ placeId: GM, persona: "live", slot: "password", set: true, updatedAt: null }] },
+      skills: [], automations: [], atlas: { places: 1, rooms: 3, doors: 2 },
+    }),
+  });
+  const devices = [parseDevice({ ...READY_DEVICE, mobileVersion: "5.0.0-alpha.16.dev1" })];
+  const page = createHomePage({ client: new GatewayClient({ token: "t", fetch: gateway.fetch }), version: "1.0.0-alpha.9", devices, device: devices[0], devicesError: null, navigate() {}, selectDevice() {}, refreshDevices: async () => {} }, { saveFile: (name, text) => saved.push({ name, text }) });
+  await flush();
+  [...page.element.querySelectorAll(".btn")].find((b) => /Download report/.test(b.textContent)).click();
+  assert.equal(saved.length, 1);
+  assert.match(saved[0].name, /^cyclone-home-\d{4}-\d{2}-\d{2}\.json$/);
+  const report = JSON.parse(saved[0].text);
+  assert.equal(report.kind, "cyclone-glass-home-report");
+  assert.equal(report.phone.mobileVersion, "5.0.0-alpha.16.dev1");
+  assert.equal(report.apps.length, 4);
+  assert.equal(report.runs.length, 3);
+  assert.equal(report.knowledge.secretsSet, 1);
+  assert.doesNotMatch(saved[0].text, /password/);
+  page.destroy();
+});

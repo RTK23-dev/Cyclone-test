@@ -381,7 +381,7 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
   return { element, destroy: () => controller.abort() };
 }
 
-function saveWithBlob(name: string, text: string): void {
+export function saveWithBlob(name: string, text: string): void {
   const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
   const anchor = el("a");
   anchor.href = url;
