@@ -12,6 +12,8 @@ import "./styles/home.css";
 import { GlassApp } from "./app.js";
 import { establishSession, forgetSession } from "./core/session.js";
 import { GatewayClient } from "./services/gateway.js";
+import { routeHref } from "./core/router.js";
+import { shortcutFor, type ShortcutState } from "./core/shortcuts.js";
 import { el, setChildren } from "./ui/dom.js";
 import { emptyState } from "./ui/components.js";
 
@@ -59,6 +61,14 @@ async function boot(): Promise<void> {
     clearInterval: (handle) => window.clearInterval(handle as number),
   });
   await app.start();
+  const keys: ShortcutState = { pendingG: null };
+  window.addEventListener("keydown", (event) => {
+    const action = shortcutFor(event, keys, Date.now());
+    if (!action) return;
+    event.preventDefault();
+    if (action.kind === "go") location.hash = routeHref(action.route);
+    else (document.querySelector(".glass-main .search-input") as HTMLInputElement | null)?.focus();
+  });
 }
 
 function safe<T>(fn: () => T): T | null {

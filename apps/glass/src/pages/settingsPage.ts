@@ -63,6 +63,16 @@ export function createSettingsPage(ctx: GlassContext): GlassPage {
   guarded.addEventListener("click", () => ctx.navigate({ name: "knowledge" }));
   safety.append(guarded);
 
-  element.append(connection, phones, pairing, safety);
+  const keys = card("keys-card");
+  keys.append(el("h2", "card-title", "Keyboard"));
+  keys.append(
+    keyValue([
+      ["g then h / d / a / r", "Home, Devices, Apps, Runs"],
+      ["g then k / p / s", "Knowledge, Phone, Settings"],
+      ["/", "Search on this page"],
+    ]),
+  );
+
+  element.append(connection, phones, pairing, safety, keys);
   return { element, destroy() {} };
 }
