@@ -30,10 +30,13 @@ import { actionButton, card, chip, keyValue, loadingState, statTile, type Tone }
 import { icon } from "../ui/icons.js";
 import { relativeTime } from "../ui/format.js";
 import { deviceGate } from "./deviceGate.js";
+import { askErrorCopy } from "./askPanel.js";
+import { phoneClient } from "../services/phone.js";
 import type { GlassPage } from "./page.js";
 import { runsError } from "./runsPage.js";
 
 export interface RunPageDeps {
+  fetch?: typeof fetch;
   /** Save a file for the developer; defaults to a Blob download. */
   saveFile?: (name: string, text: string) => void;
 }
@@ -111,6 +114,21 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       });
       headerActions.append(mark);
     }
+    const again = actionButton("Ask again", { icon: "send", variant: "ghost" });
+    again.title = "Send the same sentence to the phone. It runs on the phone exactly as before.";
+    again.addEventListener("click", async () => {
+      again.disabled = true;
+      try {
+        await phoneClient(ctx, deviceId, deps.fetch).askStart(run.goal);
+        ctx.navigate({ name: "phone" });
+      } catch (error) {
+        again.disabled = false;
+        const e = error as { code?: string; message?: string };
+        again.title = askErrorCopy(e?.code ?? "", e?.message ?? "");
+        meta.append(chip(again.title, "warning"));
+      }
+    });
+    if (run.goal && run.status !== "running" && run.model !== "cyclone-mapper") headerActions.append(again);
     headerActions.append(download);
     if (run.expected) meta.append(chip("Marked expected", "neutral"));
     header.append(titles, headerActions);

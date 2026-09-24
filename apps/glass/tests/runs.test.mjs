@@ -140,7 +140,7 @@ test("run inspector opens on the step where the run broke, with cause and fix", 
   page.element.querySelectorAll(".cause-card .btn")[0].click();
   assert.equal(page.element.querySelector(".timeline-item.selected .timeline-button").dataset.step, "2");
 
-  page.element.querySelector(".run-header .btn").click();
+  [...page.element.querySelectorAll(".run-header .btn")].find((b) => /Download report/.test(b.textContent)).click();
   assert.equal(saved[0].name, "cyclone-run-ai-run-1.json");
   assert.equal(JSON.parse(saved[0].text).cause.kind, "needs-secret");
   page.destroy();
@@ -343,4 +343,27 @@ test("compare: the last good run of the same goal and where the routes split", a
   [...card.querySelectorAll(".btn")].find((b) => /Show the split/.test(b.textContent)).click();
   assert.deepEqual(navigated.at(-1), { name: "app", placeId: FB, tab: "map", route: [HOME, MENU, LIST], runId: "ai-run-1" });
   page.destroy();
+});
+
+test("Ask again sends the same sentence to the phone and opens the Phone page; mapping passes have no Ask again", async () => {
+  installMiniDom();
+  const navigated = [];
+  const gateway = fakeGateway({
+    "GET /v1/devices/d1/runs/ai-run-1": () => ({ ...V2, status: "failed" }),
+    "POST /v1/devices/d1/ask/start": ({ body }) => ({ accepted: true, goal: body.goal }),
+  });
+  const page = createRunPage({ ...ctx(gateway.fetch), navigate: (r) => navigated.push(r) }, { name: "run", runId: "ai-run-1" }, { fetch: gateway.fetch });
+  await flush();
+  [...page.element.querySelectorAll(".run-header .btn")].find((b) => /Ask again/.test(b.textContent)).click();
+  await flush();
+  assert.equal(gateway.calls.find((c) => c.path.endsWith("/ask/start")).body.goal, V2.goal);
+  assert.deepEqual(navigated.at(-1), { name: "phone" });
+  page.destroy();
+
+  installMiniDom();
+  const mapping = fakeGateway({ "GET /v1/devices/d1/runs/ai-run-1": () => ({ ...V2, model: "cyclone-mapper", goal: "Map Facebook" }) });
+  const pass = createRunPage(ctx(mapping.fetch), { name: "run", runId: "ai-run-1" });
+  await flush();
+  assert.ok(![...pass.element.querySelectorAll(".run-header .btn")].some((b) => /Ask again/.test(b.textContent)));
+  pass.destroy();
 });
