@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.23 dev1: reliability release from the alpha.22 device runs (settle controller, deferred proof, honest completion, alarm/timer intents, sentence-true clauses, backup model, learned wait times) on alpha.22.
-# Owner-requested developer candidate; physical phone acceptance UNVERIFIED.
+# Owner-requested developer candidate; physical phone acceptance UNVERIFIED. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.23.dev1"
 channel = "development"
