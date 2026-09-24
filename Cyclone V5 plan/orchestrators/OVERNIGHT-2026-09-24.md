@@ -19,6 +19,7 @@ release passed exact-source CI (phone build + tests, Windows installer build, Gl
 | [v5.0.0-alpha.19.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.19.dev1) | 5.0.0-alpha.19.dev1 | 1.6.0-alpha.19 | 1.0.0-alpha.12 | Wi-Fi screen share (AnyDesk-style, phase 1) |
 | [v5.0.0-alpha.20.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.20.dev1) (other session) | 5.0.0-alpha.20.dev1 | 1.6.0-alpha.20 | 1.0.0-alpha.12 | Teal Matrix v2 phone visuals |
 | [v5.0.0-alpha.21.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.21.dev1) | 5.0.0-alpha.21.dev1 | 1.6.0-alpha.21 | 1.0.0-alpha.13 | Multi-app navigation (v5/navigation, reviewed and fixed) + Teal Matrix v2 |
+| [v5.0.0-alpha.23.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.23.dev1) | 5.0.0-alpha.23.dev1 | 1.6.0-alpha.23 | 1.0.0-alpha.13 | Reliability from the alpha.22 device runs + the `cyclone` terminal command |
 
 Another session works on the same version line: it published alpha.9 (Teal Matrix redesign) and claimed alpha.12 (calmer
 Trace Field, no release tag). Their branches were merged in, not overwritten, so every release above contains that work.
