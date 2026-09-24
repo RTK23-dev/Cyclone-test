@@ -391,3 +391,8 @@ a.run-row:hover {
   font-size: var(--text-xs);
   font-weight: 600;
 }
+
+.runs-select {
+  width: auto;
+  min-width: 150px;
+}

@@ -29,6 +29,8 @@ export function createRunsPage(ctx: GlassContext): GlassPage {
   const deviceId = ctx.device.id;
   let filter: RunFilter = "all";
   let query = "";
+  let causeFilter = "";
+  let appFilter = "";
   let runs: RunSummary[] | null = null;
   let controller: AbortController | null = null;
 
@@ -45,13 +47,34 @@ export function createRunsPage(ctx: GlassContext): GlassPage {
     }),
     filters.element,
   );
+  const causeSelect = el("select", "picker-select runs-select");
+  causeSelect.setAttribute("aria-label", "Why it ended");
+  causeSelect.addEventListener("change", () => {
+    causeFilter = causeSelect.value;
+    render();
+  });
+  const appSelect = el("select", "picker-select runs-select");
+  appSelect.setAttribute("aria-label", "App");
+  appSelect.addEventListener("change", () => {
+    appFilter = appSelect.value;
+    render();
+  });
+  toolbar.append(causeSelect, appSelect);
   const body = el("div", "runs-body");
   element.append(toolbar, body);
 
   const render = (): void => {
     if (!runs) return;
     const q = query.trim().toLowerCase();
-    const visible = q ? runs.filter((run) => run.goal.toLowerCase().includes(q)) : runs;
+    fillOptions(causeSelect, "Any reason", [...new Set(runs.map((run) => run.cause?.kind).filter((k): k is string => !!k))].map((kind) => [kind, causeLabel(kind)]), causeFilter);
+    fillOptions(appSelect, "Any app", [...new Set(runs.flatMap((run) => run.places.map((place) => place.placeId)))].map((id) => [id, appName(id)]), appFilter);
+    appSelect.hidden = appSelect.children.length <= 1;
+    const visible = runs.filter(
+      (run) =>
+        (!q || run.goal.toLowerCase().includes(q)) &&
+        (!causeFilter || run.cause?.kind === causeFilter) &&
+        (!appFilter || run.places.some((place) => place.placeId === appFilter)),
+    );
     if (!visible.length) {
       setChildren(
         body,
@@ -132,4 +155,16 @@ export function runsError(error: unknown, retry: () => void): HTMLElement {
     return emptyState({ icon: "search", title: "Run not found", body: "The phone no longer has this run." });
   }
   return errorState("Couldn't load runs", { message: error instanceof Error ? error.message : String(error) }, retry);
+}
+
+function fillOptions(select: HTMLSelectElement, anyLabel: string, options: Array<[string, string]>, selected: string): void {
+  const any = el("option", undefined, anyLabel);
+  any.value = "";
+  const rows = [any, ...options.sort((a, b) => a[1].localeCompare(b[1])).map(([value, label]) => {
+    const option = el("option", undefined, label);
+    option.value = value;
+    return option;
+  })];
+  rows.forEach((option) => (option.selected = option.value === selected));
+  select.replaceChildren(...rows);
 }

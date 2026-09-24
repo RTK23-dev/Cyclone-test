@@ -214,3 +214,28 @@ test("v2 parsing drops rooms and places that are not structural; app routes carr
   assert.deepEqual(parseRoute(href), { name: "app", placeId: FB, tab: "map", route: [HOME, LIST], runId: "ai-run-1" });
   assert.deepEqual(parseRoute(`#/apps/${encodeURIComponent(FB)}/map?route=bad,${HOME}`).route, [HOME]);
 });
+
+test("Runs can be narrowed to one reason and one app", async () => {
+  installMiniDom();
+  const place = (id) => [{ placeId: id, appVersion: null, route: [] }];
+  const runs = [
+    { ...FAILED, runId: "ai-run-a", places: place("package:com.facebook.katana"), mapSteps: 0, modelSteps: 2 },
+    { ...FAILED, runId: "ai-run-b", cause: { ...FAILED.cause, kind: "timeout" }, places: place("package:com.google.android.gm"), mapSteps: 0, modelSteps: 2 },
+    { ...DONE, places: place("package:com.google.android.gm"), mapSteps: 1, modelSteps: 0 },
+  ];
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs": () => ({ runs }) });
+  const page = createRunsPage(ctx(gateway.fetch));
+  await flush();
+  const [causeSelect, appSelect] = page.element.querySelectorAll("select.runs-select");
+  assert.equal(page.element.querySelectorAll("a.run-row").length, 3);
+  causeSelect.value = "timeout";
+  causeSelect.dispatchEvent({ type: "change" });
+  assert.deepEqual(page.element.querySelectorAll("a.run-row").map((r) => r.dataset.runId), ["ai-run-b"]);
+  causeSelect.value = "";
+  causeSelect.dispatchEvent({ type: "change" });
+  appSelect.value = "package:com.google.android.gm";
+  appSelect.dispatchEvent({ type: "change" });
+  assert.deepEqual(page.element.querySelectorAll("a.run-row").map((r) => r.dataset.runId), ["ai-run-b", "ai-run-2"]);
+  assert.match(causeSelect.textContent, /Login wall/);
+  page.destroy();
+});
