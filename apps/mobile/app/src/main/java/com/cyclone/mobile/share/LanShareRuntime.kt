@@ -59,6 +59,8 @@ object LanShareRuntime {
     }
 
     fun nextFrame(afterFrameId: Long): LanShareServer.Frame? {
+        // A PC is watching: keep capture at the burst cadence (up to 10 fps) instead of the idle 2-3 fps.
+        com.cyclone.mobile.capture.LiveCaptureService.sampler.requestBurst(android.os.SystemClock.uptimeMillis())
         val (frameId, bitmap) = LiveVisionRuntime.streamFrame(ExecutionSession.DEFAULT_FOREGROUND_SESSION_ID, afterFrameId, MAX_LONG_EDGE)
             ?: return null
         return try {
