@@ -48,6 +48,12 @@ def create_v5_contract_router(runtime: Any, token: str) -> APIRouter:
     ):
         return _call(lambda: service.runs_list(device_id, limit, filter))
 
+    @router.post("/v1/devices/{device_id}/runs/{run_id}/mark", dependencies=[Depends(auth)])
+    def runs_mark(device_id: str, run_id: str, body: dict[str, Any]):
+        if set(body) != {"expected"} or not isinstance(body.get("expected"), bool):
+            raise HTTPException(status_code=422, detail={"code": "INVALID_REQUEST", "message": "Send {\"expected\": true|false}."})
+        return _call(lambda: service.runs_mark(device_id, run_id, body["expected"]))
+
     @router.get("/v1/devices/{device_id}/runs/{run_id}", dependencies=[Depends(auth)])
     def runs_get(device_id: str, run_id: str):
         return _call(lambda: service.runs_get(device_id, run_id))

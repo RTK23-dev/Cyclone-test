@@ -36,6 +36,7 @@ class RunInsightTest {
         GatewayV5RunsAdapter.sessions = { emptyList() }
         GatewayV5RunsAdapter.session = { null }
         GatewayV5RunsAdapter.events = { emptyList() }
+        GatewayV5RunsAdapter.marks = com.cyclone.mobile.gateway.RunMarks.InMemory()
     }
 
     @Test
@@ -218,5 +219,22 @@ class RunInsightTest {
         // The same failure chosen by the model stays a model/screen problem.
         val model = opening().apply { add(ev("NON_CONVERGENCE", "non convergence", "convergence.stale_target", ok = false)) }
         assertEquals("element-not-found", RunInsight.causeOfDeath(session("FAILED"), model)!!.kind)
+    }
+
+    @Test
+    fun runsCanBeMarkedExpectedOnThePhone() {
+        GatewayV5RunsAdapter.sessions = { listOf(session("FAILED")) }
+        GatewayV5RunsAdapter.session = { id -> if (id == run) session("FAILED") else null }
+        GatewayV5RunsAdapter.events = { opening() }
+        assertFalse(GatewayV5RunsAdapter.dispatch("runs.list", JSONObject()).getJSONArray("runs").getJSONObject(0).getBoolean("expected"))
+        val marked = GatewayV5RunsAdapter.dispatch("runs.mark", JSONObject().put("runId", run).put("expected", true))
+        assertTrue(marked.getBoolean("expected"))
+        assertTrue(GatewayV5RunsAdapter.dispatch("runs.get", JSONObject().put("runId", run)).getBoolean("expected"))
+        GatewayV5RunsAdapter.dispatch("runs.mark", JSONObject().put("runId", run).put("expected", false))
+        assertFalse(GatewayV5RunsAdapter.dispatch("runs.list", JSONObject()).getJSONArray("runs").getJSONObject(0).getBoolean("expected"))
+        fun code(args: JSONObject) = (runCatching { GatewayV5RunsAdapter.dispatch("runs.mark", args) }.exceptionOrNull() as GatewayProtocolException).code
+        assertEquals("INVALID_REQUEST", code(JSONObject().put("runId", run).put("expected", "yes")))
+        assertEquals("RUN_NOT_FOUND", code(JSONObject().put("runId", "ai-missing").put("expected", true)))
+        assertTrue("runs.mark" in GatewayProtocol.operations && "runs.mark" !in GatewayProtocol.legacyReadOnlyOperations)
     }
 }

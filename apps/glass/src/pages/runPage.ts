@@ -9,6 +9,7 @@ import {
   causeTone,
   formatDuration,
   getRun,
+  markRun,
   appName,
   outcomeLabel,
   roomLabel,
@@ -84,7 +85,26 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       const save = deps.saveFile ?? saveWithBlob;
       save(`cyclone-run-${run.runId}.json`, JSON.stringify(run, null, 2));
     });
-    header.append(titles, download);
+    const headerActions = el("div", "run-header-actions");
+    if (run.expected !== null && run.status !== "completed") {
+      const expected = run.expected;
+      const mark = actionButton(expected ? "Count it again" : "Mark as expected", { variant: "ghost" });
+      mark.title = "Expected runs stay in Runs but stop counting against scenario health.";
+      mark.addEventListener("click", async () => {
+        mark.disabled = true;
+        try {
+          run.expected = await markRun(ctx.client, deviceId, run.runId, !expected);
+          render(run);
+        } catch (error) {
+          mark.disabled = false;
+          mark.title = error instanceof Error ? error.message : String(error);
+        }
+      });
+      headerActions.append(mark);
+    }
+    headerActions.append(download);
+    if (run.expected) meta.append(chip("Marked expected", "neutral"));
+    header.append(titles, headerActions);
 
     const stats = el("div", "stats stats-6");
     stats.append(

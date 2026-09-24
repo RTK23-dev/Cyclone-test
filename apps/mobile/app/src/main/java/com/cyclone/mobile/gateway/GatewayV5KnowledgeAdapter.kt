@@ -61,7 +61,9 @@ internal object GatewayV5KnowledgeAdapter {
         }
         walks = { placeId ->
             AgentTraceRuntime.initialize(app)
-            if (!AgentTraceRuntime.isReady()) emptyList() else AgentTraceRuntime.store.listSessions(RUNS_CONSIDERED).mapNotNull { session ->
+            if (!AgentTraceRuntime.isReady()) emptyList() else AgentTraceRuntime.store.listSessions(RUNS_CONSIDERED)
+                .filterNot { GatewayV5RunsAdapter.marks.isExpected(it.id) }
+                .mapNotNull { session ->
                 val steps = RunInsight.steps(AgentTraceRuntime.store.events(session.id))
                 val rooms = RunInsight.places(steps).firstOrNull { it.getString("placeId") == placeId }
                     ?.getJSONArray("route")?.let { route -> (0 until route.length()).map(route::getString) }

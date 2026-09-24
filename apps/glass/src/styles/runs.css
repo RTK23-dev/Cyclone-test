@@ -396,3 +396,9 @@ a.run-row:hover {
   width: auto;
   min-width: 150px;
 }
+
+.run-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

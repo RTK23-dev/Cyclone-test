@@ -127,6 +127,7 @@ internal object GatewayProtocol {
         "apps.list",
         "runs.list",
         "runs.get",
+        "runs.mark",
         "atlas.versions",
         "scenarios.list",
         "knowledge.get",

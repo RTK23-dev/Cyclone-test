@@ -419,8 +419,9 @@ internal object GatewayDispatcher {
             com.cyclone.mobile.applearner.graphv2.AtlasRuntime.initialize(context)
             GatewayV5KnowledgeAdapter.dispatch(request.op, request.args)
         }
-        "runs.list", "runs.get" -> {
+        "runs.list", "runs.get", "runs.mark" -> {
             com.cyclone.mobile.ai.AgentTraceRuntime.initialize(context)
+            GatewayV5RunsAdapter.install(context)
             GatewayV5RunsAdapter.dispatch(request.op, request.args)
         }
         else -> throw GatewayProtocolException(

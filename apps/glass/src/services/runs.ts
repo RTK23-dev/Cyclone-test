@@ -42,6 +42,8 @@ export interface RunSummary {
   mapSteps: number | null;
   modelSteps: number | null;
   places: RunPlace[];
+  /** The developer marked this run as expected; it no longer counts against scenario health. Null on older phones. */
+  expected: boolean | null;
 }
 
 export interface RunPlace {
@@ -143,7 +145,16 @@ export function parseRunSummary(raw: unknown): RunSummary | null {
     mapSteps: typeof r.mapSteps === "number" ? r.mapSteps : null,
     modelSteps: typeof r.modelSteps === "number" ? r.modelSteps : null,
     places: Array.isArray(r.places) ? r.places.map(parsePlace).filter((place): place is RunPlace => place !== null) : [],
+    expected: typeof r.expected === "boolean" ? r.expected : null,
   };
+}
+
+export async function markRun(client: GatewayClient, deviceId: string, runId: string, expected: boolean): Promise<boolean> {
+  const body = await client.post<{ expected?: unknown }>(
+    `/v1/devices/${encodeURIComponent(deviceId)}/runs/${encodeURIComponent(runId)}/mark`,
+    { expected },
+  );
+  return body?.expected === true;
 }
 
 function parsePlace(raw: unknown): RunPlace | null {

@@ -24,6 +24,7 @@ V5_OPS = frozenset({
     "apps.list",
     "runs.list",
     "runs.get",
+    "runs.mark",
     "atlas.versions",
     "scenarios.list",
     "knowledge.get",
@@ -461,6 +462,7 @@ RUN_STEP_KEYS = frozenset({
 RUN_EVENT_KEYS = frozenset({"at", "kind", "text", "code", "ok", "detail"})
 # Run record v2 (Glass alpha.4): optional so phones from alpha.8-alpha.10 keep working.
 RUN_SUMMARY_V2_KEYS = frozenset({"mapSteps", "modelSteps", "places"})
+RUN_OPTIONAL_KEYS = frozenset({"expected"})  # alpha.12+: the developer marked the run as expected
 RUN_STEP_V2_KEYS = frozenset({"roomId", "roomAfter", "placeId", "appVersion", "decisionSource"})
 RUN_PLACE_KEYS = frozenset({"placeId", "appVersion", "route"})
 ROOM_ID = re.compile(r"^screen:[a-z_]{1,40}:[0-9a-f]{8,64}$")
@@ -489,8 +491,10 @@ def _optional_match(value: Any, pattern: re.Pattern[str]) -> bool:
 
 
 def _validate_run_summary(run: Any, keys: frozenset[str]) -> None:
-    if not isinstance(run, dict) or not keys <= set(run) <= keys | RUN_SUMMARY_V2_KEYS:
+    if not isinstance(run, dict) or not keys <= set(run) <= keys | RUN_SUMMARY_V2_KEYS | RUN_OPTIONAL_KEYS:
         raise _bad_run("summary")
+    if "expected" in run and not isinstance(run["expected"], bool):
+        raise _bad_run("expected")
     if RUN_SUMMARY_V2_KEYS & set(run):
         if set(run) & RUN_SUMMARY_V2_KEYS != RUN_SUMMARY_V2_KEYS:
             raise _bad_run("record v2")
@@ -754,6 +758,10 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
     if op == "scenarios.list":
         _validate_scenarios(value, args)
         return value
+    if op == "runs.mark":
+        if set(value) != {"runId", "expected"} or value["runId"] != args.get("runId") or not isinstance(value["expected"], bool):
+            raise _bad_run("mark")
+        return value
     if op == "knowledge.get":
         _validate_knowledge_summary(value)
         return value
@@ -787,6 +795,11 @@ class V5ContractService:
         if not isinstance(run_id, str) or not RUN_ID.match(run_id):
             raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runId is malformed.")
         return self._call(device_id, "runs.get", {"runId": run_id})
+
+    def runs_mark(self, device_id: str, run_id: str, expected: bool) -> dict[str, Any]:
+        if not isinstance(run_id, str) or not RUN_ID.match(run_id) or not isinstance(expected, bool):
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.mark takes a runId and expected true/false.")
+        return self._call(device_id, "runs.mark", {"runId": run_id, "expected": expected})
 
     def knowledge_summary(self, device_id: str) -> dict[str, Any]:
         return self._call(device_id, "knowledge.get", {})
@@ -875,6 +888,10 @@ class V5ContractService:
             if set(args) != {"runId"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.get takes runId only.")
             return self.runs_get(device_id, args["runId"])
+        if op == "runs.mark":
+            if set(args) != {"runId", "expected"}:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.mark takes runId and expected only.")
+            return self.runs_mark(device_id, args["runId"], args["expected"])
         if op == "knowledge.get":
             if args:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "knowledge.get takes no arguments.")

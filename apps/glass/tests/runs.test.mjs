@@ -251,3 +251,28 @@ test("mapping passes are listed as runs and marked as such", async () => {
   assert.doesNotMatch(row, /cyclone-mapper/);
   page.destroy();
 });
+
+test("a stopped run can be marked expected on the phone, and unmarked", async () => {
+  installMiniDom();
+  let expected = false;
+  const gateway = fakeGateway({
+    "GET /v1/devices/d1/runs/ai-run-1": () => ({ ...DETAIL, expected }),
+    "POST /v1/devices/d1/runs/ai-run-1/mark": ({ body }) => {
+      expected = body.expected;
+      return { runId: "ai-run-1", expected };
+    },
+  });
+  const page = createRunPage(ctx(gateway.fetch), { name: "run", runId: "ai-run-1" });
+  await flush();
+  const button = () => [...page.element.querySelectorAll(".run-header .btn")].find((b) => /expected|Count it again/.test(b.textContent));
+  assert.match(button().textContent, /Mark as expected/);
+  button().click();
+  await flush();
+  assert.equal(expected, true);
+  assert.match(page.element.textContent, /Marked expected/);
+  assert.match(button().textContent, /Count it again/);
+  button().click();
+  await flush();
+  assert.equal(expected, false);
+  page.destroy();
+});

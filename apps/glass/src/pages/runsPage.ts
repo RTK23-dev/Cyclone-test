@@ -130,6 +130,7 @@ export function runRow(run: RunSummary): HTMLAnchorElement {
   ].filter(Boolean).join(" · ");
   goal.append(el("span", "run-goal-text", run.goal), el("span", "run-sub", sub));
   if (run.model === MAPPER) goal.append(chip("Mapping pass", "accent"));
+  if (run.expected) goal.append(chip("Expected", "neutral"));
   const result = el("span");
   result.append(chip(statusLabel(run.status), statusTone(run.status)));
   const why = el("span", "run-why");

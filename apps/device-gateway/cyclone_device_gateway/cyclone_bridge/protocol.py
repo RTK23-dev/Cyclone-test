@@ -16,7 +16,7 @@ ALLOWED_OPS = {
     "secrets.slots", "secrets.request",
     "ask.start", "ask.status",
     "apps.list",
-    "runs.list", "runs.get",
+    "runs.list", "runs.get", "runs.mark",
     "atlas.versions", "scenarios.list", "knowledge.get",
 }
 UNAUTHENTICATED_OPS = {

@@ -848,3 +848,23 @@ def test_glass_knowledge_summary_rejects_values_and_extras(summary):
     with pytest.raises(DesktopRuntimeError) as error:
         svc.knowledge_summary("phone-1")
     assert error.value.code == "PROTOCOL_MISMATCH"
+
+
+class MarkBridge(RunsBridge):
+    def request(self, op, args, request_id=None):
+        if op == "runs.mark":
+            self.calls.append((op, dict(args), request_id))
+            return {"runId": args["runId"], "expected": args["expected"]}
+        return super().request(op, args, request_id)
+
+
+def test_glass_runs_can_be_marked_expected_on_the_phone():
+    bridge = MarkBridge(listing={"runs": [{**RUN_SUMMARY, "expected": True}]})
+    svc = V5ContractService(FakeFleet(bridge))
+    assert svc.runs_mark("phone-1", "ai-run-1", True) == {"runId": "ai-run-1", "expected": True}
+    assert svc.runs_list("phone-1")["runs"][0]["expected"] is True
+    for bad in (lambda: svc.runs_mark("phone-1", "../x", True), lambda: svc.runs_mark("phone-1", "ai-run-1", "yes")):
+        with pytest.raises(DesktopRuntimeError):
+            bad()
+    with pytest.raises(DesktopRuntimeError):
+        V5ContractService(FakeFleet(RunsBridge(listing={"runs": [{**RUN_SUMMARY, "expected": "yes"}]}))).runs_list("phone-1")
