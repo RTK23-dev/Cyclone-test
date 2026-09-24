@@ -162,6 +162,16 @@ class GatewayTrustV33Test {
     }
 
     @Test
+    fun aPcComingBackAfterAWhileIsAnnouncedButQuickReconnectsAreNot() {
+        val hour = 3_600_000L
+        val pc = GatewayTrustedPc("t", "p", "pc", "Desk PC", "k", 1, createdAtMs = 0, lastSessionAtMs = 10 * hour)
+        assertFalse(GatewayPcConnectedNotice.shouldAnnounce(pc, 11 * hour))
+        assertTrue(GatewayPcConnectedNotice.shouldAnnounce(pc, 17 * hour))
+        assertFalse("just linked: the Allow card was the notice", GatewayPcConnectedNotice.shouldAnnounce(pc.copy(lastSessionAtMs = 0, createdAtMs = 10 * hour), 10 * hour + 60_000))
+        assertFalse(GatewayPcConnectedNotice.shouldAnnounce(pc.copy(revokedAtMs = 1), 30 * hour))
+    }
+
+    @Test
     fun persistedTrustSurvivesEngineRestartButSessionsDoNot() {
         val fixture = createTrust()
         val firstSession = openSession(fixture.engine, fixture.trustId, fixture.generation, fixture.pc)

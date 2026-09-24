@@ -186,7 +186,18 @@ internal object GatewayV33TrustManager {
 
     fun completeSession(context: Context, args: JSONObject): JSONObject {
         requirePhoneAvailable(context)
-        return engine(context).completeSession(args)
+        val engine = engine(context)
+        val before = runCatching { engine.linkedPcs().associateBy { it.trustId } }.getOrDefault(emptyMap())
+        val result = engine.completeSession(args)
+        // Like a chat app's "new login" notice: tell the owner when a linked PC comes back after a while.
+        runCatching {
+            val trustId = result.optString("trustId")
+            val previous = before[trustId] ?: engine.linkedPcs().firstOrNull { it.trustId == trustId }
+            if (previous != null && GatewayPcConnectedNotice.shouldAnnounce(previous, System.currentTimeMillis())) {
+                GatewayPcConnectedNotice.show(context, previous.pcLabel)
+            }
+        }
+        return result
     }
 
     fun rotate(context: Context, authToken: String, args: JSONObject): JSONObject =
