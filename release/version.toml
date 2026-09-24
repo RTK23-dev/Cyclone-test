@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.21 dev1: multi-app navigation (clauses, live proof, Atlas doors, task ledger) + review fixes; Teal Matrix v2 from alpha.20.
-# Owner-requested developer candidate; physical phone acceptance UNVERIFIED.
+# Owner-requested developer candidate; physical phone acceptance UNVERIFIED. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.21.dev1"
 channel = "development"
