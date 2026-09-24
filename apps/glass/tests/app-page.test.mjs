@@ -235,3 +235,32 @@ test("the map offers a mapping depth next to Start mapping", async () => {
   assert.match(select.textContent, /Deep · 80 rooms/);
   page.destroy();
 });
+
+test("Teach on the phone starts Follow Me, Done stops it and shows Your teaching", async () => {
+  const phone = fakePhone({ rooms: [ROOM(1)] });
+  const calls = [];
+  const base = phone.gateway.fetch;
+  phone.gateway.fetch = async (input, init = {}) => {
+    const path = new URL(String(input), "http://127.0.0.1:8765").pathname;
+    if (path.endsWith("/agent/teach/start") || path.endsWith("/agent/teach/stop")) {
+      calls.push({ path, body: JSON.parse(init.body) });
+      return json(path.endsWith("stop") ? { teaching: { summary: "Clock → Alarms" } } : { teaching: { active: true } });
+    }
+    return base(input, init);
+  };
+  const { page } = open(phone);
+  await flush();
+  const teachButton = () => [...page.element.querySelectorAll(".mapping-controls .btn")].find((b) => /Teach on the phone|Done teaching/.test(b.textContent));
+  teachButton().click();
+  await flush();
+  assert.match(calls[0].path, /teach\/start$/);
+  assert.match(calls[0].body.goal, /Teach a route in/);
+  assert.match(page.element.querySelector(".mapping-status").textContent, /Follow Me is on/);
+  assert.match(teachButton().textContent, /Done teaching/);
+  teachButton().click();
+  await flush();
+  assert.deepEqual(calls[1].body, { compile_for_review: true });
+  assert.match(page.element.querySelector(".mapping-status").textContent, /Taught: Clock → Alarms/);
+  assert.equal(page.element.querySelector(".segment.active").textContent, "Your teaching");
+  page.destroy();
+});

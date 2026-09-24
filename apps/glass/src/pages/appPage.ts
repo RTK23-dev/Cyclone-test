@@ -26,6 +26,7 @@ import { icon } from "../ui/icons.js";
 import { plural, relativeTime } from "../ui/format.js";
 import { deviceGate } from "./deviceGate.js";
 import type { GlassPage } from "./page.js";
+import { startTeaching, stopTeaching } from "../services/teach.js";
 import { appTabs } from "./appKnowledgePage.js";
 
 export interface AppPageDeps {
@@ -55,6 +56,8 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
   let job: MappingJobView | null = null;
   let selection: { kind: "screen" | "edge"; id: string } | null = null;
   let depth: MappingDepth = "quick";
+  let teaching = false;
+  let teachNote = "";
   let destroyed = false;
   let loadSeq = 0;
 
@@ -171,10 +174,15 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
         depthSelect.append(option);
       }
       depthSelect.disabled = start.disabled;
+      // Teach a door yourself: Follow Me on the phone, then Done here. Only for installed apps, never during a pass.
+      const teach = actionButton(teaching ? "Done teaching" : "Teach on the phone", { icon: "hand", variant: teaching ? "primary" : "secondary" });
+      teach.disabled = !placeId.startsWith("package:") || app?.installed === false || otherPlaceBusy;
+      teach.title = "Show Cyclone the way on the phone; it becomes 'Your teaching' on this map.";
+      teach.addEventListener("click", () => void (teaching ? finishTeaching() : beginTeaching()));
       depthSelect.addEventListener("change", () => {
         depth = (depthSelect.value as MappingDepth) || "quick";
       });
-      buttons.push(depthSelect, start);
+      buttons.push(depthSelect, start, teach);
     } else {
       const paused = job?.state === "paused" || job?.state === "human-control";
       const toggle = actionButton(paused ? "Resume" : "Pause", { icon: paused ? "play" : "pause" });
@@ -187,9 +195,34 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
     statusLine.dataset.tone = job?.state === "failed" || job?.state === "needs-secret" ? "warning" : "neutral";
     statusLine.textContent = otherPlaceBusy
       ? "The phone is mapping another app."
-      : job && job.placeId === placeId
+      : job && job.placeId === placeId && isActiveMapping(job)
         ? mappingStatusLine(job)
-        : "";
+        : teachNote || (job && job.placeId === placeId ? mappingStatusLine(job) : "");
+  };
+
+  const beginTeaching = async (): Promise<void> => {
+    try {
+      await startTeaching(ctx.client, deviceId, `Teach a route in ${app?.label ?? placeId}`);
+      teaching = true;
+      teachNote = "Follow Me is on. Show the way on the phone, then press Done teaching here.";
+    } catch (error) {
+      teachNote = error instanceof Error ? error.message : String(error);
+    }
+    renderControls();
+  };
+
+  const finishTeaching = async (): Promise<void> => {
+    try {
+      const summary = await stopTeaching(ctx.client, deviceId);
+      teaching = false;
+      teachNote = summary ? `Taught: ${summary}` : "Teaching saved on the phone.";
+      persona = "live";
+      personaSwitch.set(persona);
+      void loadAtlas(true);
+    } catch (error) {
+      teachNote = error instanceof Error ? error.message : String(error);
+    }
+    renderControls();
   };
 
   const command = async (run: () => Promise<void>, switchToMapping: boolean): Promise<void> => {
