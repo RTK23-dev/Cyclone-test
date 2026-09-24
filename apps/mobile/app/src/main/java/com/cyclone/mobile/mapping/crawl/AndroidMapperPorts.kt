@@ -453,6 +453,18 @@ internal object MappingStructuralProjection {
  * installed version. Structural only: no labels, text or values. Chrome pages report the browser package.
  */
 internal object StepLocation {
+    /** V5 `atlas.here`: the app and structural room on the foreground screen now (Glass Phone page). */
+    fun here(context: android.content.Context, sessionId: String = "default-foreground"): org.json.JSONObject {
+        val current = runCatching { GatewayObservationStore.current(sessionId) }.getOrNull()
+        val room = current?.let { runCatching { StructuralRoomClassifier.nodeKey(MappingStructuralProjection.fromGateway(it)) }.getOrNull() }
+        val pkg = current?.page?.packageName?.takeIf { PACKAGE.matches(it) }
+        return org.json.JSONObject()
+            .put("placeId", pkg?.let { "package:$it" } ?: org.json.JSONObject.NULL)
+            .put("roomId", room ?: org.json.JSONObject.NULL)
+            .put("appVersion", pkg?.let { versionOf(context, it) } ?: org.json.JSONObject.NULL)
+            .put("observedAt", current?.capturedAt ?: org.json.JSONObject.NULL)
+    }
+
     private val versions = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     fun detail(context: android.content.Context, sessionId: String, after: Boolean): String? = runCatching {

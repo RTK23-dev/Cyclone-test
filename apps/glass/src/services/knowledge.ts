@@ -197,3 +197,21 @@ function num(value: unknown): number {
 function numOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
+
+export interface Here {
+  placeId: string | null;
+  roomId: string | null;
+  appVersion: string | null;
+  observedAt: number | null;
+}
+
+/** Where the phone is now (`atlas.here`): the app and structural room on the foreground screen. */
+export async function getHere(client: GatewayClient, deviceId: string, signal?: AbortSignal): Promise<Here> {
+  const r = record(await client.get<unknown>(`/v1/devices/${encodeURIComponent(deviceId)}/atlas/here`, signal));
+  return {
+    placeId: typeof r.placeId === "string" && /^package:[A-Za-z][A-Za-z0-9_.]{1,150}$/.test(r.placeId) ? r.placeId : null,
+    roomId: screen(r.roomId),
+    appVersion: str(r.appVersion) || null,
+    observedAt: typeof r.observedAt === "number" ? r.observedAt : null,
+  };
+}

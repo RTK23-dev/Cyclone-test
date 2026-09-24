@@ -5,6 +5,8 @@
 import type { GlassContext } from "../app.js";
 import { sendControl, type ControlBody } from "../services/control.js";
 import { FOREGROUND_SESSION_ID, phoneClient } from "../services/phone.js";
+import { getHere } from "../services/knowledge.js";
+import { appName, roomLabel } from "../services/runs.js";
 import { el, setChildren } from "../ui/dom.js";
 import { actionButton, chip, pageHeader } from "../ui/components.js";
 import { createLiveView, type LiveView, type LiveViewOptions } from "../ui/liveView.js";
@@ -17,6 +19,8 @@ export interface PhonePageDeps {
   fetch?: typeof fetch;
   rendererFactory?: LiveViewOptions["rendererFactory"];
   askTimer?: Pick<AskPanelDeps, "setTimer" | "clearTimer">;
+  /** "You are here" refresh; defaults to every 3 s. */
+  hereTimer?: { setInterval(fn: () => void, ms: number): unknown; clearInterval(handle: unknown): void };
 }
 
 type Owner = "AI" | "HUMAN";
@@ -101,8 +105,41 @@ export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): Gl
   const bar = el("div", "phone-bar");
   bar.append(ownerChip, controls);
   stage.append(bar, live.element, keys, note);
+  const here = el("section", "card here-card");
+  here.setAttribute("role", "status");
+  here.hidden = true;
+  let hereKey = "";
+  const refreshHere = async (): Promise<void> => {
+    try {
+      const now = await getHere(ctx.client, device.id);
+      const key = `${now.placeId}|${now.roomId}`;
+      if (key === hereKey) return;
+      hereKey = key;
+      here.hidden = false;
+      if (!now.placeId) {
+        setChildren(here, el("span", "cause-kicker", "You are here"), el("p", "muted", "Not inside an app Cyclone can map (home screen or system screen)."));
+        return;
+      }
+      const facts = el("p", "here-facts");
+      facts.append(el("strong", undefined, appName(now.placeId)), el("span", "muted", now.appVersion ? ` · version ${now.appVersion}` : ""));
+      const parts: HTMLElement[] = [el("span", "cause-kicker", "You are here"), facts];
+      if (now.roomId) {
+        parts.push(el("p", "muted", roomLabel(now.roomId)));
+        const show = actionButton("Show on the map", { icon: "map" });
+        show.addEventListener("click", () => ctx.navigate({ name: "app", placeId: now.placeId!, tab: "map", route: [now.roomId!] }));
+        parts.push(show);
+      }
+      setChildren(here, ...parts);
+    } catch {
+      here.hidden = true; // phones before alpha.12 have no atlas.here
+    }
+  };
+  const hereTimer = deps.hereTimer ?? { setInterval: (fn: () => void, ms: number) => setInterval(fn, ms), clearInterval: (h: unknown) => clearInterval(h as number) };
+  const hereHandle = hereTimer.setInterval(() => void refreshHere(), 3_000);
+  void refreshHere();
+
   const side = el("div", "phone-side");
-  side.append(ask.element);
+  side.append(here, ask.element);
   const layout = el("div", "phone-layout");
   layout.append(stage, side);
   element.append(layout);
@@ -113,6 +150,7 @@ export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): Gl
     destroy() {
       live.destroy();
       ask.destroy();
+      hereTimer.clearInterval(hereHandle);
     },
   };
 }

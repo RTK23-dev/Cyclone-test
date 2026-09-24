@@ -28,6 +28,7 @@ V5_OPS = frozenset({
     "atlas.versions",
     "scenarios.list",
     "knowledge.get",
+    "atlas.here",
 })
 ASK_STATES = frozenset({"idle", "working", "action-needed", "needs-secret", "done", "failed"})
 ASK_MILESTONE_STATES = frozenset({"pending", "active", "done", "action-needed", "failed"})
@@ -765,6 +766,16 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
     if op == "knowledge.get":
         _validate_knowledge_summary(value)
         return value
+    if op == "atlas.here":
+        if set(value) != {"placeId", "roomId", "appVersion", "observedAt"}:
+            raise _bad_knowledge("atlas.here")
+        if value["placeId"] is not None and (not isinstance(value["placeId"], str) or not KNOWLEDGE_PLACE_ID.match(value["placeId"])):
+            raise _bad_knowledge("here place")
+        if value["roomId"] is not None and (not isinstance(value["roomId"], str) or not SCREEN_ID.fullmatch(value["roomId"])):
+            raise _bad_knowledge("here room")
+        if not _short_text(value["appVersion"], 40, nullable=True) or (value["observedAt"] is not None and not _is_int(value["observedAt"])):
+            raise _bad_knowledge("here facts")
+        return value
     raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
 
 
@@ -800,6 +811,9 @@ class V5ContractService:
         if not isinstance(run_id, str) or not RUN_ID.match(run_id) or not isinstance(expected, bool):
             raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.mark takes a runId and expected true/false.")
         return self._call(device_id, "runs.mark", {"runId": run_id, "expected": expected})
+
+    def atlas_here(self, device_id: str) -> dict[str, Any]:
+        return self._call(device_id, "atlas.here", {})
 
     def knowledge_summary(self, device_id: str) -> dict[str, Any]:
         return self._call(device_id, "knowledge.get", {})
@@ -892,6 +906,10 @@ class V5ContractService:
             if set(args) != {"runId", "expected"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.mark takes runId and expected only.")
             return self.runs_mark(device_id, args["runId"], args["expected"])
+        if op == "atlas.here":
+            if args:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.here takes no arguments.")
+            return self.atlas_here(device_id)
         if op == "knowledge.get":
             if args:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "knowledge.get takes no arguments.")

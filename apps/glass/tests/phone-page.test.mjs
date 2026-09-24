@@ -44,6 +44,7 @@ function open(fake) {
       return renderer;
     },
     askTimer: { setTimer: (fn) => timers.push(fn), clearTimer: () => (timers.length = 0) },
+    hereTimer: { setInterval: () => 1, clearInterval() {} },
   });
   return { page, renderers, timers, controls: () => fake.gateway.calls.filter((c) => c.path.endsWith("/control")).map((c) => c.body) };
 }
@@ -140,4 +141,33 @@ test("pointer mapping turns a drag into a swipe and ignores letterbox clicks", (
     type: "swipe", x1: 0.5, y1: 0.75, x2: 0.5, y2: 0.25, durationMs: 300,
   });
   assert.equal(mapPointerGesture({ clientX: 5, clientY: 5, startedAtMs: 0 }, { clientX: 5, clientY: 5, endedAtMs: 1 }, { left: 0, top: 0, width: 300, height: 200 }, 1080, 2160, 0), null);
+});
+
+test("You are here: the app, version and room on the phone now, with a way to the map", async () => {
+  installMiniDom();
+  const here = { placeId: "package:com.google.android.gm", roomId: "screen:list:aaaaaaaaaaaaaaaa", appVersion: "2026.09.14", observedAt: 5 };
+  const fake = phone();
+  const routes = fake.gateway;
+  const gateway = fakeGateway({ "GET /v1/devices/d1/atlas/here": () => here });
+  const merged = { calls: [], fetch: async (input, init) => (String(input).includes("/atlas/here") ? gateway.fetch(input, init) : routes.fetch(input, init)) };
+  const client = new GatewayClient({ token: "tok", fetch: merged.fetch });
+  const devices = [parseDevice(READY_DEVICE)];
+  const navigated = [];
+  const ctx = { client, version: "x", devices, device: devices[0], devicesError: null, navigate: (r) => navigated.push(r), selectDevice() {}, refreshDevices: async () => {} };
+  const page = createPhonePage(ctx, {
+    origin: "http://127.0.0.1:8765",
+    fetch: merged.fetch,
+    rendererFactory: () => ({ start() {}, stop() {} }),
+    askTimer: { setTimer() {}, clearTimer() {} },
+    hereTimer: { setInterval: () => 1, clearInterval() {} },
+  });
+  await flush();
+  const card = page.element.querySelector(".here-card");
+  assert.equal(card.hidden, false);
+  assert.match(card.textContent, /Gmail/);
+  assert.match(card.textContent, /version 2026\.09\.14/);
+  assert.match(card.textContent, /List screen · aaaa/);
+  card.querySelector(".btn").click();
+  assert.deepEqual(navigated.at(-1), { name: "app", placeId: here.placeId, tab: "map", route: [here.roomId] });
+  page.destroy();
 });

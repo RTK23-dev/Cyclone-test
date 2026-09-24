@@ -411,6 +411,10 @@ internal object GatewayDispatcher {
             GatewayV5MappingAdapter.dispatch(context, request.op, request.args)
         "ask.start", "ask.status" -> GatewayV5AskAdapter.dispatch(request.op, request.args)
         "apps.list" -> GatewayV5AppsAdapter.dispatch(request.op, request.args)
+        "atlas.here" -> {
+            if (request.args.length() != 0) throw GatewayProtocolException("INVALID_REQUEST", "atlas.here takes no arguments.", request.id)
+            com.cyclone.mobile.mapping.crawl.StepLocation.here(context)
+        }
         "knowledge.get" -> {
             GatewayV5KnowledgeSummaryAdapter.install(context)
             GatewayV5KnowledgeSummaryAdapter.dispatch(request.op, request.args)

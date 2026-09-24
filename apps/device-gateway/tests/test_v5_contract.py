@@ -868,3 +868,24 @@ def test_glass_runs_can_be_marked_expected_on_the_phone():
             bad()
     with pytest.raises(DesktopRuntimeError):
         V5ContractService(FakeFleet(RunsBridge(listing={"runs": [{**RUN_SUMMARY, "expected": "yes"}]}))).runs_list("phone-1")
+
+
+class HereBridge(FakeBridge):
+    def __init__(self, here):
+        super().__init__()
+        self.here = here
+
+    def request(self, op, args, request_id=None):
+        if op == "atlas.here":
+            return self.here
+        return super().request(op, args, request_id)
+
+
+def test_glass_you_are_here_is_structural_only():
+    here = {"placeId": "package:com.google.android.gm", "roomId": "screen:list:aaaaaaaaaaaaaaaa", "appVersion": "2026.09.14", "observedAt": 5}
+    assert V5ContractService(FakeFleet(HereBridge(here))).atlas_here("phone-1") == here
+    empty = {"placeId": None, "roomId": None, "appVersion": None, "observedAt": None}
+    assert V5ContractService(FakeFleet(HereBridge(empty))).atlas_here("phone-1") == empty
+    for bad in ({**here, "roomId": "Inbox of alice"}, {**here, "label": "Inbox"}):
+        with pytest.raises(DesktopRuntimeError):
+            V5ContractService(FakeFleet(HereBridge(bad))).atlas_here("phone-1")
