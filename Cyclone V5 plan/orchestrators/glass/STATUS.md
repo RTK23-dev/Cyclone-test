@@ -2,7 +2,7 @@
 
 > **Owner correction, 2026-09-23 — read first.** Glass is a **local web app in the browser** (`apps/glass`), not pages in Cyclone One (`apps/pc-companion`) and not Artemis. It is the developer's eyes on the phone's engine: Apps + versions, Map and Scenarios boards, Run inspector (cause of death), Knowledge, Phone control. No intelligence. Charter: [`03-glass-v1.md`](../../03-glass-v1.md), cuts: [`09`](../../09-cuts-and-milestones.md). Runs 1–3 below built a **prototype inside Cyclone One**; port it, do not extend it.
 
-## Glass web — 1.0.0-alpha.6 (2026-09-24, built by the front-runner session)
+## Glass web — 1.0.0-alpha.7 (2026-09-24, built by the front-runner session)
 
 Glass restarted as `apps/glass` per the owner charter. Scope: [`SESSION-PLAN-glass-alpha1.md`](../SESSION-PLAN-glass-alpha1.md).
 
@@ -17,7 +17,7 @@ Glass restarted as `apps/glass` per the owner charter. Scope: [`SESSION-PLAN-gla
 | **alpha.4:** run inspector v2 — room / room after / app + version / map-or-model per step, 'From the map' split, Route on the map card, map highlights a run's route, `stale-door` cause | built; phone RunInsight + gateway contract + Glass tests |
 | **alpha.5:** App → **Scenarios** (routes from the entry room, health from runs, Show on the map) and **Versions** (versions, needs remap, stale doors); mapper stamps doors with the app version | built; phone knowledge adapter + gateway contract + Glass tests |
 | **alpha.6:** App Screens / Runs tabs, Scenarios board, Knowledge page (vault set / not set, skills, automations, totals), mapping passes as runs, Mark as expected (skipped by scenario health), You are here on Phone (`atlas.here`), cause-of-death fix links, Runs filters, last run per app | built; phone + gateway + Glass tests |
-| **alpha.7 (in progress):** mapping depth picker, type + scroll from the PC while you have control, scenario health counts on Apps, `door-missing` (run gave up in a mapped room with no door onward) | built; tests green; not yet released |
+| **alpha.7:** mapping depth picker, type + scroll from the PC while you have control, scenario health counts on Apps, `door-missing` (run gave up in a mapped room with no door onward), Teach on the phone (Follow Me) from the map | built; phone + gateway + Glass tests green |
 | Redacted frames, expected room per step, per-version forget, Settings (never-pay, retention) | next cuts |
 
 Physical phone and Windows install: **UNVERIFIED** until someone runs it.
