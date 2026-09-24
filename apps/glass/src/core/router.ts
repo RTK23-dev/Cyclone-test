@@ -3,6 +3,7 @@ export type AppTab = "map" | "screens" | "scenarios" | "versions" | "runs";
 const APP_TABS: AppTab[] = ["map", "screens", "scenarios", "versions", "runs"];
 
 export type Route =
+  | { name: "home" }
   | { name: "apps" }
   | { name: "app"; placeId: string; tab: AppTab; route?: string[]; runId?: string }
   | { name: "runs" }
@@ -12,7 +13,7 @@ export type Route =
   | { name: "knowledge" }
   | { name: "settings" };
 
-export const DEFAULT_ROUTE: Route = { name: "apps" };
+export const DEFAULT_ROUTE: Route = { name: "home" };
 
 const ROOM_ID = /^screen:[a-z_]{1,40}:[0-9a-f]{8,64}$/;
 
@@ -23,7 +24,7 @@ export function parseRoute(hash: string): Route {
   const parts = path.split("/").filter(Boolean);
   if (parts[0] === "apps" && parts.length >= 2) {
     const placeId = safeDecode(parts[1] ?? "");
-    if (!placeId) return DEFAULT_ROUTE;
+    if (!placeId) return { name: "apps" };
     const route = (query.get("route") ?? "").split(",").filter((id) => ROOM_ID.test(id)).slice(0, 60);
     const runId = query.get("run") ?? "";
     const tab = APP_TABS.includes(parts[2] as AppTab) ? (parts[2] as AppTab) : "map";
@@ -39,6 +40,7 @@ export function parseRoute(hash: string): Route {
     const runId = safeDecode(parts[1] ?? "");
     return /^[A-Za-z0-9_-]{4,120}$/.test(runId) ? { name: "run", runId } : { name: "runs" };
   }
+  if (parts[0] === "apps") return { name: "apps" };
   if (parts[0] === "runs") return { name: "runs" };
   if (parts[0] === "phone") return { name: "phone" };
   if (parts[0] === "settings") return { name: "settings" };
@@ -49,6 +51,8 @@ export function parseRoute(hash: string): Route {
 
 export function routeHref(route: Route): string {
   switch (route.name) {
+    case "home":
+      return "#/home";
     case "apps":
       return "#/apps";
     case "app": {
@@ -75,7 +79,7 @@ export function routeHref(route: Route): string {
 }
 
 /** Sidebar section that owns a route. */
-export function sectionOf(route: Route): "apps" | "runs" | "phone" | "devices" | "knowledge" | "settings" {
+export function sectionOf(route: Route): "home" | "apps" | "runs" | "phone" | "devices" | "knowledge" | "settings" {
   if (route.name === "app") return "apps";
   if (route.name === "run") return "runs";
   return route.name;

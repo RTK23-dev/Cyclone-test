@@ -90,7 +90,7 @@ test("choosing a phone is remembered for the tab", async () => {
   assert.match(root.querySelector(".device-picker").textContent, /Pixel 7/);
 });
 
-test("like WhatsApp Web: with no connected phone, Glass opens on Devices; with one, on Apps", async () => {
+test("like WhatsApp Web: with no connected phone, Glass opens on Devices; with one, on Home", async () => {
   let s = start({ devices: [{ deviceId: "d2", name: "Galaxy", state: "UNPAIRED", paired: false }], hash: "#/" });
   await s.app.start();
   assert.equal(s.location.hash, "#/devices");
@@ -99,7 +99,7 @@ test("like WhatsApp Web: with no connected phone, Glass opens on Devices; with o
   s.app.stop();
   s = start({ hash: "#/" });
   await s.app.start();
-  assert.match(s.root.querySelector(".page-title").textContent, /Apps/);
+  assert.match(s.root.querySelector(".page-title").textContent, /Home/);
   s.app.stop();
   // A phone that is not connected yet sends the user to Devices from any page.
   s = start({ devices: [{ deviceId: "d2", name: "Galaxy", state: "UNPAIRED", paired: false }], hash: "#/apps" });

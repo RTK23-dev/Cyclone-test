@@ -1,0 +1,66 @@
+/* Home: three cards side by side on wide screens, stacked on narrow ones. */
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.home-list,
+.home-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-row {
+  border-top: 1px solid var(--border);
+}
+
+.home-row:first-child {
+  border-top: none;
+}
+
+.home-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.home-link:hover strong,
+.home-link:hover .device-name {
+  text-decoration: underline;
+}
+
+.home-link > .chip {
+  flex-shrink: 0;
+}
+
+.home-facts li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+
+.home-more {
+  align-self: flex-start;
+  font-size: 0.875rem;
+}
+
+.guarded-card .card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.guarded-app {
+  min-width: 160px;
+  font-weight: 600;
+}

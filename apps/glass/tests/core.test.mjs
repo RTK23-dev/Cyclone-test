@@ -12,13 +12,13 @@ function memoryStorage() {
 const CODE = "Abcdefghijklmnop_1234";
 
 test("routes round-trip, including place ids with slashes and colons", () => {
-  for (const route of [{ name: "apps" }, { name: "phone" }, { name: "settings" }, { name: "app", placeId: "package:com.google.android.gm", tab: "map" }]) {
+  for (const route of [{ name: "home" }, { name: "apps" }, { name: "phone" }, { name: "settings" }, { name: "app", placeId: "package:com.google.android.gm", tab: "map" }]) {
     assert.deepEqual(parseRoute(routeHref(route)), route);
   }
   const web = { name: "app", placeId: "chrome-origin:https://www.facebook.com/", tab: "map" };
   assert.deepEqual(parseRoute(routeHref(web)), web);
-  assert.deepEqual(parseRoute(""), { name: "apps" });
-  assert.deepEqual(parseRoute("#/nope"), { name: "apps" });
+  assert.deepEqual(parseRoute(""), { name: "home" }, "Glass opens on Home");
+  assert.deepEqual(parseRoute("#/nope"), { name: "home" });
   assert.deepEqual(parseRoute("#/apps/%E0%A4%A"), { name: "apps" }, "bad escapes fall back to Apps");
 });
 

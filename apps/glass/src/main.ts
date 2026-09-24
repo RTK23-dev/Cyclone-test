@@ -8,6 +8,7 @@ import "./styles/phone.css";
 import "./styles/runs.css";
 import "./styles/devices.css";
 import "./styles/knowledge.css";
+import "./styles/home.css";
 import { GlassApp } from "./app.js";
 import { establishSession, forgetSession } from "./core/session.js";
 import { GatewayClient } from "./services/gateway.js";

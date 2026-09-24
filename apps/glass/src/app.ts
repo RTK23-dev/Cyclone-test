@@ -13,6 +13,7 @@ import { createPhonePage } from "./pages/phonePage.js";
 import { createRunsPage } from "./pages/runsPage.js";
 import { createRunPage } from "./pages/runPage.js";
 import { createSettingsPage } from "./pages/settingsPage.js";
+import { createHomePage } from "./pages/homePage.js";
 import { createDevicesPage } from "./pages/devicesPage.js";
 import { createAppKnowledgePage } from "./pages/appKnowledgePage.js";
 import { createKnowledgePage } from "./pages/knowledgePage.js";
@@ -47,6 +48,7 @@ export interface GlassAppOptions {
 type PageFactory = (ctx: GlassContext, route: Route) => GlassPage;
 
 const PAGES: Record<Route["name"], PageFactory> = {
+  home: (ctx) => createHomePage(ctx),
   apps: (ctx, route) => createAppsPage(ctx, route),
   app: (ctx, route) =>
     route.name === "app" && route.tab !== "map"
@@ -60,7 +62,8 @@ const PAGES: Record<Route["name"], PageFactory> = {
   settings: (ctx) => createSettingsPage(ctx),
 };
 
-const NAV: Array<{ section: "apps" | "runs" | "phone" | "devices" | "knowledge"; label: string; icon: IconName; route: Route }> = [
+const NAV: Array<{ section: "home" | "apps" | "runs" | "phone" | "devices" | "knowledge"; label: string; icon: IconName; route: Route }> = [
+  { section: "home", label: "Home", icon: "home", route: { name: "home" } },
   { section: "devices", label: "Devices", icon: "plug", route: { name: "devices" } },
   { section: "apps", label: "Apps", icon: "apps", route: { name: "apps" } },
   { section: "runs", label: "Runs", icon: "runs", route: { name: "runs" } },
