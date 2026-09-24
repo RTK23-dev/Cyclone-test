@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.11 dev1 + Cyclone Glass 1.0.0-alpha.5: run inspector v2 (rooms per step, map vs model, route on the
-# map, stale-door) and App → Scenarios / Versions. Doors now carry the app version they were mapped on.
+# map, stale-door) and App → Scenarios / Versions. Doors now carry the app version they were mapped on. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.11.dev1"
 channel = "development"
