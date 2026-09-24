@@ -808,3 +808,43 @@ def test_glass_alpha5_malformed_knowledge_is_rejected(versions, scenarios):
         else:
             svc.scenarios_list("phone-1", GM)
     assert error.value.code in {"PROTOCOL_MISMATCH", "INVALID_REQUEST"}
+
+
+KNOWLEDGE = {
+    "vault": {"slotCount": 1, "setCount": 1, "slots": [{"placeId": "package:com.facebook.katana", "persona": "live", "slot": "password", "set": True, "updatedAt": 5}]},
+    "skills": [{"id": "skill-1", "name": "Morning brief", "steps": 3, "enabled": True, "version": 1}],
+    "automations": [{"id": "auto-1", "name": "Plug in", "trigger": "manual", "steps": 1, "enabled": False}],
+    "atlas": {"places": 2, "rooms": 10, "doors": 12},
+}
+
+
+class SummaryBridge(FakeBridge):
+    def __init__(self, summary):
+        super().__init__()
+        self.summary = summary
+
+    def request(self, op, args, request_id=None):
+        if op == "knowledge.get":
+            self.calls.append((op, dict(args), request_id))
+            return self.summary
+        return super().request(op, args, request_id)
+
+
+def test_glass_knowledge_summary_is_presence_and_names_only():
+    svc = V5ContractService(FakeFleet(SummaryBridge(KNOWLEDGE)))
+    assert svc.knowledge_summary("phone-1") == KNOWLEDGE
+    with pytest.raises(DesktopRuntimeError):
+        svc.forward("phone-1", "knowledge.get", {"all": True})
+
+
+@pytest.mark.parametrize("summary", [
+    {**KNOWLEDGE, "vault": {**KNOWLEDGE["vault"], "slots": [{**KNOWLEDGE["vault"]["slots"][0], "value": "hunter2"}]}},
+    {**KNOWLEDGE, "vault": {**KNOWLEDGE["vault"], "slots": [{**KNOWLEDGE["vault"]["slots"][0], "set": "yes"}]}},
+    {**KNOWLEDGE, "skills": [{**KNOWLEDGE["skills"][0], "name": "x" * 81}]},
+    {**KNOWLEDGE, "people": ["Louella"]},
+])
+def test_glass_knowledge_summary_rejects_values_and_extras(summary):
+    svc = V5ContractService(FakeFleet(SummaryBridge(summary)))
+    with pytest.raises(DesktopRuntimeError) as error:
+        svc.knowledge_summary("phone-1")
+    assert error.value.code == "PROTOCOL_MISMATCH"

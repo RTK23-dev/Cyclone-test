@@ -26,6 +26,7 @@ V5_OPS = frozenset({
     "runs.get",
     "atlas.versions",
     "scenarios.list",
+    "knowledge.get",
 })
 ASK_STATES = frozenset({"idle", "working", "action-needed", "needs-secret", "done", "failed"})
 ASK_MILESTONE_STATES = frozenset({"pending", "active", "done", "action-needed", "failed"})
@@ -668,6 +669,46 @@ def _validate_scenarios(value: dict[str, Any], args: dict[str, Any]) -> None:
                 raise _bad_knowledge("scenario run fields")
 
 
+SLOT_PLACE_ID = re.compile(r"^(?:package:[A-Za-z][A-Za-z0-9_.]{1,150}|chrome:https?://[A-Za-z0-9.-]{1,190}(?::\d{1,5})?)$")
+SLOT_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9._-]{0,63}$")
+
+
+def _validate_knowledge_summary(value: dict[str, Any]) -> None:
+    """Slot presence (never values), skill/automation names and counts, Atlas totals."""
+    if set(value) != {"vault", "skills", "automations", "atlas"}:
+        raise _bad_knowledge("knowledge.get")
+    vault = value["vault"]
+    if not isinstance(vault, dict) or set(vault) != {"slotCount", "setCount", "slots"}:
+        raise _bad_knowledge("vault")
+    if not _is_int(vault["slotCount"]) or not _is_int(vault["setCount"]) or not isinstance(vault["slots"], list) or len(vault["slots"]) > 200:
+        raise _bad_knowledge("vault counts")
+    for slot in vault["slots"]:
+        if not isinstance(slot, dict) or set(slot) != {"placeId", "persona", "slot", "set", "updatedAt"}:
+            raise _bad_knowledge("vault slot")
+        if not isinstance(slot["placeId"], str) or not SLOT_PLACE_ID.match(slot["placeId"]) or slot["persona"] not in {"live", "mapping"}:
+            raise _bad_knowledge("vault slot place")
+        if not isinstance(slot["slot"], str) or not SLOT_NAME.match(slot["slot"]) or not isinstance(slot["set"], bool):
+            raise _bad_knowledge("vault slot name")
+        if slot["updatedAt"] is not None and not _is_int(slot["updatedAt"]):
+            raise _bad_knowledge("vault slot time")
+    for key, fields in (("skills", {"id", "name", "steps", "enabled", "version"}), ("automations", {"id", "name", "trigger", "steps", "enabled"})):
+        rows = value[key]
+        if not isinstance(rows, list) or len(rows) > 100:
+            raise _bad_knowledge(key)
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != fields or not _short_text(row["id"], 80) or not _short_text(row["name"], 80):
+                raise _bad_knowledge(f"{key} row")
+            if not _is_int(row["steps"]) or not isinstance(row["enabled"], bool):
+                raise _bad_knowledge(f"{key} fields")
+            if key == "skills" and not _is_int(row["version"]):
+                raise _bad_knowledge("skill version")
+            if key == "automations" and (not isinstance(row["trigger"], str) or not re.fullmatch(r"[a-z_]{1,40}", row["trigger"])):
+                raise _bad_knowledge("automation trigger")
+    atlas = value["atlas"]
+    if not isinstance(atlas, dict) or set(atlas) != {"places", "rooms", "doors"} or not all(_is_int(atlas[k]) for k in atlas):
+        raise _bad_knowledge("atlas totals")
+
+
 def validate_android_response(op: str, value: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
     """Keep a phone bug from turning into PC/model secret or mapping authority."""
     if op == "secrets.slots":
@@ -713,6 +754,9 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
     if op == "scenarios.list":
         _validate_scenarios(value, args)
         return value
+    if op == "knowledge.get":
+        _validate_knowledge_summary(value)
+        return value
     raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
 
 
@@ -743,6 +787,9 @@ class V5ContractService:
         if not isinstance(run_id, str) or not RUN_ID.match(run_id):
             raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runId is malformed.")
         return self._call(device_id, "runs.get", {"runId": run_id})
+
+    def knowledge_summary(self, device_id: str) -> dict[str, Any]:
+        return self._call(device_id, "knowledge.get", {})
 
     def atlas_versions(self, device_id: str, place_id: str) -> dict[str, Any]:
         if not isinstance(place_id, str) or not KNOWLEDGE_PLACE_ID.match(place_id) or len(place_id) > 200:
@@ -828,6 +875,10 @@ class V5ContractService:
             if set(args) != {"runId"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.get takes runId only.")
             return self.runs_get(device_id, args["runId"])
+        if op == "knowledge.get":
+            if args:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "knowledge.get takes no arguments.")
+            return self.knowledge_summary(device_id)
         if op == "atlas.versions":
             if set(args) != {"placeId"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.versions takes placeId only.")

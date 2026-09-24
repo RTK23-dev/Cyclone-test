@@ -15,6 +15,7 @@ import { createRunPage } from "./pages/runPage.js";
 import { createSettingsPage } from "./pages/settingsPage.js";
 import { createDevicesPage } from "./pages/devicesPage.js";
 import { createAppKnowledgePage } from "./pages/appKnowledgePage.js";
+import { createKnowledgePage } from "./pages/knowledgePage.js";
 
 export const DEVICE_STORAGE_KEY = "cyclone.glass.device.v1";
 const DEVICE_REFRESH_MS = 5_000;
@@ -55,13 +56,15 @@ const PAGES: Record<Route["name"], PageFactory> = {
   run: (ctx, route) => createRunPage(ctx, route as Extract<Route, { name: "run" }>),
   phone: (ctx) => createPhonePage(ctx),
   devices: (ctx) => createDevicesPage(ctx),
+  knowledge: (ctx) => createKnowledgePage(ctx),
   settings: (ctx) => createSettingsPage(ctx),
 };
 
-const NAV: Array<{ section: "apps" | "runs" | "phone" | "devices"; label: string; icon: IconName; route: Route }> = [
+const NAV: Array<{ section: "apps" | "runs" | "phone" | "devices" | "knowledge"; label: string; icon: IconName; route: Route }> = [
   { section: "devices", label: "Devices", icon: "plug", route: { name: "devices" } },
   { section: "apps", label: "Apps", icon: "apps", route: { name: "apps" } },
   { section: "runs", label: "Runs", icon: "runs", route: { name: "runs" } },
+  { section: "knowledge", label: "Knowledge", icon: "book", route: { name: "knowledge" } },
   { section: "phone", label: "Phone", icon: "phone", route: { name: "phone" } },
 ];
 

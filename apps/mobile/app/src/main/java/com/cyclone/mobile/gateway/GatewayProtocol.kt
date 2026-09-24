@@ -66,6 +66,7 @@ internal object GatewayProtocol {
         "runs.get",
         "atlas.versions",
         "scenarios.list",
+        "knowledge.get",
         "brain.recall",
         "teach.status",
         "debug.snapshot",
@@ -128,6 +129,7 @@ internal object GatewayProtocol {
         "runs.get",
         "atlas.versions",
         "scenarios.list",
+        "knowledge.get",
     )
 
     fun parse(line: String): GatewayRequest {

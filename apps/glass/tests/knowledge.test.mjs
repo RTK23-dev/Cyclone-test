@@ -146,3 +146,34 @@ test("Runs tab: only runs that entered this app, with the map share; old phones 
   await flush();
   assert.match(s.page.element.textContent, /does not record which app/);
 });
+
+import { createKnowledgePage } from "../.test-dist/pages/knowledgePage.js";
+
+test("Knowledge: vault slots as set / not set per app, skills, automations and Atlas totals", async () => {
+  installMiniDom();
+  const summary = {
+    vault: { slotCount: 3, setCount: 1, slots: [
+      { placeId: "package:com.facebook.katana", persona: "live", slot: "password", set: true, updatedAt: Date.now() - 60_000 },
+      { placeId: "package:com.facebook.katana", persona: "live", slot: "otp", set: false, updatedAt: null },
+      { placeId: "chrome:https://www.linkedin.com", persona: "live", slot: "password", set: false, updatedAt: null },
+    ] },
+    skills: [{ id: "skill-1", name: "Morning brief", steps: 3, enabled: true, version: 2 }],
+    automations: [{ id: "auto-1", name: "Plug in", trigger: "app_opened", steps: 1, enabled: false }],
+    atlas: { places: 4, rooms: 31, doors: 40 },
+  };
+  const gateway = fakeGateway({ "GET /v1/devices/d1/knowledge": () => summary });
+  const devices = [parseDevice({ ...READY_DEVICE, mobileVersion: "5.0.0-alpha.12.dev1" })];
+  const page = createKnowledgePage({ client: new GatewayClient({ token: "t", fetch: gateway.fetch }), version: "x", devices, device: devices[0], devicesError: null, navigate() {}, selectDevice() {}, refreshDevices: async () => {} });
+  await flush();
+  const text = page.element.textContent;
+  assert.match(text, /1 of 3/);
+  assert.match(text, /Facebook/);
+  assert.match(text, /password · set/);
+  assert.match(text, /otp · not set/);
+  assert.match(text, /www\.linkedin\.com/);
+  assert.match(text, /Morning brief/);
+  assert.match(text, /app opened · 1 step/);
+  assert.match(text, /31/);
+  assert.doesNotMatch(text, /hunter2/);
+  page.destroy();
+});
