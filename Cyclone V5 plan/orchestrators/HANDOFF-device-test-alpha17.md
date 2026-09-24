@@ -1,9 +1,7 @@
-# Handoff — physical-device test of Cyclone V5 alpha.15 + Glass 1.0.0-alpha.8
-
-> **Superseded** by [`HANDOFF-device-test-alpha17.md`](HANDOFF-device-test-alpha17.md) (alpha.17 + Glass alpha.10).
+# Handoff — physical-device test of Cyclone V5 alpha.17 + Glass 1.0.0-alpha.10
 
 **For:** a coding agent running on the owner's Windows PC, phone connected over USB.
-**Replaces:** [`HANDOFF-device-test-alpha13.md`](HANDOFF-device-test-alpha13.md) (alpha.13). Same rules, newer builds, more to test.
+**Replaces:** [`HANDOFF-device-test-alpha15.md`](HANDOFF-device-test-alpha15.md) (alpha.15). Same rules, newer builds, more to test.
 **Goal:** prove on real hardware what CI could not. Install the latest builds, run the matrix, return honest evidence.
 Nothing below has been verified on a physical phone yet; every row starts **UNVERIFIED**.
 
@@ -11,16 +9,16 @@ Read first (10 minutes): `AGENTS.md`, `Cyclone V5 plan/03-glass-v1.md` (what Gla
 
 ## What you are testing
 
-| Piece | Version | New since alpha.13 |
+| Piece | Version | New since alpha.13 (all still to verify) |
 |---|---|---|
-| Cyclone Mobile (phone) | `5.0.0-alpha.15.dev1`, versionCode `156` | Mapping depth; `door-missing` cause; scenario counts in `apps.list`; **Sign in / Already signed in** scenarios; `knowledge.get` carries the never-pay list (counts only). Everything from alpha.13 (connect code, rooms per step, scenarios, versions, knowledge, you are here, mark as expected) |
-| Cyclone One (Windows) | `1.6.0-alpha.15` | Its runtime serves Glass alpha.8 |
-| Cyclone Glass (browser) | `1.0.0-alpha.8` | **Home** (opens here), mapping depth, type + scroll from the PC, Teach from the map, scenario health on Apps, Sign in scenarios, Mapping pass / Your teaching switch, **Never pressed** + Safety, scenarios a run reached, Ask → Open this run |
+| Cyclone Mobile (phone) | `5.0.0-alpha.17.dev1`, versionCode `158` | **Linked PCs** with Log out per PC; notice when a linked PC returns; `wrong-room` cause; mapping depth; `door-missing` cause; scenario counts in `apps.list`; **Sign in / Already signed in** scenarios; `knowledge.get` carries the never-pay list (counts only). Everything from alpha.13 (connect code, rooms per step, scenarios, versions, knowledge, you are here, mark as expected) |
+| Cyclone One (Windows) | `1.6.0-alpha.17` | Its runtime serves Glass alpha.10 |
+| Cyclone Glass (browser) | `1.0.0-alpha.10` | **Issues** tab, live runs, compare with the last good run, Ask again, Goals view, CSV, **Home** (opens here), mapping depth, type + scroll from the PC, Teach from the map, scenario health on Apps, Sign in scenarios, Mapping pass / Your teaching switch, **Never pressed** + Safety, scenarios a run reached, Ask → Open this run |
 
 ## Get the installs
 
-1. From the GitHub prerelease **`v5.0.0-alpha.15.dev1`** download `Cyclone-5.0.0-alpha.15.dev1.apk`,
-   `Cyclone-PC-Companion-1.6.0-alpha.15-Setup.exe` and `SHA256SUMS.txt`. Check: `certutil -hashfile <file> SHA256`.
+1. From the GitHub prerelease **`v5.0.0-alpha.17.dev1`** download `Cyclone-5.0.0-alpha.17.dev1.apk`,
+   `Cyclone-PC-Companion-1.6.0-alpha.17-Setup.exe` and `SHA256SUMS.txt`. Check: `certutil -hashfile <file> SHA256`.
 2. **If that prerelease does not exist, stop and report.** Do not build and sideload your own APK (a differently signed APK
    cannot update the app; uninstalling erases Atlas, Vault slots and settings). Never uninstall Cyclone.
 
@@ -29,8 +27,8 @@ Read first (10 minutes): `AGENTS.md`, `Cyclone V5 plan/03-glass-v1.md` (what Gla
 ```powershell
 adb devices
 adb shell dumpsys package com.cyclone.mobile | findstr "versionName versionCode"   # record BEFORE
-adb install -r Cyclone-5.0.0-alpha.15.dev1.apk                                     # must say Success
-adb shell dumpsys package com.cyclone.mobile | findstr "versionName versionCode"   # expect 5.0.0-alpha.15.dev1 / 156
+adb install -r Cyclone-5.0.0-alpha.17.dev1.apk                                     # must say Success
+adb shell dumpsys package com.cyclone.mobile | findstr "versionName versionCode"   # expect 5.0.0-alpha.17.dev1 / 158
 ```
 
 Windows: close Cyclone One (tray too), right-click the Setup.exe → Properties → Unblock if shown, run it (SmartScreen: More info →
@@ -48,7 +46,10 @@ Run anyway), start Cyclone One. Open Glass: Cyclone One → Settings → **Open 
 
 | ID | Test | Pass when |
 |---|---|---|
-| **D0** | Versions | Phone `5.0.0-alpha.15.dev1` / 156; One `1.6.0-alpha.15`; Glass sidebar `1.0.0-alpha.8` |
+| **D0** | Versions | Phone `5.0.0-alpha.17.dev1` / 158; One `1.6.0-alpha.17`; Glass sidebar `1.0.0-alpha.10` |
+| **L1** | Linked PCs | Phone → PC Gateway lists this PC under **Linked PCs** with "Active now"; Glass Devices says "The phone lists this PC as …" with the same name. **Log out** (confirm) → Glass says the phone logged this PC out and offers Connect; reconnect with a code |
+| **I1** | Issues tab | App → **Issues** lists open problems critical first; each button opens the fix (route on the map, latest run, Versions). An app with nothing wrong says "No open issues" |
+| **R6** | Live run + compare | Ask from the Phone page → **Watch it step by step** opens the inspector with "Live · updating" and steps appear; after a failed run of a sentence that once worked, the inspector shows "Compared with the last good run" |
 | **HM1** | Home | With a phone connected Glass opens on **Home**: phone tile, apps mapped, runs today; Needs attention lists apps with a failed last run / critical scenarios / updated since mapped, each link opens the right place; Latest runs open the inspector |
 | **M0** | Mapping depth | App → Map: the depth picker offers Quick / Standard / Deep; a Quick pass stops sooner than Deep on the same app |
 | **T1** | Type + scroll | Phone page → Take control → type a word into a focused search field and scroll a list from the PC; Give back returns control |
@@ -76,8 +77,8 @@ Run anyway), start Cyclone One. Open Glass: Cyclone One → Settings → **Open 
 
 - After any FAIL: `adb logcat -d -v time | findstr /i "cyclone"` (redact), the Glass **Download report** JSON for failed/stopped
   runs, screenshots of Devices, a Run inspector with rooms, Scenarios board, Versions, Knowledge.
-- Write `Cyclone V5 plan/orchestrators/glass/returns/RETURN-device-test-alpha15.md`: device + PC facts and SHA256 checks; the
+- Write `Cyclone V5 plan/orchestrators/glass/returns/RETURN-device-test-alpha17.md`: device + PC facts and SHA256 checks; the
   matrix filled in (every row); bugs (steps, expected vs actual, evidence, **blocker** or **issue**); for every failed/stopped run
   one line "what really happened vs the cause Glass shows".
-- Commit it on a new branch `device-test/alpha15` and push. Never push to `main`, `v5/integration` or release branches; never
+- Commit it on a new branch `device-test/alpha17` and push. Never push to `main`, `v5/integration` or release branches; never
   commit raw logs or screenshots with personal data.

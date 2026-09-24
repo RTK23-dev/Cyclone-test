@@ -13,7 +13,8 @@ release passed exact-source CI (phone build + tests, Windows installer build, Gl
 | [v5.0.0-alpha.13.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.13.dev1) | 5.0.0-alpha.13.dev1 | 1.6.0-alpha.13 | 1.0.0-alpha.6 | Knowledge, Screens / Runs tabs, mapping passes in Runs |
 | [v5.0.0-alpha.14.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.14.dev1) | 5.0.0-alpha.14.dev1 | 1.6.0-alpha.14 | 1.0.0-alpha.7 | Mapping depth, type + scroll from the PC, Teach |
 | [v5.0.0-alpha.15.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.15.dev1) | 5.0.0-alpha.15.dev1 | 1.6.0-alpha.15 | 1.0.0-alpha.8 | Home, Sign in scenarios, Never pressed |
-| v5.0.0-alpha.16.dev1 (CI running at the time of writing) | 5.0.0-alpha.16.dev1 (157) | 1.6.0-alpha.16 | 1.0.0-alpha.9 | Linked PCs, wrong room, compare with the last good run |
+| [v5.0.0-alpha.16.dev1](https://github.com/premiumcentraal-boop/Cyclone/releases/tag/v5.0.0-alpha.16.dev1) | 5.0.0-alpha.16.dev1 | 1.6.0-alpha.16 | 1.0.0-alpha.9 | Linked PCs, wrong room, compare with the last good run |
+| v5.0.0-alpha.17.dev1 (CI running at the time of writing) | 5.0.0-alpha.17.dev1 (158) | 1.6.0-alpha.17 | 1.0.0-alpha.10 | App Issues tab, live runs, PC connected notice |
 
 Another session works on the same version line: it published alpha.9 (Teal Matrix redesign) and claimed alpha.12 (calmer
 Trace Field, no release tag). Their branches were merged in, not overwritten, so every release above contains that work.
@@ -27,6 +28,7 @@ Trace Field, no release tag). Their branches were merged in, not overwritten, so
 - **Why did a run fail?** The inspector shows rooms per step, map vs model, the route on the map, the cause with a fix link
   (`stale-door`, `door-missing`, `wrong-room`, login wall…), the scenarios it reached, a comparison with the last good run
   of the same sentence, and **Ask again**. Runs can be grouped by sentence (**Goals**). Running runs update live.
+- **Issues** per app: every open problem with a button to its fix. Runs update live while they are going.
 - **Apps**: Map (depth: Quick / Standard / Deep, teach from the map), Screens, Scenarios (Sign in / Already signed in first,
   health from real runs, board view, mapping pass or your teaching, stale flag), Versions (needs remap), Runs.
 - **Knowledge**: Vault slots as set / not set, **Never pressed** (guarded pay / send / delete doors per app), skills,
@@ -38,6 +40,6 @@ Trace Field, no release tag). Their branches were merged in, not overwritten, so
   classifier; Glass still opens through the one-time launch link from Cyclone One or `cyclone-device-gateway glass`.
 - **Clipboard sync on by default** — blocked by the safety classifier; it stays opt-in.
 - **Physical-device verification** of everything above: run
-  [`HANDOFF-device-test-alpha15.md`](HANDOFF-device-test-alpha15.md) (update the versions to alpha.16 when it is out).
+  [`HANDOFF-device-test-alpha17.md`](HANDOFF-device-test-alpha17.md).
 - Next cuts: redacted before/after frames per step, expected room recorded by the agent itself, per-version forget, data
   retention settings.
