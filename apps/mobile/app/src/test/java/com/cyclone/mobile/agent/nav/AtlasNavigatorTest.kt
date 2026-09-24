@@ -60,4 +60,27 @@ class AtlasNavigatorTest {
         port.markDanger(place, "mapping", account, "door:menu:2222222222222222", MappingDanger.PAY)
         assertNull(next())
     }
+
+    @Test fun wrongMappedRoomReroutesToTheOriginalDestination() {
+        val detour = "screen:menu:cccccccccccccccc"
+        val recoveryDoor = "door:account:3333333333333333"
+        port.recordVerified(place, "mapping", VerifiedStructure(detour, account, recoveryDoor,
+            MappingDoorKind.ACCOUNT, "detour", "account"))
+        val first = next()!!
+        navigator.dispatched(first)
+        assertFalse(navigator.verified(first, place, detour, true))
+        val second = next(detour, listOf(AtlasNavigator.Target("recovery-element",
+            setOf(AtlasStoreMappingPort.doorDigest(recoveryDoor)), true)))!!
+        assertTrue(second.rerouted)
+        assertEquals(account, second.targetRoom)
+        assertEquals(detour, second.fromRoom)
+        assertEquals("recovery-element", second.elementId)
+    }
+
+    @Test fun unmappedDetourOrNoRouteFallsBackWithoutAnotherTap() {
+        val first = next()!!
+        navigator.dispatched(first)
+        navigator.verified(first, place, "screen:menu:dddddddddddddddd", true)
+        assertNull(next("screen:menu:dddddddddddddddd"))
+    }
 }

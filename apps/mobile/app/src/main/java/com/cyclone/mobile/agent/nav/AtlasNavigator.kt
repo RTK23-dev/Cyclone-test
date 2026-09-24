@@ -13,11 +13,14 @@ class AtlasNavigator {
         val elementId: String,
         val observationId: String,
         val edgeId: String,
+        val objective: String,
+        val rerouted: Boolean = false,
     )
 
     private val attempted = mutableSetOf<String>()
     private var lookAfterMiss = false
     val needsLook: Boolean get() = lookAfterMiss
+    private var recovery: Step? = null
 
     fun next(
         store: AtlasStore,
@@ -27,10 +30,13 @@ class AtlasNavigator {
         observationId: String,
         targets: List<Target>,
     ): Step? {
-        if (lookAfterMiss) {
+        val reroute = recovery?.takeIf { it.placeId == placeId && it.objective == goal }
+        recovery = null
+        if (lookAfterMiss && reroute == null) {
             lookAfterMiss = false
             return null
         }
+        lookAfterMiss = false
         if (observationId.isBlank()) return null
         val room = runCatching { GraphNodeId(roomId) }.getOrNull() ?: return null
         val snapshots = store.places().filter { it.place.id == placeId }
@@ -39,15 +45,12 @@ class AtlasNavigator {
             .sortedWith(compareByDescending<AtlasGraphSnapshot> { it.screens.size }
                 .thenBy { if (it.place.persona == AtlasPersona.LIVE) 0 else 1 })
         for (snapshot in snapshots) {
-            val hint = AtlasRetriever(store).findHint(snapshot.place.key, goal, room) ?: continue
-            val path = hint.candidatePath
-            if (path.size < 2 || path.first() != room || hint.danger != AtlasDanger.NONE) continue
-            val edges = path.zipWithNext().map { (from, to) ->
-                snapshot.edges.filter { it.key.from == from && it.key.to == to && safe(it, snapshot) }
-                    .singleOrNull()
-            }
-            if (edges.any { it == null }) continue
-            val edge = edges.first() ?: continue
+            val destination = reroute?.targetRoom?.let(::GraphNodeId)
+                ?: AtlasRetriever(store).findHint(snapshot.place.key, goal, room)?.destinationScreen ?: continue
+            val eligible = snapshot.edges.filter { safe(it, snapshot) &&
+                "$placeId|${AtlasGraphIds.wireEdgeId(it.key)}" !in attempted }
+            val edges = AtlasRoutes.shortest(room, eligible)[destination] ?: continue
+            val edge = edges.firstOrNull() ?: continue
             val meta = snapshot.edgeMetadata.singleOrNull { it.key == edge.key } ?: continue
             val edgeId = AtlasGraphIds.wireEdgeId(edge.key)
             if ("$placeId|$edgeId" in attempted) continue
@@ -55,8 +58,8 @@ class AtlasNavigator {
             // Count unsafe matches too: a duplicate cannot be made unique by filtering one away.
             val target = targets.filter { selectorKey in it.selectorKeys }.singleOrNull()
                 ?.takeIf { it.safe } ?: continue
-            return Step(placeId, roomId, edge.key.to.value, hint.destinationScreen.value,
-                target.elementId, observationId, edgeId)
+            return Step(placeId, roomId, edge.key.to.value, destination.value,
+                target.elementId, observationId, edgeId, goal, reroute != null)
         }
         return null
     }
@@ -65,7 +68,10 @@ class AtlasNavigator {
 
     fun verified(step: Step, placeId: String?, roomId: String?, accepted: Boolean): Boolean {
         val matches = accepted && placeId == step.placeId && roomId == step.expectedRoom
-        if (!matches) lookAfterMiss = true
+        if (!matches) {
+            lookAfterMiss = true
+            if (accepted && placeId == step.placeId && roomId != null && roomId != step.fromRoom) recovery = step
+        }
         return matches
     }
 

@@ -188,7 +188,7 @@ internal object GatewayV5KnowledgeAdapter {
                 }))
         }
 
-        val routes = if (entry == null) emptyMap() else shortestRoutes(entry, doors)
+        val routes = if (entry == null) emptyMap() else com.cyclone.mobile.agent.nav.AtlasRoutes.shortest(entry, doors)
         val signIn = if (entry == null) emptyList() else signInScenarios(entry, routes, doors, screens.mapValues { it.value.purpose })
             .map { (kind, path) -> scenario(kind, if (kind == KIND_SIGN_IN) "Sign in" else "Already signed in", entry, path) }
         val reach = routes.entries
@@ -259,23 +259,6 @@ internal object GatewayV5KnowledgeAdapter {
         val home = snap.screens.firstOrNull { it.screenId in rooms && it.purpose.equals("home", ignoreCase = true) }?.screenId
         return home ?: rooms.filter { it !in incoming }.maxWithOrNull(compareBy<GraphNodeId> { out[it] ?: 0 }.thenByDescending { it.value })
             ?: rooms.maxWithOrNull(compareBy<GraphNodeId> { out[it] ?: 0 }.thenByDescending { it.value })
-    }
-
-    /** Breadth-first: fewest doors from the entry to every reachable room; ties go to the most trusted door. */
-    private fun shortestRoutes(entry: GraphNodeId, doors: List<TemporalKnowledgeEdge>): Map<GraphNodeId, List<TemporalKnowledgeEdge>> {
-        val out = doors.groupBy { it.key.from }
-        val routes = linkedMapOf(entry to emptyList<TemporalKnowledgeEdge>())
-        val queue = ArrayDeque(listOf(entry))
-        while (queue.isNotEmpty()) {
-            val room = queue.removeFirst()
-            out[room].orEmpty().sortedByDescending { it.evidence.confidence }.forEach { door ->
-                if (door.key.to !in routes) {
-                    routes[door.key.to] = routes.getValue(room) + door
-                    queue.addLast(door.key.to)
-                }
-            }
-        }
-        return routes
     }
 
     private fun title(purpose: String?): String {

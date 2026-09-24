@@ -807,6 +807,8 @@ class OpenRouterAdaptiveAgent(private val context: Context,
                 if (atlasStep != null) {
                     session.atlasStep = atlasStep
                     session.atlasNavigator.dispatched(atlasStep)
+                    if (atlasStep.rerouted) AgentTraceRuntime.event(context, traceId, "RECOVERY_SELECTED",
+                        "Found a mapped route from the observed room", code = "atlas.reroute", ok = true)
                     return CyclonePlanResult.Valid(CycloneModelTurn(
                         directive = CycloneModelDirective.ACT,
                         actionSignature = "atlas:${atlasStep.edgeId}",
