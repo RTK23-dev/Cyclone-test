@@ -38,6 +38,7 @@ class RunInsightTest {
         GatewayV5RunsAdapter.events = { emptyList() }
         GatewayV5RunsAdapter.marks = com.cyclone.mobile.gateway.RunMarks.InMemory()
         GatewayV5RunsAdapter.doorsOut = { _, _ -> null }
+        GatewayV5RunsAdapter.doorTargets = { _, _ -> null }
     }
 
     @Test
@@ -258,5 +259,29 @@ class RunInsightTest {
         assertEquals("model-gave-up", GatewayV5RunsAdapter.dispatch("runs.list", JSONObject()).getJSONArray("runs").getJSONObject(0).getJSONObject("cause").getString("kind"))
         GatewayV5RunsAdapter.doorsOut = { _, _ -> null }
         assertEquals("model-gave-up", GatewayV5RunsAdapter.dispatch("runs.get", JSONObject().put("runId", run)).getJSONObject("cause").getString("kind"))
+    }
+
+    @Test
+    fun aMapDoorThatLandsInAnUnexpectedRoomIsWrongRoom() {
+        val home = "screen:home:aaaaaaaaaaaaaaaa"
+        val list = "screen:list:bbbbbbbbbbbbbbbb"
+        val settings = "screen:settings:cccccccccccccccc"
+        val events = opening().apply {
+            add(ev("TOOL_REQUESTED", "Known door: Open inbox", "tool.requested",
+                detail = "action=graph:door-1 · room=$home · place=package:com.facebook.katana · appv=512.0.0"))
+            add(ev("VERIFICATION", "Screen changed", "verify.progress", ok = true, detail = "roomAfter=$settings"))
+            add(ev("NON_CONVERGENCE", "non convergence", "classifier.non_convergence", ok = false))
+        }
+        GatewayV5RunsAdapter.sessions = { listOf(session("FAILED")) }
+        GatewayV5RunsAdapter.session = { session("FAILED") }
+        GatewayV5RunsAdapter.events = { events }
+        GatewayV5RunsAdapter.doorTargets = { _, room -> if (room == home) setOf(list) else null }
+        val cause = GatewayV5RunsAdapter.dispatch("runs.get", JSONObject().put("runId", run)).getJSONObject("cause")
+        assertEquals("wrong-room", cause.getString("kind"))
+        assertEquals(3, cause.getInt("stepIndex"))
+        // The door the map knows leads where the run went: the model's cause stands.
+        GatewayV5RunsAdapter.doorTargets = { _, _ -> setOf(settings) }
+        assertEquals("model-gave-up", GatewayV5RunsAdapter.dispatch("runs.get", JSONObject().put("runId", run)).getJSONObject("cause").getString("kind"))
+        GatewayV5RunsAdapter.doorTargets = { _, _ -> null }
     }
 }

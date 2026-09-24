@@ -39,8 +39,22 @@ internal object GatewayV5RunsAdapter {
     /** Doors out of a room in the mapping pass, or null when the room is not on the map (seam; Atlas in production). */
     @Volatile internal var doorsOut: (placeId: String, roomId: String) -> Int? = { _, _ -> null }
 
+    /** Rooms the map's doors lead to from a room, or null when the room is not on the map (seam; Atlas in production). */
+    @Volatile internal var doorTargets: (placeId: String, roomId: String) -> Set<String>? = { _, _ -> null }
+
     fun install(context: android.content.Context) {
         if (marks is RunMarks.InMemory) marks = RunMarks.Prefs(context.applicationContext)
+        doorTargets = { placeId, roomId ->
+            runCatching {
+                com.cyclone.mobile.applearner.graphv2.AtlasRuntime.initialize(context.applicationContext)
+                val room = com.cyclone.mobile.brain.graphv2.GraphNodeId(roomId)
+                val snapshots = com.cyclone.mobile.brain.graphv2.AtlasPersona.values().mapNotNull { persona ->
+                    com.cyclone.mobile.applearner.graphv2.AtlasRuntime.store.snapshot(com.cyclone.mobile.brain.graphv2.AtlasPlaceKey(placeId, persona))
+                }.filter { snapshot -> snapshot.screens.any { it.screenId == room } }
+                if (snapshots.isEmpty()) return@runCatching null
+                snapshots.flatMap { snapshot -> snapshot.edges.filter { it.key.from == room && it.key.type in NAVIGATION }.map { it.key.to.value } }.toSet()
+            }.getOrNull()
+        }
         doorsOut = { placeId, roomId ->
             runCatching {
                 com.cyclone.mobile.applearner.graphv2.AtlasRuntime.initialize(context.applicationContext)
@@ -66,6 +80,7 @@ internal object GatewayV5RunsAdapter {
      */
     fun withMapCause(summary: JSONObject, steps: List<RunInsight.Step>): JSONObject {
         val cause = summary.optJSONObject("cause") ?: return summary
+        wrongRoom(cause, steps)?.let { return summary.put("cause", it) }
         if (cause.optString("kind") !in setOf("model-gave-up", "timeout", "unknown", "verification-failed")) return summary
         val last = steps.lastOrNull { it.placeId != null && (it.roomAfter ?: it.roomId) != null } ?: return summary
         val room = last.roomAfter ?: last.roomId ?: return summary
@@ -78,6 +93,27 @@ internal object GatewayV5RunsAdapter {
             .put("detail", cause.optString("detail"))
             .put("fix", "Map this room (Remap) or teach the way on, so Cyclone knows where to go next."))
         return summary
+    }
+
+    /**
+     * `wrong-room` (plan 11): a step the map chose left a mapped room for a room none of that room's doors lead to.
+     * Only replaces generic causes; a login wall, GATE stop or your own stop keeps its own cause.
+     */
+    private fun wrongRoom(cause: JSONObject, steps: List<RunInsight.Step>): JSONObject? {
+        if (cause.optString("kind") !in setOf("model-gave-up", "timeout", "unknown", "verification-failed", "unchanged", "element-not-found", "wrong-room")) return null
+        val step = steps.lastOrNull { step ->
+            val from = step.roomId
+            val to = step.roomAfter
+            if (step.decisionSource != "map" || step.placeId == null || from == null || to == null || from == to) return@lastOrNull false
+            val targets = runCatching { doorTargets(step.placeId, from) }.getOrNull() ?: return@lastOrNull false
+            targets.isNotEmpty() && to !in targets
+        } ?: return null
+        return JSONObject()
+            .put("kind", "wrong-room")
+            .put("stepIndex", step.index)
+            .put("headline", "A known door led to a different room")
+            .put("detail", cause.optString("detail"))
+            .put("fix", "Remap this room; the app now sends this door somewhere else.")
     }
 
     fun dispatch(op: String, args: JSONObject): JSONObject = when (op) {
