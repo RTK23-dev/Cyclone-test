@@ -232,3 +232,10 @@
 .ask-recent-goal:hover {
   background: var(--surface-hover);
 }
+
+.share-box {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  margin-right: var(--space-2);
+}

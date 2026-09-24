@@ -30,6 +30,8 @@ from .readiness import enrich_device_public
 from .layer2 import Layer2WorkspaceService
 from ..glass import LaunchCodes, create_glass_router, resolve_glass_dist
 from .sessions import ExecutionSessionService
+from .lan_share import LanShareDirectory
+from .v5_contract import V5ContractService
 from .trust_v33 import PCTrustCoordinator
 from .video import StreamMessage, VideoFleetLimiter, VideoStreamController
 from .workspace import FleetWorkspaceStore
@@ -188,9 +190,17 @@ class DesktopRuntime:
             self.fleet, self.agent, device_id, snapshot=self._snapshot_for_batch,
         ))
         self.video_limiter = VideoFleetLimiter(max_sources=12, max_focus=2)
+        # Wi-Fi screen share: the phone's own stream when it shares (AnyDesk-style), ADB screenshots otherwise.
+        share_contract = V5ContractService(self.fleet)
+        self.lan_share = LanShareDirectory(
+            status=share_contract.share_status,
+            trust_record=self.trust.store.record,
+            sign=self.trust.identity.sign,
+        )
         self.fleet.set_video_factory(lambda session: VideoStreamController(
             session,
             self.video_limiter,
+            lan_share=self.lan_share.for_device(session.device_id),
             diagnostic=lambda stage, details, device_id=session.device_id: self.live_diagnostics.mark(
                 device_id,
                 stage,

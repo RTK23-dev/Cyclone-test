@@ -157,7 +157,47 @@ export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): Gl
 
   const stage = el("section", "phone-stage");
   const bar = el("div", "phone-bar");
-  bar.append(ownerChip, controls);
+  // Wi-Fi screen share (AnyDesk-style): the phone streams its own screen; Glass only asks, the owner taps on the phone.
+  const shareBox = el("div", "share-box");
+  let sharing = false;
+  let shareAsked = false;
+  const renderShare = (): void => {
+    if (sharing) {
+      setChildren(shareBox, chip("Wi‑Fi share on", "success"));
+      return;
+    }
+    const shareButton = actionButton(shareAsked ? "Asked, tap the notification on the phone" : "Share over Wi‑Fi", { icon: "phone", variant: "ghost" });
+    shareButton.title = "Asks the phone to share its screen with this PC over Wi‑Fi. Nothing starts until you tap the notification on the phone.";
+    shareButton.disabled = shareAsked;
+    shareButton.addEventListener("click", async () => {
+      shareButton.disabled = true;
+      try {
+        const reply = await ctx.client.post<{ prompted?: boolean; sharing?: boolean }>(`/v1/devices/${encodeURIComponent(device.id)}/share/request`);
+        sharing = reply?.sharing === true;
+        shareAsked = !sharing;
+      } catch {
+        shareAsked = false;
+        shareButton.title = "This phone cannot share over Wi‑Fi yet. Update Cyclone on the phone.";
+      }
+      renderShare();
+    });
+    setChildren(shareBox, shareButton);
+  };
+  const refreshShare = async (): Promise<void> => {
+    try {
+      const status = await ctx.client.get<{ sharing?: boolean }>(`/v1/devices/${encodeURIComponent(device.id)}/share/status`);
+      const now = status?.sharing === true;
+      if (now !== sharing) {
+        sharing = now;
+        if (now) shareAsked = false;
+        renderShare();
+      }
+    } catch {
+      /* older phones: keep the button; it explains itself when pressed */
+    }
+  };
+  renderShare();
+  bar.append(ownerChip, shareBox, controls);
   stage.append(bar, live.element, keys, typing, typeNote, note);
   const here = el("section", "card here-card");
   here.setAttribute("role", "status");
@@ -189,8 +229,12 @@ export function createPhonePage(ctx: GlassContext, deps: PhonePageDeps = {}): Gl
     }
   };
   const hereTimer = deps.hereTimer ?? { setInterval: (fn: () => void, ms: number) => setInterval(fn, ms), clearInterval: (h: unknown) => clearInterval(h as number) };
-  const hereHandle = hereTimer.setInterval(() => void refreshHere(), 3_000);
+  const hereHandle = hereTimer.setInterval(() => {
+    void refreshHere();
+    void refreshShare();
+  }, 3_000);
   void refreshHere();
+  void refreshShare();
 
   const side = el("div", "phone-side");
   side.append(here, ask.element);

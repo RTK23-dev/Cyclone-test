@@ -192,3 +192,79 @@ class LanShareClient:
     def _write_line(self, value: dict) -> None:
         assert self._sock is not None
         self._sock.sendall((json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8"))
+
+
+class LanShareDirectory:
+    """Where each trusted phone shares its screen on the local network, learned from ``share.status``.
+
+    The last good address is kept, so the live view survives the cable being unplugged while the phone keeps sharing.
+    """
+
+    STATUS_TTL_S = 3.0
+
+    def __init__(self, status: Callable[[str], dict], trust_record: Callable[[str], dict | None], sign: Callable[[str], str],
+                 *, clock: Callable[[], float] | None = None, client_factory: Callable[..., LanShareClient] | None = None):
+        import time as _time
+
+        self._status = status
+        self._trust_record = trust_record
+        self._sign = sign
+        self._clock = clock or _time.monotonic
+        self._client_factory = client_factory or LanShareClient
+        self._cache: dict[str, tuple[float, dict]] = {}
+        self._last_good: dict[str, dict] = {}
+
+    def share_status(self, device_id: str) -> dict | None:
+        now = self._clock()
+        cached = self._cache.get(device_id)
+        if cached and now - cached[0] < self.STATUS_TTL_S:
+            return cached[1]
+        try:
+            value = self._status(device_id)
+        except Exception:
+            # Bridge unreachable (cable out, ADB restarting): the phone may still be sharing over Wi-Fi.
+            value = self._last_good.get(device_id)
+        if value and value.get("sharing"):
+            self._last_good[device_id] = value
+        elif value is not None:
+            self._last_good.pop(device_id, None)
+        self._cache[device_id] = (now, value or {})
+        return value
+
+    def available(self, device_id: str) -> bool:
+        value = self.share_status(device_id)
+        return bool(value and value.get("sharing") and value.get("addresses") and value.get("port"))
+
+    def open(self, device_id: str) -> LanShareClient | None:
+        value = self.share_status(device_id)
+        record = self._trust_record(device_id) or {}
+        trust_id, phone_id, phone_key = (str(record.get(k) or "") for k in ("trustId", "phoneId", "phonePublicKey"))
+        if not value or not value.get("sharing") or not (trust_id and phone_id and phone_key):
+            return None
+        if value.get("phoneId") and value.get("phoneId") != phone_id:
+            return None
+        trust = PhoneTrust(trust_id=trust_id, phone_id=phone_id, phone_public_key=phone_key)
+        for address in value.get("addresses") or []:
+            client = self._client_factory(str(address), int(value["port"]), trust, self._sign, timeout_s=5.0)
+            try:
+                client.open()
+                return client
+            except (OSError, LanShareError):
+                client.close()
+        self._cache.pop(device_id, None)
+        return None
+
+    def for_device(self, device_id: str) -> "DeviceLanShare":
+        return DeviceLanShare(self, device_id)
+
+
+@dataclass(frozen=True)
+class DeviceLanShare:
+    directory: LanShareDirectory
+    device_id: str
+
+    def available(self) -> bool:
+        return self.directory.available(self.device_id)
+
+    def open(self) -> LanShareClient | None:
+        return self.directory.open(self.device_id)

@@ -31,6 +31,8 @@ JPEG_INIT_TIMEOUT_S = 20.0
 JPEG_STALE_TIMEOUT_S = 15.0
 JPEG_SCREENCAP_TIMEOUT_S = JPEG_INIT_TIMEOUT_S
 JPEG_PRIMARY_BACKEND = "adb-screenshot"
+LAN_SHARE_BACKEND = "lan-share"
+LAN_RECHECK_S = 5.0
 
 
 @dataclass(frozen=True)
@@ -88,7 +90,11 @@ class VideoStreamController:
         media_backend: ScrcpyMediaBackend | None = None,
         *,
         jpeg_first: bool = True,
+        lan_share: Any | None = None,
     ):
+        # Wi-Fi screen share (AnyDesk-style): an object with available() -> bool and open() -> client|None for this
+        # phone. When the phone shares its screen, frames come from it over Wi-Fi; otherwise from ADB screenshots.
+        self.lan_share = lan_share
         self.session = session
         self.limiter = limiter
         self.jpeg_first = jpeg_first
@@ -246,6 +252,13 @@ class VideoStreamController:
             )
             return
         try:
+            if self.lan_share is not None and self.jpeg_first:
+                # Prefer the phone's own Wi-Fi share; fall back to ADB screenshots and switch back as soon as it shares.
+                while not stop.is_set():
+                    if self._produce_lan(profile, stop):
+                        continue
+                    self._produce_jpeg(profile, stop, until=self._lan_ready)
+                return
             if self.jpeg_first:
                 self._produce_jpeg(profile, stop)
             else:
@@ -410,7 +423,52 @@ class VideoStreamController:
         finally:
             media.unsubscribe(events)
 
-    def _produce_jpeg(self, profile: str, stop: threading.Event) -> None:
+    def _lan_ready(self) -> bool:
+        try:
+            return bool(self.lan_share is not None and self.lan_share.available())
+        except Exception:
+            return False
+
+    def _produce_lan(self, profile: str, stop: threading.Event) -> bool:
+        """Stream the phone's Wi-Fi share. False when it is not sharing or unreachable (caller falls back)."""
+        try:
+            client = self.lan_share.open() if self.lan_share is not None else None
+        except Exception:
+            client = None
+        if client is None:
+            return False
+        codec = "image/jpeg"
+        width, height = self._target_dimensions(VIDEO_PROFILES[profile].max_long_edge)
+        self._broadcast(profile, StreamMessage("text", self._init_json(profile, codec, LAN_SHARE_BACKEND, fallback=False, width=width, height=height)))
+        self._mark("server.stream.init", {"profile": profile, "source": LAN_SHARE_BACKEND})
+        last_keepalive = time.monotonic()
+        frames = 0
+        try:
+            for kind, payload in client.records():
+                if stop.is_set():
+                    break
+                if kind == 1 and payload[:2] == b"\xff\xd8":
+                    self._last_safe_frame = payload
+                    self._last_frame_meta = (payload, codec, None, None)
+                    self._broadcast(profile, StreamMessage("binary", self._packet(payload, pts_us=now_ms() * 1000)))
+                    last_keepalive = time.monotonic()
+                    frames += 1
+                    if frames == 1:
+                        self._mark("server.frame.first", {"profile": profile, "source": LAN_SHARE_BACKEND})
+                    with self._lock:
+                        self._frames_by_profile[profile] += 1
+                else:
+                    last_keepalive = self._maybe_keepalive(profile, last_keepalive)
+        except Exception as exc:
+            self._mark("server.lan.ended", {"profile": profile, "errorClass": exc.__class__.__name__, "retryable": True})
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+        return True
+
+    def _produce_jpeg(self, profile: str, stop: threading.Event, until: Any | None = None) -> None:
         codec = _image_codec()
         width, height = self._target_dimensions(VIDEO_PROFILES[profile].max_long_edge)
         self._broadcast(
@@ -432,20 +490,25 @@ class VideoStreamController:
             {"profile": profile, "source": JPEG_PRIMARY_BACKEND, "jpegFirst": True},
         )
         target_fps = DEGRADED_FOCUS_FPS if profile == "focus" else DEGRADED_THUMBNAIL_FPS
-        self._produce_images(profile, stop, target_fps=target_fps)
+        self._produce_images(profile, stop, target_fps=target_fps, until=until)
 
     def _produce_degraded(self, profile: str, stop: threading.Event) -> None:
         # Retained name for older tests/callers; JPEG is the primary physical preview path.
         self._produce_jpeg(profile, stop)
 
-    def _produce_images(self, profile: str, stop: threading.Event, target_fps: int) -> None:
+    def _produce_images(self, profile: str, stop: threading.Event, target_fps: int, until: Any | None = None) -> None:
         interval = 1.0 / max(1, target_fps)
+        next_until_check = time.monotonic() + LAN_RECHECK_S
         sleeping_sent = False
         consecutive_failures = 0
         outage_active = False
         last_keepalive = time.monotonic()
         while not stop.is_set():
             started = time.monotonic()
+            if until is not None and started >= next_until_check:
+                next_until_check = started + LAN_RECHECK_S
+                if until():
+                    return
             if not self.session.screen_awake:
                 if not sleeping_sent:
                     self._broadcast(

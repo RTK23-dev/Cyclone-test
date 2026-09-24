@@ -28,6 +28,15 @@ def create_v5_contract_router(runtime: Any, token: str) -> APIRouter:
     def atlas_here(device_id: str):
         return _call(lambda: service.atlas_here(device_id))
 
+    @router.get("/v1/devices/{device_id}/share/status", dependencies=[Depends(auth)])
+    def share_status(device_id: str):
+        return _call(lambda: service.share_status(device_id))
+
+    @router.post("/v1/devices/{device_id}/share/request", dependencies=[Depends(auth)])
+    def share_request(device_id: str):
+        trust = getattr(runtime, "trust", None)
+        return _call(lambda: service.share_request(device_id, getattr(trust, "pc_label", None)))
+
     @router.get("/v1/devices/{device_id}/knowledge", dependencies=[Depends(auth)])
     def knowledge_summary(device_id: str):
         return _call(lambda: service.knowledge_summary(device_id))

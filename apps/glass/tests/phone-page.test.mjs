@@ -259,3 +259,27 @@ test("live view never gives up: an unavailable stream is reopened on its own and
   assert.equal(timers.length, 0);
   view.destroy();
 });
+
+test("Share over Wi-Fi asks the phone; the owner taps the notification; then the chip says it is on", async () => {
+  const fake = phone();
+  let sharing = false;
+  const calls = [];
+  const gateway = fakeGateway({
+    "GET /v1/devices/d1/share/status": () => ({ sharing, port: sharing ? 47823 : null, addresses: sharing ? ["192.168.1.20"] : [], phoneId: "x", protocol: "cyclone-lan-share-v1" }),
+    "POST /v1/devices/d1/share/request": () => {
+      calls.push("request");
+      return { prompted: true, sharing: false };
+    },
+    "POST /v1/devices/d1/ask/status": () => fake.state.ask,
+  });
+  fake.gateway = gateway;
+  const opened = open(fake);
+  await flush();
+  const button = [...opened.page.element.querySelectorAll(".share-box .btn")][0];
+  assert.match(button.textContent, /Share over Wi‑Fi/);
+  button.click();
+  await flush();
+  assert.deepEqual(calls, ["request"]);
+  assert.match(opened.page.element.querySelector(".share-box").textContent, /tap the notification on the phone/);
+  opened.page.destroy();
+});

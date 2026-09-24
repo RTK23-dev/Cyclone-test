@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import re
 import secrets
 from typing import Any
@@ -29,6 +30,8 @@ V5_OPS = frozenset({
     "scenarios.list",
     "knowledge.get",
     "atlas.here",
+    "share.status",
+    "share.request",
 })
 ASK_STATES = frozenset({"idle", "working", "action-needed", "needs-secret", "done", "failed"})
 ASK_MILESTONE_STATES = frozenset({"pending", "active", "done", "action-needed", "failed"})
@@ -792,6 +795,13 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
     if op == "knowledge.get":
         _validate_knowledge_summary(value)
         return value
+    if op == "share.status":
+        _validate_share_status(value)
+        return value
+    if op == "share.request":
+        if set(value) != {"prompted", "sharing"} or not all(isinstance(value[k], bool) for k in value):
+            raise _bad_knowledge("share.request")
+        return value
     if op == "atlas.here":
         if set(value) != {"placeId", "roomId", "appVersion", "observedAt"}:
             raise _bad_knowledge("atlas.here")
@@ -803,6 +813,33 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
             raise _bad_knowledge("here facts")
         return value
     raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
+
+
+SHARE_PHONE_ID = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
+SHARE_PROTOCOL = "cyclone-lan-share-v1"
+
+
+def _validate_share_status(value: dict[str, Any]) -> None:
+    """Wi-Fi share facts: sharing flag, a port and private IPv4 addresses only (never public or loopback)."""
+    if set(value) != {"sharing", "port", "addresses", "phoneId", "protocol"} or not isinstance(value["sharing"], bool):
+        raise _bad_knowledge("share.status")
+    if value["protocol"] != SHARE_PROTOCOL or not isinstance(value["phoneId"], str) or (value["phoneId"] and not SHARE_PHONE_ID.match(value["phoneId"])):
+        raise _bad_knowledge("share protocol")
+    addresses = value["addresses"]
+    if not isinstance(addresses, list) or len(addresses) > 4:
+        raise _bad_knowledge("share addresses")
+    for address in addresses:
+        try:
+            ip = ipaddress.IPv4Address(address) if isinstance(address, str) else None
+        except ipaddress.AddressValueError:
+            ip = None
+        if ip is None or not ip.is_private or ip.is_loopback:
+            raise _bad_knowledge("share address")
+    if value["sharing"]:
+        if not _is_int(value["port"], minimum=1) or value["port"] > 65535 or not addresses:
+            raise _bad_knowledge("share port")
+    elif value["port"] is not None or addresses:
+        raise _bad_knowledge("share idle")
 
 
 class V5ContractService:
@@ -840,6 +877,13 @@ class V5ContractService:
 
     def atlas_here(self, device_id: str) -> dict[str, Any]:
         return self._call(device_id, "atlas.here", {})
+
+    def share_status(self, device_id: str) -> dict[str, Any]:
+        return self._call(device_id, "share.status", {})
+
+    def share_request(self, device_id: str, pc_label: str | None = None) -> dict[str, Any]:
+        args = {"pcLabel": pc_label[:60]} if isinstance(pc_label, str) and pc_label.strip() else {}
+        return self._call(device_id, "share.request", args)
 
     def knowledge_summary(self, device_id: str) -> dict[str, Any]:
         return self._call(device_id, "knowledge.get", {})
@@ -936,6 +980,14 @@ class V5ContractService:
             if args:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "atlas.here takes no arguments.")
             return self.atlas_here(device_id)
+        if op == "share.status":
+            if args:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "share.status takes no arguments.")
+            return self.share_status(device_id)
+        if op == "share.request":
+            if set(args) - {"pcLabel"}:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "share.request takes pcLabel only.")
+            return self.share_request(device_id, args.get("pcLabel"))
         if op == "knowledge.get":
             if args:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "knowledge.get takes no arguments.")
