@@ -93,6 +93,8 @@ private fun GatewayControlCenter(
     val trustedPcCount = trust?.optInt("trustedPcCount", 0) ?: 0
     val trustedSessionCount = trust?.optInt("activeSessionCount", 0) ?: 0
     val pendingTrust = remember(refreshTick) { GatewayV33TrustManager.pendingForUser(context) }
+    val linkedPcs = remember(refreshTick) { runCatching { GatewayV33TrustManager.linkedPcs(context) }.getOrDefault(emptyList()) }
+    var logoutCandidate by remember { mutableStateOf<GatewayTrustedPc?>(null) }
     val clipboardEnabled = remember(refreshTick) { GatewayDesktopPreferences.clipboardEnabled(context) }
     val pairingCode = remember(refreshTick) { GatewayDesktopPairingManager.codeForUser() }
     val pairingExpiresAt = remember(refreshTick) { GatewayDesktopPairingManager.expiresAtForUser() }
@@ -385,12 +387,28 @@ private fun GatewayControlCenter(
                                 Icon(Icons.Rounded.Lock, null, tint = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.width(9.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text("Trusted PCs", fontWeight = FontWeight.SemiBold)
+                                    Text("Linked PCs", fontWeight = FontWeight.SemiBold)
                                     Text(
-                                        "$trustedPcCount trusted · $trustedSessionCount active",
+                                        "$trustedPcCount linked · $trustedSessionCount active",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
+                                }
+                            }
+                            linkedPcs.forEach { pc ->
+                                val active = remember(refreshTick, pc.trustId) { GatewayV33TrustManager.isSessionActive(context, pc.trustId) }
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Rounded.Computer, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(Modifier.width(9.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(pc.pcLabel.ifBlank { "PC" }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(
+                                            if (active) "Active now" else linkedPcLastUsed(pc),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    TextButton(onClick = { logoutCandidate = pc }) { Text("Log out") }
                                 }
                             }
                             if (connected) {
@@ -414,7 +432,23 @@ private fun GatewayControlCenter(
                                     refreshTick++
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                            ) { Text("Revoke trusted PCs") }
+                            ) { Text("Log out all PCs") }
+                            logoutCandidate?.let { pc ->
+                                AlertDialog(
+                                    onDismissRequest = { logoutCandidate = null },
+                                    title = { Text("Log out ${pc.pcLabel.ifBlank { "this PC" }}?") },
+                                    text = { Text("Glass and Cyclone One on that PC lose access to this phone. Connecting again needs a new code and Allow.") },
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            val ok = GatewayV33TrustManager.revokeOneLocal(context, pc.trustId)
+                                            Toast.makeText(context, if (ok) "Logged out ${pc.pcLabel.ifBlank { "the PC" }}" else "That PC was already logged out", Toast.LENGTH_SHORT).show()
+                                            logoutCandidate = null
+                                            refreshTick++
+                                        }) { Text("Log out") }
+                                    },
+                                    dismissButton = { TextButton(onClick = { logoutCandidate = null }) { Text("Cancel") } },
+                                )
+                            }
                         }
                     }
                 }
@@ -765,4 +799,17 @@ private fun scanDesktopPairingQr(context: Context) {
         .addOnFailureListener {
             Toast.makeText(context, "QR scanner unavailable. Use the fallback code below.", Toast.LENGTH_LONG).show()
         }
+}
+
+/** "Last used 5 min ago" for a linked PC; the clock comes from the phone. */
+internal fun linkedPcLastUsed(pc: GatewayTrustedPc, now: Long = System.currentTimeMillis()): String {
+    val at = maxOf(pc.lastSessionAtMs, pc.createdAtMs)
+    if (at <= 0L) return "Not used yet"
+    val minutes = ((now - at).coerceAtLeast(0L) / 60_000L)
+    return when {
+        minutes < 1 -> "Last used just now"
+        minutes < 60 -> "Last used $minutes min ago"
+        minutes < 48 * 60 -> "Last used ${minutes / 60} h ago"
+        else -> "Last used ${minutes / (24 * 60)} days ago"
+    }
 }

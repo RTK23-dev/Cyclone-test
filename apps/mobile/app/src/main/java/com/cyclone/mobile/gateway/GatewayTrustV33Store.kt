@@ -195,6 +195,13 @@ internal object GatewayV33TrustManager {
     fun revoke(context: Context, authToken: String, args: JSONObject): JSONObject =
         engine(context).revoke(authToken, args)
 
+    fun linkedPcs(context: Context): List<GatewayTrustedPc> = engine(context).linkedPcs()
+
+    fun isSessionActive(context: Context, trustId: String): Boolean = engine(context).isSessionActive(trustId)
+
+    /** Local user authority in Cyclone Settings: log out one PC; the others stay linked. */
+    fun revokeOneLocal(context: Context, trustId: String): Boolean = engine(context).revokeLocal(trustId) != null
+
     /** Local user authority in Cyclone Settings; no PC credential is accepted or required. */
     fun revokeAllLocal(context: Context): Int {
         val app = context.applicationContext

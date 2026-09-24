@@ -528,6 +528,29 @@ internal class GatewayTrustEngine(
         pendingSessions.clear()
     }
 
+    /** The PCs this phone trusts now (like WhatsApp's linked devices), most recently used first. */
+    @Synchronized
+    fun linkedPcs(): List<GatewayTrustedPc> =
+        records.all()
+            .filter { it.revokedAtMs == null && it.phoneId == phoneIdentity.phoneId }
+            .sortedByDescending { maxOf(it.lastSessionAtMs, it.createdAtMs) }
+
+    /** Whether a trusted PC has a live session right now. */
+    @Synchronized
+    fun isSessionActive(trustId: String): Boolean = sessionsByToken.values.any { it.trustId == trustId }
+
+    /**
+     * Local user authority from Cyclone Settings: log one PC out. Its trust record is revoked and only its sessions end;
+     * other linked PCs stay connected. Connecting again needs a new code + Allow.
+     */
+    @Synchronized
+    fun revokeLocal(trustId: String): GatewayTrustedPc? {
+        val revoked = records.revoke(trustId, nowMs()) ?: return null
+        sessionsByToken.entries.removeIf { it.value.trustId == trustId }
+        pendingSessions.entries.removeIf { it.value.trustId == trustId }
+        return revoked
+    }
+
     @Synchronized
     fun status(): JSONObject {
         expirePendingTrustIfNeeded()
