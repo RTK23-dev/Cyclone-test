@@ -36,6 +36,10 @@ V5_OPS = frozenset({
     "lab.status",
     "lab.answer",
     "lab.record",
+    "market.catalog",
+    "market.install",
+    "market.remove",
+    "market.run",
 })
 ASK_STATES = frozenset({"idle", "working", "action-needed", "needs-secret", "done", "failed"})
 ASK_MILESTONE_STATES = frozenset({"pending", "active", "done", "action-needed", "failed"})
@@ -860,6 +864,9 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
     if op in LAB_OPS:
         _validate_lab_response(op, value, args)
         return value
+    if op in MARKET_OPS:
+        _validate_market_response(op, value, args)
+        return value
     if op == "atlas.here":
         if set(value) != {"placeId", "roomId", "appVersion", "observedAt"}:
             raise _bad_knowledge("atlas.here")
@@ -946,6 +953,73 @@ def _validate_lab_response(op: str, value: dict[str, Any], args: dict[str, Any])
     events = value["events"]
     if not isinstance(events, list) or len(events) > 20 or not all(isinstance(e, dict) and _short_text(e.get("text"), 200) for e in events):
         raise _bad_lab("events")
+
+
+MARKET_OPS = frozenset({"market.catalog", "market.install", "market.remove", "market.run"})
+MARKET_LISTING_ID = re.compile(r"^[a-z0-9][a-z0-9.-]{2,63}$")
+MARKET_LISTING_KEYS = frozenset({
+    "id", "kind", "version", "name", "publisher", "summary", "category", "glyph", "goal", "inputs", "apps", "does",
+    "asksFirst", "suggestFor", "featured", "added", "savedInputs", "runs", "lastRunAt",
+})
+MARKET_CONNECTION_STATES = frozenset({"connected", "needs_setup", "off"})
+
+
+def _bad_market(message: str) -> DesktopRuntimeError:
+    return DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, f"Android marketplace result is malformed: {message}.")
+
+
+def _text_list(value: Any, limit: int, size: int) -> bool:
+    return isinstance(value, list) and len(value) <= size and all(_short_text(item, limit) for item in value)
+
+
+def _validate_market_response(op: str, value: dict[str, Any], args: dict[str, Any]) -> None:
+    """Listings are data the phone shows; nothing in them may carry a secret, a command or unbounded text."""
+    if op == "market.catalog":
+        if set(value) != {"listings", "suggestions", "installedCount", "connections"}:
+            raise _bad_market("catalog")
+        listings = value["listings"]
+        if not isinstance(listings, list) or len(listings) > 500:
+            raise _bad_market("listings")
+        for item in listings:
+            if not isinstance(item, dict) or set(item) != MARKET_LISTING_KEYS or not MARKET_LISTING_ID.match(str(item.get("id"))):
+                raise _bad_market("listing")
+            if item["kind"] not in {"recipe", "connection"} or not isinstance(item["added"], bool) or not _is_int(item["runs"]):
+                raise _bad_market("listing kind")
+            for key, limit in (("name", 60), ("summary", 160), ("category", 40), ("glyph", 8), ("goal", 600), ("version", 20)):
+                if not _short_text(item[key], limit):
+                    raise _bad_market(key)
+            for key in ("apps", "does", "asksFirst", "suggestFor"):
+                if not _text_list(item[key], 160, 20):
+                    raise _bad_market(key)
+            if not isinstance(item["inputs"], list) or len(item["inputs"]) > 12:
+                raise _bad_market("inputs")
+            saved = item["savedInputs"]
+            if saved is not None and (not isinstance(saved, dict) or not all(_short_text(v, 200) for v in saved.values())):
+                raise _bad_market("saved inputs")
+        if not isinstance(value["suggestions"], list) or not all(
+            isinstance(s, dict) and set(s) == {"id", "reason"} and _short_text(s["reason"], 120) for s in value["suggestions"]
+        ):
+            raise _bad_market("suggestions")
+        if not _is_int(value["installedCount"]):
+            raise _bad_market("count")
+        connections = value["connections"]
+        if not isinstance(connections, list) or len(connections) > 20:
+            raise _bad_market("connections")
+        for item in connections:
+            if (not isinstance(item, dict) or set(item) != {"id", "name", "glyph", "state", "detail", "where"}
+                    or item["state"] not in MARKET_CONNECTION_STATES or not _short_text(item["detail"], 160)):
+                raise _bad_market("connection")
+        return
+    if value.get("id") != args.get("id"):
+        raise _bad_market("id")
+    if op == "market.install":
+        if set(value) != {"id", "added", "inputs"} or value["added"] is not True or not isinstance(value["inputs"], dict):
+            raise _bad_market("install")
+    elif op == "market.remove":
+        if set(value) != {"id", "removed"} or not isinstance(value["removed"], bool):
+            raise _bad_market("remove")
+    elif set(value) != {"id", "started"} or value["started"] is not True:
+        raise _bad_market("run")
 
 
 SHARE_PHONE_ID = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
@@ -1112,6 +1186,26 @@ class V5ContractService:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "A lab fill is 1..8 short text values.")
             args["values"] = values
         return self._call(device_id, "lab.answer", args)
+
+    def market_catalog(self, device_id: str) -> dict[str, Any]:
+        return self._call(device_id, "market.catalog", {})
+
+    def market_change(self, device_id: str, op: str, listing_id: str, inputs: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Add, remove or run one listing on the phone. The phone validates inputs again and refuses secrets."""
+        if op not in {"market.install", "market.remove", "market.run"}:
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Unknown marketplace change.")
+        if not isinstance(listing_id, str) or not MARKET_LISTING_ID.match(listing_id):
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Listing id is malformed.")
+        args: dict[str, Any] = {"id": listing_id}
+        if op != "market.remove" and inputs:
+            if not isinstance(inputs, dict) or len(inputs) > 12 or not all(
+                isinstance(k, str) and len(k) <= 32 and isinstance(v, str) and len(v) <= 200 for k, v in inputs.items()
+            ):
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Inputs are up to 12 short text values.")
+            if any(INLINE_SECRET.search(f"{k}: {v}") or _secret_name(k) for k, v in inputs.items()):
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "Secrets never go into a recipe; Cyclone asks on the phone.")
+            args["inputs"] = inputs
+        return self._call(device_id, op, args)
 
     def forward(self, device_id: str, op: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         """Typed forwarding seam. There is no generic Android-op passthrough or PC mapping truth."""
