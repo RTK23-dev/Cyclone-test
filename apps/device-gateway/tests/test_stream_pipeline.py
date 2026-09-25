@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import queue
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -59,6 +60,47 @@ class FakeStreamSession:
 
 
 class VideoStreamPipelineTests(unittest.TestCase):
+    def test_new_viewer_restarts_dead_producer_even_with_an_orphan_queue(self):
+        controller = VideoStreamController(FakeStreamSession(FakeStreamADB()), VideoFleetLimiter(),
+            media_backend=unavailable_media_backend(), jpeg_first=True)
+        orphan = queue.Queue()
+        controller._subscribers["focus"].add(orphan)
+        q = controller.subscribe("focus")
+        try:
+            self.assertIn("stream.init", q.get(timeout=2).data)
+            self.assertEqual(q.get(timeout=2).kind, "binary")
+        finally:
+            controller.stop_all()
+        self.assertEqual(controller.subscriber_count(), 0)
+
+    def test_quick_reload_waits_for_old_producer_and_starts_exactly_one_replacement(self):
+        controller = VideoStreamController(FakeStreamSession(FakeStreamADB()), VideoFleetLimiter(),
+            media_backend=unavailable_media_backend(), jpeg_first=True)
+        started = queue.Queue()
+        allow_old_exit = threading.Event()
+        def produce(profile, stop):
+            started.put(stop)
+            stop.wait(3)
+            if not allow_old_exit.is_set():
+                allow_old_exit.wait(3)
+        controller._produce_jpeg = produce
+        first = controller.subscribe("focus")
+        old_stop = started.get(timeout=2)
+        controller.unsubscribe("focus", first)
+        second = controller.subscribe("focus")
+        self.assertTrue(old_stop.is_set())
+        self.assertTrue(started.empty(), "replacement must wait for old media cleanup")
+        allow_old_exit.set()
+        new_stop = started.get(timeout=2)
+        try:
+            self.assertIsNot(old_stop, new_stop)
+            self.assertIs(controller._stops["focus"], new_stop)
+            self.assertEqual(controller.limiter.snapshot()["sources"], 1)
+        finally:
+            controller.unsubscribe("focus", second)
+            controller.stop_all()
+        self.assertEqual(controller.limiter.snapshot()["sources"], 0)
+
     def test_capture_outage_emits_one_error_then_keepalives_and_keeps_subscription(self):
         adb = FakeStreamADB(fail_capture=True)
         controller = VideoStreamController(

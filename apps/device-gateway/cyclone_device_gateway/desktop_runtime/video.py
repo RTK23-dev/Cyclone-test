@@ -120,19 +120,25 @@ class VideoStreamController:
         q: queue.Queue = queue.Queue(maxsize=16)
         with self._lock:
             self._subscribers[profile].add(q)
-            if len(self._subscribers[profile]) == 1:
-                stop = threading.Event()
-                self._stops[profile] = stop
-                thread = threading.Thread(
-                    target=self._producer,
-                    args=(profile, stop),
-                    name=f"cyclone-video-{self.session.device_id}-{profile}",
-                    daemon=True,
-                )
-                self._threads[profile] = thread
-                thread.start()
+            thread = self._threads.get(profile)
+            if thread is None or not thread.is_alive():
+                self._start_producer_locked(profile)
+            # If the last viewer just left, its producer is still shutting down. Its
+            # finally block starts the replacement, after releasing the old media session.
         self._mark("server.stream.subscribed", {"profile": profile, "transport": "websocket"})
         return q
+
+    def _start_producer_locked(self, profile: str) -> None:
+        stop = threading.Event()
+        self._stops[profile] = stop
+        thread = threading.Thread(
+            target=self._producer,
+            args=(profile, stop),
+            name=f"cyclone-video-{self.session.device_id}-{profile}",
+            daemon=True,
+        )
+        self._threads[profile] = thread
+        thread.start()
 
     def unsubscribe(self, profile: str, q: queue.Queue) -> None:
         with self._lock:
@@ -147,8 +153,11 @@ class VideoStreamController:
         with self._lock:
             stops = tuple(self._stops.values())
             threads = tuple(self._threads.values())
-        for stop in stops:
-            stop.set()
+            for profile, subscribers in self._subscribers.items():
+                self._broadcast(profile, StreamMessage("close", ""))
+                subscribers.clear()
+            for stop in stops:
+                stop.set()
         try:
             self.media_backend.stop(self.session.device_id)
         except Exception:
@@ -286,8 +295,11 @@ class VideoStreamController:
             self._mark("server.producer.stop", {"profile": profile})
             self.limiter.release(profile, focus_allowed)
             with self._lock:
-                self._threads.pop(profile, None)
-                self._stops.pop(profile, None)
+                if self._stops.get(profile) is stop:
+                    self._threads.pop(profile, None)
+                    self._stops.pop(profile, None)
+                    if stop.is_set() and self._subscribers.get(profile):
+                        self._start_producer_locked(profile)
 
     def _produce_scrcpy(self, profile: str, stop: threading.Event) -> None:
         media = self.media_backend.start(self.session, profile)

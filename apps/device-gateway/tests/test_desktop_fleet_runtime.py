@@ -803,6 +803,33 @@ def test_live_view_heals_itself_when_usb_is_not_ready_yet(tmp_path):
             assert "stream.init" in video.receive_text(), "the producer keeps trying instead of closing the door"
 
 
+def test_closed_browser_releases_subscription_while_video_producer_is_silent(tmp_path):
+    from cyclone_device_gateway.desktop_runtime.video import StreamMessage
+    fleet, _, _ = make_fleet([ADBDevice("SERIAL-IDLE-1234", "device")])
+    fleet.refresh_once()
+    install_fake_bridges(fleet)
+    settings = Settings("pc-secret", None, "adb", tmp_path)
+    runtime = DesktopRuntime(settings, fleet=fleet)
+    device_id = fleet.list_public()[0]["deviceId"]
+    session = fleet.get(device_id)
+    controller = VideoStreamController(session, runtime.video_limiter, jpeg_first=True)
+    def silent_producer(profile, stop):
+        controller._broadcast(profile, StreamMessage("text", '{"type":"stream.init"}'))
+        stop.wait(5)
+    controller._produce_jpeg = silent_producer
+    session.video = controller
+    with TestClient(create_desktop_app(settings, runtime)) as client:
+        with client.websocket_connect(f"/v1/devices/{device_id}/video?profile=focus",
+                headers={"Authorization": "Bearer pc-secret"}) as video:
+            assert video.receive_json()["type"] == "stream.init"
+            assert controller.subscriber_count() == 1
+            video.close()
+            deadline = time.monotonic() + 2.5
+            while controller.subscriber_count() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert controller.subscriber_count() == 0
+
+
 def test_connection_debug_flow_records_client_server_timeline_and_creates_sendable_zip(tmp_path):
     fleet, session, _ = paired_session_for_services()
     settings = Settings("pc-secret", None, "adb", tmp_path)
