@@ -1,6 +1,6 @@
 # Cyclone V5 alpha.31 dev1: Owner Moments - one owner card for every engine and
 # actionable task notifications, on top of alpha.30 (USB Glass mirror).
-# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested.
+# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.31.dev1"
 channel = "development"
