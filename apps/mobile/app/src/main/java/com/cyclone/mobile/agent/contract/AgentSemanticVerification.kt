@@ -61,6 +61,7 @@ object AgentSemanticVerifier {
         "phone.set_timer",
         "phone.open_settings",
         "phone.submit_text",
+        "phone.tap_point",
     )
 
     // PhoneToolExecutor evaluates params.expect only for actionWithConfirmation tools.

@@ -46,7 +46,7 @@ class PhoneMindToolboxTest {
                 packageName = screen.packageName, activity = null, pageKey = "p", structuralKey = "s", contentKey = "c",
                 accessibilityFingerprint = "f$observations", pageSummary = JSONObject(),
                 pageText = JSONObject().put("lines", JSONArray().also { lines -> screen.text.forEach { lines.put(JSONObject().put("text", it)) } }),
-                pageEvidence = JSONObject(),
+                pageEvidence = JSONObject().put("captureWidth", 1080).put("captureHeight", 2400),
                 controls = screen.controls.map { c ->
                     AgentElementCandidate("semantic:$id:${c.key}", id, c.label, c.label.lowercase(), c.role, "semantic", 0.0,
                         JSONObject().put("controlKey", c.key).put("editable", c.editable).put("password", c.password))
@@ -56,7 +56,7 @@ class PhoneMindToolboxTest {
         }
 
         override fun observe(goal: String) = AgentObservationResult(page = card())
-        override fun observeWithImage(goal: String) = AgentObservationResult(page = card(), image = JSONObject().put("pngBase64", "QUJD"))
+        override fun observeWithImage(goal: String) = AgentObservationResult(page = card(), image = JSONObject().put("pngBase64", "QUJD").put("width", 540).put("height", 1200))
         override fun locate(goal: String) = AgentSearchResult(query = goal, goal = goal)
         override fun search(query: String, goal: String): AgentSearchResult {
             val page = card()
@@ -311,11 +311,48 @@ class PhoneMindToolboxTest {
     @Test fun policyFailuresAreNotRetried() {
         val env = FakeEnv(login)
         env.nextFailures.add(AgentFailureClass.POLICY_DENIED)
-        val box = PhoneMindToolbox(env, FakeOwner(), device, "goal")
+        val box = PhoneMindToolbox(env, FakeOwner().apply { approval = MindApproval.NOT_PENDING }, device, "goal")
         box.run("screen_read")
         val result = box.run("tap", """{"ref":"e3"}""")
         assertTrue(result.text.startsWith("Not allowed"))
         assertEquals(1, env.acts.size)
         AgentFailure(AgentFailureClass.NONE, AgentFailureLayer.NONE, false, "")
+    }
+
+    @Test fun interceptorGateWaitsForApprovalLikeAPolicyGate() {
+        val env = FakeEnv(login)
+        env.nextFailures.add(AgentFailureClass.POLICY_DENIED)
+        val box = PhoneMindToolbox(env, FakeOwner(), device, "goal")
+        box.run("screen_read")
+        val result = box.run("tap", """{"ref":"e3"}""")
+        assertTrue(result.ok)
+        assertEquals(2, env.acts.size)
+    }
+
+    @Test fun tapPointNeedsAScreenshotAndScalesToTheScreen() {
+        val env = FakeEnv(login)
+        val box = PhoneMindToolbox(env, FakeOwner(), device, "goal")
+        assertFalse(box.run("tap_point", """{"x":10,"y":10}""").ok)
+        val look = box.run("screen_look")
+        assertTrue(look.text.contains("540×1200"))
+        assertFalse("outside the screenshot", box.run("tap_point", """{"x":600,"y":10}""").ok)
+        assertTrue(box.run("tap_point", """{"x":100,"y":300}""").ok)
+        val (tool, params) = env.acts.last()
+        assertEquals("phone.tap_point", tool)
+        assertEquals(200, params.getInt("x"))
+        assertEquals(600, params.getInt("y"))
+        assertFalse("points belong to one screenshot", box.run("tap_point", """{"x":100,"y":300}""").ok)
+    }
+
+    @Test fun rememberAndForgetAcrossMissions() {
+        val memory = MindMemory(java.nio.file.Files.createTempFile("memory", ".json").toFile())
+        val first = PhoneMindToolbox(FakeEnv(login), FakeOwner(), device, "goal", memory = memory, missionId = "m1")
+        assertTrue(first.run("remember", """{"fact":"The owner's work email is jan@example.com"}""").ok)
+        assertFalse(first.run("remember", """{"fact":"Facebook password: hunter2"}""").ok)
+        val second = PhoneMindToolbox(FakeEnv(login), FakeOwner(), device, "goal", memory = memory, missionId = "m2")
+        assertTrue(second.run("recall", """{"topic":"work email"}""").text.contains("jan@example.com"))
+        assertTrue(memory.digest().contains("[f1]"))
+        assertTrue(second.run("forget", """{"id":"f1"}""").ok)
+        assertTrue(memory.all().isEmpty())
     }
 }

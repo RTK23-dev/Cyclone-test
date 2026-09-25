@@ -113,7 +113,8 @@ class OpenRouterMindModel(
         val profile = ModelRegistry.resolve(id)
         val catalog = OpenRouterCatalogStore.lookup(id)
         val maximum = catalog?.maxOutputTokens ?: 16_384
-        val body = JSONObject().put("model", id).put("messages", request.messages).put("stream", false)
+        val messages = if (promptCaching(id)) withCacheBreakpoints(request.messages) else request.messages
+        val body = JSONObject().put("model", id).put("messages", messages).put("stream", false)
             .put("max_tokens", 8_192.coerceAtMost(maximum.coerceAtLeast(1_024)))
             .put("provider", JSONObject().put("sort", "latency").put("allow_fallbacks", profile?.allowProviderFallbacks ?: true))
             .put("usage", JSONObject().put("include", true))
@@ -126,6 +127,34 @@ class OpenRouterMindModel(
     }
 
     companion object {
+        /**
+         * Anthropic routes cache only at explicit breakpoints. A mission re-sends its whole conversation every turn, so
+         * one breakpoint on the system prompt (tools + instructions) and one on the newest user message make every turn
+         * after the first mostly a cache read. Other providers cache automatically and get the messages unchanged.
+         */
+        fun promptCaching(modelId: String): Boolean = modelId.startsWith("anthropic/")
+
+        fun withCacheBreakpoints(messages: JSONArray): JSONArray {
+            val out = JSONArray(messages.toString())
+            val marker = JSONObject().put("type", "ephemeral")
+            fun mark(index: Int) {
+                val message = out.optJSONObject(index) ?: return
+                when (val content = message.opt("content")) {
+                    is String -> if (content.isNotEmpty()) message.put("content", JSONArray()
+                        .put(JSONObject().put("type", "text").put("text", content).put("cache_control", marker)))
+                    is JSONArray -> {
+                        for (i in content.length() - 1 downTo 0) {
+                            val part = content.optJSONObject(i) ?: continue
+                            if (part.optString("type") == "text") { part.put("cache_control", marker); break }
+                        }
+                    }
+                }
+            }
+            (0 until out.length()).firstOrNull { out.optJSONObject(it)?.optString("role") == "system" }?.let(::mark)
+            (out.length() - 1 downTo 0).firstOrNull { out.optJSONObject(it)?.optString("role") == "user" }?.let(::mark)
+            return out
+        }
+
         /** Pure parser shared with tests: native tool_calls, or the JSON envelope used when tools are not native. */
         fun parse(json: JSONObject, latencyMs: Long = 0): MindModelReply {
             val message = json.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")

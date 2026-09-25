@@ -654,6 +654,22 @@ class CycloneAccessibilityService : AccessibilityService() {
         )
     }
 
+    /**
+     * Coordinate tap for what accessibility does not expose, with the same GATE check a labelled click gets:
+     * whatever sits under the point is classified before anything is dispatched.
+     */
+    fun tapPoint(x: Float, y: Float, humanize: HumanizePreference = HumanizePreference.AUTO, commandId: String? = null): Boolean {
+        if (!agentCanAct()) return false
+        val snapshot = observe(markFresh = false)
+        val labels = ClickGateIntercept.labelsAtPoint(snapshot.nodes, x.toInt(), y.toInt())
+        val decision = ClickGateIntercept.decide("phone.tap_point", labels, OverlayChromeRuntime.snapshot().state)
+        if (!decision.performClick) {
+            if (decision.enterGate && decision.gateClass != null) OverlayChromeRuntime.enterGate(decision.gateClass)
+            throw GateBlockedException(decision.gateClass)
+        }
+        return tap(x, y, humanize, commandId)
+    }
+
     fun longPress(
         x: Float,
         y: Float,

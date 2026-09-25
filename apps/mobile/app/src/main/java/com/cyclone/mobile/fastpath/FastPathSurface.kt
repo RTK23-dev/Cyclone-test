@@ -24,6 +24,7 @@ object FastPathSurface {
         "phone.scroll",
         "phone.back",
         "phone.submit_text",
+        "phone.tap_point",
     )
     val PLANNER_MCP_TOOLS = setOf(
         "phone_status",

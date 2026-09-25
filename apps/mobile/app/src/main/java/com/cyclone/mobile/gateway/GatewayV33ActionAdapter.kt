@@ -62,7 +62,7 @@ internal object GatewayV33ActionAdapter {
 
     private val pageTransitionTools = setOf(
         "phone.click", "phone.long_press", "phone.back", "phone.home", "phone.open_app", "phone.launch_intent",
-        "phone.set_alarm", "phone.set_timer", "phone.open_settings", "phone.submit_text",
+        "phone.set_alarm", "phone.set_timer", "phone.open_settings", "phone.submit_text", "phone.tap_point",
     )
 
     internal fun requiresMutationObservation(tool: String): Boolean = tool in mutatingTools

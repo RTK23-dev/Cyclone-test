@@ -930,6 +930,7 @@ class CycloneAgentEnvironment internal constructor(
             "phone.set_timer",
             "phone.open_settings",
             "phone.submit_text",
+            "phone.tap_point",
         )
         private val ELEMENT_ID_REQUIRED_TOOLS = setOf(
             "phone.click",

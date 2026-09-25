@@ -26,6 +26,8 @@ class PhoneMindToolbox(
     private val goal: String,
     private val cancelled: () -> Boolean = { false },
     private val ownerTimeoutMs: Long = 10 * 60_000L,
+    private val memory: MindMemory? = null,
+    private val missionId: String? = null,
 ) : MindToolbox {
     private val refs = MindRefBook()
     private var screen: AgentPageCard? = null
@@ -33,6 +35,9 @@ class PhoneMindToolbox(
     private var fresh = false
     private var finishRejections = 0
     private var plan: List<MindPlanStep> = emptyList()
+    /** Screen pixels per screenshot pixel of the last screen_look; tap_point is only possible after one. */
+    private var shotScale: Pair<Double, Double>? = null
+    private var shotSize: Pair<Int, Int>? = null
 
     val currentPlan: List<MindPlanStep> get() = plan
     val lastScreen: AgentPageCard? get() = screen
@@ -69,6 +74,9 @@ class PhoneMindToolbox(
         "vault_fill" -> vaultFill(arguments)
         "plan_update" -> planUpdate(arguments)
         "note" -> MindToolResult("Noted.", "note: ${arguments.optString("text").take(160)}")
+        "remember" -> remember(arguments.optString("fact"))
+        "forget" -> forget(arguments.optString("id"))
+        "tap_point" -> tapPoint(arguments)
         "task_finish" -> finish(arguments)
         "task_give_up" -> giveUp(arguments)
         else -> MindToolResult.error("Unknown tool ${call.name}.")
@@ -94,6 +102,7 @@ class PhoneMindToolbox(
         val text = listOfNotNull(header, rendered).joinToString("\n\n")
         val brief = (header ?: "Read the screen") + " — " + MindScreen.brief(page, appLabel(page.packageName))
         val dataUrl = observed.image?.optString("pngBase64")?.takeIf { it.isNotBlank() }?.let { "data:image/png;base64,$it" }
+        if (dataUrl != null) rememberShot(page, observed.image!!)
         return MindToolResult(text, brief.take(200), imageDataUrl = dataUrl)
     }
 
@@ -101,8 +110,39 @@ class PhoneMindToolbox(
 
     private fun look(): MindToolResult {
         val result = observeAndRender("Screenshot of the current screen attached.", image = true)
-        return if (result.imageDataUrl != null) result
+        val size = shotSize
+        return if (result.imageDataUrl != null) result.copy(text = result.text + if (size == null) "" else
+            "\n\nThe screenshot is ${size.first}×${size.second} pixels. Prefer refs; for something with no ref, tap_point takes x,y in these pixels.")
         else result.copy(text = "A screenshot could not be taken; here is the text description.\n\n${result.text}")
+    }
+
+    private fun rememberShot(page: AgentPageCard, image: JSONObject) {
+        val width = image.optInt("width")
+        val height = image.optInt("height")
+        val screenWidth = page.pageEvidence.optInt("captureWidth")
+        val screenHeight = page.pageEvidence.optInt("captureHeight")
+        if (width <= 0 || height <= 0) return
+        shotSize = width to height
+        shotScale = (if (screenWidth > 0) screenWidth.toDouble() / width else 1.0) to (if (screenHeight > 0) screenHeight.toDouble() / height else 1.0)
+    }
+
+    /**
+     * Vision fallback for things accessibility does not expose. The executor applies the same approval check as a
+     * tap on a labelled control to whatever sits under the point.
+     */
+    private fun tapPoint(arguments: JSONObject): MindToolResult {
+        val size = shotSize ?: return MindToolResult.error("Take a screenshot with screen_look first; tap_point uses its pixels.")
+        val scale = shotScale ?: (1.0 to 1.0)
+        if (!arguments.has("x") || !arguments.has("y")) return MindToolResult.error("x and y are required.")
+        val x = arguments.optInt("x", -1)
+        val y = arguments.optInt("y", -1)
+        if (x !in 0 until size.first || y !in 0 until size.second) {
+            return MindToolResult.error("The point must be inside the ${size.first}×${size.second} screenshot.")
+        }
+        val params = JSONObject().put("x", (x * scale.first).toInt()).put("y", (y * scale.second).toInt())
+        val result = act("phone.tap_point", params, "Tapped the point ($x, $y) of the screenshot")
+        shotSize = null // Points belong to the screenshot they were read from.
+        return result
     }
 
     private fun find(query: String): MindToolResult {
@@ -269,8 +309,11 @@ class PhoneMindToolbox(
         fresh = false
         var envelope = env.act(tool, params, goal)
         var waited = 0L
-        if (envelope.errorClass == AgentFailureClass.GATE_REQUIRED) {
-            val approval = owner.awaitApproval(done.replaceFirstChar { it.lowercase() }, ownerTimeoutMs)
+        // The policy check raises GATE_REQUIRED; Accessibility's own click interceptor reports a refused click as a
+        // policy denial while it puts the same approval card up. Either way the owner decides; with no card, it is a no.
+        val gated = envelope.errorClass == AgentFailureClass.GATE_REQUIRED || envelope.errorClass == AgentFailureClass.POLICY_DENIED
+        val approval = if (gated) owner.awaitApproval(done.replaceFirstChar { it.lowercase() }, ownerTimeoutMs) else null
+        if (approval != null && !(approval.outcome == MindApproval.NOT_PENDING && envelope.errorClass == AgentFailureClass.POLICY_DENIED)) {
             waited += approval.waitedMs
             when (approval.outcome) {
                 MindApproval.APPROVED -> {
@@ -347,12 +390,28 @@ class PhoneMindToolbox(
     private fun recall(topic: String): MindToolResult {
         val brain = env.brainRecall(topic)
         val routes = env.knownRoutes(topic)
+        val facts = memory?.search(topic).orEmpty()
         val parts = listOfNotNull(
+            facts.takeIf { it.isNotEmpty() }?.let { list -> "Facts you kept from earlier missions:\n" + list.joinToString("\n") { "- [${it.id}] ${it.text}" } },
             brain.evidence?.takeIf { it.length() > 0 }?.let { "What Cyclone remembers:\n${compactJson(it)}" },
             routes.evidence?.takeIf { it.length() > 0 }?.let { "Routes Cyclone has verified before:\n${compactJson(it)}" },
         )
         if (parts.isEmpty()) return MindToolResult("Nothing remembered about \"$topic\".", "recall: nothing")
         return MindToolResult(parts.joinToString("\n\n").take(4_000), "recall \"${topic.take(60)}\"")
+    }
+
+    private fun remember(fact: String): MindToolResult {
+        val store = memory ?: return MindToolResult.error("Memory is not available in this mission.")
+        return when (val saved = store.remember(fact, missionId)) {
+            is MindMemory.Saved.Stored -> MindToolResult("Remembered as ${saved.fact.id}. It will be available in future missions.", "remembered: ${saved.fact.text.take(120)}")
+            is MindMemory.Saved.Updated -> MindToolResult("Already remembered as ${saved.fact.id}.", "remembered again: ${saved.fact.text.take(120)}")
+            is MindMemory.Saved.Refused -> MindToolResult.error("Not remembered: ${saved.reason}.")
+        }
+    }
+
+    private fun forget(id: String): MindToolResult {
+        val store = memory ?: return MindToolResult.error("Memory is not available in this mission.")
+        return if (store.forget(id)) MindToolResult("Forgot $id.", "forgot $id") else MindToolResult.error("There is no fact $id.")
     }
 
     // ---- the owner ----------------------------------------------------------------------------------------------
@@ -468,6 +527,9 @@ class PhoneMindToolbox(
                 objectSchema("query" to string("What to look for, e.g. \"install button\" or \"search\"."), required = listOf("query"))),
             MindToolSpec("tap", "Tap an element.", objectSchema("ref" to REF, required = listOf("ref"))),
             MindToolSpec("long_press", "Long-press an element.", objectSchema("ref" to REF, required = listOf("ref"))),
+            MindToolSpec("tap_point", "Tap a point of the last screenshot, for things that have no ref (unlabelled icons, images, games, maps). Use refs whenever one exists.",
+                objectSchema("x" to integer("Pixels from the left of the screenshot."), "y" to integer("Pixels from the top of the screenshot."),
+                    required = listOf("x", "y"))),
             MindToolSpec("type_text", "Replace the text in a text field. Not for passwords, codes or card numbers (use vault_fill). Set press_enter to submit, e.g. to search.",
                 objectSchema("ref" to REF, "text" to string("The full text the field should contain."),
                     "press_enter" to boolean("Press the keyboard's Enter/Search key afterwards."), required = listOf("ref", "text"))),
@@ -502,7 +564,10 @@ class PhoneMindToolbox(
             MindToolSpec("plan_update", "Write or update your plan for this mission. The owner sees it.",
                 objectSchema("steps" to array("The steps in order.", objectSchema("step" to string("What to do."),
                     "status" to string("Progress.", MindPlanStep.STATUSES), required = listOf("step", "status"))), required = listOf("steps"))),
-            MindToolSpec("note", "Remember a fact for later in this mission.", objectSchema("text" to string("The fact."), required = listOf("text"))),
+            MindToolSpec("note", "Note a fact for later in this mission only.", objectSchema("text" to string("The fact."), required = listOf("text"))),
+            MindToolSpec("remember", "Keep a fact for future missions: the owner's preferences, public account names, where things are in apps, what worked. Never secrets.",
+                objectSchema("fact" to string("One short, self-contained fact."), required = listOf("fact"))),
+            MindToolSpec("forget", "Delete a remembered fact that is wrong or outdated.", objectSchema("id" to string("The fact id, like f12."), required = listOf("id"))),
             MindToolSpec("task_finish", "End the mission as done. Only after you have seen that the goal is achieved.",
                 objectSchema("summary" to string("One or two sentences for the owner."), "evidence" to string("What on the screen shows it is done."),
                     required = listOf("summary", "evidence"))),

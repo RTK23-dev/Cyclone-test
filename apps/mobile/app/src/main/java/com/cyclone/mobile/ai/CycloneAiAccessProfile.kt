@@ -85,6 +85,7 @@ object CycloneAiAccessPolicy {
         "phone.share",
         "phone.launch_intent",
         "phone.submit_text",
+        "phone.tap_point",
     )
 
     private val balancedBlockedTools = setOf("phone.share")

@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -219,6 +220,30 @@ private fun AiSettingsContent(context: Context, onBack: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+            }
+        }
+
+        item {
+            SettingsCard {
+                val memory = remember { com.cyclone.mobile.mind.mission.MindMissions.memory(context) }
+                var facts by remember { mutableStateOf(memory.all()) }
+                Text("What Cyclone Mind remembers", fontWeight = FontWeight.Bold)
+                Text(
+                    "Facts the Mind kept for future missions. It never keeps passwords, codes, keys or card numbers. Remove anything you don't want it to know.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (facts.isEmpty()) {
+                    Text("Nothing yet.", style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    facts.take(50).forEach { fact ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(fact.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { memory.forget(fact.id); facts = memory.all() }) { Text("Forget") }
+                        }
+                    }
+                    TextButton(onClick = { memory.forgetAll(); facts = memory.all() }) { Text("Forget everything") }
                 }
             }
         }

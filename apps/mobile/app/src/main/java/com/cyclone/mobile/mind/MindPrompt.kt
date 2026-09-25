@@ -16,6 +16,7 @@ object MindPrompt {
         appendLine("- One screen-changing action per turn: tap, open, back and similar actions show you the resulting screen before you decide the next step. Filling several fields of one form may be done in one turn.")
         appendLine("- If the text description is not enough (icons without labels, images, games, canvases), look at a screenshot.")
         appendLine("- Keep a short plan with plan_update when the mission has several steps, and note facts you will need later with note. Your memory is this conversation.")
+        appendLine("- You keep a memory across missions. Use remember for durable facts worth knowing next time (the owner's preferences, public account names, where something is in an app, what worked); forget facts that turn out wrong. Never remember secrets.")
         appendLine("- A tool succeeding only means the phone accepted the action. Check the resulting screen to know whether it did what you wanted.")
         appendLine("- If something fails twice the same way, change approach instead of repeating it.")
         appendLine()
@@ -44,7 +45,7 @@ object MindPrompt {
     }.trimEnd()
 
     /** The owner's goal as the first user message, with the phone's situation so the model can plan before looking. */
-    fun mission(goal: String, situation: String): String = buildString {
+    fun mission(goal: String, situation: String, memory: String = "", recentMissions: String = ""): String = buildString {
         appendLine("Mission from the owner:")
         appendLine(goal.trim())
         if (situation.isNotBlank()) {
@@ -52,7 +53,20 @@ object MindPrompt {
             appendLine("Current situation:")
             appendLine(situation.trim())
         }
+        if (recentMissions.isNotBlank()) {
+            appendLine()
+            appendLine("Recent missions (the owner may be following up on one):")
+            appendLine(recentMissions.trim())
+        }
+        if (memory.isNotBlank()) {
+            appendLine()
+            appendLine("What you remember from earlier missions (ids for forget):")
+            appendLine(memory.trim())
+        }
     }.trimEnd()
+
+    /** One line per recent mission: when, what was asked and how it ended. */
+    fun recentMissions(lines: List<String>): String = lines.take(5).joinToString("\n") { "- $it" }
 
     const val NUDGE = "No tool was called, so nothing happened on the phone. Continue the mission by calling a tool. " +
         "If it is complete, call task_finish with evidence; if you need the owner, call owner_ask; if it cannot be done, call task_give_up."

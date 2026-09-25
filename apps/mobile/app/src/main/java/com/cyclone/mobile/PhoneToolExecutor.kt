@@ -727,6 +727,10 @@ object PhoneToolExecutor {
                 }
                 launchedOutcome(service, before, p, eventGeneration, JSONObject().put("page", key).put("started", true))
             }
+            "phone.tap_point" -> actionWithConfirmation(service, request, before) {
+                if (!p.has("x") || !p.has("y")) throw PhoneToolException(PhoneToolError(PhoneToolErrorCode.INVALID_REQUEST, "x and y are required"))
+                service?.tapPoint(p.optDouble("x").toFloat(), p.optDouble("y").toFloat(), humanize, request.commandId) == true
+            }
             "phone.submit_text" -> actionWithConfirmation(service, request, before) {
                 // The keyboard's action key (Enter / Search / Go) on the grounded editable field.
                 val selector = requireSelector(p)

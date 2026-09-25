@@ -62,6 +62,7 @@ object PhoneToolRegistry {
         PhoneToolDefinition("phone.set_alarm", true, "intent_launch", "Ask the clock app to create an alarm (hour 0-23, minute 0-59, optional label) and show it; prove it on the Clock screen"),
         PhoneToolDefinition("phone.set_timer", true, "intent_launch", "Ask the clock app to start a timer (seconds 1-86400, optional label) and show it; prove the countdown on the Clock screen"),
         PhoneToolDefinition("phone.open_settings", true, "intent_launch", "Open an allowlisted Android Settings page (page key, optional app package for app pages); navigation only"),
+        PhoneToolDefinition("phone.tap_point", true, "accessibility", "Vision fallback: tap screen pixels when accessibility exposes no control; whatever is under the point gets the same GATE check as a labelled click", humanizeParameters()),
         PhoneToolDefinition("phone.submit_text", true, "accessibility", "Press the keyboard action key (Enter/Search/Go) on a current observation-scoped editable element; non-search fields need GATE approval"),
         PhoneToolDefinition("phone.capabilities", false, null, "Return runtime capability availability and missing-permission states"),
     )
