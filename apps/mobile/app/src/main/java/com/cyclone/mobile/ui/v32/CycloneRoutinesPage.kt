@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -50,7 +51,7 @@ import com.cyclone.mobile.automation.RunState
 import com.cyclone.mobile.automation.TriggerType
 
 @Composable
-fun CycloneRoutinesPage(context: Context, refreshTick: Int, onAi: () -> Unit, refresh: () -> Unit) {
+fun CycloneRoutinesPage(context: Context, refreshTick: Int, onAi: () -> Unit, onMarketplace: () -> Unit = {}, refresh: () -> Unit) {
     val all = remember(refreshTick) { AutomationRuntime.store.listAutomations() }
     val task by com.cyclone.mobile.runtime.background.WorkspaceTasks.state.collectAsState()
     val runs = remember(refreshTick) { AutomationRuntime.store.listRuns() }
@@ -140,6 +141,12 @@ fun CycloneRoutinesPage(context: Context, refreshTick: Int, onAi: () -> Unit, re
                             }
                         },
                     )
+                }
+
+                item {
+                    CycloneSimpleCard(Modifier.fillMaxWidth()) {
+                        RoutineCreateRow(Icons.Rounded.Storefront, "Marketplace", "Recipes and connections, ready to add") { onMarketplace() }
+                    }
                 }
 
                 if (create) {

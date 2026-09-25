@@ -67,6 +67,7 @@ fun CycloneMobileV32App() {
         var destination by rememberSaveable { mutableStateOf(V32Destination.HOME) }
         var settingsOpen by rememberSaveable { mutableStateOf(false) }
         var settingsSection by rememberSaveable { mutableStateOf("") }
+        var marketOpen by rememberSaveable { mutableStateOf(false) }
         fun backFromSettings() {
             if (settingsSection.isNotEmpty()) settingsSection = "" else settingsOpen = false
         }
@@ -105,7 +106,7 @@ fun CycloneMobileV32App() {
                     }
                 },
                 bottomBar = {
-                    if (!settingsOpen) CycloneV32BottomBar(destination) { destination = it }
+                    if (!settingsOpen && !marketOpen) CycloneV32BottomBar(destination) { destination = it }
                 },
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
@@ -114,6 +115,12 @@ fun CycloneMobileV32App() {
                         Box(Modifier.weight(1f).fillMaxSize()) {
                             if (settingsOpen) {
                                 CycloneSettingsPage426(context, refreshTick, { refreshTick++ }, settingsSection) { settingsSection = it }
+                            } else if (marketOpen) {
+                                CycloneMarketplacePage(context, onBack = { marketOpen = false }) {
+                                    marketOpen = false
+                                    settingsSection = "Model & API"
+                                    settingsOpen = true
+                                }
                             } else {
                                 when (destination) {
                                     V32Destination.HOME -> V32HomePage(
@@ -129,6 +136,7 @@ fun CycloneMobileV32App() {
                                         context,
                                         refreshTick,
                                         { destination = V32Destination.AI },
+                                        onMarketplace = { marketOpen = true },
                                     ) { refreshTick++ }
                                     V32Destination.BRAIN -> CycloneV39BrainPage(context, refreshTick)
                                 }

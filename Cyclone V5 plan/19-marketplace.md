@@ -77,7 +77,7 @@ is recorded against the listing, and its outcome comes from the mission's own en
 
 ## 3. Surfaces
 
-**Phone — Routines → Marketplace** (and Settings → Marketplace). Built to Grok's layout:
+**Phone — Routines → Marketplace**. Built to Grok's layout:
 - Header "Marketplace", a search field, and an **"N installed ›"** chip that opens *Installed*.
 - **Featured**: four large cards (glyph, maker, name).
 - **For you**: listings suggested because an app they use is installed ("Because you use WhatsApp"), with **Add**.

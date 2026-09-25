@@ -410,6 +410,10 @@ internal object GatewayDispatcher {
         "atlas.diff", "mapping.start", "mapping.pause", "mapping.stop", "mapping.status" ->
             GatewayV5MappingAdapter.dispatch(context, request.op, request.args)
         "ask.start", "ask.status" -> GatewayV5AskAdapter.dispatch(request.op, request.args)
+        "market.catalog", "market.install", "market.remove", "market.run" -> {
+            GatewayV5MarketAdapter.install(context)
+            GatewayV5MarketAdapter.dispatch(request.op, request.args)
+        }
         "lab.start", "lab.status", "lab.answer", "lab.record" -> {
             GatewayV5LabAdapter.install(context)
             GatewayV5LabAdapter.dispatch(request.op, request.args)

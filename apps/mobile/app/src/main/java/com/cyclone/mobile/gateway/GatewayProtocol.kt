@@ -141,6 +141,11 @@ internal object GatewayProtocol {
         "lab.status",
         "lab.answer",
         "lab.record",
+        // Cyclone Marketplace: the phone's store of recipes and connections, read and changed from Glass.
+        "market.catalog",
+        "market.install",
+        "market.remove",
+        "market.run",
     )
 
     fun parse(line: String): GatewayRequest {
