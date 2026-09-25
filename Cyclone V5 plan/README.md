@@ -45,6 +45,7 @@ Each orch issues **three** agent handoffs (drafted under `orchestrators/<team>/a
 | 18 | [Cyclone Lab](18-cyclone-lab.md) | Measured missions on the real phone, A/B |
 | 19 | [Marketplace](19-marketplace.md) | Recipes, connections, and the road to a community store |
 | 20 | [App mapping build plan](20-app-mapping-build-plan.md) | **Final build plan alpha.36–38**: Learn, map-guided runs, mapping missions |
+| 21 | [Mind hands and desk](21-mind-hands-and-desk.md) | **Final build plan**: reliable text delivery (alpha.37), mission desk scratchpad (alpha.38) |
 
 ## Identity
 
