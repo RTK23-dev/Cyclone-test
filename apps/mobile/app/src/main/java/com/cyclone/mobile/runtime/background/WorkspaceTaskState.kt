@@ -50,6 +50,8 @@ data class WorkspaceTaskUi(
     val traceSessionId: String? = null,
     /** Wall-clock start; 0 means unknown so tests do not depend on the clock. */
     val startedAtMs: Long = 0L,
+    /** The engine that runs this task (Task Kit). Null for tasks created before it was recorded; see TaskEngines.of. */
+    val engine: com.cyclone.mobile.task.TaskEngine? = null,
 ) {
     val foreground get() = sessionId == "default-foreground" && workspaceId == null
     val working get() = phase == TaskPhase.STARTING || phase == TaskPhase.WORKING
@@ -249,8 +251,10 @@ object WorkspaceTasks {
             update(task.taskId) { it.copy(phase = TaskPhase.FAILED,
             message = "Couldn't start background work. Open Cyclone and try again.") }; throw error }
     }
+    /** Every surface's task button ends here and goes through Task Kit to the engine that owns the task. */
     fun command(context: Context, task: WorkspaceTaskUi, action: String) {
-        context.startService(commandIntent(context, task, action))
+        val command = com.cyclone.mobile.task.TaskCommand.parse(action, task.confirmation?.token) ?: return
+        com.cyclone.mobile.task.TaskCommands.send(context, task.taskId, command)
     }
     fun commandIntent(context: Context, task: WorkspaceTaskUi, action: String) =
         Intent(context, WorkspaceTaskService::class.java).setAction(action)

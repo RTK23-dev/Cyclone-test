@@ -65,11 +65,7 @@ object MindMissions {
     private val hooks = object : OverlayChromeRuntime.MissionHooks {
         override fun stop() = MindMissions.stop()
         override fun ownerText(text: String): Boolean = steer(text)
-        override fun command(action: String): Boolean = when (action) {
-            "resume", "done" -> { ownerDone(); true }
-            "handoff", "pause" -> { ownerTakesPhone(); true }
-            else -> false
-        }
+
     }
 
     fun enabled(context: Context): Boolean =
@@ -261,6 +257,7 @@ object MindMissions {
             val primary = model(primaryId)
             val backup = backupId?.let(::model)
             save { it.copy(modelId = primaryId, modelLabel = primary.label, traceId = trace) }
+            WorkspaceTasks.update(taskId) { it.copy(traceSessionId = trace) }
             AgentTraceRuntime.event(context, trace, if (resume == null) "MISSION_START" else "MISSION_RESUME",
                 if (resume == null) "Mission started with ${primary.label}" else "Mission resumed (${mission.resumes}) with ${primary.label}")
 
@@ -360,6 +357,7 @@ object MindMissions {
 
     private fun publishTask(context: Context, taskId: String, mission: Mission) {
         val task = WorkspaceTaskUi(taskId, "default-foreground", "Cyclone Mind", "", mission.goal, phase = TaskPhase.WORKING,
+            engine = com.cyclone.mobile.task.TaskEngine.MIND,
             message = "On it.", displayId = 0, startedAtMs = System.currentTimeMillis(), traceSessionId = mission.traceId,
             plannedMilestones = mission.plan.map { it.text })
         runCatching { WorkspaceTasks.publishStart(task) }.onFailure { WorkspaceTasks.update(taskId) { task } }

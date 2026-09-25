@@ -68,12 +68,7 @@ object OverlayChromeRuntime {
         fun stop()
         /** Text from the composer while a mission runs: an answer or a new instruction. True when consumed. */
         fun ownerText(text: String): Boolean
-        /**
-         * A task-card command (overlay ribbon, notification, Ask) for the foreground task while a mission runs:
-         * "resume" / "done" = the owner is finished with the phone, "handoff" / "pause" = the owner takes it.
-         * True when the mission handled it.
-         */
-        fun command(action: String): Boolean = false
+
     }
 
     @Volatile private var missionHooks: MissionHooks? = null
@@ -340,8 +335,12 @@ object OverlayChromeRuntime {
         }
         if (action == OverlayUserAction.TAKE_CONTROL) {
             WorkspaceTasks.state.value?.takeIf { it.foreground && it.taskId == foregroundTaskId }?.let { task ->
-                commandForegroundTask(task.taskId, if (before.userPaused) "resume" else "handoff")
-                return
+                val context = synchronized(lock) { service }
+                if (context != null) {
+                    com.cyclone.mobile.task.TaskCommands.send(context, task.taskId,
+                        if (before.userPaused) com.cyclone.mobile.task.TaskCommand.Done else com.cyclone.mobile.task.TaskCommand.TakeOver)
+                    return
+                }
             }
         }
         if (action == OverlayUserAction.GATE_CONFIRM) approvePendingGateChallenge(before)
@@ -618,24 +617,26 @@ object OverlayChromeRuntime {
     }
 
     /** Exact-task service command; retains the original foreground agent and controller machinery. */
-    fun commandForegroundTask(id: String, command: String) {
-        // A Cyclone Mind mission knows what it is waiting for (a hand-back, an answer, values); the classic resume
-        // path does not, and pressing "I'm done" there left the mission waiting forever.
-        missionHooks?.let { hooks -> if (id.startsWith("mission-") && hooks.command(command)) return }
-        val task = WorkspaceTasks.state.value?.takeIf { it.foreground && it.taskId == id && id == foregroundTaskId } ?: return
+    /**
+     * The classic foreground agent's side of Task Kit (ClassicForegroundTaskController). Returns null when the command
+     * was carried out, or the reason it could not be. Surfaces reach this only through TaskCommands.
+     */
+    fun commandForegroundTask(id: String, command: String): String? {
+        val task = WorkspaceTasks.state.value?.takeIf { it.foreground && it.taskId == id && id == foregroundTaskId }
+            ?: return "This task is no longer the foreground task."
         when (command) {
             "handoff", "pause" -> {
-                if (!task.working && task.interruption?.canTakeOver != true && task.phase != TaskPhase.DONE) return
+                if (!task.working && task.interruption?.canTakeOver != true && task.phase != TaskPhase.DONE) return "Cyclone is not working on it right now."
                 WorkspaceTasks.update(id) { it.copy(phase = TaskPhase.HUMAN) }
                 DeviceState.setController(DeviceState.Controller.HUMAN)
                 if (!snapshot().userPaused) mutate { it.dispatch(OverlayUserAction.TAKE_CONTROL) }
             }
             "resume" -> {
-                if (task.interruption?.canResumeAfterHuman != true) return
+                if (task.interruption?.canResumeAfterHuman != true) return "The task is not waiting for you."
                 resumeForeground(id, task)
             }
             "autofill" -> {
-                if (task.interruption?.canAutofill != true) return
+                if (task.interruption?.canAutofill != true) return "There is no sign-in to fill."
                 adaptiveAgent?.authorizeAutofill()
                 DeviceState.setController(DeviceState.Controller.AGENT)
                 resumeForeground(id, task, requireResumeCapability = false)
@@ -646,7 +647,9 @@ object OverlayChromeRuntime {
                 service?.let { AgentTaskNotificationRuntime.cancel(it) }
                 foregroundTaskId = null
             }
+            else -> return "Unknown command $command."
         }
+        return null
     }
 
     private fun resumeForeground(

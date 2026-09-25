@@ -277,10 +277,8 @@ class WorkspaceProgressActivity : ComponentActivity() {
                             OutlinedButton(
                                 enabled = liveAvailable,
                                 onClick = {
-                                    startService(
-                                        WorkspaceTasks.commandIntent(this@WorkspaceProgressActivity, task, "confirm")
-                                            .putExtra("confirmation", task.confirmation.token),
-                                    )
+                                    com.cyclone.mobile.task.TaskCommands.send(this@WorkspaceProgressActivity, task.taskId,
+                                        com.cyclone.mobile.task.TaskCommand.Confirm(task.confirmation.token))
                                 },
                                 modifier = Modifier.weight(1f).heightIn(min = 46.dp),
                                 shape = RoundedCornerShape(15.dp),

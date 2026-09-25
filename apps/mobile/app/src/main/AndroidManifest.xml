@@ -83,6 +83,8 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-requested isolated app task with visible pause, stop and human handoff controls" />
         </service>
+        <!-- Task Kit: notification buttons for foreground tasks. Not exported. -->
+        <receiver android:name=".task.TaskCommandReceiver" android:exported="false" />
         <service
             android:name=".mind.mission.MindMissionService"
             android:exported="false"

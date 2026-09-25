@@ -33,7 +33,10 @@ class WorkspaceTaskService : Service() {
                 if (WorkspaceTasks.matches(shared, intent.getStringExtra("task"), intent.getStringExtra("session")) &&
                     intent.getIntExtra("display", -1) == shared.displayId && intent.getStringExtra("workspace") == null &&
                     intent.getLongExtra("generation", -1) == -1L) {
-                    com.cyclone.mobile.ui.overlay.OverlayChromeRuntime.commandForegroundTask(shared.taskId, intent.action!!)
+                    // Legacy notification intents for a foreground task: Task Kit routes them to the owning engine.
+                    com.cyclone.mobile.task.TaskCommand.parse(intent.action, intent.getStringExtra("confirmation"))?.let { command ->
+                        com.cyclone.mobile.task.TaskCommands.send(applicationContext, shared.taskId, command)
+                    }
                 }
                 if (taskId == null) stopSelf()
                 return START_NOT_STICKY

@@ -48,8 +48,8 @@ internal object TaskProgressNotification {
         // Preserve every available interruption/confirmation command. The card itself always opens
         // exact-task details; running tasks have Stop task followed by the explicit View progress.
         TaskNotificationProjection.actions(task).forEach { (command, label) ->
-            val action = PendingIntent.getService(context, 0, WorkspaceTasks.commandIntent(context, task, command),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            val parsed = com.cyclone.mobile.task.TaskCommand.parse(command, task.confirmation?.token) ?: return@forEach
+            val action = com.cyclone.mobile.task.TaskCommands.pendingIntent(context, task, parsed)
             builder.addAction(Notification.Action.Builder(null, label, action).build())
         }
         if (TaskNotificationProjection.actions(task).size < 3) {

@@ -37,6 +37,7 @@ import com.cyclone.mobile.mind.mission.OwnerResponse
 /** The running mission: its plan, what it just did, what it needs from the owner, and Stop. */
 @Composable
 fun CycloneLiveMissionCard(mission: Mission) {
+    val context = LocalContext.current
     val request by MindMissions.inbox.pending.collectAsState()
     CycloneSignatureCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -58,7 +59,7 @@ fun CycloneLiveMissionCard(mission: Mission) {
             }
             request?.takeIf { it.missionId == mission.id }?.let { CycloneOwnerCard(it, framed = false) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = { MindMissions.stop() }, shape = RoundedCornerShape(18.dp),
+                TextButton(onClick = { com.cyclone.mobile.task.TaskCommands.send(context, "mission-${mission.id}", com.cyclone.mobile.task.TaskCommand.Stop) }, shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Stop the mission" }) { Text("Stop") }
             }
         }

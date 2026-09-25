@@ -56,6 +56,7 @@ fun CycloneOwnerCard(request: OwnerRequest, modifier: Modifier = Modifier, frame
 
 @Composable
 private fun OwnerCardContent(request: OwnerRequest) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -72,7 +73,7 @@ private fun OwnerCardContent(request: OwnerRequest) {
             OwnerRequestKind.VALUES -> ValuesBody(request)
             OwnerRequestKind.QUESTION -> QuestionBody(request)
             OwnerRequestKind.CONTROL -> Button(
-                onClick = { MindMissions.ownerDone() },
+                onClick = { com.cyclone.mobile.task.TaskCommands.send(context, "mission-${request.missionId}", com.cyclone.mobile.task.TaskCommand.Done) },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = "I'm done, continue with Cyclone" },
                 shape = RoundedCornerShape(16.dp),
             ) { Text("I'm done") }
