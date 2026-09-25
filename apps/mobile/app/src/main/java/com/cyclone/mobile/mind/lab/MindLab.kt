@@ -29,6 +29,11 @@ data class MindLabVariant(
     val freshMemory: Boolean = true,
     /** Extra instruction appended to the system prompt, to A/B test prompt changes without a new build. */
     val promptAddendum: String = "",
+    /**
+     * Runs from the map: learned-screen advice, the app's map card and the go_to walker. With it on, the lab also
+     * learns each mission when it ends, so later trials of the arm start from what earlier ones saw.
+     */
+    val useMap: Boolean = true,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("name", name)
@@ -38,9 +43,10 @@ data class MindLabVariant(
         .put("marks", marks)
         .put("freshMemory", freshMemory)
         .put("promptAddendum", promptAddendum)
+        .put("useMap", useMap)
 
     companion object {
-        val KEYS = setOf("name", "modelId", "effort", "workingMinutes", "marks", "freshMemory", "promptAddendum")
+        val KEYS = setOf("name", "modelId", "effort", "workingMinutes", "marks", "freshMemory", "promptAddendum", "useMap")
         private val NAME = Regex("^[A-Za-z0-9 ._-]{1,40}$")
         private val MODEL = Regex("^[a-z0-9][a-z0-9._-]{0,60}/[A-Za-z0-9][A-Za-z0-9._:-]{0,80}$")
         private val EFFORTS = setOf("low", "medium", "high")
@@ -66,7 +72,8 @@ data class MindLabVariant(
             val addendum = json.optString("promptAddendum", "").trim()
             require(addendum.length <= MAX_ADDENDUM) { "variant.promptAddendum is longer than $MAX_ADDENDUM characters." }
             require(!INLINE_SECRET.containsMatchIn(addendum)) { "Do not put secrets in a lab prompt." }
-            MindLabVariant(name, model, effort, minutes, json.optBooleanStrict("marks", true), json.optBooleanStrict("freshMemory", true), addendum)
+            MindLabVariant(name, model, effort, minutes, json.optBooleanStrict("marks", true), json.optBooleanStrict("freshMemory", true), addendum,
+                json.optBooleanStrict("useMap", true))
         }
 
         private fun JSONObject.optNullableString(key: String): String? =
@@ -115,6 +122,7 @@ class MissionMetrics(private val clock: () -> Long = System::currentTimeMillis) 
     private var modelMs = 0L
     private var modelStartedAt: Long? = null
     private var slowestTurnMs = 0L
+    private var mapMoves = 0
 
     override fun onModelStart(turn: Int, model: MindModel) = synchronized(lock) {
         turns = maxOf(turns, turn)
@@ -134,6 +142,7 @@ class MissionMetrics(private val clock: () -> Long = System::currentTimeMillis) 
         calls[call.name] = (calls[call.name] ?: 0) + 1
         if (result.changedScreen) screenChanges++
         ownerWaitMs += result.ownerWaitMs.coerceAtLeast(0)
+        mapMoves += result.mapMoves.coerceAtLeast(0)
         val signature = call.name + ":" + call.arguments.trim()
         if (result.changedScreen && signature == lastAction) repeats++
         if (result.changedScreen) lastAction = signature
@@ -166,6 +175,7 @@ class MissionMetrics(private val clock: () -> Long = System::currentTimeMillis) 
             .put("actions", calls.values.sum())
             .put("errors", errors.values.sum())
             .put("screenChanges", screenChanges)
+            .put("mapMoves", mapMoves)
             .put("repeatedActions", repeats)
             .put("ownerWaitMs", ownerWaitMs)
             .put("modelMs", modelMs)

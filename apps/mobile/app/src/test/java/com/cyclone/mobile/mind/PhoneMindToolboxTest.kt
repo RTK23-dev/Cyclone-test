@@ -29,7 +29,9 @@ class PhoneMindToolboxTest {
     data class Control(val key: String, val label: String, val role: String = "button", val editable: Boolean = false, val password: Boolean = false)
 
     class FakeScreen(val packageName: String, val controls: List<Control>, val text: List<String> = emptyList(),
-        val values: Map<String, String> = emptyMap(), val treeUseful: Boolean = true, val shortlist: Int = 36)
+        val values: Map<String, String> = emptyMap(), val treeUseful: Boolean = true, val shortlist: Int = 36,
+        /** Set to give the screen a learned-map identity (legacy page key). */
+        val pageKey: String? = null, val title: String = "")
 
     class FakeEnv(var screen: FakeScreen) : CycloneAgentEnvironmentApi {
         var observations = 0
@@ -65,6 +67,9 @@ class PhoneMindToolboxTest {
                 pageEvidence = JSONObject().put("captureWidth", 1080).put("captureHeight", 2400),
                 controls = all.take(screen.shortlist),
                 nextHopHints = JSONArray(),
+                legacyPage = screen.pageKey?.let { key ->
+                    com.cyclone.mobile.applearner.PageContext(key, screen.packageName, "Main", screen.title, key, "c", emptyList(), 1, 0, 0)
+                },
             )
         }
 
@@ -533,5 +538,73 @@ class PhoneMindToolboxTest {
         assertTrue(byHand.ok)
         assertTrue(byHand.text.contains("filled it in by hand"))
         assertTrue(env.acts.none { it.first == "phone.type" })
+    }
+
+    // ---- the map (go_to) ---------------------------------------------------------------------------------------------
+
+    private class MapReader : com.cyclone.mobile.mind.learn.LearnedReader {
+        val pkg = "com.android.settings"
+        private fun screen(id: String, title: String) = com.cyclone.mobile.applearner.LearnedScreen(id, pkg, id, title, "",
+            com.cyclone.mobile.applearner.ScreenRecognition("key-$id", "", emptyList(), null, emptyList()),
+            com.cyclone.mobile.applearner.KnowledgeState.UNDERSTOOD, 0.8)
+        private fun action(from: String, label: String) = com.cyclone.mobile.applearner.LearnedAction("a-$label", pkg, from, label, label,
+            listOf("click"), """{"role":"button"}""", com.cyclone.mobile.applearner.ActionRisk.SAFE)
+        override fun screens(packageName: String) = listOf(screen("home", "Settings"), screen("display", "Display"), screen("timeout", "Screen timeout"))
+        override fun actions(packageName: String) = listOf(action("home", "Display"), action("display", "Screen timeout"))
+        override fun transitions(packageName: String) = listOf(
+            com.cyclone.mobile.applearner.LearnedTransition("t1", pkg, "home", "a-Display", "display", successfulCount = 2, observedCount = 2),
+            com.cyclone.mobile.applearner.LearnedTransition("t2", pkg, "display", "a-Screen timeout", "timeout"),
+        )
+    }
+
+    private fun settingsScreens() = mapOf(
+        "home" to FakeScreen("com.android.settings", listOf(Control("d", "Display"), Control("n", "Network")), pageKey = "key-home", title = "Settings"),
+        "display" to FakeScreen("com.android.settings", listOf(Control("t", "Screen timeout"), Control("b", "Brightness")), pageKey = "key-display", title = "Display"),
+        "timeout" to FakeScreen("com.android.settings", listOf(Control("m", "2 minutes")), pageKey = "key-timeout", title = "Screen timeout"),
+    )
+
+    @Test fun goToWalksTheLearnedRouteThroughTheNormalActPathAndCountsMapMoves() {
+        val screens = settingsScreens()
+        val env = FakeEnv(screens.getValue("home"))
+        env.onAct = { _, params ->
+            when (params.optString("elementId").substringAfterLast(':')) {
+                "d" -> env.screen = screens.getValue("display")
+                "t" -> env.screen = screens.getValue("timeout")
+            }
+        }
+        val box = PhoneMindToolbox(env, FakeOwner(), device, "set the screen timeout",
+            maps = com.cyclone.mobile.mind.map.MindMaps(MapReader()))
+        assertTrue(box.specs().any { it.name == "go_to" })
+
+        val first = box.execute(MindToolCall("c1", "screen_read", "{}"), JSONObject())
+        assertTrue(first.text, first.text.contains("Map of com.android.settings"))
+        assertTrue(first.text, first.text.contains("(you are here)"))
+        val again = box.execute(MindToolCall("c2", "screen_read", "{}"), JSONObject())
+        assertFalse("the map card is shown once per app", again.text.contains("Map of"))
+
+        val walked = box.execute(MindToolCall("c3", "go_to", "{}"), JSONObject().put("screen", "Screen timeout"))
+        assertTrue(walked.text, walked.text.startsWith("Arrived at"))
+        assertTrue(walked.text, walked.text.contains("in 2 moves"))
+        assertEquals(2, walked.mapMoves)
+        assertTrue(walked.ok)
+        assertEquals(listOf("phone.click", "phone.click"), env.acts.map { it.first })
+        assertTrue(walked.text, walked.text.contains("2 minutes"))
+    }
+
+    @Test fun goToStopsWhenTheAppChangedAndIsHiddenWhenTheMapIsOff() {
+        val screens = settingsScreens()
+        val env = FakeEnv(screens.getValue("home"))
+        env.onAct = { _, _ -> env.screen = FakeScreen("com.android.settings", listOf(Control("x", "New page")), pageKey = "key-new", title = "New") }
+        val box = PhoneMindToolbox(env, FakeOwner(), device, "goal", maps = com.cyclone.mobile.mind.map.MindMaps(MapReader()))
+        val stopped = box.execute(MindToolCall("c1", "go_to", "{}"), JSONObject().put("screen", "Screen timeout"))
+        assertFalse(stopped.ok)
+        assertTrue(stopped.text, stopped.text.startsWith("The map walk stopped after 1 move"))
+        assertEquals(1, stopped.mapMoves)
+
+        val unknown = box.execute(MindToolCall("c2", "go_to", "{}"), JSONObject().put("screen", "Bluetooth"))
+        assertTrue(unknown.text, unknown.text.startsWith("ERROR:"))
+
+        val off = PhoneMindToolbox(FakeEnv(screens.getValue("home")), FakeOwner(), device, "goal")
+        assertFalse(off.specs().any { it.name == "go_to" })
     }
 }

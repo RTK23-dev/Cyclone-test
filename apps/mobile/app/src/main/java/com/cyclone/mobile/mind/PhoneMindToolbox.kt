@@ -33,6 +33,8 @@ class PhoneMindToolbox(
     private val trail: com.cyclone.mobile.mind.learn.MindTrailRecorder? = null,
     /** What Learn taught about a screen (package, page key → advice), shown under the screen when it is known. */
     private val learned: ((String, String) -> String?)? = null,
+    /** Learned maps for route-walking (go_to) and the map card; null when the map is off (Lab A/B). */
+    private val maps: com.cyclone.mobile.mind.map.MindMaps? = null,
 ) : MindToolbox {
     private val refs = MindRefBook()
     private var screen: AgentPageCard? = null
@@ -47,7 +49,7 @@ class PhoneMindToolbox(
     val currentPlan: List<MindPlanStep> get() = plan
     val lastScreen: AgentPageCard? get() = screen
 
-    override fun specs(): List<MindToolSpec> = SPECS
+    override fun specs(): List<MindToolSpec> = if (maps == null) SPECS.filterNot { it.name == "go_to" } else SPECS
 
     override fun situation(): String {
         val observed = env.observe(goal)
@@ -95,6 +97,7 @@ class PhoneMindToolbox(
         "set_timer" -> setTimer(arguments)
         "set_alarm" -> setAlarm(arguments)
         "apps_list" -> appsList(arguments.optString("query"))
+        "go_to" -> goTo(arguments.optString("screen"))
         "recall" -> recall(arguments.optString("topic").ifBlank { goal })
         "owner_ask" -> ownerAsk(arguments)
         "vault_fill" -> vaultFill(arguments)
@@ -143,13 +146,66 @@ class PhoneMindToolbox(
         val bound = bind(page)
         val rendered = MindScreen.render(page, bound, appLabel(page.packageName), controlsById, fieldValues)
         val hint = runCatching { page.legacyPage?.let { learned?.invoke(it.packageName, it.pageKey) } }.getOrNull()
-        val text = listOfNotNull(header, rendered, hint).joinToString("\n\n")
+        val card = runCatching { page.legacyPage?.let { mapCard(it.packageName, it.pageKey) } }.getOrNull()
+        val text = listOfNotNull(header, rendered, hint, card).joinToString("\n\n")
         val brief = (header ?: "Read the screen") + " — " + MindScreen.brief(page, appLabel(page.packageName))
         val dataUrl = observed.image?.optString("pngBase64")?.takeIf { it.isNotBlank() }?.let { png -> prepareShot(page, bound, png, observed.image!!) }
         return MindToolResult(text, brief.take(200), imageDataUrl = dataUrl)
     }
 
     private fun read() = observeAndRender(null)
+
+    /** The app's map, the first time the Mind is in an app Cyclone has learned. */
+    private fun mapCard(packageName: String, pageKey: String): String? {
+        val maps = maps ?: return null
+        val map = maps.map(packageName)?.takeIf { it.moves.isNotEmpty() } ?: return null
+        if (!maps.firstVisit(packageName)) return null
+        return map.card(appLabel(packageName) ?: packageName, map.locate(pageKey))
+    }
+
+    // ---- the map ---------------------------------------------------------------------------------------------------
+
+    /**
+     * Walks a learned route to a screen, one move at a time, reading the screen after every move (the same act path,
+     * settle and GATE as a tap). Stops at the first surprise and hands back with the real screen.
+     */
+    private fun goTo(wanted: String): MindToolResult {
+        val maps = maps ?: return MindToolResult.error("go_to is not available in this mission.")
+        if (wanted.isBlank()) return MindToolResult.error("screen is required: a handle like s3 from the map, or a screen name.")
+        if (!fresh || screen == null) env.observe(goal).page?.let(::bind)
+        val page = screen?.legacyPage ?: return MindToolResult.error("The screen could not be read.")
+        val app = appLabel(page.packageName) ?: page.packageName
+        val map = maps.map(page.packageName)
+            ?: return MindToolResult.error("There is no learned map for $app yet. Find the way yourself.")
+        val target = map.find(wanted) ?: return MindToolResult.error("\"$wanted\" is not a screen on the map of $app. Known: " +
+            map.screens.take(20).joinToString(", ") { "${it.handle} ${it.title}" } + ".")
+        val port = object : com.cyclone.mobile.mind.map.MapWalkPort {
+            override fun currentPageKey(): String? = screen?.legacyPage?.pageKey
+            override fun press(label: String, role: String?): com.cyclone.mobile.mind.map.MapPress {
+                val named = refs.all().filter { it.label.equals(label, true) && !it.editable }
+                val ref = named.firstOrNull { role != null && it.role.equals(role, true) } ?: named.firstOrNull()
+                    ?: return com.cyclone.mobile.mind.map.MapPress.NOT_ON_SCREEN
+                val done = act("phone.click", JSONObject().put("elementId", ref.elementId), "Map: tapped ${ref.ref} \"${ref.label}\"", ref)
+                return if (done.ok) com.cyclone.mobile.mind.map.MapPress.DONE else com.cyclone.mobile.mind.map.MapPress.REFUSED
+            }
+        }
+        val outcome = com.cyclone.mobile.mind.map.MapWalker(map, port, maps.feedback(page.packageName)).walk(target)
+        val moves = outcome.moves
+        val header = when (outcome) {
+            is com.cyclone.mobile.mind.map.WalkOutcome.Arrived ->
+                if (moves == 0) "Already on ${target.handle} ${target.title}."
+                else "Arrived at ${target.handle} ${target.title} from the map in $moves move${if (moves == 1) "" else "s"}."
+            is com.cyclone.mobile.mind.map.WalkOutcome.NotOnMap ->
+                "This screen is not on the map of $app. Go to a screen the map knows, or find the way yourself."
+            is com.cyclone.mobile.mind.map.WalkOutcome.NoRoute ->
+                "The map knows no way from ${outcome.from.title} to ${outcome.to.title}. Find the way yourself."
+            is com.cyclone.mobile.mind.map.WalkOutcome.Diverged ->
+                "The map walk stopped after $moves move${if (moves == 1) "" else "s"}: ${outcome.reason}. " +
+                    "It expected ${outcome.expected.title}. Here is the real screen; carry on yourself."
+        }
+        val result = observeAndRender(header)
+        return result.copy(ok = outcome is com.cyclone.mobile.mind.map.WalkOutcome.Arrived, changedScreen = moves > 0, mapMoves = moves)
+    }
 
     private fun look(): MindToolResult {
         val result = observeAndRender("Screenshot of the current screen attached.", image = true)
@@ -717,7 +773,7 @@ class PhoneMindToolbox(
         /** Tools that need a usable screen; memory, planning, questions and finishing work with the phone locked. */
         private val PHONE_TOOLS = setOf("screen_read", "screen_look", "screen_find", "tap", "tap_point", "long_press", "type_text",
             "press_enter", "scroll", "swipe", "back", "home", "wait", "open_app", "open_link", "open_settings", "set_timer",
-            "set_alarm", "vault_fill", "open_notification")
+            "set_alarm", "vault_fill", "open_notification", "go_to")
         private val NAVIGATION = setOf("phone.open_app", "phone.launch_intent", "phone.open_settings", "phone.set_timer", "phone.set_alarm", "phone.back", "phone.home")
         private val SENSITIVE = Regex("(?i)password|passcode|wachtwoord|\\bpin\\b|one[- ]time|otp|verification code|verificatiecode|cvv|cvc|card number|kaartnummer|security code")
         fun sensitive(label: String): Boolean = SENSITIVE.containsMatchIn(label)
@@ -747,6 +803,8 @@ class PhoneMindToolbox(
             MindToolSpec("screen_find", "Find elements on the current screen matching a description, including ones not listed in the screen summary.",
                 objectSchema("query" to string("What to look for, e.g. \"install button\" or \"search\"."), required = listOf("query"))),
             MindToolSpec("tap", "Tap an element.", objectSchema("ref" to REF, required = listOf("ref"))),
+            MindToolSpec("go_to", "Walk to a screen of the current app using its learned map (shown as \"Map of …\" once you are in a learned app). Cyclone taps the known way itself, checking the screen after every step, and stops if anything differs.",
+                objectSchema("screen" to string("A screen handle from the map, like s3, or its name."), required = listOf("screen"))),
             MindToolSpec("long_press", "Long-press an element.", objectSchema("ref" to REF, required = listOf("ref"))),
             MindToolSpec("swipe", "Swipe on the screen or on one element: carousels, tabs, photos, horizontal lists. left moves the content left.",
                 objectSchema("direction" to string("Which way the content moves.", listOf("left", "right", "up", "down")), "ref" to REF,

@@ -18,7 +18,7 @@ object MindPrompt {
         appendLine("- Screens are described as text: visible text, then controls with refs (e1, e2, …), with the current value of ordinary text fields. Screenshots show the same refs as labelled boxes. Act with refs; use tap_point only for things that have no ref.")
         appendLine("- After every screen-changing action you are shown the new screen. One screen-changing action per turn; filling several fields of one form in one turn is fine.")
         appendLine("- A tool succeeding only means the phone accepted the action. Read the new screen to know whether it did what you wanted. If an action fails twice the same way, change approach.")
-        appendLine("- Some screens end with \"Learned before\": moves that worked on this screen in earlier runs. Use them to go straight to the right control instead of exploring, but only through the refs you see now.")
+        appendLine("- In an app Cyclone has learned you get a \"Map of …\" with its screens (s1, s2…), and some screens end with \"Learned before\". To reach a screen on the map, call go_to once instead of tapping your way there; it checks every step and hands back if the app changed. Otherwise use the moves as hints, through the refs you see now.")
         appendLine("- For longer missions keep a short plan with plan_update and update it as steps finish.")
         appendLine()
         appendLine("## Memory")

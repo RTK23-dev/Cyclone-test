@@ -19,10 +19,12 @@ class MindLabTest {
         assertEquals(MindLabVariant("A"), plain)
         assertNull(plain.modelId)
         assertTrue("lab runs start fresh unless told otherwise", plain.freshMemory && plain.marks)
+        assertTrue("the map is on unless an arm turns it off", plain.useMap)
+        assertFalse(MindLabVariant.parse(JSONObject().put("name", "no map").put("useMap", false)).getOrThrow().useMap)
 
         val full = MindLabVariant.parse(JSONObject().put("name", "B no marks").put("modelId", "anthropic/claude-sonnet-4.5")
             .put("effort", "low").put("workingMinutes", 10).put("marks", false).put("freshMemory", false)
-            .put("promptAddendum", "Prefer deep links.")).getOrThrow()
+            .put("promptAddendum", "Prefer deep links.").put("useMap", false)).getOrThrow()
         assertEquals(full, MindLabVariant.parse(full.toJson()).getOrThrow())
     }
 
@@ -36,6 +38,7 @@ class MindLabTest {
             JSONObject().put("name", "A").put("workingMinutes", 500),
             JSONObject().put("name", "A").put("workingMinutes", "10"),
             JSONObject().put("name", "A").put("marks", "yes"),
+            JSONObject().put("name", "A").put("useMap", "on"),
             JSONObject().put("name", "A").put("promptAddendum", "x".repeat(MindLabVariant.MAX_ADDENDUM + 1)),
             JSONObject().put("name", "A").put("promptAddendum", "use password: hunter2"),
         ).forEach { assertTrue(it.toString(), MindLabVariant.parse(it).isFailure) }
@@ -54,15 +57,17 @@ class MindLabTest {
         metrics.onToolResult(3, call("screen_type", "{\"text\":\"my password: hunter2\"}"), MindToolResult.error("password: hunter2 was rejected"))
         metrics.onToolResult(4, call("task_finish"), MindToolResult.error("evidence is required"))
         metrics.onToolResult(5, call("owner_ask"), MindToolResult("answered", ownerWaitMs = 4_000))
+        metrics.onToolResult(5, call("go_to"), MindToolResult("arrived", changedScreen = true, mapMoves = 3))
         metrics.onNotice(5, "Switched from A to B: timeout")
         metrics.onNotice(6, "Model is rate-limited; waiting 5 s.")
 
         val json = metrics.toJson()
         assertEquals(2, json.getJSONObject("toolCalls").getInt("screen_tap"))
-        assertEquals(5, json.getInt("actions"))
+        assertEquals(6, json.getInt("actions"))
+        assertEquals(3, json.getInt("mapMoves"))
         assertEquals(2, json.getInt("errors"))
         assertEquals(1, json.getInt("repeatedActions"))
-        assertEquals(2, json.getInt("screenChanges"))
+        assertEquals(3, json.getInt("screenChanges"))
         assertEquals(4_000, json.getLong("ownerWaitMs"))
         assertEquals(1_500, json.getLong("modelMs"))
         assertEquals(1, json.getInt("finishRejections"))

@@ -90,6 +90,15 @@ object MindMissions {
         fn
     }.getOrNull()
 
+    /** The learned maps for one mission, with walks and surprises fed back into the app knowledge store. */
+    private fun missionMaps(context: Context): com.cyclone.mobile.mind.map.MindMaps? = runCatching {
+        com.cyclone.mobile.applearner.AppLearnerRuntime.initialize(context.applicationContext)
+        val store = com.cyclone.mobile.applearner.AppLearnerRuntime.store
+        com.cyclone.mobile.mind.map.MindMaps(com.cyclone.mobile.mind.learn.AppKnowledgeReader(store)) { pkg ->
+            com.cyclone.mobile.mind.map.AppKnowledgeMapFeedback(store, pkg)
+        }
+    }.getOrNull()
+
     fun store(context: Context): MissionStore = store ?: synchronized(lock) {
         store ?: MissionStore(File(context.applicationContext.filesDir, "Cyclone Brain/Missions")).also { store = it }
     }
@@ -309,9 +318,12 @@ object MindMissions {
             val labMemoryFile = if (fresh) File(context.cacheDir, "lab-memory-${mission.id}.json").also { it.delete() } else null
             val memory = labMemoryFile?.let { com.cyclone.mobile.mind.MindMemory(it) } ?: memory(context)
             val trail = com.cyclone.mobile.mind.learn.MindTrailRecorder(mission.id).also { liveTrail = it }
+            // The map is on for the owner; a Lab arm can turn it off to measure what it is worth.
+            val useMap = variant?.useMap != false
             val toolbox = PhoneMindToolbox(environment, owner, device, mission.goal, { stopRequested }, memory = memory, missionId = mission.id,
                 marker = if (variant?.marks == false) null else AndroidMindImageMarker, trail = trail,
-                learned = learnedHints(context))
+                learned = if (useMap) learnedHints(context) else null,
+                maps = if (useMap) missionMaps(context) else null)
             val native = resume?.nativeTools ?: (OpenRouterCatalogStore.lookup(primaryId)?.nativeTools != false)
             val system = MindPrompt.system(null, native, toolbox.specs(), device.now(), device.device()) +
                 variant?.promptAddendum?.takeIf { it.isNotBlank() }?.let { "\n\nLab instruction for this mission (from the developer's experiment):\n$it" }.orEmpty()
@@ -364,6 +376,13 @@ object MindMissions {
                 }
             }
             liveTrail = null
+            // A Lab arm with the map learns every mission as it ends, so its later trials start from what it saw.
+            if (mission.lab?.variant?.useMap == true && !mission.status.live) {
+                runCatching {
+                    (com.cyclone.mobile.mind.learn.MissionLearning.learn(context, mission.id) as? com.cyclone.mobile.mind.learn.LearnOutcome.Learned)
+                        ?.let { learned -> mission = mission.copy(learned = learned.report) }
+                }
+            }
             runCatching { File(context.cacheDir, "lab-memory-${mission.id}.json").delete() }
             val ok = mission.status == MissionStatus.COMPLETED
             traceId?.let { trace ->

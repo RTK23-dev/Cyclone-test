@@ -55,6 +55,8 @@ data class MindToolResult(
     val evidence: String? = null,
     val changedScreen: Boolean = false,
     val ownerWaitMs: Long = 0,
+    /** Moves made from the learned map without a model decision (go_to). */
+    val mapMoves: Int = 0,
 ) {
     companion object {
         fun error(message: String) = MindToolResult("ERROR: $message", "ERROR: ${message.take(160)}", ok = false)
