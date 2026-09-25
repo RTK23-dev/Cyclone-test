@@ -1,4 +1,4 @@
-# 18 — Cyclone Lab (alpha.32)
+# 18 — Cyclone Lab (alpha.33)
 
 Cyclone could not measure itself. The Mind had never been scored on a real phone, and no change could be shown to
 make it better or worse. Cyclone Lab is that loop: **run missions on the real phone, score each one from what the
@@ -64,7 +64,7 @@ repetition so neither arm gets the easier moments.
 
 ## Using it
 
-1. Install alpha.32 on the phone and Cyclone One 1.6.0-alpha.32 on the PC; pair the phone; choose a verified model.
+1. Install alpha.33 on the phone and Cyclone One 1.6.0-alpha.33 on the PC; pair the phone; choose a verified model.
 2. Keep the phone unlocked, awake and on the charger (Developer options → Stay awake).
 3. Glass → Lab → pick **smoke**, one variant, 1 repetition → Start. That is the first real evidence the Mind works.
 4. Then A/B what matters: two models; marks on vs off; a prompt addition; 3+ repetitions of **core**.

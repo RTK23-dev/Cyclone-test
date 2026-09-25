@@ -49,7 +49,7 @@ task button on every surface sends a typed `TaskCommand` through `TaskCommands`;
 (`TASK_COMMAND`). Surfaces never call an engine directly. A contract test checks every engine against every command
 and every button a surface can show. Structure plan: `Cyclone V5 plan/17-structure.md`.
 
-### Cyclone Lab (since 5.0.0-alpha.32)
+### Cyclone Lab (since 5.0.0-alpha.33)
 
 Cyclone measures itself. The gateway's lab (`cyclone_device_gateway/lab/`) runs experiments — missions × variants ×
 repetitions — on a paired phone: it prepares the phone through typed, allowlisted ADB probes (never a route, never the

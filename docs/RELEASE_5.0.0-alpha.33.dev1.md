@@ -1,7 +1,7 @@
-# Cyclone V5 Alpha 32 — Cyclone Lab
+# Cyclone V5 Alpha 33 — Cyclone Lab
 
-Developer alpha for owner testing, built on Alpha 31. Mobile is `5.0.0-alpha.32.dev1` (version code 174), Windows
-companion is `1.6.0-alpha.32`, and the bundled Glass web app is `1.0.0-alpha.16`.
+Developer alpha for owner testing, built on Alpha 32 (Cyclone Tide overlay), which it includes. Mobile is
+`5.0.0-alpha.33.dev1` (version code 175), Windows companion is `1.6.0-alpha.33`, and the bundled Glass web app is `1.0.0-alpha.16`.
 
 ## What changed
 
