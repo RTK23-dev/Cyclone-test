@@ -40,6 +40,11 @@ Each orch issues **three** agent handoffs (drafted under `orchestrators/<team>/a
 | 9 | [Cuts and milestones](09-cuts-and-milestones.md) | Alpha → RC → 5.0 / Glass 1.0 |
 | 10 | [Reuse and refusals](10-reuse-and-refusals.md) | Steal 4.8. Do not rebuild. What we will not ship |
 | 11 | [Run inspector](11-run-inspector.md) | The autopsy: every run step by step, cause of death, fix |
+| 16 | [Cyclone Mind](16-cyclone-mind.md) | One model, one conversation, one mission |
+| 17 | [Structure](17-structure.md) | Task Kit, Owner Moments, the building blocks |
+| 18 | [Cyclone Lab](18-cyclone-lab.md) | Measured missions on the real phone, A/B |
+| 19 | [Marketplace](19-marketplace.md) | Recipes, connections, and the road to a community store |
+| 20 | [App mapping build plan](20-app-mapping-build-plan.md) | **Final build plan alpha.36–38**: Learn, map-guided runs, mapping missions |
 
 ## Identity
 
