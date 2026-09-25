@@ -193,6 +193,10 @@ class DesktopRuntime:
         self.video_limiter = VideoFleetLimiter(max_sources=12, max_focus=2)
         # Wi-Fi screen share: the phone's own stream when it shares (AnyDesk-style), ADB screenshots otherwise.
         share_contract = V5ContractService(self.fleet)
+        # Cyclone Lab: measured Mind missions, scored from the phone's real state through the lab's fixed probes.
+        from ..lab.probes import PhoneProbe
+        from ..lab.runner import LabService
+        self.lab = LabService(settings.runtime_dir / "lab", share_contract, lambda device_id: PhoneProbe(self.fleet.get(device_id).adb))
         self.lan_share = LanShareDirectory(
             status=share_contract.share_status,
             trust_record=self.trust.store.record,
@@ -784,6 +788,8 @@ def create_desktop_app(settings: Settings | None = None, runtime: DesktopRuntime
     app.include_router(create_desktop_router(desktop, settings.token))
     app.include_router(create_stream_router(desktop, settings.token))
     app.include_router(create_cloud_control_router(desktop, settings.token))
+    from ..lab.api import create_lab_router
+    app.include_router(create_lab_router(desktop, settings.token))
     # Cyclone Glass: static web app + launch-code session. Same origin, so no new CORS origins.
     app.state.glass_codes = LaunchCodes()
     app.include_router(create_glass_router(settings.token, app.state.glass_codes, resolve_glass_dist()))

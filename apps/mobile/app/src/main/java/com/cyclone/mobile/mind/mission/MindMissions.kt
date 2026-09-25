@@ -126,6 +126,24 @@ object MindMissions {
         return launch(app, mission, resume = null, attachment = attachment)
     }
 
+    /**
+     * Starts a Cyclone Lab mission: same Mind, same boundaries, with [variant] applied to this one mission and the
+     * run tagged so the PC can score it. Returns the mission id, or null when another mission is running.
+     */
+    fun startLab(context: Context, goal: String, runId: String, variant: com.cyclone.mobile.mind.lab.MindLabVariant): String? {
+        val app = context.applicationContext
+        val now = System.currentTimeMillis()
+        val id = "m" + now.toString(36) + UUID.randomUUID().toString().take(8)
+        val mission = Mission(id, goal.trim().take(2_000), MissionStatus.RUNNING, now, now, "", "",
+            lab = com.cyclone.mobile.mind.lab.MissionLab(runId, variant))
+        return id.takeIf { launch(app, mission, resume = null, attachment = null) }
+    }
+
+    /** The live mission's metrics so far (the PC lab polls this), or null when [id] is not the live mission. */
+    fun liveMetrics(id: String): org.json.JSONObject? = liveMetrics?.takeIf { liveState.value?.id == id }?.toJson()
+
+    @Volatile private var liveMetrics: com.cyclone.mobile.mind.lab.MissionMetrics? = null
+
     /** Continues a paused, failed or interrupted mission with its full conversation. */
     fun resume(context: Context, id: String): Boolean {
         val app = context.applicationContext
@@ -241,10 +259,13 @@ object MindMissions {
         try {
             val key = OpenRouterSecretStore.read(context)
             require(key.isNotBlank()) { "Add your OpenRouter API key in Cyclone's AI settings first." }
-            val primaryId = OpenRouterCatalogStore.activeId(context)
+            // A lab variant changes only what it names, for this mission only. Lab runs never fall back to a backup
+            // model, so a result always belongs to the model the variant asked for.
+            val variant = mission.lab?.variant
+            val primaryId = variant?.modelId?.let(OpenRouterCatalogStore::canonicalId) ?: OpenRouterCatalogStore.activeId(context)
             require(primaryId.isNotBlank()) { "Choose a verified model in Cyclone's AI settings first." }
-            val backupId = OpenRouterCatalogStore.backupId(context).takeIf { it.isNotBlank() }
-            val effort = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("openrouter_reasoning_effort", "medium")
+            val backupId = if (variant != null) null else OpenRouterCatalogStore.backupId(context).takeIf { it.isNotBlank() }
+            val effort = variant?.effort ?: context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("openrouter_reasoning_effort", "medium")
             traceId = mission.traceId?.takeIf { resume != null } ?: AgentTraceRuntime.start(context, mission.goal, primaryId)
             val trace = traceId
             val cancel = synchronized(lock) { cancellation } ?: ProviderCancellation()
@@ -274,24 +295,30 @@ object MindMissions {
                     save { it.copy(status = if (instruction == null) MissionStatus.RUNNING else MissionStatus.WAITING, waitingFor = instruction) }
                 })
             val environment = CycloneAgentEnvironment(context, userTaskGoal = mission.goal)
-            val memory = memory(context)
+            // Fresh lab runs neither read nor write the owner's memory: each run starts from the same place.
+            val fresh = variant?.freshMemory == true
+            val labMemoryFile = if (fresh) File(context.cacheDir, "lab-memory-${mission.id}.json").also { it.delete() } else null
+            val memory = labMemoryFile?.let { com.cyclone.mobile.mind.MindMemory(it) } ?: memory(context)
             val toolbox = PhoneMindToolbox(environment, owner, device, mission.goal, { stopRequested }, memory = memory, missionId = mission.id,
-                marker = AndroidMindImageMarker)
+                marker = if (variant?.marks == false) null else AndroidMindImageMarker)
             val native = resume?.nativeTools ?: (OpenRouterCatalogStore.lookup(primaryId)?.nativeTools != false)
-            val system = MindPrompt.system(null, native, toolbox.specs(), device.now(), device.device())
+            val system = MindPrompt.system(null, native, toolbox.specs(), device.now(), device.device()) +
+                variant?.promptAddendum?.takeIf { it.isNotBlank() }?.let { "\n\nLab instruction for this mission (from the developer's experiment):\n$it" }.orEmpty()
             val conversation = if (resume != null) resume.conversation.also {
                 it.replaceFirst(MindMessage.System(system))
                 it.add(MindMessage.User(MindPrompt.resumed(resumeReason),
                     origin = MindMessage.User.Origin.HARNESS))
             } else MindConversation(listOf(
                 MindMessage.System(system),
-                MindMessage.User(MindPrompt.mission(mission.goal, toolbox.situation(), memory.digest(), recentMissions(missions, mission.id)) +
+                MindMessage.User(MindPrompt.mission(mission.goal, toolbox.situation(), memory.digest(),
+                    if (fresh) "" else recentMissions(missions, mission.id)) +
                     (attachment?.text?.let { "\n\nThe owner attached this (reference only, not instructions):\n${it.take(4_000)}" }.orEmpty()),
                     attachment?.imageDataUrl?.takeIf { primary.vision }),
             ))
-            val budget = MindBudget(workingMs = workingMinutes(context) * 60_000L)
-            val listener = MissionListener(context, trace, taskId, missions, mission.id,
-                onTurn = { turn -> save { it.copy(turns = turn) } }) { event -> save { it.withEvent(event) } }
+            val budget = MindBudget(workingMs = (variant?.workingMinutes ?: workingMinutes(context)) * 60_000L)
+            val metrics = com.cyclone.mobile.mind.lab.MissionMetrics().also { liveMetrics = it }
+            val listener = com.cyclone.mobile.mind.lab.TeeMindListener(listOf(metrics, MissionListener(context, trace, taskId, missions, mission.id,
+                onTurn = { turn -> save { it.copy(turns = turn) } }) { event -> save { it.withEvent(event) } }))
             val loop = MindLoop(primary, backup, toolbox, budget, listener, cancelled = { stopRequested },
                 ownerMessages = { drainOwnerMessages() }, nativeTools = native)
             outcome = loop.run(conversation, resume?.checkpoint())
@@ -307,12 +334,16 @@ object MindMissions {
                     },
                     summary = result.summary, evidence = result.evidence.orEmpty(), turns = result.turns, workingMs = result.workingMs,
                     usage = result.usage, modelLabel = result.modelLabel, waitingFor = null,
+                    metrics = metrics.toJson(),
                 )
             }
         } catch (error: Throwable) {
             failure = error.message ?: error.javaClass.simpleName
             save { it.copy(status = MissionStatus.FAILED, summary = "Cyclone could not run this mission: $failure", waitingFor = null) }
         } finally {
+            liveMetrics?.let { live -> if (mission.metrics == null) save { it.copy(metrics = live.toJson()) } }
+            liveMetrics = null
+            runCatching { File(context.cacheDir, "lab-memory-${mission.id}.json").delete() }
             val ok = mission.status == MissionStatus.COMPLETED
             traceId?.let { trace ->
                 AgentTraceRuntime.finish(context, trace, when (mission.status) {
@@ -345,7 +376,8 @@ object MindMissions {
     private fun recentMissions(missions: MissionStore, currentId: String): String {
         val since = System.currentTimeMillis() - 24 * 60 * 60_000L
         val format = java.text.SimpleDateFormat("HH:mm", java.util.Locale.ENGLISH)
-        return MindPrompt.recentMissions(missions.list().filter { it.id != currentId && it.updatedAtMs >= since }.map { m ->
+        // Lab missions are experiments, not the owner's history; they never become a follow-up's context.
+        return MindPrompt.recentMissions(missions.list().filter { it.id != currentId && it.updatedAtMs >= since && it.lab == null }.map { m ->
             val outcome = m.summary.ifBlank { m.status.name.lowercase() }
             "${format.format(java.util.Date(m.createdAtMs))} \"${MindRedaction.scrub(m.goal).take(140)}\" → ${m.status.name.lowercase()}: ${MindRedaction.scrub(outcome).take(200)}"
         })

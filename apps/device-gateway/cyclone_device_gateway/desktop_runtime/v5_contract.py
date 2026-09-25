@@ -32,6 +32,10 @@ V5_OPS = frozenset({
     "atlas.here",
     "share.status",
     "share.request",
+    "lab.start",
+    "lab.status",
+    "lab.answer",
+    "lab.record",
 })
 ASK_STATES = frozenset({"idle", "working", "action-needed", "needs-secret", "done", "failed"})
 ASK_MILESTONE_STATES = frozenset({"pending", "active", "done", "action-needed", "failed"})
@@ -363,6 +367,12 @@ def _validate_mapping_response(value: dict[str, Any], args: dict[str, Any]) -> N
         raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping node id must be page:/screen:.")
     if value.get("atlasStatus") not in {None, "partial", "mapped"}:
         raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping atlasStatus is invalid.")
+
+
+def _lab_mission(mission_id: Any) -> str:
+    if not isinstance(mission_id, str) or not LAB_MISSION_ID.match(mission_id):
+        raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "missionId is malformed.")
+    return mission_id
 
 
 def _validate_ask_foreground(args: dict[str, Any]) -> None:
@@ -847,6 +857,9 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
         if set(value) != {"prompted", "sharing"} or not all(isinstance(value[k], bool) for k in value):
             raise _bad_knowledge("share.request")
         return value
+    if op in LAB_OPS:
+        _validate_lab_response(op, value, args)
+        return value
     if op == "atlas.here":
         if set(value) != {"placeId", "roomId", "appVersion", "observedAt"}:
             raise _bad_knowledge("atlas.here")
@@ -858,6 +871,81 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
             raise _bad_knowledge("here facts")
         return value
     raise DesktopRuntimeError(RuntimeErrorCode.CAPABILITY_UNAVAILABLE, "Unsupported V5 contract operation.")
+
+
+LAB_OPS = frozenset({"lab.start", "lab.status", "lab.answer", "lab.record"})
+LAB_MISSION_ID = re.compile(r"^m[a-z0-9]{6,40}$")
+LAB_RUN_ID = re.compile(r"^[A-Za-z0-9_-]{6,80}$")
+LAB_STATUSES = frozenset({"running", "waiting", "completed", "gave_up", "failed", "cancelled", "paused", "interrupted"})
+LAB_MOMENT_KINDS = frozenset({"question", "values", "approval", "secret", "handover"})
+LAB_ANSWERS = frozenset({"reply", "fill", "decline", "stop"})
+LAB_RECORD_KEYS = frozenset({
+    "missionId", "goal", "status", "live", "summary", "evidence", "turns", "workingMs", "resumes", "createdAt",
+    "updatedAt", "modelId", "modelLabel", "usage", "traceId", "lab", "metrics", "events", "app",
+})
+
+
+def _bad_lab(message: str) -> DesktopRuntimeError:
+    return DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, f"Android lab result is malformed: {message}.")
+
+
+def _validate_lab_moment(moment: Any) -> None:
+    if moment is None:
+        return
+    if not isinstance(moment, dict) or set(moment) != {"kind", "text", "choices", "fields", "requestId"}:
+        raise _bad_lab("moment")
+    if moment["kind"] not in LAB_MOMENT_KINDS or not _short_text(moment["text"], 300):
+        raise _bad_lab("moment kind")
+    if not isinstance(moment["choices"], list) or len(moment["choices"]) > 6 or not all(_short_text(c, 80) for c in moment["choices"]):
+        raise _bad_lab("moment choices")
+    fields = moment["fields"]
+    if not isinstance(fields, list) or len(fields) > 8:
+        raise _bad_lab("moment fields")
+    for field in fields:
+        if not isinstance(field, dict) or set(field) != {"label", "kind"} or not _short_text(field["label"], 60) or not _short_text(field["kind"], 20):
+            raise _bad_lab("moment field")
+    if moment["requestId"] is not None and not _short_text(moment["requestId"], 80):
+        raise _bad_lab("moment request")
+
+
+def _validate_lab_response(op: str, value: dict[str, Any], args: dict[str, Any]) -> None:
+    """The phone's lab answers are facts about one mission; nothing in them can carry a secret or a command."""
+    if op == "lab.start":
+        if set(value) != {"accepted", "missionId", "taskId"} or value["accepted"] is not True:
+            raise _bad_lab("start")
+        if not isinstance(value["missionId"], str) or not LAB_MISSION_ID.match(value["missionId"]) or value["taskId"] != f"mission-{value['missionId']}":
+            raise _bad_lab("start id")
+        return
+    if value.get("missionId") != args.get("missionId") and op != "lab.answer":
+        raise _bad_lab("mission id")
+    if op == "lab.status":
+        if set(value) != {"missionId", "status", "live", "turns", "workingMs", "costUsd", "moment"}:
+            raise _bad_lab("status")
+        if value["status"] not in LAB_STATUSES or not isinstance(value["live"], bool):
+            raise _bad_lab("status state")
+        if not _is_int(value["turns"]) or not _is_int(value["workingMs"]) or not isinstance(value["costUsd"], (int, float)):
+            raise _bad_lab("status numbers")
+        _validate_lab_moment(value["moment"])
+        return
+    if op == "lab.answer":
+        if set(value) != {"handled", "detail"} or not isinstance(value["handled"], bool) or not _short_text(value["detail"], 200):
+            raise _bad_lab("answer")
+        return
+    if set(value) != LAB_RECORD_KEYS or value["status"] not in LAB_STATUSES:
+        raise _bad_lab("record")
+    for key, limit in (("goal", 600), ("summary", 600), ("evidence", 600), ("modelId", 120), ("modelLabel", 120)):
+        if not _short_text(value[key], limit):
+            raise _bad_lab(key)
+    for key in ("turns", "workingMs", "resumes", "createdAt", "updatedAt"):
+        if not _is_int(value[key]):
+            raise _bad_lab(key)
+    if not isinstance(value["usage"], dict) or not isinstance(value["metrics"], dict) or not isinstance(value["app"], dict):
+        raise _bad_lab("usage/metrics/app")
+    if value["lab"] is not None and (not isinstance(value["lab"], dict) or not isinstance(value["lab"].get("variant"), dict)):
+        raise _bad_lab("lab tag")
+    events = value["events"]
+    if not isinstance(events, list) or len(events) > 20 or not all(isinstance(e, dict) and _short_text(e.get("text"), 200) for e in events):
+        raise _bad_lab("events")
 
 
 SHARE_PHONE_ID = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
@@ -993,6 +1081,37 @@ class V5ContractService:
         if not isinstance(reason, str) or REASON.fullmatch(reason) is None or INLINE_SECRET.search(reason):
             raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "reason must be a bounded-safe-label.")
         return self._call(device_id, "secrets.request", args)
+
+    def lab_start(self, device_id: str, goal: str, run_id: str, variant: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(goal, str) or not goal.strip() or len(goal) > 2000 or INLINE_SECRET.search(goal):
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "A lab goal is 1..2000 characters without secrets.")
+        if not isinstance(run_id, str) or not LAB_RUN_ID.match(run_id) or not isinstance(variant, dict):
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "lab.start needs a runId and a variant.")
+        return self._call(device_id, "lab.start", {"goal": goal.strip(), "runId": run_id, "variant": variant})
+
+    def lab_status(self, device_id: str, mission_id: str) -> dict[str, Any]:
+        return self._call(device_id, "lab.status", {"missionId": _lab_mission(mission_id)})
+
+    def lab_record(self, device_id: str, mission_id: str) -> dict[str, Any]:
+        return self._call(device_id, "lab.record", {"missionId": _lab_mission(mission_id)})
+
+    def lab_answer(self, device_id: str, mission_id: str, action: str, *, text: str | None = None,
+                   values: dict[str, str] | None = None) -> dict[str, Any]:
+        """The lab plays the owner: reply, fill, decline or stop. It never approves and never sends a secret."""
+        if action not in LAB_ANSWERS:
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "The lab can reply, fill, decline or stop; it never approves.")
+        args: dict[str, Any] = {"missionId": _lab_mission(mission_id), "action": action}
+        if action == "reply":
+            if not isinstance(text, str) or not text.strip() or len(text) > 500 or INLINE_SECRET.search(text):
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "A lab reply is 1..500 characters without secrets.")
+            args["text"] = text.strip()
+        if action == "fill":
+            if not isinstance(values, dict) or not 1 <= len(values) <= 8 or not all(
+                isinstance(k, str) and isinstance(v, str) and len(k) <= 60 and len(v) <= 300 for k, v in values.items()
+            ):
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "A lab fill is 1..8 short text values.")
+            args["values"] = values
+        return self._call(device_id, "lab.answer", args)
 
     def forward(self, device_id: str, op: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         """Typed forwarding seam. There is no generic Android-op passthrough or PC mapping truth."""

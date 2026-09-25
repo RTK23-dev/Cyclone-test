@@ -18,6 +18,8 @@ ALLOWED_OPS = {
     "apps.list",
     "runs.list", "runs.get", "runs.mark",
     "atlas.versions", "scenarios.list", "knowledge.get", "atlas.here",
+    # Cyclone Lab: measured Mind missions (start, watch, answer as the owner, read back).
+    "lab.start", "lab.status", "lab.answer", "lab.record",
 }
 UNAUTHENTICATED_OPS = {
     "trust.negotiate", "trust.begin", "trust.complete", "trust.session.begin", "trust.session.complete",

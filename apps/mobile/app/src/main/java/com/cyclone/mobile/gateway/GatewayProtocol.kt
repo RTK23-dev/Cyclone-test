@@ -136,6 +136,11 @@ internal object GatewayProtocol {
         "atlas.here",
         "share.status",
         "share.request",
+        // Cyclone Lab: the PC starts, watches, answers and reads back Mind missions for measurement.
+        "lab.start",
+        "lab.status",
+        "lab.answer",
+        "lab.record",
     )
 
     fun parse(line: String): GatewayRequest {

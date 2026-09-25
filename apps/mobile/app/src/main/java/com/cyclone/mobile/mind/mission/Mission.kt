@@ -45,6 +45,10 @@ data class Mission(
     val nativeTools: Boolean = true,
     val resumes: Int = 0,
     val waitingFor: String? = null,
+    /** Set when Cyclone Lab started this mission: the experiment run and the variant that produced it. */
+    val lab: com.cyclone.mobile.mind.lab.MissionLab? = null,
+    /** What the mission did (tool counts, failures, waits); see MissionMetrics. */
+    val metrics: JSONObject? = null,
 ) {
     fun withEvent(event: MissionEvent): Mission = copy(events = (events + event).takeLast(MAX_EVENTS), updatedAtMs = event.atMs)
 
@@ -62,6 +66,8 @@ data class Mission(
         .put("nativeTools", nativeTools)
         .put("resumes", resumes)
         .put("waitingFor", waitingFor ?: JSONObject.NULL)
+        .put("lab", lab?.toJson() ?: JSONObject.NULL)
+        .put("metrics", metrics ?: JSONObject.NULL)
 
     companion object {
         const val SCHEMA = "cyclone-mission-v1"
@@ -92,6 +98,8 @@ data class Mission(
                 nativeTools = json.optBoolean("nativeTools", true),
                 resumes = json.optInt("resumes"),
                 waitingFor = json.optString("waitingFor").takeUnless { json.isNull("waitingFor") || it.isBlank() },
+                lab = com.cyclone.mobile.mind.lab.MissionLab.fromJson(json.optJSONObject("lab")),
+                metrics = json.optJSONObject("metrics"),
             )
         }
     }
