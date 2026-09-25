@@ -78,6 +78,14 @@ export function createLiveView(options: LiveViewOptions): LiveView {
 
   const setState = (state: StreamUiState): void => {
     current = state;
+    if (state === "LIVE") {
+      const width = canvas.hidden ? image.naturalWidth : canvas.width;
+      const height = canvas.hidden ? image.naturalHeight : canvas.height;
+      if (width > 0 && height > 0) {
+        element.style.setProperty("--frame-ratio", String(width / height));
+        element.classList.toggle("landscape", width > height);
+      }
+    }
     const reason = state === "UNAVAILABLE" || state === "RECONNECTING" ? options.unavailableMessage?.(state) : null;
     overlay.textContent =
       state === "UNAVAILABLE" ? `${reason || STATE_COPY.UNAVAILABLE} Retrying on its own…` : state === "RECONNECTING" && reason ? `Reconnecting… ${reason}` : STATE_COPY[state];

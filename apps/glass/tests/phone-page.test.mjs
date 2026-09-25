@@ -179,6 +179,30 @@ test("pointer mapping turns a drag into a swipe and ignores letterbox clicks", (
   assert.equal(mapPointerGesture({ clientX: 5, clientY: 5, startedAtMs: 0 }, { clientX: 5, clientY: 5, endedAtMs: 1 }, { left: 0, top: 0, width: 300, height: 200 }, 1080, 2160, 0), null);
 });
 
+test("live view follows portrait and landscape frame dimensions", async () => {
+  const fake = phone();
+  const { page, renderers } = open(fake);
+  const view = page.element.querySelector(".live-view");
+  const canvas = view.querySelector(".live-canvas");
+  canvas.width = 864;
+  canvas.height = 1920;
+  renderers[0].input.callbacks.onState("LIVE");
+  assert.equal(view.style["--frame-ratio"], String(864 / 1920));
+  assert.equal(view.classList.contains("landscape"), false);
+  canvas.width = 1920;
+  canvas.height = 864;
+  renderers[0].input.callbacks.onState("LIVE");
+  assert.equal(view.style["--frame-ratio"], String(1920 / 864));
+  assert.equal(view.classList.contains("landscape"), true);
+  const mapped = mapPointerGesture({ clientX: 250, clientY: 100, startedAtMs: 0 },
+    { clientX: 250, clientY: 100, endedAtMs: 1 },
+    { left: 0, top: 0, width: 500, height: 225 }, 1920, 864, 0);
+  assert.equal(mapped.type, "tap");
+  assert.equal(mapped.x, 0.5);
+  assert.ok(Math.abs(mapped.y - 100 / 225) < 1e-12);
+  page.destroy();
+});
+
 test("You are here: the app, version and room on the phone now, with a way to the map", async () => {
   installMiniDom();
   const here = { placeId: "package:com.google.android.gm", roomId: "screen:list:aaaaaaaaaaaaaaaa", appVersion: "2026.09.14", observedAt: 5 };

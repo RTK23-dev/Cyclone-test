@@ -26,9 +26,10 @@
 
 .live-view {
   position: relative;
-  aspect-ratio: 9 / 19.5;
-  height: min(70vh, 760px);
-  max-width: 100%;
+  --frame-ratio: 0.461538;
+  aspect-ratio: var(--frame-ratio);
+  width: min(100%, calc(70vh * var(--frame-ratio)), calc(760px * var(--frame-ratio)));
+  height: auto;
   align-self: center;
   border-radius: 28px;
   border: 8px solid var(--text);
@@ -160,7 +161,13 @@
   }
 
   .live-view {
-    height: min(64vh, 680px);
+    width: min(100%, calc(64vh * var(--frame-ratio)), calc(680px * var(--frame-ratio)));
+  }
+}
+
+@media (min-width: 1250px) {
+  .phone-layout:has(.live-view.landscape) {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   }
 }
 

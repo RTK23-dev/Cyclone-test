@@ -25,7 +25,7 @@ from .profiles import (
     opencode_config_path,
     opencode_profile,
 )
-from .tool_catalog import TOOL_NAMES
+from .tool_catalog import TOOL_CONTRACTS, TOOL_NAMES
 
 BEGIN = "# BEGIN CYCLONE AGENT MCP"
 END = "# END CYCLONE AGENT MCP"
@@ -246,17 +246,18 @@ def verify_tools_list(executable: str | None = None) -> dict[str, Any]:
     definitions = asyncio.run(_verify_async(command))
     discovered = sorted(definitions)
     expected = sorted(_expected_tool_names())
+    phone_scoped = {contract.name: contract.phone_scoped for contract in TOOL_CONTRACTS}
     schema_errors: list[str] = []
     for name, schema in sorted(definitions.items()):
         properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
-        if name in {
-            "phone_list", "phone_devices", "phone_group_act", "phone_virtual_list", "phone_virtual_create",
-            "phone_virtual_start", "phone_virtual_stop",
-        }:
+        requires_device = phone_scoped.get(name, name != "phone_devices")
+        if not requires_device:
             if "device_id" in properties:
                 schema_errors.append(f"{name}_must_not_accept_device_id")
             if name == "phone_group_act" and "device_ids" not in properties:
                 schema_errors.append("phone_group_act_missing_device_ids")
+            if name in {"phone_lab_report", "phone_lab_stop"} and "experiment_id" not in properties:
+                schema_errors.append(f"{name}_missing_experiment_id")
         elif name in expected and "device_id" not in properties:
             schema_errors.append(f"{name}_missing_device_id")
     return {

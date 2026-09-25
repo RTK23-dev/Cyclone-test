@@ -38,7 +38,7 @@ class MiniNode {
     this.parentNode = null;
     this.parentElement = null;
     this.attributes = {};
-    this.style = {};
+    this.style = { setProperty(name, value) { this[name] = String(value); } };
     this.listeners = {};
     this._text = "";
     this._className = "";
