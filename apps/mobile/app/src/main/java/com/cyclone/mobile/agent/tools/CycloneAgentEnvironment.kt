@@ -952,6 +952,8 @@ class CycloneAgentEnvironment internal constructor(
             "phone.open_settings",
             "phone.submit_text",
             "phone.tap_point",
+            "phone.swipe",
+            "phone.open_notification",
         )
         private val ELEMENT_ID_REQUIRED_TOOLS = setOf(
             "phone.click",

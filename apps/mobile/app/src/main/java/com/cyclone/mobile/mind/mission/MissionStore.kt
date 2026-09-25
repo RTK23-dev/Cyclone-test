@@ -130,4 +130,16 @@ object MindRedaction {
     )
 
     fun scrub(text: String): String = rules.fold(text) { acc, (pattern, replacement) -> pattern.replace(acc, replacement) }
+
+    private val codeContext = Regex("(?i)\\b(code|otp|verification|verificatie|verify|passcode|pin|2fa|one[- ]time|login|sign[- ]in|inlog)")
+    private val shortNumber = Regex("\\b\\d{4,8}\\b")
+
+    /**
+     * For free text from other apps (notifications): when the text is about a code or a sign-in, every 4-8 digit
+     * number is masked too, whatever the word order ("482913 is your code").
+     */
+    fun scrubText(text: String): String {
+        val scrubbed = scrub(text)
+        return if (codeContext.containsMatchIn(scrubbed)) shortNumber.replace(scrubbed, "[hidden]") else scrubbed
+    }
 }

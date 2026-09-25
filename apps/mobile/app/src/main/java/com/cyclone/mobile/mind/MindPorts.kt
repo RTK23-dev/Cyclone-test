@@ -32,12 +32,17 @@ interface MindOwnerPort {
     fun fillSecret(page: AgentPageCard, target: MindRef, slot: String, reason: String, timeoutMs: Long): MindSecretReply
     /** The owner took over the phone; wait until they hand it back. */
     fun awaitControl(timeoutMs: Long): MindOwnerReply
+    /** Hands the phone to the owner for a step only they can do, and waits until they hand it back. */
+    fun takeover(instruction: String, timeoutMs: Long): MindOwnerReply = awaitControl(timeoutMs)
     fun status(text: String) {}
     fun plan(steps: List<MindPlanStep>) {}
 }
 
 /** A control's box on the screen, in screen pixels, to draw on a screenshot. */
 data class MindMark(val ref: String, val left: Int, val top: Int, val right: Int, val bottom: Int)
+
+data class MindNotification(val key: String, val app: String, val title: String, val text: String, val postedAtMs: Long,
+    val actions: List<String> = emptyList(), val openable: Boolean = true)
 
 data class MindImage(val dataUrl: String, val width: Int, val height: Int)
 
@@ -55,6 +60,8 @@ interface MindDevicePort {
     fun now(): String
     fun device(): String
     fun sleep(ms: Long) { Thread.sleep(ms) }
+    /** Recent notifications, newest first. Implementations never include secret values. */
+    fun notifications(): List<MindNotification> = emptyList()
     /** Why the phone cannot be operated right now (locked, screen off), or null when it can. */
     fun blocker(): String? = null
 }

@@ -663,14 +663,22 @@ class CycloneAccessibilityService : AccessibilityService() {
      */
     fun tapPoint(x: Float, y: Float, humanize: HumanizePreference = HumanizePreference.AUTO, commandId: String? = null): Boolean {
         if (!agentCanAct()) return false
+        guardPoint("phone.tap_point", x, y)
+        return tap(x, y, humanize, commandId)
+    }
+
+    /**
+     * GATE check for a gesture by position: whatever sits under ([x], [y]) is classified exactly like a labelled
+     * click. Throws [GateBlockedException] (and raises the approval card) when the owner must approve first.
+     */
+    fun guardPoint(action: String, x: Float, y: Float) {
         val snapshot = observe(markFresh = false)
         val labels = ClickGateIntercept.labelsAtPoint(snapshot.nodes, x.toInt(), y.toInt())
-        val decision = ClickGateIntercept.decide("phone.tap_point", labels, OverlayChromeRuntime.snapshot().state)
+        val decision = ClickGateIntercept.decide(action, labels, OverlayChromeRuntime.snapshot().state)
         if (!decision.performClick) {
             if (decision.enterGate && decision.gateClass != null) OverlayChromeRuntime.enterGate(decision.gateClass)
             throw GateBlockedException(decision.gateClass)
         }
-        return tap(x, y, humanize, commandId)
     }
 
     fun longPress(

@@ -80,6 +80,11 @@ class MissionStoreTest {
 }
 
 class MindRedactionTest {
+    @Test fun notificationTextHidesCodesInAnyOrder() {
+        assertEquals("[hidden] is your Instagram code", MindRedaction.scrubText("482913 is your Instagram code"))
+        assertEquals("Dinner at 7? Table 1234", MindRedaction.scrubText("Dinner at 7? Table 1234"))
+    }
+
     @Test fun masksSecretsButKeepsOrdinaryText() {
         assertEquals("password: [hidden]", MindRedaction.scrub("password: hunter2"))
         assertEquals("card [number hidden]", MindRedaction.scrub("card 4111-1111-1111-1111"))

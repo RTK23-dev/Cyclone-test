@@ -40,6 +40,20 @@ internal class AndroidMindDevice(private val context: Context) : MindDevicePort 
         return SimpleDateFormat("EEEE d MMMM yyyy, HH:mm", Locale.ENGLISH).apply { timeZone = zone }.format(Date()) + " (${zone.id})"
     }
 
+    override fun notifications(): List<com.cyclone.mobile.mind.MindNotification> =
+        com.cyclone.mobile.DeviceState.notificationSnapshot().filter { it.packageName != context.packageName }.take(30).map { sbn ->
+            val extras = sbn.notification.extras
+            com.cyclone.mobile.mind.MindNotification(
+                key = sbn.key,
+                app = sbn.packageName,
+                title = extras.getCharSequence("android.title")?.toString().orEmpty().take(200),
+                text = extras.getCharSequence("android.text")?.toString().orEmpty().take(500),
+                postedAtMs = sbn.postTime,
+                actions = sbn.notification.actions.orEmpty().mapNotNull { it.title?.toString() },
+                openable = sbn.notification.contentIntent != null,
+            )
+        }
+
     override fun blocker(): String? {
         val power = context.getSystemService(android.os.PowerManager::class.java)
         val keyguard = context.getSystemService(android.app.KeyguardManager::class.java)
@@ -161,6 +175,35 @@ internal class AndroidMindOwner(
             SecretUseStatus.MISSING -> MindSecretReply(MindSecretOutcome.MISSING, waited)
             SecretUseStatus.STORED -> MindSecretReply(MindSecretOutcome.FAILED, waited, "the value was saved but not filled")
             SecretUseStatus.FAILED, SecretUseStatus.ALREADY_USED -> MindSecretReply(MindSecretOutcome.FAILED, waited, use.errorCode.orEmpty())
+        }
+    }
+
+    override fun takeover(instruction: String, timeoutMs: Long): MindOwnerReply {
+        val request = inbox.post(missionId, OwnerRequestKind.CONTROL, instruction)
+        onWaiting("Your turn: $instruction")
+        OverlayChromeRuntime.missionHandoff()
+        val started = System.currentTimeMillis()
+        try {
+            // Give the owner a moment to take the phone before the controller state can count as "handed back".
+            Thread.sleep(1_500)
+            while (true) {
+                val waited = System.currentTimeMillis() - started
+                val reply = inbox.poll(request.id)
+                if (reply == OwnerResponse.Done || reply is OwnerResponse.Answer) {
+                    OverlayChromeRuntime.missionHandBack()
+                    OverlayChromeRuntime.missionWorking(overlaySession)
+                    return MindOwnerReply(true, (reply as? OwnerResponse.Answer)?.text.orEmpty(), waited)
+                }
+                if (DeviceState.controller == DeviceState.Controller.AGENT) {
+                    OverlayChromeRuntime.missionWorking(overlaySession)
+                    return MindOwnerReply(true, waitedMs = waited)
+                }
+                if (cancelled() || waited > timeoutMs) return MindOwnerReply(false, waitedMs = waited)
+                Thread.sleep(POLL_MS)
+            }
+        } finally {
+            inbox.withdraw(request.id)
+            onWaiting(null)
         }
     }
 

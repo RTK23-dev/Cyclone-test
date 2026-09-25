@@ -440,4 +440,51 @@ class PhoneMindToolboxTest {
         PhoneMindToolbox(normal, FakeOwner(), device, "goal").run("screen_read")
         assertEquals(0, normal.images)
     }
+
+    @Test fun swipesAreGuardedAndGoTheRightWay() {
+        val env = FakeEnv(login)
+        val box = PhoneMindToolbox(env, FakeOwner(), device, "goal")
+        box.run("screen_read")
+        assertTrue(box.run("swipe", """{"direction":"left"}""").ok)
+        val params = env.acts.last().second
+        assertEquals("phone.swipe", env.acts.last().first)
+        assertTrue(params.getBoolean("guard"))
+        assertTrue("finger moves right to left", params.getInt("x1") > params.getInt("x2"))
+        assertEquals(params.getInt("y1"), params.getInt("y2"))
+        box.run("swipe", """{"direction":"up","ref":"e3","distance":"short"}""")
+        val onRef = env.acts.last().second
+        assertTrue(onRef.getInt("y1") > onRef.getInt("y2"))
+        assertFalse(box.run("swipe", """{"direction":"sideways"}""").ok)
+    }
+
+    @Test fun notificationsHideCodesAndCanBeOpened() {
+        val phone = object : MindDevicePort by device {
+            override fun notifications() = listOf(
+                MindNotification("k1", "com.instagram.android", "Instagram", "482913 is your Instagram code", System.currentTimeMillis()),
+                MindNotification("k2", "com.whatsapp", "Sam", "Dinner at 7?", System.currentTimeMillis(), listOf("Reply")),
+            )
+        }
+        val env = FakeEnv(login)
+        val box = PhoneMindToolbox(env, FakeOwner(), phone, "goal")
+        val list = box.run("notifications").text
+        assertFalse(list.contains("482913"))
+        assertTrue(list.contains("n2 com.whatsapp · Sam: Dinner at 7?"))
+        assertTrue(list.contains("[actions: Reply]"))
+        assertTrue(box.run("open_notification", """{"id":"n2"}""").ok)
+        assertEquals("k2", env.acts.last().second.getString("key"))
+        assertFalse(box.run("open_notification", """{"id":"n9"}""").ok)
+    }
+
+    @Test fun takeoverWaitsForTheOwnerAndLooksAgain() {
+        var asked = ""
+        val owner = object : MindOwnerPort by FakeOwner() {
+            override fun takeover(instruction: String, timeoutMs: Long): MindOwnerReply { asked = instruction; return MindOwnerReply(true, "solved it", 90_000) }
+        }
+        val result = PhoneMindToolbox(FakeEnv(login), owner, device, "goal").run("owner_takeover", """{"what":"Solve the CAPTCHA"}""")
+        assertEquals("Solve the CAPTCHA", asked)
+        assertTrue(result.ok)
+        assertTrue(result.text.contains("solved it"))
+        assertTrue(result.text.contains("Controls:"))
+        assertEquals(90_000, result.ownerWaitMs)
+    }
 }

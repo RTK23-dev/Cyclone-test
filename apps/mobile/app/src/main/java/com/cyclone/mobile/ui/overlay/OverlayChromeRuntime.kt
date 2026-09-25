@@ -123,6 +123,18 @@ object OverlayChromeRuntime {
 
     fun missionStatus(status: String) = mutate { it.updateStatus(status) }
 
+    /** The mission hands the phone to the owner: Cyclone's input stops and the overlay shows it paused. */
+    fun missionHandoff() {
+        DeviceState.setController(DeviceState.Controller.HUMAN)
+        mutate { if (!it.snapshot().userPaused) it.dispatch(OverlayUserAction.TAKE_CONTROL) }
+    }
+
+    /** The owner handed the phone back from the mission's own card. */
+    fun missionHandBack() {
+        mutate { if (it.snapshot().userPaused) it.dispatch(OverlayUserAction.TAKE_CONTROL) }
+        DeviceState.setController(DeviceState.Controller.AGENT)
+    }
+
     fun missionFinished(sessionId: String, ok: Boolean, message: String) {
         synchronized(lock) {
             pendingGateChallenge = null

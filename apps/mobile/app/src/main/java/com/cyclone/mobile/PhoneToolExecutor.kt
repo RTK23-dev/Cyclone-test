@@ -594,6 +594,9 @@ object PhoneToolExecutor {
             "phone.scroll" -> foregroundScroll(service, request, before, humanize)
             "phone.swipe" -> {
                 val outcome = actionWithConfirmation(service, request, before) {
+                    // Guarded swipes (Cyclone Mind) get the approval check of whatever sits under the start point:
+                    // swipe-to-archive, swipe-to-delete and slide-to-pay are consequential.
+                    if (p.optBoolean("guard")) service?.guardPoint("phone.swipe", p.optDouble("x1").toFloat(), p.optDouble("y1").toFloat())
                     service?.swipe(
                         p.optDouble("x1").toFloat(), p.optDouble("y1").toFloat(),
                         p.optDouble("x2").toFloat(), p.optDouble("y2").toFloat(),
