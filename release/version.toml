@@ -1,6 +1,6 @@
 # Cyclone V5 alpha.27 dev1: Cyclone Mind harness - missions survive (foreground service, locked phone, auto-resume), sharper eyes
 # (field values, whole screen, marked screenshots), hardened prompt, guarded swipe, notifications and owner takeover.
-# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested.
+# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.27.dev1"
 channel = "development"
