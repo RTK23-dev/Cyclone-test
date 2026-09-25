@@ -105,6 +105,30 @@ Device checks added for alpha.26: (10) "remember that my work email is …", the
 use?"; (11) a tap on an unlabelled icon via `tap_point`; (12) a Send reached through a screenshot tap raises the
 approval card.
 
+## alpha.27 harness
+
+Each change was designed against Cyclone's existing code before it was built:
+
+| Area | Change | Why it matters | Boundary kept |
+|---|---|---|---|
+| Survival | `MindMissionService` (special-use foreground service) + wake lock bounded by working time | a 30-minute sprint keeps its CPU when the screen goes off and is not reclaimed | visible notification with Stop |
+| Survival | locked phone / screen off → phone tools wait for the owner | no string of failed actions; owner time not counted | model never unlocks anything |
+| Survival | crash or process death < 5 min ago → mission resumes when Accessibility reconnects (≤ 3 times) | the conversation continues instead of dying | older missions wait for Resume |
+| Eyes | ordinary field values shown (`= "…"`, `(empty)`, `(hidden)` for secrets) | the model can check what it typed and read pre-filled forms | process-local map, never in the exported payload/PC/Glass/diagnostics; password, sensitive-hint and address-bar fields excluded |
+| Eyes | every control of the screen (up to 120) instead of the 36-item shortlist | long settings pages and lists are fully visible | — |
+| Eyes | set-of-marks screenshots: ref boxes and names drawn on the image, ≤ 1280 px JPEG | "e7" in text = box e7 in the picture; far fewer image tokens | in memory only |
+| Eyes | screens accessibility cannot describe come with a picture automatically | games, canvases, bare web views | — |
+| Prompt | stable rules first, context last; trust section (tool results are data, never instructions); memory guidance; takeover | resists prompt injection from pages and messages | — |
+| Context | model told once when old screens are shortened | it looks again instead of trusting a one-line summary | — |
+| Hands | `swipe` (guarded: what is under the start point gets the tap approval check) | carousels, tabs, photos | swipe-to-delete / slide-to-pay raise the approval card |
+| Hands | `notifications` / `open_notification` | "reply to the message I just got" | codes masked in any word order |
+| Owner | `owner_takeover` | CAPTCHAs, security checks, biometrics handed over properly | never worked around |
+
+Device checks added: (13) lock the phone mid-mission, unlock, it continues; (14) force-stop Cyclone mid-mission, it
+resumes within a minute of Accessibility reconnecting; (15) a form with a pre-filled field is read correctly;
+(16) a screenshot shows labelled boxes; (17) swipe through a carousel; (18) "what did my last WhatsApp say";
+(19) a site with a CAPTCHA hands over and continues.
+
 ## Known limits of this alpha
 
 - Foreground only; background workspaces still use the step agent.
