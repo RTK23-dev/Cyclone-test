@@ -75,7 +75,7 @@ import com.cyclone.mobile.market.Marketplace
 @Composable
 fun CycloneMarketplacePage(context: Context, onBack: () -> Unit, onModelSettings: () -> Unit) {
     val revision by Marketplace.revision.collectAsState()
-    val catalog = remember { Marketplace.catalog() }
+    val catalog = remember(revision) { Marketplace.ownerSkills(context); Marketplace.catalog() }
     val installed = remember(revision) { Marketplace.installs(context).list().associateBy { it.id } }
     val apps = remember { Marketplace.installedApps(context) }
     val connections = remember(revision) { Marketplace.connections(context) }
@@ -137,8 +137,15 @@ fun CycloneMarketplacePage(context: Context, onBack: () -> Unit, onModelSettings
                 ListingRow(listing, installed[listing.id], reason = reason) { open = listing.id }
             }
         }
+        val saved = catalog.filter { it.publisher.id == "owner" }
+        if (saved.isNotEmpty()) {
+            item { CycloneSectionTitle("Your skills") }
+            items(saved, key = { "y-" + it.id }) { listing ->
+                ListingRow(listing, installed[listing.id], reason = installed[listing.id]?.let { runsLabel(it) }) { open = listing.id }
+            }
+        }
         item { CycloneSectionTitle("From Cyclone") }
-        items(catalog, key = { "c-" + it.id }) { listing -> ListingRow(listing, installed[listing.id]) { open = listing.id } }
+        items(catalog.filter { it.publisher.id != "owner" }, key = { "c-" + it.id }) { listing -> ListingRow(listing, installed[listing.id]) { open = listing.id } }
         item { CycloneSectionTitle("Connections") }
         items(connections, key = { "k-" + it.id }) { connection ->
             ConnectionRow(connection) {

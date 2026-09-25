@@ -85,6 +85,7 @@ fun CycloneRecentMissions(limit: Int = 4) {
                     Text(statusLabel(mission) + (mission.summary.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    CycloneRunLearnActions(mission)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         TextButton(onClick = { MindMissions.delete(context, mission.id) }, modifier = Modifier.weight(1f).heightIn(min = 44.dp)) {
                             Text("Remove")

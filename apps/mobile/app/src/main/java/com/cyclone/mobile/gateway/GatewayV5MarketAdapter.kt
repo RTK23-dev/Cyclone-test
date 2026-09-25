@@ -16,7 +16,7 @@ import org.json.JSONObject
  */
 internal object GatewayV5MarketAdapter {
     /** Seams for JVM tests; production reads the phone. */
-    internal var catalog: () -> List<MarketListing> = { Marketplace.catalog() }
+    internal var catalog: () -> List<MarketListing> = { Marketplace.ownerSkills(app()); Marketplace.catalog() }
     internal var installed: () -> List<InstalledListing> = { Marketplace.installs(app()).list() }
     internal var apps: () -> Map<String, String> = { Marketplace.installedApps(app()) }
     internal var connections: () -> List<MarketConnection> = { Marketplace.connections(app()) }

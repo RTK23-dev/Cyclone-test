@@ -36,6 +36,7 @@ object Marketplace {
     val revision: StateFlow<Int> = changes
 
     @Volatile private var installs: MarketInstalls? = null
+    @Volatile private var owner: OwnerSkills? = null
 
     /** Seams for JVM tests of the gateway adapter and the page logic. */
     internal var busy: () -> Boolean = { MindMissions.isLive() || OverlayChromeRuntime.hasExecutingTask() || !WorkspaceTasks.canStartRequest() }
@@ -44,11 +45,38 @@ object Marketplace {
     internal var submit: (String) -> Unit = { goal -> Handler(Looper.getMainLooper()).post { OverlayChromeRuntime.submitRequest(goal) } }
 
     fun installs(context: Context): MarketInstalls = installs ?: synchronized(this) {
+        ownerSkills(context)
         installs ?: MarketInstalls(File(context.applicationContext.filesDir, "Cyclone Brain/Marketplace/installed.json")).also { installs = it }
     }
 
-    /** Listings that pass every rule. A broken listing is left out, never shown half-checked. */
-    fun catalog(): List<MarketListing> = MarketCatalog.LISTINGS.filter { runCatching { MarketRules.validate(it) }.isSuccess }
+    fun ownerSkills(context: Context): OwnerSkills = owner ?: synchronized(this) {
+        owner ?: OwnerSkills(File(context.applicationContext.filesDir, "Cyclone Brain/Marketplace/owner-skills.json")).also { owner = it }
+    }
+
+    /**
+     * Listings that pass every rule, first-party then the owner's saved skills. A broken listing is left out, never
+     * shown half-checked.
+     */
+    fun catalog(): List<MarketListing> =
+        MarketCatalog.LISTINGS.filter { runCatching { MarketRules.validate(it) }.isSuccess } + owner?.list().orEmpty()
+
+    /**
+     * "Save skill" on a run: the run's goal becomes the owner's own recipe, added and ready to Run. Throws
+     * [MarketError] when the goal cannot be a skill.
+     */
+    fun saveSkill(context: Context, goal: String, apps: List<String>): MarketListing {
+        val listing = ownerSkills(context).save(goal, apps)
+        val store = installs(context)
+        if (store.get(listing.id) == null) store.add(listing, emptyMap(), "saved")
+        changes.value++
+        return listing
+    }
+
+    /** The owner's skill saved from this goal, if any. */
+    fun savedSkillFor(context: Context, goal: String): MarketListing? = runCatching {
+        val id = OwnerSkills.draft(goal, emptyList()).id
+        ownerSkills(context).list().firstOrNull { it.id == id }
+    }.getOrNull()
 
     fun listing(id: String): MarketListing? = catalog().firstOrNull { it.id == id }
 
@@ -69,7 +97,13 @@ object Marketplace {
         return entry
     }
 
-    fun remove(context: Context, id: String): Boolean = installs(context).remove(id).also { if (it) changes.value++ }
+    /** Removing an owner's skill deletes it; removing a catalog listing only removes it from the phone. */
+    fun remove(context: Context, id: String): Boolean {
+        val removed = installs(context).remove(id)
+        val deleted = id.startsWith("you.") && ownerSkills(context).remove(id)
+        if (removed || deleted) changes.value++
+        return removed || deleted
+    }
 
     /**
      * Runs an added recipe as a Mind mission, through the same entry as a typed Ask: same GATE, approvals, Secrets Card

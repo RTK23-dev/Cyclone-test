@@ -23,6 +23,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -349,7 +351,12 @@ private fun V39RunCard(run: V39RunRow, onOpen: () -> Unit) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Text("View details", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                if (run.session.endedAt != null) CycloneRunLearnActionsForRun(run.session.id)
+                OutlinedButton(
+                    onClick = onOpen,
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                ) { Text("View details", fontWeight = FontWeight.SemiBold) }
             }
         }
     }
