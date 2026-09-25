@@ -7,6 +7,19 @@
 ; skip a MessageBox here so silent installs stay quiet.
 ; Every comment line must start with ';' — NSIS treats a bare word as a command.
 
+; Stop the adb server Cyclone started from its own android-platform-tools folder. adb keeps running after Cyclone
+; One closes and holds adb.exe, AdbWinApi.dll and AdbWinUsbApi.dll open, so an upgrade failed with
+;   Error opening file for writing: ...\Cyclone One\android-platform-tools\adb.exe
+; A graceful kill-server first, then only adb/fastboot processes whose executable lives in a Cyclone One
+; android-platform-tools folder; an Android Studio or system adb elsewhere is never touched.
+!macro CYCLONE_STOP_BUNDLED_ADB
+  ClearErrors
+  IfFileExists "$INSTDIR\android-platform-tools\adb.exe" 0 +2
+    ExecWait '"$INSTDIR\android-platform-tools\adb.exe" kill-server'
+  ClearErrors
+  ExecWait `cmd /C powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "Get-Process adb,fastboot -ErrorAction SilentlyContinue | Where-Object { $$_.Path -like '*\Cyclone One\android-platform-tools\*' } | Stop-Process -Force -ErrorAction SilentlyContinue" >NUL 2>&1`
+!macroend
+
 !macro NSIS_HOOK_PREINSTALL
   ClearErrors
   ExecWait 'cmd /C taskkill /F /T /IM "Cyclone One.exe" >NUL 2>&1'
@@ -22,6 +35,7 @@
   ExecWait 'cmd /C powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\Cyclone One\mcp-tunnel\scripts\stop-tunnel.ps1" >NUL 2>&1'
   ClearErrors
   ExecWait 'cmd /C taskkill /F /T /IM CycloneLivePhone.exe >NUL 2>&1'
+  !insertmacro CYCLONE_STOP_BUNDLED_ADB
   Sleep 1500
 !macroend
 
@@ -47,6 +61,7 @@
   ExecWait 'cmd /C powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\Cyclone One\mcp-tunnel\scripts\stop-tunnel.ps1" >NUL 2>&1'
   ClearErrors
   ExecWait 'cmd /C taskkill /F /T /IM CycloneLivePhone.exe >NUL 2>&1'
+  !insertmacro CYCLONE_STOP_BUNDLED_ADB
   Sleep 1500
   ClearErrors
   ExecWait '"$INSTDIR\CyclonePCRuntime.exe" install-cli --remove'
