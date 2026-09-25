@@ -8,7 +8,7 @@ permissions:
   actions: read
 concurrency:
   group: v5-alpha30-publish
-  cancel-in-progress: false
+  cancel-in-progress: true
 env:
   SOURCE_SHA: 1f6f2bb694a9042173cedf40e86e762a7aa4c9d8
   MOBILE_RUN: '36141260607'
