@@ -1,6 +1,6 @@
 # Cyclone V5 alpha.25 dev1: Cyclone Mind - one model, one conversation, one mission, with native tools,
 # missions that journal and resume, and an owner inbox. Built on the alpha.24 developer candidate.
-# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested.
+# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.25.dev1"
 channel = "development"
