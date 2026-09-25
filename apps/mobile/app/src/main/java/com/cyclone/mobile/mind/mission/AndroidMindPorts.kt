@@ -40,6 +40,16 @@ internal class AndroidMindDevice(private val context: Context) : MindDevicePort 
         return SimpleDateFormat("EEEE d MMMM yyyy, HH:mm", Locale.ENGLISH).apply { timeZone = zone }.format(Date()) + " (${zone.id})"
     }
 
+    override fun blocker(): String? {
+        val power = context.getSystemService(android.os.PowerManager::class.java)
+        val keyguard = context.getSystemService(android.app.KeyguardManager::class.java)
+        return when {
+            power?.isInteractive == false -> "the screen is off"
+            keyguard?.isKeyguardLocked == true -> "the phone is locked"
+            else -> null
+        }
+    }
+
     override fun device(): String {
         val locales = context.resources.configuration.locales
         val languages = (0 until locales.size()).map { locales[it].displayLanguage }.distinct().joinToString(", ")

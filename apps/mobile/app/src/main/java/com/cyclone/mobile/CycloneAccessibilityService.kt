@@ -115,6 +115,9 @@ class CycloneAccessibilityService : AccessibilityService() {
 
         runCatching { OverlayChromeRuntime.attach(this) }
             .onFailure { CycloneProcessDiagnostics.recordNonFatal(this, "primary.accessibility.overlay.attach", it) }
+        // A Cyclone Mind mission cut off by a crash or process death minutes ago continues once the phone is reachable.
+        val app = applicationContext
+        Thread({ runCatching { Thread.sleep(3_000); com.cyclone.mobile.mind.mission.MindMissions.onServiceReady(app) } }, "cyclone-mind-recover").start()
         runCatching { com.cyclone.mobile.ui.overlay.tracefield.TraceFieldRuntime.attach(this) }
             .onFailure { CycloneProcessDiagnostics.recordNonFatal(this, "primary.accessibility.tracefield.attach", it) }
 

@@ -57,6 +57,9 @@ object MindMissions {
     private val ownerMessages = ConcurrentLinkedQueue<String>()
     @Volatile private var store: MissionStore? = null
     @Volatile private var recovered = false
+    @Volatile private var resumeCandidate: String? = null
+    private const val AUTO_RESUME_WINDOW_MS = 5 * 60_000L
+    private const val AUTO_RESUME_LIMIT = 3
     @Volatile private var memory: com.cyclone.mobile.mind.MindMemory? = null
 
     private val hooks = object : OverlayChromeRuntime.MissionHooks {
@@ -86,9 +89,29 @@ object MindMissions {
         val missions = store(context)
         if (!recovered) {
             recovered = true
-            missions.recover(System.currentTimeMillis(), liveState.value?.id)
+            val now = System.currentTimeMillis()
+            // A mission that was working moments ago died with the process, not by the owner's choice.
+            resumeCandidate = missions.list().firstOrNull {
+                it.status == MissionStatus.RUNNING && it.id != liveState.value?.id &&
+                    now - it.updatedAtMs <= AUTO_RESUME_WINDOW_MS && it.resumes < AUTO_RESUME_LIMIT
+            }?.id
+            missions.recover(now, liveState.value?.id)
         }
         historyState.value = missions.list()
+    }
+
+    /**
+     * Called when Cyclone's Accessibility service (re)connects. A mission interrupted by a crash or process death a
+     * few minutes ago continues on its own; anything older waits for the owner's Resume.
+     */
+    fun onServiceReady(context: Context) {
+        refresh(context)
+        val id = resumeCandidate ?: return
+        resumeCandidate = null
+        if (!enabled(context) || isLive()) return
+        val mission = store(context).load(id) ?: return
+        if (System.currentTimeMillis() - mission.createdAtMs > 3 * 60 * 60_000L) return
+        resume(context, id)
     }
 
     fun isLive(): Boolean = synchronized(lock) { worker?.isAlive == true }
@@ -176,6 +199,7 @@ object MindMissions {
             runCatching { missions.save(mission) }
         }
         publishTask(context, taskId, mission)
+        MindMissionService.start(context, taskId, (workingMinutes(context) + 60) * 60_000L)
         DeviceState.setController(DeviceState.Controller.AGENT)
         OverlayChromeRuntime.missionWorking(taskId, "Thinking")
         var traceId: String? = null
@@ -260,6 +284,7 @@ object MindMissions {
                 }, mission.summary.take(500), mission.turns)
             }
             finishTask(context, taskId, mission)
+            MindMissionService.stop(context)
             OverlayChromeRuntime.missionFinished(taskId, ok, mission.summary.take(200).ifBlank { "Mission ended." })
             synchronized(lock) {
                 worker = null

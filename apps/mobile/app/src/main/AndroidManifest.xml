@@ -14,6 +14,8 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Cyclone Mind: a bounded partial wake lock so a model call finishes if the screen turns off mid-mission. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <queries>
@@ -80,6 +82,14 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-requested isolated app task with visible pause, stop and human handoff controls" />
+        </service>
+        <service
+            android:name=".mind.mission.MindMissionService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-requested Cyclone Mind mission with visible progress, stop and approval controls" />
         </service>
         <service
             android:name=".mapping.run.MappingNotificationService"

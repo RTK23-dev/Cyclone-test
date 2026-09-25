@@ -42,4 +42,6 @@ interface MindDevicePort {
     fun now(): String
     fun device(): String
     fun sleep(ms: Long) { Thread.sleep(ms) }
+    /** Why the phone cannot be operated right now (locked, screen off), or null when it can. */
+    fun blocker(): String? = null
 }

@@ -355,4 +355,30 @@ class PhoneMindToolboxTest {
         assertTrue(second.run("forget", """{"id":"f1"}""").ok)
         assertTrue(memory.all().isEmpty())
     }
+
+    @Test fun aLockedPhoneIsWaitedForNotFailed() {
+        var locked = 3
+        val lockedDevice = object : MindDevicePort by device {
+            override fun blocker(): String? = if (locked-- > 0) "the phone is locked" else null
+            override fun sleep(ms: Long) {}
+        }
+        val env = FakeEnv(login)
+        val box = PhoneMindToolbox(env, FakeOwner(), lockedDevice, "goal")
+        val result = box.run("screen_read")
+        assertTrue(result.ok)
+        assertTrue(result.text.startsWith("(The phone was the phone is locked"))
+        assertTrue(result.ownerWaitMs > 0)
+        locked = 0
+        assertTrue("memory tools never wait", box.run("note", """{"text":"x"}""").ok)
+    }
+
+    @Test fun aPhoneThatStaysLockedEndsTheCallHonestly() {
+        val lockedDevice = object : MindDevicePort by device {
+            override fun blocker(): String = "the screen is off"
+            override fun sleep(ms: Long) {}
+        }
+        val result = PhoneMindToolbox(FakeEnv(login), FakeOwner(), lockedDevice, "goal", ownerTimeoutMs = 5_000).run("tap", """{"ref":"e1"}""")
+        assertFalse(result.ok)
+        assertTrue(result.text.contains("still unavailable"))
+    }
 }

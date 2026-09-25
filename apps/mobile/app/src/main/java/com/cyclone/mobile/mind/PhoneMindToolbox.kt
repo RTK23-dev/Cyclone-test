@@ -51,7 +51,28 @@ class PhoneMindToolbox(
         return "Time: ${device.now()}\nThe phone is currently ${MindScreen.brief(page, appLabel(page.packageName))}."
     }
 
-    override fun execute(call: MindToolCall, arguments: JSONObject): MindToolResult = when (call.name) {
+    override fun execute(call: MindToolCall, arguments: JSONObject): MindToolResult {
+        if (call.name !in PHONE_TOOLS) return dispatch(call, arguments)
+        // A locked phone or a dark screen is not the model's problem to solve: wait for the owner, then carry on.
+        val blocked = device.blocker() ?: return dispatch(call, arguments)
+        owner.status("Unlock your phone to let Cyclone continue ($blocked)")
+        var waited = 0L
+        while (device.blocker() != null && waited < ownerTimeoutMs && !cancelled()) {
+            device.sleep(DEVICE_POLL_MS)
+            waited += DEVICE_POLL_MS
+        }
+        if (cancelled()) return MindToolResult("NOT RUN: the owner stopped the mission.", ok = false, ownerWaitMs = waited)
+        device.blocker()?.let {
+            return MindToolResult("NOT RUN: the phone is still unavailable ($it) after ${waited / 60_000} min. Wait with the wait tool or give up.",
+                "phone unavailable: $it", ok = false, ownerWaitMs = waited)
+        }
+        invalidate()
+        val result = dispatch(call, arguments)
+        return result.copy(text = "(The phone was $blocked; the owner made it available again.)\n\n${result.text}",
+            ownerWaitMs = result.ownerWaitMs + waited)
+    }
+
+    private fun dispatch(call: MindToolCall, arguments: JSONObject): MindToolResult = when (call.name) {
         "screen_read" -> read()
         "screen_look" -> look()
         "screen_find" -> find(arguments.optString("query"))
@@ -497,6 +518,11 @@ class PhoneMindToolbox(
 
     companion object {
         private const val MAX_FINISH_REJECTIONS = 2
+        private const val DEVICE_POLL_MS = 1_000L
+        /** Tools that need a usable screen; memory, planning, questions and finishing work with the phone locked. */
+        private val PHONE_TOOLS = setOf("screen_read", "screen_look", "screen_find", "tap", "tap_point", "long_press", "type_text",
+            "press_enter", "scroll", "swipe", "back", "home", "wait", "open_app", "open_link", "open_settings", "set_timer",
+            "set_alarm", "vault_fill")
         private val NAVIGATION = setOf("phone.open_app", "phone.launch_intent", "phone.open_settings", "phone.set_timer", "phone.set_alarm", "phone.back", "phone.home")
         private val SENSITIVE = Regex("(?i)password|passcode|wachtwoord|\\bpin\\b|one[- ]time|otp|verification code|verificatiecode|cvv|cvc|card number|kaartnummer|security code")
         fun sensitive(label: String): Boolean = SENSITIVE.containsMatchIn(label)
