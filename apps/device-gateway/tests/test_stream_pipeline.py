@@ -155,7 +155,7 @@ class VideoStreamPipelineTests(unittest.TestCase):
         self.assertEqual(status.json()["protocol"], VIDEO_PROTOCOL_VERSION)
         self.assertIn("video", status.json())
 
-    def test_focus_producer_prefers_jpeg_without_provisional_avc(self):
+    def test_explicit_jpeg_mode_uses_screenshots_without_provisional_avc(self):
         adb = FakeStreamADB()
 
         class TrackingBackend:
@@ -174,6 +174,7 @@ class VideoStreamPipelineTests(unittest.TestCase):
             FakeStreamSession(adb),
             VideoFleetLimiter(),
             media_backend=TrackingBackend(),
+            jpeg_first=True,
         )
         q = controller.subscribe("focus")
         init = q.get(timeout=2)

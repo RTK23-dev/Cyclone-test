@@ -545,10 +545,10 @@ def test_clipboard_is_pc_to_phone_and_sensitive_values_are_rejected_without_echo
 
 def test_video_profiles_are_bounded_thumbnail_cheaper_and_sleeping_stream_pauses():
     assert VIDEO_PROFILES["thumbnail"].max_long_edge <= 540
-    assert VIDEO_PROFILES["thumbnail"].target_fps <= 4
+    assert VIDEO_PROFILES["thumbnail"].target_fps == 8
     assert VIDEO_PROFILES["thumbnail"].cpu_weight < VIDEO_PROFILES["focus"].cpu_weight
-    assert VIDEO_PROFILES["focus"].max_long_edge <= 1080
-    assert VIDEO_PROFILES["focus"].target_fps == 15
+    assert VIDEO_PROFILES["focus"].max_long_edge == 1920
+    assert VIDEO_PROFILES["focus"].target_fps == 30
     fleet, session, _ = paired_session_for_services()
     session.screen_awake = False
     limiter = VideoFleetLimiter(max_sources=12, max_focus=2)
