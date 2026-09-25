@@ -1,5 +1,7 @@
 # Goal-first core — replacing the screen-driven decision chain
 
+> **Superseded** by [`15-model-is-the-agent.md`](15-model-is-the-agent.md): this proposal still put rules around the model.
+
 **Status:** proposed 2026-09-25 after the alpha.23 phone runs. Nothing below is built yet.
 
 ## What the alpha.23 runs showed
