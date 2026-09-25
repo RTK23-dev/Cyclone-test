@@ -40,6 +40,7 @@ V5_OPS = frozenset({
     "market.install",
     "market.remove",
     "market.run",
+    "learn.run",
 })
 ASK_STATES = frozenset({"idle", "working", "action-needed", "needs-secret", "done", "failed"})
 ASK_MILESTONE_STATES = frozenset({"pending", "active", "done", "action-needed", "failed"})
@@ -867,6 +868,9 @@ def validate_android_response(op: str, value: dict[str, Any], args: dict[str, An
     if op in MARKET_OPS:
         _validate_market_response(op, value, args)
         return value
+    if op == "learn.run":
+        _validate_learn_response(value, args)
+        return value
     if op == "atlas.here":
         if set(value) != {"placeId", "roomId", "appVersion", "observedAt"}:
             raise _bad_knowledge("atlas.here")
@@ -953,6 +957,40 @@ def _validate_lab_response(op: str, value: dict[str, Any], args: dict[str, Any])
     events = value["events"]
     if not isinstance(events, list) or len(events) > 20 or not all(isinstance(e, dict) and _short_text(e.get("text"), 200) for e in events):
         raise _bad_lab("events")
+
+
+LEARN_KEYS = frozenset({"runId", "learned", "alreadyLearned", "sentence", "apps", "refusal"})
+LEARN_APP_KEYS = frozenset({"package", "label", "screens", "newScreens", "controls", "transitions"})
+LEARN_REFUSALS = frozenset({"RUN_NOT_FOUND", "ASK_BUSY", "NOTHING_TO_LEARN"})
+
+
+def _bad_learn(message: str) -> DesktopRuntimeError:
+    return DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, f"Android learn result is malformed: {message}.")
+
+
+def _validate_learn_response(value: dict[str, Any], args: dict[str, Any]) -> None:
+    """Learn reports counts and app labels only: never a screen's content, a typed value or a selector."""
+    if set(value) != LEARN_KEYS or value["runId"] != args.get("runId"):
+        raise _bad_learn("keys")
+    if not isinstance(value["learned"], bool) or not isinstance(value["alreadyLearned"], bool):
+        raise _bad_learn("flags")
+    if not isinstance(value["sentence"], str) or len(value["sentence"]) > 600:
+        raise _bad_learn("sentence")
+    apps = value["apps"]
+    if not isinstance(apps, list) or len(apps) > 20:
+        raise _bad_learn("apps")
+    for app in apps:
+        if not isinstance(app, dict) or set(app) != LEARN_APP_KEYS or not _short_text(app["package"], 200) or not _short_text(app["label"], 60):
+            raise _bad_learn("app")
+        if not all(_is_int(app[key]) for key in ("screens", "newScreens", "controls", "transitions")):
+            raise _bad_learn("counts")
+    refusal = value["refusal"]
+    if value["learned"]:
+        if refusal is not None or not value["sentence"]:
+            raise _bad_learn("learned")
+    elif (not isinstance(refusal, dict) or set(refusal) != {"code", "message"} or refusal["code"] not in LEARN_REFUSALS
+          or not _short_text(refusal["message"], 200) or apps):
+        raise _bad_learn("refusal")
 
 
 MARKET_OPS = frozenset({"market.catalog", "market.install", "market.remove", "market.run"})
@@ -1187,6 +1225,12 @@ class V5ContractService:
             args["values"] = values
         return self._call(device_id, "lab.answer", args)
 
+    def learn_run(self, device_id: str, run_id: str) -> dict[str, Any]:
+        """Learn everything one run saw and did, on the phone. Returns counts only."""
+        if not isinstance(run_id, str) or not RUN_ID.match(run_id):
+            raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runId is malformed.")
+        return self._call(device_id, "learn.run", {"runId": run_id})
+
     def market_catalog(self, device_id: str) -> dict[str, Any]:
         return self._call(device_id, "market.catalog", {})
 
@@ -1230,6 +1274,10 @@ class V5ContractService:
             if set(args) != {"runId"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.get takes runId only.")
             return self.runs_get(device_id, args["runId"])
+        if op == "learn.run":
+            if set(args) != {"runId"}:
+                raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "learn.run takes runId only.")
+            return self.learn_run(device_id, args["runId"])
         if op == "runs.mark":
             if set(args) != {"runId", "expected"}:
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "runs.mark takes runId and expected only.")

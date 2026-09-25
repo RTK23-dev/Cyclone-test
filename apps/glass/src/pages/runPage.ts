@@ -10,6 +10,7 @@ import {
   formatDuration,
   getRun,
   lastGoodRun,
+  learnRun,
   listRuns,
   markRun,
   routeSplits,
@@ -145,6 +146,25 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       }
     });
     if (run.goal && run.status !== "running" && run.model !== "cyclone-mapper") headerActions.append(again);
+    if (run.status !== "running" && run.model !== "cyclone-mapper") {
+      const learn = actionButton("Learn", { variant: "ghost" });
+      learn.title = "Learn every screen, control and move this run saw, so the next run on these apps starts knowing where things are.";
+      learn.addEventListener("click", async () => {
+        learn.disabled = true;
+        learn.textContent = "Learning…";
+        try {
+          const result = await learnRun(ctx.client, deviceId, run.runId);
+          learn.textContent = result.learned ? "Learned" : "Learn";
+          learn.disabled = result.learned;
+          meta.append(chip(result.learned ? result.sentence : result.refusal ?? "", result.learned ? "success" : "warning"));
+        } catch (error) {
+          learn.disabled = false;
+          learn.textContent = "Learn";
+          meta.append(chip(error instanceof Error ? error.message : String(error), "warning"));
+        }
+      });
+      headerActions.append(learn);
+    }
     headerActions.append(download);
     if (run.expected) meta.append(chip("Marked expected", "neutral"));
     if (run.status === "running") meta.append(chip("Live · updating", "accent"));

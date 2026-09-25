@@ -146,6 +146,8 @@ internal object GatewayProtocol {
         "market.install",
         "market.remove",
         "market.run",
+        // Learn: one press per run turns what it saw and did into app knowledge.
+        "learn.run",
     )
 
     fun parse(line: String): GatewayRequest {

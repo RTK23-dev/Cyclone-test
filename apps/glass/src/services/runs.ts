@@ -199,6 +199,35 @@ export async function markRun(client: GatewayClient, deviceId: string, runId: st
   return body?.expected === true;
 }
 
+/** What Learn did for one run: the phone's own sentence, or why it could not learn. Counts only, never content. */
+export interface LearnResult {
+  learned: boolean;
+  alreadyLearned: boolean;
+  sentence: string;
+  refusal: string | null;
+}
+
+/** Learn: one press per run. The phone learns every screen, control and move the run saw and made. */
+export async function learnRun(client: GatewayClient, deviceId: string, runId: string): Promise<LearnResult> {
+  const body = await client.post<Record<string, unknown>>(
+    `/v1/devices/${encodeURIComponent(deviceId)}/runs/${encodeURIComponent(runId)}/learn`,
+    {},
+  );
+  return parseLearnResult(body);
+}
+
+export function parseLearnResult(raw: unknown): LearnResult {
+  const r = record(raw);
+  const refusal = record(r.refusal);
+  const learned = r.learned === true;
+  return {
+    learned,
+    alreadyLearned: learned && r.alreadyLearned === true,
+    sentence: learned ? str(r.sentence).slice(0, 600) : "",
+    refusal: learned ? null : str(refusal.message).slice(0, 200) || "The phone could not learn from this run.",
+  };
+}
+
 function parsePlace(raw: unknown): RunPlace | null {
   const r = record(raw);
   const placeId = str(r.placeId);

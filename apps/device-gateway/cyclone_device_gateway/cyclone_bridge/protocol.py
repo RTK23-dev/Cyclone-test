@@ -22,6 +22,8 @@ ALLOWED_OPS = {
     "lab.start", "lab.status", "lab.answer", "lab.record",
     # Cyclone Marketplace: the phone's store of recipes and connections.
     "market.catalog", "market.install", "market.remove", "market.run",
+    # Learn: one press per run turns what it saw and did into app knowledge on the phone.
+    "learn.run",
 }
 UNAUTHENTICATED_OPS = {
     "trust.negotiate", "trust.begin", "trust.complete", "trust.session.begin", "trust.session.complete",

@@ -492,3 +492,40 @@ test("Export CSV: the runs in view, quoted, formulas neutralised", async () => {
   assert.equal(saved[0].text.trim().split("\r\n").length, 2, "only the runs in view");
   page.destroy();
 });
+
+test("Learn on a finished run asks the phone to learn it and shows the phone's sentence", async () => {
+  installMiniDom();
+  const gateway = fakeGateway({
+    "GET /v1/devices/d1/runs/ai-run-1": () => DETAIL,
+    "POST /v1/devices/d1/runs/ai-run-1/learn": () => ({
+      runId: "ai-run-1", learned: true, alreadyLearned: false,
+      sentence: "Learned 3 screens, 15 controls and 1 move in Calculator.", apps: [], refusal: null,
+    }),
+  });
+  const page = createRunPage(ctx(gateway.fetch), { name: "run", runId: "ai-run-1" });
+  await flush();
+  const learn = () => [...page.element.querySelectorAll(".run-header .btn")].find((b) => /^Learn/.test(b.textContent));
+  learn().click();
+  await flush();
+  assert.ok(gateway.calls.some((c) => c.method === "POST" && c.path === "/v1/devices/d1/runs/ai-run-1/learn"));
+  assert.match(page.element.textContent, /Learned 3 screens, 15 controls and 1 move in Calculator\./);
+  assert.match(learn().textContent, /Learned/);
+  page.destroy();
+});
+
+test("a run the phone cannot learn from says why", async () => {
+  installMiniDom();
+  const gateway = fakeGateway({
+    "GET /v1/devices/d1/runs/ai-run-1": () => DETAIL,
+    "POST /v1/devices/d1/runs/ai-run-1/learn": () => ({
+      runId: "ai-run-1", learned: false, alreadyLearned: false, sentence: "", apps: [],
+      refusal: { code: "NOTHING_TO_LEARN", message: "This run is from before Learn existed. Run it again and press Learn." },
+    }),
+  });
+  const page = createRunPage(ctx(gateway.fetch), { name: "run", runId: "ai-run-1" });
+  await flush();
+  [...page.element.querySelectorAll(".run-header .btn")].find((b) => /^Learn/.test(b.textContent)).click();
+  await flush();
+  assert.match(page.element.textContent, /from before Learn existed/);
+  page.destroy();
+});

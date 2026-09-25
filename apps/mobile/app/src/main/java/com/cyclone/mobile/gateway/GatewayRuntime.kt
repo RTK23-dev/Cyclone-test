@@ -414,6 +414,10 @@ internal object GatewayDispatcher {
             GatewayV5MarketAdapter.install(context)
             GatewayV5MarketAdapter.dispatch(request.op, request.args)
         }
+        "learn.run" -> {
+            GatewayV5LearnAdapter.install(context)
+            GatewayV5LearnAdapter.dispatch(request.op, request.args)
+        }
         "lab.start", "lab.status", "lab.answer", "lab.record" -> {
             GatewayV5LabAdapter.install(context)
             GatewayV5LabAdapter.dispatch(request.op, request.args)
