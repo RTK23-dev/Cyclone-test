@@ -10,6 +10,9 @@ This plan builds on [04 App Maps canvas](04-app-maps-canvas.md) and [06 Atlas an
 which remain the product spec. This document is the **build plan**: what exists, what is missing, the decisions, and
 the release-by-release work.
 
+**Status: alpha.36 built per-run Learn** (see §5.1–5.3 and §9 for what shipped and how it differs from the first
+draft). Learn is one button per run; there is no multi-run "Learn 10" queue.
+
 ---
 
 ## 1. Where we really are (inventory from the code, 2026-09-25)
@@ -101,14 +104,31 @@ no secrets. A new CI guard checks that the learner never passes free text into t
 
 ## 5. How the map grows: four paths
 
-### 5.1 Every run records a trail (automatic, alpha.36)
-`MindTrailRecorder` is a `MindListener`, like `MissionMetrics`. It takes each observation's `AgentPageCard`
+### 5.1 Every run records a trail (automatic, alpha.36 — built)
+*Built:* `mind/learn/MissionTrail.kt`. The toolbox feeds the recorder every screen it reads and every action it takes
+(`PhoneMindToolbox.bind` / `act`); the trail is saved as `<mission>.trail.json` next to the mission and merged on
+resume. Every screen keeps **all** its controls (not only the ones pressed) as structural labels and selectors
+(resource id, content description, role; text only when it passes `AtlasPrivacy`), so a run that only pressed "7"
+still teaches where every calculator key is. Text fields are named by their hint or id, never their value; Cyclone's
+own overlay, System UI and unknown screens are skipped. Bounded to 80 screens, 160 controls per screen, 600 steps.
+
+*First draft, kept for reference:* `MindTrailRecorder` is a `MindListener`, like `MissionMetrics`. It takes each observation's `AgentPageCard`
 (`structuralKey`, `packageName`, `activity`, `legacyPage`) and each tool call (`tap e7` → the ref's role and
 structural label) and writes a `MissionTrail` next to the mission (bounded to 400 steps, redacted). Cost: no model
 calls, a few kilobytes per mission.
 
-### 5.2 Learn: one button turns a run into map (alpha.36)
-`MissionLearner` reads a trail and writes to the Atlas through the existing `FollowMeAtlasPromoter` primitives
+### 5.2 Learn: one button turns a run into map (alpha.36 — built)
+*Built:* **one press per run learns everything that run saw and did.** `MissionLearner` writes every screen (by its
+page key), every control on it (as a learned action with its selector: *discovered*, or *understood* when the run
+pressed it successfully, with failures counted) and every same-app move that worked (screen → control → screen) into
+the phone's app knowledge store, which is then projected into the Atlas for Glass. Failed steps are never routes.
+Learning is idempotent (the report is stored on the mission) and merges into the same screens on later runs. Runs
+from before alpha.36 have no trail and are refused honestly ("Run it again and press Learn") rather than guessed.
+**The next run uses it**: when the Mind reads a screen Learn knows, the screen ends with *Learned before*: the moves
+that worked from there and the app's other learned screens (advice; the Mind still acts through live refs).
+Scenarios, tiers and `LEARNED_RUN` evidence in the Atlas remain alpha.37 work.
+
+*First draft:* `MissionLearner` reads a trail and writes to the Atlas through the existing `FollowMeAtlasPromoter` primitives
 (`observeScreen`, `demonstrateTransition`) with `LEARNED_RUN` evidence on the **live** persona:
 - every distinct room it saw, with the tier guessed from structure (bottom-nav or tab bar present → base page);
 - every door it used that changed the screen, as a transition;
@@ -120,7 +140,12 @@ calls, a few kilobytes per mission.
 
 Result shown to the owner: *"Learned 7 screens, 12 doors and 1 route in Instagram."*
 
-### 5.3 Save skill (alpha.36)
+### 5.3 Save skill (alpha.36 — built as the simple version)
+*Built:* on a completed run, **Save skill** saves the goal as the owner's recipe (publisher "You", category
+"Your skills", apps from the trail), added and ready to Run from the Marketplace. Secret-shaped goals are refused.
+Proposed inputs and a preferred route follow in alpha.37.
+
+*Plan:*
 From a **successful** run: *Save skill* creates an owner recipe in the Marketplace (source `saved`). The goal becomes
 the template, and Cyclone proposes inputs by spotting values in the sentence (numbers, names, places) that the owner
 confirms. It also stores the learned route as the recipe's preferred path. Next time it runs map-guided (alpha.37)
@@ -162,8 +187,7 @@ Glass → Apps → any app (even 0% mapped) → **Start mapping**:
 ### Phone
 - **After every run** (task result card and mission card): **Learn** · **Save skill** · View details.
 - **Brain → Outcomes, rebuilt**: cards with outcome, app icons, time, steps and whether it's learned (✓ Learned / Learn).
-  **View details** is a real button. Select mode: tick 10 runs → **Learn 10**, which runs in the background with progress
-  and a summary ("Learned 64 screens across Instagram, WhatsApp and Gmail").
+  **View details** is a real button. Learn is per run, one press each (the multi-run "Learn 10" queue is dropped).
 - **Settings → App Maps**: app list with tier coverage, test identity per app, *Learn automatically from successful runs*
   (off in alpha.36), and a Start-mapping chip for phone-only owners.
 
@@ -175,8 +199,8 @@ Glass → Apps → any app (even 0% mapped) → **Start mapping**:
   for the redacted frame, its doors, the runs that passed through and its evidence sources.
 - **Start mapping panel**: identity, budget, focus, and Pause / Take control. A live cursor and log ("Opened Reels · 3
   new doors"), with cards spawning as `atlas.diff` streams in (the theater from 04).
-- **Learn queue**: the Runs page gets a **Learn** button per run and *Learn selected*; each app shows "12 runs not
-  learned yet".
+- **Learn**: the run inspector has a **Learn** button per run (built in alpha.36, `learn.run`); each app shows "12 runs
+  not learned yet" later.
 
 ---
 
@@ -200,10 +224,10 @@ Glass → Apps → any app (even 0% mapped) → **Start mapping**:
 |---|---|---|
 | 36.1 | `MissionTrail` model + `MindTrailRecorder` listener, stored with the mission, bounded and redacted | `mind/learn/*`, `MindMissions.kt` |
 | 36.2 | `MissionLearner` → Atlas (`LEARNED_RUN` evidence, tiers, scenarios, negative evidence, idempotent), journal fallback for old runs | `mind/learn/MissionLearner.kt`, `applearner/graphv2/AtlasIngestion.kt` |
-| 36.3 | Learn queue: background learning of many missions, progress, summary | `mind/learn/LearnQueue.kt` |
+| 36.3 | ~~Learn queue~~ dropped: Learn is one press per run. Instead, learned screens are shown to the next run (*Learned before*) | `mind/learn/LearnedHints.kt` |
 | 36.4 | Save skill → owner recipe (template and proposed inputs, preferred route) | `market/*` |
 | 36.5 | Brain → Outcomes rebuilt: Learn / Save skill / View details buttons, select-and-learn; the same buttons on the mission card | `ui/v32/CycloneV39BrainPage.kt`, `CycloneMissionPanel.kt` |
-| 36.6 | Gateway ops `learn.run`, `learn.status`; Glass Runs: Learn per run plus Learn selected; Apps: tier coverage | `GatewayV5LearnAdapter.kt`, `v5_contract.py`, Glass |
+| 36.6 | Gateway op `learn.run` and `POST /v1/devices/{id}/runs/{runId}/learn`; Glass run inspector: Learn per run (built). Apps tier coverage moves to alpha.37 | `GatewayV5LearnAdapter.kt`, `v5_contract.py`, Glass |
 | 36.7 | Tests: trail → Atlas golden tests (a fake Instagram session → base pages and routes), privacy guard, idempotency | tests, `scripts/ci/tests` |
 
 **Exit:** the owner asks 10 ordinary Instagram questions, taps Learn on them, and Glass shows Instagram's Home, Reels,

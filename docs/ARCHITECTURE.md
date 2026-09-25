@@ -49,6 +49,17 @@ task button on every surface sends a typed `TaskCommand` through `TaskCommands`;
 (`TASK_COMMAND`). Surfaces never call an engine directly. A contract test checks every engine against every command
 and every button a surface can show. Structure plan: `Cyclone V5 plan/17-structure.md`.
 
+### Learn (since 5.0.0-alpha.36)
+
+Every Mind mission records a structural trail (`mind/learn/MissionTrail.kt`): each screen it read with all its
+controls (labels and selectors filtered by `AtlasPrivacy`, text fields named by hint, never by value) and each action
+with its before/after screen. One **Learn** press per run (`MissionLearning`, on the mission card, Brain → Outcomes
+and Glass's run inspector through `learn.run`) turns the trail into the app knowledge store: screens, every control as
+a learned action, and the same-app moves that worked, then projects it into the Atlas. The next run's screen reads
+carry *Learned before* advice for known screens (`LearnedHints`); the Mind still acts through live refs and
+re-observes. **Save skill** stores a completed run's goal as the owner's recipe (`market/OwnerSkills.kt`, "Your
+skills"). Plan: `Cyclone V5 plan/20-app-mapping-build-plan.md`.
+
 ### Cyclone Marketplace (since 5.0.0-alpha.35)
 
 The phone's `market/` package is the one authority for the store: validated listings (data only; a recipe is a goal
