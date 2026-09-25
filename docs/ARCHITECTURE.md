@@ -41,6 +41,17 @@ compiled skill replay (goal + pageKey + sessionId + displayId)
 
 A matching compiled skill hits without an LLM turn. Miss falls back to known route / Fast Path LLM / UI sub-agent. Vision is only on miss: empty accessibility tree or `perceptionMode=vision_escalate`. Unchanged after settle is `verified=false` and must not dispatch a second click channel. Consequential actions retain explicit approval boundaries. See [`V4_STAGE3_SKILL_COMPILER.md`](V4_STAGE3_SKILL_COMPILER.md) and [`V4_STAGE1_FASTPATH.md`](V4_STAGE1_FASTPATH.md).
 
+### Cyclone Mind (foreground Ask, default since 5.0.0-alpha.25)
+
+Foreground Ask requests run as a **mission** in `apps/mobile/.../mind/`: one model, one continuous conversation, native
+tool calls (text envelope fallback), a working-time budget that excludes owner waits, and a journal after every turn so a
+mission resumes after an interruption. The model chooses every action; the harness keeps the boundaries: every mutation
+goes through `CycloneAgentEnvironment.act` → policy/GATE → `PhoneToolExecutor` → settle → verification, the new screen
+is shown after each action, secret fields go only through the Secrets Card (`vault_fill`), approvals wait on the GATE
+card or the mission's request card, and journals/diagnostics are redacted and never contain provider reasoning or
+screenshots. Simple "open <app>" launches keep their fast path; background workspaces and owners who switch Cyclone Mind
+off use the step agent above. Design and device test plan: `Cyclone V5 plan/16-cyclone-mind.md`.
+
 Observe/act that can run in a workspace carry `sessionId` + `displayId`. Default-foreground is display 0 (`default-foreground`). Named workspace sessions never fall back to display 0; unknown session, display mismatch, and cross-session observation are rejected before mutation. Compiled skills carry the same session/display binding. See [`V4_STAGE2_SESSION_KERNEL.md`](V4_STAGE2_SESSION_KERNEL.md).
 
 ## Observability

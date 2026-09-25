@@ -7,7 +7,7 @@ data class MindBudget(
     val workingMs: Long = 30 * 60_000L,
     val maxTurns: Int = 400,
     val perCallMs: Long = 180_000L,
-    val maxContextChars: Int = 240_000,
+    val maxContextChars: Int = 150_000,
     val warnBeforeEndMs: Long = 3 * 60_000L,
 )
 
