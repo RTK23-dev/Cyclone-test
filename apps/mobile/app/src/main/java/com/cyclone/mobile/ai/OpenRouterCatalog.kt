@@ -30,6 +30,8 @@ data class CatalogModel(
     val contextLength: Int,
     val maxOutputTokens: Int?,
     val reasoning: CatalogReasoning? = null,
+    /** From `supported_parameters`: true when native tool calling is advertised, null when the catalog did not say. */
+    val nativeTools: Boolean? = null,
 ) {
     fun preset() = OpenRouterModelPreset(id, name, imageInput)
     fun toJson(): JSONObject = JSONObject().put("id", id).put("name", name)
@@ -38,6 +40,7 @@ data class CatalogModel(
         .put("context_length", contextLength)
         .put("top_provider", JSONObject().put("max_completion_tokens", maxOutputTokens ?: JSONObject.NULL))
         .also { json -> reasoning?.let { json.put("reasoning", it.toJson()) } }
+        .also { json -> nativeTools?.let { json.put("supported_parameters", JSONArray(if (it) listOf("tools", "tool_choice") else emptyList<String>())) } }
 }
 
 object OpenRouterCatalog {
@@ -67,7 +70,8 @@ object OpenRouterCatalog {
                 architecture?.optJSONArray("output_modalities")?.let { has(it, "text") } ?: true,
                 row.optInt("context_length", 0),
                 row.optJSONObject("top_provider")?.optInt("max_completion_tokens", 0)?.takeIf { it > 0 },
-                reasoning)
+                reasoning,
+                row.optJSONArray("supported_parameters")?.let { has(it, "tools") })
         }.distinctBy { it.id }.sortedBy { it.name.lowercase() }
     }
     fun search(models: List<CatalogModel>, query: String): List<CatalogModel> {

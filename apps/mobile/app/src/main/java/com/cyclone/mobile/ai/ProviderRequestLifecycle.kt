@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-enum class ProviderRequestPurpose { PHONE_TASK, CHAT, QUALIFICATION }
+enum class ProviderRequestPurpose { PHONE_TASK, CHAT, QUALIFICATION, MISSION }
 class ProviderLifecycleException(val reason: String) : IOException(ProviderRequests.message(reason))
 class ProviderCancellation {
     @Volatile var cancelled = false
@@ -58,9 +58,13 @@ class ProviderPacing(private val now: () -> Long = ProviderRequests::now) {
 /** Shared completion transport. Request bodies/routing are passed unchanged, never logged here. */
 object ProviderRequests {
     const val REQUEST_BUDGET_MS = 30_000L
+    /** One Mind turn may think for minutes; the mission budget, not a 30 s cut-off, bounds the run. */
+    const val MISSION_REQUEST_BUDGET_MS = 180_000L
     val http: OkHttpClient = OkHttpClient.Builder().connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS).writeTimeout(20, TimeUnit.SECONDS)
         .retryOnConnectionFailure(false).build()
+    val missionHttp: OkHttpClient = http.newBuilder().readTimeout(MISSION_REQUEST_BUDGET_MS, TimeUnit.MILLISECONDS)
+        .callTimeout(MISSION_REQUEST_BUDGET_MS + 10_000, TimeUnit.MILLISECONDS).build()
     private val pacing = ProviderPacing()
     private val revoked = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private val active = java.util.concurrent.ConcurrentHashMap<ProviderCancellation, String>()
@@ -86,7 +90,8 @@ object ProviderRequests {
                 budgetMs: Long = REQUEST_BUDGET_MS, cancellation: ProviderCancellation = ProviderCancellation(),
                 externallyCancelled: () -> Boolean = { false }, onPhase: (String, Long) -> Unit = { _, _ -> }) =
         ProviderRequestContext(taskId, OpenRouterCatalogStore.fingerprint(key) ?: "missing", model, purpose,
-            now() + budgetMs.coerceIn(1, REQUEST_BUDGET_MS), cancellation, externallyCancelled = externallyCancelled, onPhase = onPhase)
+            now() + budgetMs.coerceIn(1, if (purpose == ProviderRequestPurpose.MISSION) MISSION_REQUEST_BUDGET_MS else REQUEST_BUDGET_MS),
+            cancellation, externallyCancelled = externallyCancelled, onPhase = onPhase)
 
     fun execute(request: Request, context: ProviderRequestContext, client: OkHttpClient = http): ProviderReply {
         val key = "${context.accountFingerprint}|${context.modelId}|${context.purpose}|${request.url.host}${request.url.encodedPath}"
