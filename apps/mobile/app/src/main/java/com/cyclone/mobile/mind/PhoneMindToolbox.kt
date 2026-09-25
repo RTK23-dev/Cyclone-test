@@ -28,6 +28,7 @@ class PhoneMindToolbox(
     private val ownerTimeoutMs: Long = 10 * 60_000L,
     private val memory: MindMemory? = null,
     private val missionId: String? = null,
+    private val marker: MindImageMarker? = null,
 ) : MindToolbox {
     private val refs = MindRefBook()
     private var screen: AgentPageCard? = null
@@ -105,25 +106,34 @@ class PhoneMindToolbox(
 
     // ---- seeing -------------------------------------------------------------------------------------------------
 
+    private var fieldValues: Map<String, String> = emptyMap()
+
     private fun bind(page: AgentPageCard): List<MindRef> {
         screen = page
-        controlsById = page.controls.associateBy { it.elementId }
+        // The page card is a shortlist; the Mind reads every control of the observation when the environment has them.
+        val controls = env.allControls().ifEmpty { page.controls }
+        controlsById = controls.associateBy { it.elementId }
         fresh = true
-        return refs.bind(page)
+        val bound = refs.bind(page, controls)
+        fieldValues = bound.filter { it.editable && !it.password }
+            .mapNotNull { ref -> env.fieldValue(ref.elementId)?.let { ref.elementId to it } }.toMap()
+        return bound
     }
 
     private fun observeAndRender(header: String?, image: Boolean = false): MindToolResult {
-        val observed = if (image) env.observeWithImage(goal) else env.observe(goal)
+        var observed = if (image) env.observeWithImage(goal) else env.observe(goal)
+        // Screens that accessibility cannot describe (games, canvases, some web views) come with a picture right away.
+        val weak = observed.page?.let { !it.treeUseful || env.allControls().ifEmpty { it.controls }.isEmpty() } == true
+        if (!image && weak) env.observeWithImage(goal).takeIf { it.page != null }?.let { observed = it }
         val page = observed.page ?: return MindToolResult(
             listOfNotNull(header, "The screen could not be read: ${observed.failure?.message ?: "unknown reason"}.").joinToString("\n"),
             ok = false,
         )
         val bound = bind(page)
-        val rendered = MindScreen.render(page, bound, appLabel(page.packageName), controlsById)
+        val rendered = MindScreen.render(page, bound, appLabel(page.packageName), controlsById, fieldValues)
         val text = listOfNotNull(header, rendered).joinToString("\n\n")
         val brief = (header ?: "Read the screen") + " — " + MindScreen.brief(page, appLabel(page.packageName))
-        val dataUrl = observed.image?.optString("pngBase64")?.takeIf { it.isNotBlank() }?.let { "data:image/png;base64,$it" }
-        if (dataUrl != null) rememberShot(page, observed.image!!)
+        val dataUrl = observed.image?.optString("pngBase64")?.takeIf { it.isNotBlank() }?.let { png -> prepareShot(page, bound, png, observed.image!!) }
         return MindToolResult(text, brief.take(200), imageDataUrl = dataUrl)
     }
 
@@ -133,8 +143,28 @@ class PhoneMindToolbox(
         val result = observeAndRender("Screenshot of the current screen attached.", image = true)
         val size = shotSize
         return if (result.imageDataUrl != null) result.copy(text = result.text + if (size == null) "" else
-            "\n\nThe screenshot is ${size.first}×${size.second} pixels. Prefer refs; for something with no ref, tap_point takes x,y in these pixels.")
+            "\n\nThe screenshot is ${size.first}×${size.second} pixels; boxes labelled e1, e2… are the refs above. Prefer refs; for something with no ref, tap_point takes x,y in these pixels.")
         else result.copy(text = "A screenshot could not be taken; here is the text description.\n\n${result.text}")
+    }
+
+    /** Marks refs on the screenshot and records its size so tap_point can map its pixels back to the screen. */
+    private fun prepareShot(page: AgentPageCard, bound: List<MindRef>, png: String, image: JSONObject): String {
+        val screenWidth = page.pageEvidence.optInt("captureWidth").takeIf { it > 0 } ?: image.optInt("width")
+        val screenHeight = page.pageEvidence.optInt("captureHeight").takeIf { it > 0 } ?: image.optInt("height")
+        val marks = bound.mapNotNull { ref ->
+            val box = controlsById[ref.elementId]?.evidence?.optJSONObject("bounds") ?: return@mapNotNull null
+            MindMark(ref.ref, box.optInt("left"), box.optInt("top"), box.optInt("right"), box.optInt("bottom"))
+                .takeIf { it.right > it.left && it.bottom > it.top }
+        }.take(MAX_MARKS)
+        val marked = runCatching { marker?.mark(png, marks, screenWidth, screenHeight) }.getOrNull()
+        if (marked != null && marked.width > 0 && marked.height > 0) {
+            shotSize = marked.width to marked.height
+            shotScale = (if (screenWidth > 0) screenWidth.toDouble() / marked.width else 1.0) to
+                (if (screenHeight > 0) screenHeight.toDouble() / marked.height else 1.0)
+            return marked.dataUrl
+        }
+        rememberShot(page, image)
+        return "data:image/png;base64,$png"
     }
 
     private fun rememberShot(page: AgentPageCard, image: JSONObject) {
@@ -177,7 +207,7 @@ class PhoneMindToolbox(
             "find \"$query\": nothing")
         controlsById = controlsById + found.candidates.associateBy { it.elementId }
         val bound = refs.bindExtra(observationId, found.candidates)
-        val lines = bound.joinToString("\n") { "  ${it.ref} ${MindScreen.describe(it, controlsById[it.elementId])}" }
+        val lines = bound.joinToString("\n") { "  ${it.ref} ${MindScreen.describe(it, controlsById[it.elementId], env.fieldValue(it.elementId))}" }
         return MindToolResult("Matches for \"$query\":\n$lines", "find \"$query\": ${bound.size} matches")
     }
 
@@ -519,6 +549,7 @@ class PhoneMindToolbox(
     companion object {
         private const val MAX_FINISH_REJECTIONS = 2
         private const val DEVICE_POLL_MS = 1_000L
+        private const val MAX_MARKS = 60
         /** Tools that need a usable screen; memory, planning, questions and finishing work with the phone locked. */
         private val PHONE_TOOLS = setOf("screen_read", "screen_look", "screen_find", "tap", "tap_point", "long_press", "type_text",
             "press_enter", "scroll", "swipe", "back", "home", "wait", "open_app", "open_link", "open_settings", "set_timer",

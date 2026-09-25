@@ -54,7 +54,15 @@ internal data class GatewayObservation(
      * fact readers (task ledger, clause proof, people memory) accept only LIVE.
      */
     val persona: AtlasPersona? = null,
-)
+    /**
+     * Current values of ordinary editable fields, for the on-phone Cyclone Mind only. Process-local: never part of
+     * [payload], never exported to the PC gateway, Glass or diagnostics. Password, sensitive-hint and browser address
+     * fields are never included.
+     */
+    val fieldValues: Map<String, String> = emptyMap(),
+) {
+    override fun toString(): String = "GatewayObservation(id=$id, package=${page.packageName}, generation=$generation)"
+}
 
 internal object GatewayObservationStore {
     private val scoped = com.cyclone.mobile.runtime.session.SessionObservationStore(
@@ -421,8 +429,20 @@ internal object GatewayObservationAdapter {
             persona?.let { runCatching { AtlasRuntime.catalog.recordObserved(place, it) } }
         }
         elements.values.forEach { it.evidence.put("sessionId", execution.sessionId).put("displayId", execution.displayId) }
+        val fieldValues = elements.values.mapNotNull { element ->
+            val evidence = element.evidence
+            if (!evidence.optBoolean("editable") || evidence.optBoolean("password")) return@mapNotNull null
+            val resourceId = evidence.optString("resourceId")
+            val hints = "$resourceId ${evidence.optString("contentDescription")} ${element.label} ${evidence.optString("role")}"
+            if (GatewayPrivacy.isSensitiveHint(hints) || com.cyclone.mobile.places.PlaceResolver.isChromeAddressBarResourceId(resourceId)) {
+                return@mapNotNull null
+            }
+            val rawId = evidence.optString("rawNodeId").takeIf { it.isNotBlank() && it != "null" } ?: evidence.optString("id")
+            val value = rawTextById[rawId]?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            element.id to value.take(500)
+        }.toMap()
         return GatewayObservationStore.replace(GatewayObservation(observationId, snapshot.timestampMs, page, payload, elements, execution,
-            persona = observedPersona))
+            persona = observedPersona, fieldValues = fieldValues))
     }
 
     private fun captureChanged() = GatewayProtocolException("OBSERVATION_CHANGED_DURING_CAPTURE",
@@ -496,6 +516,12 @@ internal object GatewayObservationAdapter {
             .digest("$editableStateSalt|$rawText".toByteArray(Charsets.UTF_8))
         return digest.joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
+
+    /** The live value of an ordinary field for the on-phone Mind; null for secrets, the address bar and non-fields. */
+    fun fieldValue(observation: GatewayObservation, elementId: String): String? = observation.fieldValues[elementId]
+
+    /** Every semantic control of the observation, for agents that can read more than the page card's shortlist. */
+    fun controls(observation: GatewayObservation): JSONArray = JSONArray(observation.payload.optJSONArray("semanticControls")?.toString() ?: "[]")
 
     /** Equality only, for the live Ask ledger. Never expose editable text or the process-local salt. */
     fun matchesObservedEmail(observation: GatewayObservation, elementId: String, email: String): Boolean {

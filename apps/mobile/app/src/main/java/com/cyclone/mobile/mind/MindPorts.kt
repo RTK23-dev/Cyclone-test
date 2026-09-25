@@ -36,6 +36,19 @@ interface MindOwnerPort {
     fun plan(steps: List<MindPlanStep>) {}
 }
 
+/** A control's box on the screen, in screen pixels, to draw on a screenshot. */
+data class MindMark(val ref: String, val left: Int, val top: Int, val right: Int, val bottom: Int)
+
+data class MindImage(val dataUrl: String, val width: Int, val height: Int)
+
+/**
+ * Prepares a screenshot for the model: draws each ref's box and name on it (so "e7" in the text is the box labelled
+ * e7 in the picture) and scales it down to a size vision models read well. Null when the image cannot be prepared.
+ */
+fun interface MindImageMarker {
+    fun mark(pngBase64: String, marks: List<MindMark>, screenWidth: Int, screenHeight: Int): MindImage?
+}
+
 /** Facts about the phone that are not on the screen. */
 interface MindDevicePort {
     fun apps(): List<MindApp>

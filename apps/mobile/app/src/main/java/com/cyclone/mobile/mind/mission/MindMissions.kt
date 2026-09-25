@@ -237,7 +237,8 @@ object MindMissions {
                 onPlan = { steps -> save { it.copy(plan = steps) }; planToTask(taskId, steps) })
             val environment = CycloneAgentEnvironment(context, userTaskGoal = mission.goal)
             val memory = memory(context)
-            val toolbox = PhoneMindToolbox(environment, owner, device, mission.goal, { stopRequested }, memory = memory, missionId = mission.id)
+            val toolbox = PhoneMindToolbox(environment, owner, device, mission.goal, { stopRequested }, memory = memory, missionId = mission.id,
+                marker = AndroidMindImageMarker)
             val native = resume?.nativeTools ?: (OpenRouterCatalogStore.lookup(primaryId)?.nativeTools != false)
             val system = MindPrompt.system(null, native, toolbox.specs(), device.now(), device.device())
             val conversation = if (resume != null) resume.conversation.also {

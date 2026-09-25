@@ -58,6 +58,10 @@ interface CycloneAgentEnvironmentApi {
     fun photoEffect(): PhotoEffectLedger.State = PhotoEffectLedger.State.NOT_ATTEMPTED
     fun brainRecall(goal: String): AgentKnowledgeResult
     fun knownRoutes(goal: String): AgentKnowledgeResult
+    /** Every control of the current observation (the page card holds a shortlist). Empty when none is current. */
+    fun allControls(): List<AgentElementCandidate> = emptyList()
+    /** The value of an ordinary editable field in the current observation; never secrets or the address bar. */
+    fun fieldValue(elementId: String): String? = null
 }
 
 class CycloneAgentEnvironment internal constructor(
@@ -438,6 +442,23 @@ class CycloneAgentEnvironment internal constructor(
         )
         remember(envelope)
         envelope
+    }
+
+    override fun allControls(): List<AgentElementCandidate> = synchronized(this) {
+        val observation = currentVisibleObservation() ?: return@synchronized emptyList()
+        val controls = runtime.allControls(observation)
+        (0 until controls.length()).mapNotNull { index ->
+            val evidence = controls.optJSONObject(index) ?: return@mapNotNull null
+            val id = evidence.optString("elementId").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            AgentElementCandidate(id, observation.id, evidence.optString("label"), evidence.optString("semanticName"),
+                evidence.optString("role"), evidence.optString("source"), 0.0, evidence,
+                evidence.optInt("elementIndex", -1).takeIf { it > 0 })
+        }
+    }
+
+    override fun fieldValue(elementId: String): String? = synchronized(this) {
+        val observation = currentVisibleObservation() ?: return@synchronized null
+        runtime.fieldValue(observation, elementId)
     }
 
     override fun invalidateObservation() = synchronized(this) {
@@ -1019,6 +1040,8 @@ internal interface CycloneAgentRuntimePort {
 
     fun brainRecall(goal: String): JSONObject
     fun knownRoutes(goal: String): JSONObject
+    fun allControls(observation: GatewayObservation): JSONArray = JSONArray()
+    fun fieldValue(observation: GatewayObservation, elementId: String): String? = null
 }
 
 private class AndroidCycloneAgentRuntimePort(
@@ -1040,6 +1063,9 @@ private class AndroidCycloneAgentRuntimePort(
         JSONObject().put("sessionId", execution.sessionId).put("displayId", execution.displayId), params)
 
     override fun capture(): GatewayObservation = GatewayObservationAdapter.capture(context, scoped())
+    override fun allControls(observation: GatewayObservation): JSONArray = GatewayObservationAdapter.controls(observation)
+    override fun fieldValue(observation: GatewayObservation, elementId: String): String? =
+        GatewayObservationAdapter.fieldValue(observation, elementId)
     override fun captureWithImage(): GatewayObservation = GatewayObservationAdapter.capture(context,
         scoped(JSONObject().put("includeScreenshot", true).put("includeScreenshotBase64", true)))
     override fun current(): GatewayObservation? = GatewayObservationStore.current(execution.sessionId)

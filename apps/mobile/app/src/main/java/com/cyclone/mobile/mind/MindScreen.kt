@@ -32,8 +32,8 @@ class MindRefBook {
     fun all(): List<MindRef> = current.values.toList()
 
     /** Binds the controls of a fresh observation and returns them in screen order with their refs. */
-    fun bind(card: AgentPageCard): List<MindRef> {
-        val identities = identities(card.controls)
+    fun bind(card: AgentPageCard, controls: List<AgentElementCandidate> = card.controls): List<MindRef> {
+        val identities = identities(controls)
         val known = identities.count { it.second in refsByIdentity }
         val sameScreen = card.packageName == packageName && identities.isNotEmpty() && known * 10 >= identities.size * 3
         if (!sameScreen) {
@@ -102,8 +102,15 @@ class MindRefBook {
 object MindScreen {
     private const val MAX_TEXT_LINES = 70
     private const val MAX_TEXT_CHARS = 3_500
+    const val MAX_CONTROLS = 120
 
-    fun render(card: AgentPageCard, refs: List<MindRef>, appLabel: String?, byElement: Map<String, AgentElementCandidate>): String = buildString {
+    fun render(
+        card: AgentPageCard,
+        refs: List<MindRef>,
+        appLabel: String?,
+        byElement: Map<String, AgentElementCandidate>,
+        values: Map<String, String> = emptyMap(),
+    ): String = buildString {
         val app = appLabel?.takeIf { it.isNotBlank() && it != card.packageName }
         append("Screen: ").append(app?.let { "$it (${card.packageName})" } ?: card.packageName.ifBlank { "unknown app" })
         card.legacyPage?.title?.takeIf { it.isNotBlank() && it != app }?.let { append(" — ").append(it.take(80)) }
@@ -123,14 +130,15 @@ object MindScreen {
         if (refs.isEmpty()) appendLine("Controls: none reported.")
         else {
             appendLine("Controls:")
-            refs.forEach { ref -> appendLine("  ${ref.ref} ${describe(ref, byElement[ref.elementId])}") }
+            refs.take(MAX_CONTROLS).forEach { ref -> appendLine("  ${ref.ref} ${describe(ref, byElement[ref.elementId], values[ref.elementId])}") }
+            if (refs.size > MAX_CONTROLS) appendLine("  … ${refs.size - MAX_CONTROLS} more; screen_find finds them by name.")
         }
         if (!card.treeUseful || card.perceptionMode != "a11y") {
             appendLine("Note: this screen exposes little to accessibility; screen_look shows what is really there.")
         }
     }.trimEnd()
 
-    fun describe(ref: MindRef, candidate: AgentElementCandidate?): String {
+    fun describe(ref: MindRef, candidate: AgentElementCandidate?, value: String? = null): String {
         val evidence = candidate?.evidence
         val states = buildList {
             if (evidence?.optBoolean("checkable") == true) add(if (evidence.optBoolean("checked")) "on" else "off")
@@ -139,7 +147,13 @@ object MindScreen {
             if (evidence != null && !evidence.optBoolean("enabled", true)) add("disabled")
             if (evidence?.optBoolean("scrollable") == true && ref.role != "list") add("scrollable")
         }
-        return "${ref.role} \"${ref.label}\"" + if (states.isEmpty()) "" else " (${states.joinToString()})"
+        val content = when {
+            !ref.editable -> ""
+            ref.password -> " (hidden)"
+            value.isNullOrEmpty() -> " (empty)"
+            else -> " = \"" + com.cyclone.mobile.mind.mission.MindRedaction.scrub(value.replace(Regex("\\s+"), " ")).take(120) + "\""
+        }
+        return "${ref.role} \"${ref.label}\"" + content + if (states.isEmpty()) "" else " (${states.joinToString()})"
     }
 
     fun textLines(card: AgentPageCard): List<String> {

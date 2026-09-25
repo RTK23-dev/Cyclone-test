@@ -28,7 +28,8 @@ import org.junit.Test
 class PhoneMindToolboxTest {
     data class Control(val key: String, val label: String, val role: String = "button", val editable: Boolean = false, val password: Boolean = false)
 
-    class FakeScreen(val packageName: String, val controls: List<Control>, val text: List<String> = emptyList())
+    class FakeScreen(val packageName: String, val controls: List<Control>, val text: List<String> = emptyList(),
+        val values: Map<String, String> = emptyMap(), val treeUseful: Boolean = true, val shortlist: Int = 36)
 
     class FakeEnv(var screen: FakeScreen) : CycloneAgentEnvironmentApi {
         var observations = 0
@@ -36,27 +37,39 @@ class PhoneMindToolboxTest {
         val acts = mutableListOf<Pair<String, JSONObject>>()
         var nextFailures = ArrayDeque<AgentFailureClass>()
         var onAct: (String, JSONObject) -> Unit = { _, _ -> }
+        var images = 0
+        private var lastAll: List<AgentElementCandidate> = emptyList()
+        private var lastId: String? = null
+
+        override fun allControls(): List<AgentElementCandidate> = if (visible != null && visible == lastId) lastAll else emptyList()
+        override fun fieldValue(elementId: String): String? =
+            if (visible != null && elementId.contains(":$visible:")) screen.values[elementId.substringAfterLast(':')] else null
 
         fun card(): AgentPageCard {
             observations++
             val id = "obs$observations"
             visible = id
+            val all = screen.controls.map { c ->
+                AgentElementCandidate("semantic:$id:${c.key}", id, c.label, c.label.lowercase(), c.role, "semantic", 0.0,
+                    JSONObject().put("controlKey", c.key).put("editable", c.editable).put("password", c.password)
+                        .put("bounds", JSONObject().put("left", 10).put("top", 10).put("right", 200).put("bottom", 80)))
+            }
+            lastAll = all
+            lastId = id
             return AgentPageCard(
+                treeUseful = screen.treeUseful,
                 observationId = id, generation = observations.toLong(), actionable = true, capturedAtMs = 0,
                 packageName = screen.packageName, activity = null, pageKey = "p", structuralKey = "s", contentKey = "c",
                 accessibilityFingerprint = "f$observations", pageSummary = JSONObject(),
                 pageText = JSONObject().put("lines", JSONArray().also { lines -> screen.text.forEach { lines.put(JSONObject().put("text", it)) } }),
                 pageEvidence = JSONObject().put("captureWidth", 1080).put("captureHeight", 2400),
-                controls = screen.controls.map { c ->
-                    AgentElementCandidate("semantic:$id:${c.key}", id, c.label, c.label.lowercase(), c.role, "semantic", 0.0,
-                        JSONObject().put("controlKey", c.key).put("editable", c.editable).put("password", c.password))
-                },
+                controls = all.take(screen.shortlist),
                 nextHopHints = JSONArray(),
             )
         }
 
         override fun observe(goal: String) = AgentObservationResult(page = card())
-        override fun observeWithImage(goal: String) = AgentObservationResult(page = card(), image = JSONObject().put("pngBase64", "QUJD").put("width", 540).put("height", 1200))
+        override fun observeWithImage(goal: String) = AgentObservationResult(page = card().also { images++ }, image = JSONObject().put("pngBase64", "QUJD").put("width", 540).put("height", 1200))
         override fun locate(goal: String) = AgentSearchResult(query = goal, goal = goal)
         override fun search(query: String, goal: String): AgentSearchResult {
             val page = card()
@@ -380,5 +393,51 @@ class PhoneMindToolboxTest {
         val result = PhoneMindToolbox(FakeEnv(login), FakeOwner(), lockedDevice, "goal", ownerTimeoutMs = 5_000).run("tap", """{"ref":"e1"}""")
         assertFalse(result.ok)
         assertTrue(result.text.contains("still unavailable"))
+    }
+
+    @Test fun fieldValuesAreShownButSecretsNever() {
+        val screen = FakeScreen("com.android.chrome", login.controls, values = mapOf("email" to "jan@example.com", "pass" to "hunter2"))
+        val text = PhoneMindToolbox(FakeEnv(screen), FakeOwner(), device, "goal").run("screen_read").text
+        assertTrue(text.contains("e1 text field \"Email\" = \"jan@example.com\""))
+        assertTrue(text.contains("e2 password field \"Password\" (hidden)"))
+        assertFalse(text.contains("hunter2"))
+        val empty = PhoneMindToolbox(FakeEnv(login), FakeOwner(), device, "goal").run("screen_read").text
+        assertTrue(empty.contains("\"Email\" (empty)"))
+    }
+
+    @Test fun theWholeScreenIsListedNotJustTheShortlist() {
+        val many = FakeScreen("com.android.settings", (1..60).map { Control("k$it", "Setting $it") })
+        val text = PhoneMindToolbox(FakeEnv(many), FakeOwner(), device, "goal").run("screen_read").text
+        assertTrue(text.contains("e60 button \"Setting 60\""))
+    }
+
+    @Test fun screenshotsAreMarkedAndScaled() {
+        var seen: List<MindMark> = emptyList()
+        val marker = MindImageMarker { _, marks, width, height ->
+            seen = marks
+            assertEquals(1080, width)
+            assertEquals(2400, height)
+            MindImage("data:image/jpeg;base64,XYZ", 576, 1280)
+        }
+        val env = FakeEnv(login)
+        val box = PhoneMindToolbox(env, FakeOwner(), device, "goal", marker = marker)
+        val look = box.run("screen_look")
+        assertEquals("data:image/jpeg;base64,XYZ", look.imageDataUrl)
+        assertEquals(listOf("e1", "e2", "e3"), seen.map { it.ref })
+        assertTrue(look.text.contains("576×1280"))
+        box.run("tap_point", """{"x":288,"y":640}""")
+        assertEquals(540, env.acts.last().second.getInt("x"))
+        assertEquals(1200, env.acts.last().second.getInt("y"))
+    }
+
+    @Test fun screensAccessibilityCannotDescribeComeWithAPicture() {
+        val game = FakeScreen("com.example.game", emptyList(), treeUseful = false)
+        val env = FakeEnv(game)
+        val read = PhoneMindToolbox(env, FakeOwner(), device, "goal").run("screen_read")
+        assertNotNull(read.imageDataUrl)
+        assertEquals(1, env.images)
+        val normal = FakeEnv(login)
+        PhoneMindToolbox(normal, FakeOwner(), device, "goal").run("screen_read")
+        assertEquals(0, normal.images)
     }
 }

@@ -11,6 +11,8 @@ internal object GatewayPrivacy {
     private val providerKeyPattern = Regex("(?i)\\b(sk-[A-Za-z0-9_-]{12,}|(?:api[_ -]?key|bearer|token)\\s*[:=]\\s*[A-Za-z0-9._-]{8,})")
     private val inlineSecretPattern = Regex("(?i)\\b(password|passcode|passwd|pin|otp|verification\\s*code|api[_ -]?key|token|secret)\\s*(?:is|:|=)\\s*[^\\s,;]+")
 
+    fun isSensitiveHint(text: String): Boolean = sensitiveKey.containsMatchIn(text)
+
     fun sanitizeAccessibilitySnapshot(snapshot: JSONObject): JSONObject {
         val out = JSONObject(snapshot.toString())
         val source = snapshot.optJSONArray("nodes") ?: JSONArray()
