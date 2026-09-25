@@ -123,6 +123,11 @@ class VideoStreamController:
             thread = self._threads.get(profile)
             if thread is None or not thread.is_alive():
                 self._start_producer_locked(profile)
+            else:
+                # A late viewer has no decoder configuration or keyframe. Restart once
+                # for all current viewers rather than feed it mid-GOP delta packets.
+                # This also covers a reload whose new socket beats the old close frame.
+                self._stops[profile].set()
             # If the last viewer just left, its producer is still shutting down. Its
             # finally block starts the replacement, after releasing the old media session.
         self._mark("server.stream.subscribed", {"profile": profile, "transport": "websocket"})

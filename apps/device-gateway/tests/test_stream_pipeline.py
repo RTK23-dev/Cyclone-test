@@ -15,7 +15,7 @@ from cyclone_device_gateway.desktop_runtime.models import (
     DesktopRuntimeError,
     VIDEO_PROTOCOL_VERSION,
 )
-from cyclone_device_gateway.desktop_runtime.video import VideoFleetLimiter, VideoStreamController
+from cyclone_device_gateway.desktop_runtime.video import StreamMessage, VideoFleetLimiter, VideoStreamController
 from cyclone_device_gateway.media.backend import ScrcpyMediaBackend
 
 _PNG_1X1 = (
@@ -60,6 +60,24 @@ class FakeStreamSession:
 
 
 class VideoStreamPipelineTests(unittest.TestCase):
+    def test_new_socket_before_old_close_gets_a_fresh_decoder_session(self):
+        controller = VideoStreamController(FakeStreamSession(FakeStreamADB()), VideoFleetLimiter(),
+            media_backend=unavailable_media_backend(), jpeg_first=True)
+        def produce(profile, stop):
+            controller._broadcast(profile, StreamMessage("text", '{"type":"stream.init"}'))
+            stop.wait(3)
+        controller._produce_jpeg = produce
+        old = controller.subscribe("focus")
+        self.assertIn("stream.init", old.get(timeout=2).data)
+        new = controller.subscribe("focus")
+        try:
+            self.assertIn("stream.init", new.get(timeout=2).data)
+            self.assertEqual(controller.limiter.snapshot()["sources"], 1)
+        finally:
+            controller.unsubscribe("focus", old)
+            controller.unsubscribe("focus", new)
+            controller.stop_all()
+
     def test_new_viewer_restarts_dead_producer_even_with_an_orphan_queue(self):
         controller = VideoStreamController(FakeStreamSession(FakeStreamADB()), VideoFleetLimiter(),
             media_backend=unavailable_media_backend(), jpeg_first=True)
