@@ -49,6 +49,15 @@ task button on every surface sends a typed `TaskCommand` through `TaskCommands`;
 (`TASK_COMMAND`). Surfaces never call an engine directly. A contract test checks every engine against every command
 and every button a surface can show. Structure plan: `Cyclone V5 plan/17-structure.md`.
 
+### Cyclone Lab (since 5.0.0-alpha.32)
+
+Cyclone measures itself. The gateway's lab (`cyclone_device_gateway/lab/`) runs experiments — missions × variants ×
+repetitions — on a paired phone: it prepares the phone through typed, allowlisted ADB probes (never a route, never the
+model), starts a Mind mission with a variant over `lab.start`, plays the owner through Task Kit (it never approves and
+never supplies a secret), and judges the result from the phone's real state, then restores every setting it changed.
+Results carry the mission's metrics and redacted record; rates come with confidence intervals and A/B with an exact
+test. Glass (`#/lab`) and the agent MCP (`phone_lab_*`) start and read experiments. Plan: `Cyclone V5 plan/18-cyclone-lab.md`.
+
 ### Owner Moments (since 5.0.0-alpha.31)
 
 Whenever a task needs its owner, whichever engine runs it, the app derives one `OwnerMoment` (question, values
