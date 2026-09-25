@@ -129,6 +129,25 @@ resumes within a minute of Accessibility reconnecting; (15) a form with a pre-fi
 (16) a screenshot shows labelled boxes; (17) swipe through a carousel; (18) "what did my last WhatsApp say";
 (19) a site with a CAPTCHA hands over and continues.
 
+## alpha.28 owner card
+
+From a device run: a Facebook sign-up needed first and last name; the Mind asked the owner to take over, the owner
+filled it in and pressed "I'm done", and nothing happened.
+
+- **Root cause:** "I'm done" (overlay ribbon, notification, Ask) went into the classic agent's resume path. A Mind
+  mission waiting for an answer to its question never got one. Now every task-card command for a mission goes to the
+  mission first, and "I'm done" resolves whatever it waits for: hand-back, open question ("I did it myself, look
+  again"), open check-in card (done by hand). Cyclone always gets the phone back.
+- **One owner card, two ways forward.** `owner_fill` asks for all personal details a form needs on one card over any
+  app: an input per value with the right keyboard, "Remember for next time", **Take over** and **Fill in**. Cyclone
+  types plain values straight into their fields; dates and choices reach the model in the owner's words, which it
+  turns into the form's format. Questions (`owner_ask`) get the same card with Take over. Secrets are refused and stay
+  on the Secrets Card; approvals keep the approval card.
+
+Device checks added: (20) a sign-up form asks for first/last name on the check-in card, Fill in types them;
+(21) the same with Take over, then I'm done continues; (22) a birth date typed as "12 march 1990" ends up correctly in
+day/month/year pickers; (23) "Remember for next time", then a second sign-up needs no card.
+
 ## Known limits of this alpha
 
 - Foreground only; background workspaces still use the step agent.
