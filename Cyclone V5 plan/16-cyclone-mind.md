@@ -1,6 +1,6 @@
 # Cyclone Mind — one model, one conversation, one mission
 
-**Status:** built for 5.0.0-alpha.25.dev1 (versionCode 166) on top of the alpha.24 developer candidate. Unit-tested on
+**Status:** built for 5.0.0-alpha.25.dev1 (versionCode 166), extended in alpha.26.dev1 (versionCode 167) on top of the alpha.24 developer candidate. Unit-tested on
 the JVM; **physical-phone acceptance is UNVERIFIED** until the device plan below is run. Implements the direction of
 [`15-model-is-the-agent.md`](15-model-is-the-agent.md).
 
@@ -87,6 +87,23 @@ Record each as PASS/FAIL with the exported run diagnostic.
 7. **Interruption.** Force-stop Cyclone mid-mission → Ask shows it as interrupted → Resume continues with its memory.
 8. **Long sprint.** A 15–30 min multi-app task; check working time excludes owner waits and the budget note appears.
 9. **Settings off.** Turn Cyclone Mind off → the classic agent runs as in alpha.24.
+
+## alpha.26 additions
+
+- **Lasting memory.** `remember` / `forget` keep short facts across missions in `Cyclone Brain/Mind memory.json`
+  (at most 200, newest first). Facts that look like secrets are refused, not stored. `recall` searches them, and
+  every new mission opens with them plus the past day's missions (goal and outcome) so follow-ups have context. The
+  owner reads and deletes them in AI settings → "What Cyclone Mind remembers".
+- **Vision tap.** `tap_point` taps pixels of the last `screen_look` screenshot (scaled to the screen) for UIs that
+  accessibility does not expose. `phone.tap_point` classifies whatever sits under the point exactly like a labelled
+  click (GATE for pay/send/delete/grant); blocked in Guided.
+- **Approval fix.** A click refused by Accessibility's GATE interceptor used to reach the Mind as "not allowed" while
+  the approval card was up; it now waits for the owner and retries the exact control once.
+- **Prompt caching.** Anthropic routes get cache breakpoints on the system prompt and the newest user message.
+
+Device checks added for alpha.26: (10) "remember that my work email is …", then in a new mission "which work email do I
+use?"; (11) a tap on an unlabelled icon via `tap_point`; (12) a Send reached through a screenshot tap raises the
+approval card.
 
 ## Known limits of this alpha
 
