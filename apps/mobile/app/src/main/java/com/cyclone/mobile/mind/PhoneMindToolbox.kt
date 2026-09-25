@@ -31,6 +31,8 @@ class PhoneMindToolbox(
     private val marker: MindImageMarker? = null,
     /** Records what the mission sees and does, so the owner can press Learn afterwards. */
     private val trail: com.cyclone.mobile.mind.learn.MindTrailRecorder? = null,
+    /** What Learn taught about a screen (package, page key → advice), shown under the screen when it is known. */
+    private val learned: ((String, String) -> String?)? = null,
 ) : MindToolbox {
     private val refs = MindRefBook()
     private var screen: AgentPageCard? = null
@@ -140,7 +142,8 @@ class PhoneMindToolbox(
         )
         val bound = bind(page)
         val rendered = MindScreen.render(page, bound, appLabel(page.packageName), controlsById, fieldValues)
-        val text = listOfNotNull(header, rendered).joinToString("\n\n")
+        val hint = runCatching { page.legacyPage?.let { learned?.invoke(it.packageName, it.pageKey) } }.getOrNull()
+        val text = listOfNotNull(header, rendered, hint).joinToString("\n\n")
         val brief = (header ?: "Read the screen") + " — " + MindScreen.brief(page, appLabel(page.packageName))
         val dataUrl = observed.image?.optString("pngBase64")?.takeIf { it.isNotBlank() }?.let { png -> prepareShot(page, bound, png, observed.image!!) }
         return MindToolResult(text, brief.take(200), imageDataUrl = dataUrl)

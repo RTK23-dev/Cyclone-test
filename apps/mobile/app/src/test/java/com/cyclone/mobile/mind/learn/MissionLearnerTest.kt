@@ -74,7 +74,10 @@ class MissionLearnerTest {
         assertFalse(json.contains("example.com"))
     }
 
-    private class Sink : LearnSink {
+    private class Sink : LearnSink, LearnedReader {
+        override fun screens(packageName: String) = screens.values.filter { it.packageName == packageName }
+        override fun actions(packageName: String) = actions.values.filter { it.packageName == packageName }
+        override fun transitions(packageName: String) = transitions.filter { it.packageName == packageName }
         val apps = mutableMapOf<String, LearnedApp>()
         val screens = mutableMapOf<String, LearnedScreen>()
         val actions = mutableMapOf<String, LearnedAction>()
@@ -107,6 +110,19 @@ class MissionLearnerTest {
         assertEquals(1, report.failedSteps)
         assertEquals("Learned 3 screens, 15 controls and 1 move in Launcher, Calculator.", report.sentence())
         assertEquals(report, LearnReport.fromJson(JSONObject(report.toJson().toString())))
+    }
+
+    @Test fun theNextRunIsToldWhatWasLearnedAboutTheScreenItIsOn() {
+        val sink = Sink()
+        val hints = LearnedHints(sink)
+        assertNull("nothing learned yet, no advice", hints.forScreen(calc, keypad.pageKey))
+        MissionLearner(sink) { 1 }.learn(recorded()) { "Calculator" }
+        val advice = LearnedHints(sink).forScreen(calc, keypad.pageKey)!!
+        assertTrue(advice, advice.contains("Cyclone knows this screen (13 controls)"))
+        assertTrue(advice, advice.contains("“History” → History"))
+        assertTrue(advice, advice.contains("Other learned screens in this app: History"))
+        assertTrue(advice, advice.contains("This is advice"))
+        assertNull("an unknown screen gets no advice", LearnedHints(sink).forScreen(calc, "$calc:Main:settings"))
     }
 
     @Test fun learningASecondRunMergesIntoTheSameScreens() {

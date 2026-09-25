@@ -82,6 +82,14 @@ object MindMissions {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(MINUTES_KEY, minutes.coerceIn(5, 120)).apply()
     }
 
+    /** Learned-screen advice for the Mind; missing knowledge (or a store that will not open) just means no advice. */
+    private fun learnedHints(context: Context): ((String, String) -> String?)? = runCatching {
+        com.cyclone.mobile.applearner.AppLearnerRuntime.initialize(context.applicationContext)
+        val hints = com.cyclone.mobile.mind.learn.LearnedHints(com.cyclone.mobile.mind.learn.AppKnowledgeReader(com.cyclone.mobile.applearner.AppLearnerRuntime.store))
+        val fn: (String, String) -> String? = { pkg, key -> hints.forScreen(pkg, key) }
+        fn
+    }.getOrNull()
+
     fun store(context: Context): MissionStore = store ?: synchronized(lock) {
         store ?: MissionStore(File(context.applicationContext.filesDir, "Cyclone Brain/Missions")).also { store = it }
     }
@@ -302,7 +310,8 @@ object MindMissions {
             val memory = labMemoryFile?.let { com.cyclone.mobile.mind.MindMemory(it) } ?: memory(context)
             val trail = com.cyclone.mobile.mind.learn.MindTrailRecorder(mission.id).also { liveTrail = it }
             val toolbox = PhoneMindToolbox(environment, owner, device, mission.goal, { stopRequested }, memory = memory, missionId = mission.id,
-                marker = if (variant?.marks == false) null else AndroidMindImageMarker, trail = trail)
+                marker = if (variant?.marks == false) null else AndroidMindImageMarker, trail = trail,
+                learned = learnedHints(context))
             val native = resume?.nativeTools ?: (OpenRouterCatalogStore.lookup(primaryId)?.nativeTools != false)
             val system = MindPrompt.system(null, native, toolbox.specs(), device.now(), device.device()) +
                 variant?.promptAddendum?.takeIf { it.isNotBlank() }?.let { "\n\nLab instruction for this mission (from the developer's experiment):\n$it" }.orEmpty()
