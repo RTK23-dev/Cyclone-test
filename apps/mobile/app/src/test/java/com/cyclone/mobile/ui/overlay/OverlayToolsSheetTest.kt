@@ -82,6 +82,36 @@ class OverlayToolsSheetTest {
         assertFalse(shader.contains("cell * 0.72"))
     }
 
+    @Test fun traceFieldDrawsTideScenesWithSmoothNoiseUnderTheChrome() {
+        val shader = source("ui/overlay/tracefield/TraceFieldShader.kt").replace("\r\n", "\n")
+        // Square value noise read as moving rectangles; scenes use smooth gradient noise instead.
+        assertFalse(shader.contains("vnoise("))
+        assertFalse(shader.contains("aurora("))
+        assertTrue(shader.contains("float gnoise(float2 p)"))
+        assertTrue(shader.contains("float scene(float id, float2 uv, float t, float asp)"))
+        assertFalse(shader.lowercase().contains("gear"))
+        // Scene brightness is sampled at the digit's centre (even digits) with a fixed halftone threshold.
+        assertTrue(shader.contains("float2 uv = cellCentre / res;"))
+        assertTrue(shader.contains("n21(cellId + 17.3)"))
+        // Cyclone's own chrome keeps a soft cut-out: the field never shows through the Ask bar or work panel.
+        assertTrue(shader.contains("if (dExcl < 0.0) return half4(0.0);"))
+        assertTrue(shader.contains("m *= chromeFade;"))
+    }
+
+    @Test fun workPanelHandleRidesOnTopAndChromeReportsItsBounds() {
+        val drawer = source("ui/overlay/SignatureOverlayDrawer.kt")
+        val column = drawer.substringAfter("Column(modifier.fillMaxWidth()")
+        // Handle first, then the work panel, then the Ask bar.
+        val handle = column.indexOf("Drag down or tap to minimize Cyclone chat")
+        val panel = column.indexOf("CycloneConversationPanel(")
+        val composer = column.indexOf("composer()")
+        assertTrue(handle in 0 until panel)
+        assertTrue(panel < composer)
+        val chrome = source("ui/overlay/OverlayChrome.kt")
+        assertTrue(chrome.contains("TraceFieldRuntime.chromeBounds("))
+        assertTrue(chrome.contains("onSizeChanged { workCardPx = it.height }"))
+    }
+
     private fun source(path: String): String {
         val relative = "src/main/java/com/cyclone/mobile/$path"
         return sequenceOf(File(relative), File("apps/mobile/app/$relative")).first { it.isFile }.readText()
