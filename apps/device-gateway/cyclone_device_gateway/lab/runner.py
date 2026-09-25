@@ -26,7 +26,8 @@ from .verdict import Measure, TrialFacts, judge
 
 EXPERIMENT_ID = re.compile(r"^exp-[0-9]{8}-[0-9]{6}-[a-z0-9]{4}$")
 VARIANT_NAME = re.compile(r"^[A-Za-z0-9 ._-]{1,40}$")
-VARIANT_KEYS = frozenset({"name", "modelId", "effort", "workingMinutes", "marks", "freshMemory", "promptAddendum"})
+VARIANT_KEYS = frozenset({"name", "modelId", "effort", "workingMinutes", "marks", "freshMemory", "promptAddendum", "useMap"})
+BOOLEAN_KNOBS = ("marks", "freshMemory", "useMap")
 MAX_TRIALS = 600
 POLL_SECONDS = 2.0
 
@@ -70,6 +71,8 @@ def validate_variants(raw: Any) -> list[dict[str, Any]]:
     for variant in raw:
         if not isinstance(variant, dict) or not set(variant) <= VARIANT_KEYS or not isinstance(variant.get("name"), str):
             raise LabError("A variant has a name and only known knobs.")
+        if any(key in variant and not isinstance(variant[key], bool) for key in BOOLEAN_KNOBS):
+            raise LabError("marks, freshMemory and useMap are true or false.")
         name = variant["name"].strip()
         if not VARIANT_NAME.match(name) or name in names:
             raise LabError("Variant names are unique, 1..40 letters, digits, space, dot, dash or underscore.")

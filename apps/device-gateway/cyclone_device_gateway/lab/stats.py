@@ -75,6 +75,7 @@ def arm_stats(trials: list[dict[str, Any]]) -> dict[str, Any]:
         "workingSec": _num((_record(t).get("workingMs") or 0) / 1000 for t in scored),
         "turns": _num(_record(t).get("turns") for t in scored),
         "actions": _num(m.get("actions") for m in metrics),
+        "mapMoves": _num(m.get("mapMoves") for m in metrics),
         "errors": _num(m.get("errors") for m in metrics),
         "costUsd": _num(((_record(t).get("usage") or {}).get("costUsd")) for t in scored),
         "ownerAsks": sum(1 for t in scored for e in t.get("owner", []) if e.get("kind") in {"question", "values"}),
@@ -103,6 +104,7 @@ def compare(trials: list[dict[str, Any]], a: str, b: str) -> dict[str, Any]:
     delta = (sb["rate"] - sa["rate"]) if sa["rate"] is not None and sb["rate"] is not None else None
     cost_a, cost_b = sa["costUsd"]["mean"], sb["costUsd"]["mean"]
     time_a, time_b = sa["durationSec"]["median"], sb["durationSec"]["median"]
+    turns_a, turns_b = sa["turns"]["median"], sb["turns"]["median"]
     if delta is None:
         conclusion = "Not enough scored runs yet."
     elif p < 0.05:
@@ -116,6 +118,7 @@ def compare(trials: list[dict[str, Any]], a: str, b: str) -> dict[str, Any]:
         "missionsBetterA": better_a, "missionsBetterB": better_b, "missionsSame": same,
         "costRatio": (cost_b / cost_a) if cost_a and cost_b is not None else None,
         "timeRatio": (time_b / time_a) if time_a and time_b is not None else None,
+        "turnsRatio": (turns_b / turns_a) if turns_a and turns_b is not None else None,
         "conclusion": conclusion,
     }
 

@@ -266,7 +266,7 @@ def build_server(phone_tools: PhoneTools | None = None) -> MCPServer:
     def phone_lab_start(device_id: str, name: str, missions: list[str], variants: list[dict[str, Any]] | None = None,
                         repetitions: int = 1) -> dict[str, Any]:
         """Run a Cyclone Lab experiment: missions x variants x repetitions on one paired phone, scored from the phone.
-        A variant is {name, modelId?, effort?, workingMinutes?, marks?, freshMemory?, promptAddendum?}. The lab never
+        A variant is {name, modelId?, effort?, workingMinutes?, marks?, freshMemory?, promptAddendum?, useMap?}. The lab never
         approves consequential actions and never supplies secrets."""
         return tools.call("phone_lab_start", {"device_id": device_id, "name": name, "missions": missions,
                                               "variants": variants or [{"name": "A"}], "repetitions": repetitions})

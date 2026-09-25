@@ -109,11 +109,12 @@ interface VariantDraft {
   minutes: string;
   marks: boolean;
   freshMemory: boolean;
+  useMap: boolean;
   promptAddendum: string;
 }
 
 function draft(name: string): VariantDraft {
-  return { name, modelId: "", effort: "", minutes: "", marks: true, freshMemory: true, promptAddendum: "" };
+  return { name, modelId: "", effort: "", minutes: "", marks: true, freshMemory: true, useMap: true, promptAddendum: "" };
 }
 
 function builder(ctx: () => GlassContext, catalog: LabCatalog): HTMLElement {
@@ -274,6 +275,7 @@ function toVariant(draftValue: VariantDraft): LabVariant {
     workingMinutes: Number.isFinite(minutes) ? minutes : null,
     marks: draftValue.marks,
     freshMemory: draftValue.freshMemory,
+    useMap: draftValue.useMap,
     promptAddendum: draftValue.promptAddendum,
   });
 }
@@ -336,6 +338,7 @@ function variantEditor(variant: VariantDraft, index: number, remove: () => void,
   toggles.append(
     toggle("Numbered boxes on screenshots", variant.marks, (v) => (variant.marks = v)),
     toggle("Start fresh (no memory)", variant.freshMemory, (v) => (variant.freshMemory = v)),
+    toggle("Run from the map (learned routes and go_to)", variant.useMap, (v) => (variant.useMap = v)),
   );
   box.append(head, grid, toggles, field("Prompt addition", addendum));
   return box;
@@ -442,6 +445,7 @@ function renderDetail(ctx: () => GlassContext, detail: LabDetail, deps: LabPageD
     if (comparison.missionsBetterA.length) facts.push(`${comparison.a} better on ${comparison.missionsBetterA.join(", ")}`);
     if (comparison.costRatio != null) facts.push(`cost ×${comparison.costRatio.toFixed(2)}`);
     if (comparison.timeRatio != null) facts.push(`time ×${comparison.timeRatio.toFixed(2)}`);
+    if (comparison.turnsRatio != null) facts.push(`turns ×${comparison.turnsRatio.toFixed(2)}`);
     if (facts.length) box.append(el("p", "lab-hint", facts.join(" · ")));
     out.push(box);
   }
@@ -477,6 +481,7 @@ function describe(variant?: LabVariant): string {
   if (variant.workingMinutes) parts.push(`${variant.workingMinutes} min`);
   if (variant.marks === false) parts.push("no numbered boxes");
   if (variant.freshMemory === false) parts.push("with memory");
+  if (variant.useMap === false) parts.push("map off");
   if (variant.promptAddendum) parts.push("prompt addition");
   return parts.join(" · ");
 }

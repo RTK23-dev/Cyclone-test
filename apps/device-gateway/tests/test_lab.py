@@ -439,3 +439,33 @@ def test_routes_need_the_bearer_and_run_an_experiment(tmp_path):
     assert detail["experiment"]["done"] == 1
     export = client.get(f"/v1/lab/experiments/{created['id']}/trials.jsonl", headers=headers)
     assert export.status_code == 200 and export.text.count("\n") == 1
+
+
+# ---- alpha.37: running from the map ----------------------------------------------------------------------------------
+
+def test_the_map_knob_is_a_known_boolean_variant_field():
+    from cyclone_device_gateway.lab.runner import validate_variants
+    arms = validate_variants([{"name": "map on"}, {"name": "map off", "useMap": False}])
+    assert arms[1]["useMap"] is False
+    with pytest.raises(LabError):
+        validate_variants([{"name": "bad", "useMap": "off"}])
+
+
+def test_the_map_suite_is_the_navigation_heavy_subset():
+    missions = builtin_missions()
+    mapped = [m for m in missions if "map" in m.suites]
+    assert len(mapped) >= 8
+    assert all("core" in m.suites for m in mapped)
+    assert all(m.expect == "done" for m in mapped)
+
+
+def test_a_comparison_reports_turns_time_and_map_moves():
+    def trial(variant, verdict, turns, ms, moves):
+        return {"variant": variant, "missionId": "settings.dark.on", "verdict": verdict, "durationMs": ms,
+                "phone": {"turns": turns, "metrics": {"actions": turns, "mapMoves": moves}}}
+    trials = [trial("off", "pass", 10, 60_000, 0), trial("off", "pass", 12, 70_000, 0),
+              trial("on", "pass", 6, 40_000, 3), trial("on", "pass", 7, 42_000, 4)]
+    result = stats.compare(trials, "off", "on")
+    assert result["turnsRatio"] == pytest.approx(6.5 / 11)
+    assert result["timeRatio"] == pytest.approx(41 / 65)
+    assert stats.arm_stats([t for t in trials if t["variant"] == "on"])["mapMoves"]["total"] == 7

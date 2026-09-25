@@ -30,6 +30,8 @@ export interface LabVariant {
   workingMinutes?: number | null;
   marks?: boolean;
   freshMemory?: boolean;
+  /** Run from the learned map (hints, map card, go_to). On unless an arm turns it off. */
+  useMap?: boolean;
   promptAddendum?: string;
 }
 
@@ -99,6 +101,7 @@ export interface LabComparison {
   missionsSame: string[];
   costRatio: number | null;
   timeRatio: number | null;
+  turnsRatio?: number | null;
   conclusion: string;
 }
 
@@ -185,6 +188,7 @@ export function cleanVariant(raw: LabVariant): LabVariant {
   if (raw.workingMinutes != null && Number.isFinite(raw.workingMinutes)) out.workingMinutes = Math.round(raw.workingMinutes);
   if (raw.marks === false) out.marks = false;
   if (raw.freshMemory === false) out.freshMemory = false;
+  if (raw.useMap === false) out.useMap = false;
   if (raw.promptAddendum && raw.promptAddendum.trim()) out.promptAddendum = raw.promptAddendum.trim();
   return out;
 }
