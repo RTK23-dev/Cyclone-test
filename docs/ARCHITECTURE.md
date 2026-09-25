@@ -49,6 +49,16 @@ task button on every surface sends a typed `TaskCommand` through `TaskCommands`;
 (`TASK_COMMAND`). Surfaces never call an engine directly. A contract test checks every engine against every command
 and every button a surface can show. Structure plan: `Cyclone V5 plan/17-structure.md`.
 
+### Cyclone Marketplace (since 5.0.0-alpha.35)
+
+The phone's `market/` package is the one authority for the store: validated listings (data only; a recipe is a goal
+template with typed inputs), what the owner added (`Cyclone Brain/Marketplace/installed.json`), suggestions from
+installed apps, and the phone's connections (AI provider state, PC link; never keys). A recipe runs through the same
+entry as a typed Ask (`OverlayChromeRuntime.submitRequest`), so the Mind keeps GATE, approvals and the Secrets Card;
+runs are refused while the phone is busy or the owner has control. Glass (`#/market`) reads and changes it through
+`market.*` gateway ops and shows this PC's MCP agents through the agent connector with fixed arguments
+(`/v1/pc/connections`). Plan: `Cyclone V5 plan/19-marketplace.md`.
+
 ### Cyclone Lab (since 5.0.0-alpha.33)
 
 Cyclone measures itself. The gateway's lab (`cyclone_device_gateway/lab/`) runs experiments — missions × variants ×

@@ -106,7 +106,11 @@ fun CycloneMobileV32App() {
                     }
                 },
                 bottomBar = {
-                    if (!settingsOpen && !marketOpen) CycloneV32BottomBar(destination) { destination = it }
+                    // The Marketplace opens over Routines; any tab closes it.
+                    if (!settingsOpen) CycloneV32BottomBar(destination) {
+                        destination = it
+                        marketOpen = false
+                    }
                 },
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
