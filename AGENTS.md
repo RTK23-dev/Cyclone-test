@@ -22,6 +22,7 @@ Load more context only when the task needs it.
 - Never persist passwords, OTPs, API keys, payment data or raw typed secret values in Brain, learning stores or diagnostics.
 - Run diagnostics may contain model-visible context, decisions, tool calls/results, verification and recovery—not hidden provider chain-of-thought.
 - PC integrations route through the constrained gateway/MCP contracts; do not expose generic shell/root control to the model.
+- Task buttons (stop, take over, I'm done, approve, confirm…) on any surface go through Task Kit (`TaskCommands` in `apps/mobile/.../task/`) to the engine that owns the task; surfaces never call an engine directly (guarded by `scripts/ci/tests/test_mobile_task_kit.py`). See `Cyclone V5 plan/17-structure.md`.
 
 ## Ownership
 

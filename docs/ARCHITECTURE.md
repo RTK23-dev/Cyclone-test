@@ -41,6 +41,14 @@ compiled skill replay (goal + pageKey + sessionId + displayId)
 
 A matching compiled skill hits without an LLM turn. Miss falls back to known route / Fast Path LLM / UI sub-agent. Vision is only on miss: empty accessibility tree or `perceptionMode=vision_escalate`. Unchanged after settle is `verified=false` and must not dispatch a second click channel. Consequential actions retain explicit approval boundaries. See [`V4_STAGE3_SKILL_COMPILER.md`](V4_STAGE3_SKILL_COMPILER.md) and [`V4_STAGE1_FASTPATH.md`](V4_STAGE1_FASTPATH.md).
 
+### Task Kit (since 5.0.0-alpha.29)
+
+Every task has exactly one engine (`TaskEngine`: Cyclone Mind, classic foreground agent, background workspace). Every
+task button on every surface sends a typed `TaskCommand` through `TaskCommands`; the bus resolves the owning engine's
+`TaskController`, which carries the command out or refuses with a reason, and records the outcome in the run trace
+(`TASK_COMMAND`). Surfaces never call an engine directly. A contract test checks every engine against every command
+and every button a surface can show. Structure plan: `Cyclone V5 plan/17-structure.md`.
+
 ### Cyclone Mind (foreground Ask, default since 5.0.0-alpha.25)
 
 Foreground Ask requests run as a **mission** in `apps/mobile/.../mind/`: one model, one continuous conversation, native
