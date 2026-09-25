@@ -1,6 +1,6 @@
 # Cyclone V5 alpha.28 dev1: one owner card - Fill in or Take over (check-in card for personal details, typed straight into
 # the form), and "I'm done" always continues a Cyclone Mind mission. Includes the alpha.27 dev2 installer fix.
-# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested.
+# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.28.dev1"
 channel = "development"
