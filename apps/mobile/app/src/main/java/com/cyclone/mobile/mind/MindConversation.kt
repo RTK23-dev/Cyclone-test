@@ -77,7 +77,8 @@ class MindConversation(initial: List<MindMessage> = emptyList()) {
      * newest screenshot stays attached. The system prompt, the owner's words and the model's own turns are never
      * dropped: the mind keeps its train of thought.
      */
-    fun compact(maxChars: Int, keepRecent: Int = 8) {
+    /** Returns how many tool results were shortened by this call. */
+    fun compact(maxChars: Int, keepRecent: Int = 8): Int {
         val latestImage = messages.indexOfLast { it is MindMessage.User && it.imageDataUrl != null }
         messages.indices.forEach { index ->
             val message = messages[index]
@@ -87,11 +88,16 @@ class MindConversation(initial: List<MindMessage> = emptyList()) {
         }
         val protectedFrom = (messages.size - keepRecent).coerceAtLeast(0)
         var index = 0
+        var shortened = 0
         while (chars() > maxChars && index < protectedFrom) {
             val message = messages[index]
-            if (message is MindMessage.Tool && !message.compacted) messages[index] = message.copy(compacted = true)
+            if (message is MindMessage.Tool && !message.compacted) {
+                messages[index] = message.copy(compacted = true)
+                shortened++
+            }
             index++
         }
+        return shortened
     }
 
     /** OpenAI/OpenRouter chat messages. With [nativeTools] false, tool traffic is rendered as plain text turns. */

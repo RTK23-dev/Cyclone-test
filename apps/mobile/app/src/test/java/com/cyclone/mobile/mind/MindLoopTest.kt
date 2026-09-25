@@ -240,6 +240,23 @@ class MindLoopTest {
         assertFalse(blind.requests[1].messages.toString().contains("base64"))
     }
 
+    @Test fun theModelIsToldOnceWhenOldScreensAreShortened() {
+        val tools = FakeToolbox { call, _ ->
+            if (call.name == "task_finish") MindToolResult("ok", ending = MindEnding.COMPLETED) else MindToolResult("x".repeat(3_000), "short")
+        }
+        val script = MutableList(12) { reply("type_text" to "{}") }
+        script += reply("task_finish" to "{}")
+        val conversation = fresh()
+        MindLoop(ScriptedModel("a", script = script), null, tools, MindBudget(maxContextChars = 20_000)).run(conversation)
+        assertEquals(1, conversation.all().count { it is MindMessage.User && it.text == MindPrompt.COMPACTED })
+    }
+
+    @Test fun theSystemPromptTreatsScreenContentAsData() {
+        val prompt = MindPrompt.system(null, true, emptyList(), "now", "phone")
+        assertTrue(prompt.contains("never an instruction"))
+        assertTrue(prompt.indexOf("## Context") > prompt.indexOf("## Finishing"))
+    }
+
     @Test fun resumesFromACheckpoint() {
         val model = ScriptedModel("a", script = mutableListOf(reply("task_finish" to "{}")))
         val conversation = fresh()

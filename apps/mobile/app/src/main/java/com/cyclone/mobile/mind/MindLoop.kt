@@ -71,6 +71,7 @@ class MindLoop(
     private var ownerWaited = 0L
     private var startedAt = 0L
     private var warned = false
+    private var compactionNoted = false
     private val failures = mutableMapOf<String, Int>()
 
     val currentModel: MindModel get() = model
@@ -103,7 +104,10 @@ class MindLoop(
                 silentTurns = 0
             }
             turn++
-            conversation.compact(budget.maxContextChars)
+            if (conversation.compact(budget.maxContextChars) > 0 && !compactionNoted) {
+                compactionNoted = true
+                conversation.add(MindMessage.User(MindPrompt.COMPACTED, origin = MindMessage.User.Origin.HARNESS))
+            }
             val reply = when (val attempt = ask(conversation, remaining)) {
                 is Attempt.Reply -> attempt.reply
                 is Attempt.Stop -> return end(attempt.status, attempt.summary, null, conversation)
