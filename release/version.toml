@@ -1,6 +1,6 @@
 # Cyclone V5 alpha.33 dev1: Cyclone Lab - measured Mind missions on the real phone,
 # scored from phone state, with A/B variants, in Glass and for PC agents; on alpha.32 (Tide overlay).
-# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested.
+# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.33.dev1"
 channel = "development"
