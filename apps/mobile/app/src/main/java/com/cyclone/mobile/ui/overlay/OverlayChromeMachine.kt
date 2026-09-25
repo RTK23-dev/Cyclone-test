@@ -98,10 +98,13 @@ class OverlayChromeMachine(
 
     /** A stopped run is terminal for the run, not for the composer. */
     fun finishStopped(message: String) {
-        cycloneState.pauseAgentForUser()
+        // The stop path pauses input immediately so no queued action can race cancellation.
+        // Once the run is terminal, release that temporary pause. An explicit owner takeover
+        // remains human-owned until the owner hands the phone back.
+        if (!snapshot.userPaused) cycloneState.resumeAgent()
         snapshot = snapshot.copy(
             state = OverlayChromeState.ANALYSIS,
-            userPaused = false,
+            userPaused = snapshot.userPaused,
             minimized = true,
             launcherCollapsed = false,
             idleChipVisible = false,

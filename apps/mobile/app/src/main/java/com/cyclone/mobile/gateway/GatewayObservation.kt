@@ -580,10 +580,12 @@ internal object GatewayObservationAdapter {
         if (label == query || semantic == query || resource == query || description == query) return 1.0
         if (label.contains(query) || semantic.contains(query) || resource.contains(query) || description.contains(query)) return 0.92
         val tokens = query.split(' ').filter { it.isNotBlank() }.distinct()
-        val usable = tokens.filter { it.length >= 2 || (it.length == 1 && it[0].isLetterOrDigit()) }
+        // Generic words should not make an unrelated Settings row look like the requested control.
+        val specific = tokens.filter { it !in setOf("setting", "settings", "option", "button", "switch", "the", "to", "for") }
+        val usable = specific.ifEmpty { tokens }
         if (usable.isEmpty()) return 0.0
         val matched = usable.count(corpus::contains)
-        if (matched == 0) return 0.0
+        if (matched == 0 || (usable.size >= 3 && matched < 2)) return 0.0
         val ratio = matched.toDouble() / usable.size
         return (0.50 + ratio * 0.35 + if (element.source == "semantic") 0.05 else 0.0).coerceAtMost(0.89)
     }

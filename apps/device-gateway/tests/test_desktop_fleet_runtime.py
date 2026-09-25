@@ -819,10 +819,12 @@ def test_closed_browser_releases_subscription_while_video_producer_is_silent(tmp
     controller._produce_jpeg = silent_producer
     session.video = controller
     with TestClient(create_desktop_app(settings, runtime)) as client:
+        session.input_owner = "AI"
         with client.websocket_connect(f"/v1/devices/{device_id}/video?profile=focus",
                 headers={"Authorization": "Bearer pc-secret"}) as video:
             assert video.receive_json()["type"] == "stream.init"
             assert controller.subscriber_count() == 1
+            assert session.input_owner == "AI", "watching a focus stream must not take input"
             video.close()
             deadline = time.monotonic() + 2.5
             while controller.subscriber_count() and time.monotonic() < deadline:
