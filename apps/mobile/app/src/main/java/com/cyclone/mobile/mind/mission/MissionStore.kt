@@ -66,7 +66,14 @@ class MissionStore(private val root: File, private val keep: Int = 40) {
     @Synchronized fun delete(id: String) {
         meta(id).delete()
         journal(id).delete()
+        trail(id).delete()
     }
+
+    /** What the mission saw and did, for Learn. Structure only (see MissionTrail). */
+    @Synchronized fun saveTrail(trail: com.cyclone.mobile.mind.learn.MissionTrail) = write(trail(trail.missionId), trail.toJson().toString())
+
+    @Synchronized fun loadTrail(id: String): com.cyclone.mobile.mind.learn.MissionTrail? =
+        read(trail(id))?.let { runCatching { com.cyclone.mobile.mind.learn.MissionTrail.fromJson(JSONObject(it)) }.getOrNull() }
 
     /** After a restart nothing is running: live missions become interrupted, and old ones are pruned. */
     @Synchronized fun recover(now: Long, liveId: String? = null): List<Mission> {
@@ -93,6 +100,7 @@ class MissionStore(private val root: File, private val keep: Int = 40) {
 
     private fun meta(id: String) = File(root, safe(id) + META_SUFFIX)
     private fun journal(id: String) = File(root, safe(id) + JOURNAL_SUFFIX)
+    private fun trail(id: String) = File(root, safe(id) + ".trail.json")
     private fun safe(id: String): String {
         require(ID.matches(id)) { "invalid mission id" }
         return id

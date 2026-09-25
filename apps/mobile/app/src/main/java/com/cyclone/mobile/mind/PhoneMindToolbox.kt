@@ -29,6 +29,8 @@ class PhoneMindToolbox(
     private val memory: MindMemory? = null,
     private val missionId: String? = null,
     private val marker: MindImageMarker? = null,
+    /** Records what the mission sees and does, so the owner can press Learn afterwards. */
+    private val trail: com.cyclone.mobile.mind.learn.MindTrailRecorder? = null,
 ) : MindToolbox {
     private val refs = MindRefBook()
     private var screen: AgentPageCard? = null
@@ -116,6 +118,7 @@ class PhoneMindToolbox(
 
     private fun bind(page: AgentPageCard): List<MindRef> {
         screen = page
+        runCatching { trail?.screen(page.legacyPage) }
         // The page card is a shortlist; the Mind reads every control of the observation when the environment has them.
         val controls = env.allControls().ifEmpty { page.controls }
         controlsById = controls.associateBy { it.elementId }
@@ -352,6 +355,13 @@ class PhoneMindToolbox(
      * secret fields and the owner taking over.
      */
     private fun act(tool: String, params: JSONObject, done: String, ref: MindRef? = null, changesScreen: Boolean = true): MindToolResult {
+        val before = screen?.legacyPage
+        val result = actOnce(tool, params, done, ref, changesScreen)
+        runCatching { trail?.step(tool, before, ref?.label, ref?.role, screen?.legacyPage, result.ok) }
+        return result
+    }
+
+    private fun actOnce(tool: String, params: JSONObject, done: String, ref: MindRef? = null, changesScreen: Boolean = true): MindToolResult {
         if (cancelled()) return MindToolResult("NOT RUN: the owner stopped the mission.", ok = false)
         if (!fresh) {
             // Mutations need the current observation in scope; refs survive the re-read by identity.

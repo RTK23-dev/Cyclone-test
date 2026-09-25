@@ -49,6 +49,8 @@ data class Mission(
     val lab: com.cyclone.mobile.mind.lab.MissionLab? = null,
     /** What the mission did (tool counts, failures, waits); see MissionMetrics. */
     val metrics: JSONObject? = null,
+    /** Set when the owner pressed Learn on this run: what Cyclone learned from it. */
+    val learned: com.cyclone.mobile.mind.learn.LearnReport? = null,
 ) {
     fun withEvent(event: MissionEvent): Mission = copy(events = (events + event).takeLast(MAX_EVENTS), updatedAtMs = event.atMs)
 
@@ -68,6 +70,7 @@ data class Mission(
         .put("waitingFor", waitingFor ?: JSONObject.NULL)
         .put("lab", lab?.toJson() ?: JSONObject.NULL)
         .put("metrics", metrics ?: JSONObject.NULL)
+        .put("learned", learned?.toJson() ?: JSONObject.NULL)
 
     companion object {
         const val SCHEMA = "cyclone-mission-v1"
@@ -100,6 +103,7 @@ data class Mission(
                 waitingFor = json.optString("waitingFor").takeUnless { json.isNull("waitingFor") || it.isBlank() },
                 lab = com.cyclone.mobile.mind.lab.MissionLab.fromJson(json.optJSONObject("lab")),
                 metrics = json.optJSONObject("metrics"),
+                learned = com.cyclone.mobile.mind.learn.LearnReport.fromJson(json.optJSONObject("learned")),
             )
         }
     }

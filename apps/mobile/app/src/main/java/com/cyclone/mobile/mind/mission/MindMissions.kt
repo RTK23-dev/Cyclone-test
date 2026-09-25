@@ -143,6 +143,7 @@ object MindMissions {
     fun liveMetrics(id: String): org.json.JSONObject? = liveMetrics?.takeIf { liveState.value?.id == id }?.toJson()
 
     @Volatile private var liveMetrics: com.cyclone.mobile.mind.lab.MissionMetrics? = null
+    @Volatile private var liveTrail: com.cyclone.mobile.mind.learn.MindTrailRecorder? = null
 
     /** Continues a paused, failed or interrupted mission with its full conversation. */
     fun resume(context: Context, id: String): Boolean {
@@ -299,8 +300,9 @@ object MindMissions {
             val fresh = variant?.freshMemory == true
             val labMemoryFile = if (fresh) File(context.cacheDir, "lab-memory-${mission.id}.json").also { it.delete() } else null
             val memory = labMemoryFile?.let { com.cyclone.mobile.mind.MindMemory(it) } ?: memory(context)
+            val trail = com.cyclone.mobile.mind.learn.MindTrailRecorder(mission.id).also { liveTrail = it }
             val toolbox = PhoneMindToolbox(environment, owner, device, mission.goal, { stopRequested }, memory = memory, missionId = mission.id,
-                marker = if (variant?.marks == false) null else AndroidMindImageMarker)
+                marker = if (variant?.marks == false) null else AndroidMindImageMarker, trail = trail)
             val native = resume?.nativeTools ?: (OpenRouterCatalogStore.lookup(primaryId)?.nativeTools != false)
             val system = MindPrompt.system(null, native, toolbox.specs(), device.now(), device.device()) +
                 variant?.promptAddendum?.takeIf { it.isNotBlank() }?.let { "\n\nLab instruction for this mission (from the developer's experiment):\n$it" }.orEmpty()
@@ -343,6 +345,16 @@ object MindMissions {
         } finally {
             liveMetrics?.let { live -> if (mission.metrics == null) save { it.copy(metrics = live.toJson()) } }
             liveMetrics = null
+            // A resumed mission adds to the trail it already had.
+            liveTrail?.let { live ->
+                runCatching {
+                    val now = live.snapshot()
+                    val earlier = missions.loadTrail(mission.id)
+                    missions.saveTrail(if (earlier == null) now else com.cyclone.mobile.mind.learn.MissionTrail(mission.id,
+                        (earlier.screens + now.screens).distinctBy { it.pageKey }, earlier.steps + now.steps))
+                }
+            }
+            liveTrail = null
             runCatching { File(context.cacheDir, "lab-memory-${mission.id}.json").delete() }
             val ok = mission.status == MissionStatus.COMPLETED
             traceId?.let { trace ->
