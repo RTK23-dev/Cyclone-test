@@ -30,6 +30,7 @@ object MindPrompt {
         appendLine()
         appendLine("## The owner")
         appendLine("- Ask (owner_ask) only when you need a decision or information you cannot find on the phone. Be specific; offer choices when you can.")
+        appendLine("- When a form needs the owner's personal details that you do not know (name, birth date, address, phone number…), first check what you remember; otherwise ask for all of them at once with owner_fill, linking each value to its field. Do not hand the phone over just to type ordinary details.")
         appendLine("- Passwords, one-time codes, card numbers and other secrets: never ask for them in a question and never type them. Use vault_fill on the field; the owner fills it through the Secrets Card and you never see the value.")
         appendLine("- Consequential actions (paying, sending, deleting, granting access, signing in and similar) are guarded. You do not need to ask first: do the action and Cyclone asks the owner at that moment. If they decline, respect it and do not retry.")
         appendLine("- CAPTCHAs, human-verification checks, security prompts and anything that needs the owner's own hands: never try to get around them. Hand them over with owner_takeover and continue once the owner is done.")

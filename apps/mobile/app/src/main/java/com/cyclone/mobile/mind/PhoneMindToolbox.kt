@@ -103,6 +103,7 @@ class PhoneMindToolbox(
         "notifications" -> notifications()
         "open_notification" -> openNotification(arguments.optString("id"))
         "owner_takeover" -> takeover(arguments)
+        "owner_fill" -> ownerFill(arguments)
         "task_finish" -> finish(arguments)
         "task_give_up" -> giveUp(arguments)
         else -> MindToolResult.error("Unknown tool ${call.name}.")
@@ -516,6 +517,77 @@ class PhoneMindToolbox(
         return act("phone.open_notification", JSONObject().put("key", key), "Opened notification $id")
     }
 
+    /**
+     * The check-in card. The owner types the values (or takes over and does it by hand). Plain text fields that have a
+     * ref are typed by Cyclone straight away; dates, choices and anything without a ref come back to the model, which
+     * turns the owner's words into what the form needs.
+     */
+    private fun ownerFill(arguments: JSONObject): MindToolResult {
+        val reason = arguments.optString("reason").trim().ifBlank { "Cyclone needs a few details to continue." }
+        val raw = arguments.optJSONArray("fields") ?: return MindToolResult.error("fields is required.")
+        val fields = mutableListOf<MindValueField>()
+        for (index in 0 until raw.length()) {
+            val row = raw.optJSONObject(index) ?: continue
+            val label = row.optString("label").trim().take(60)
+            if (label.isBlank()) continue
+            val kind = row.optString("kind", "text").lowercase().takeIf { it in VALUE_KINDS } ?: "text"
+            val ref = row.optString("ref").trim().takeIf { it.isNotBlank() }
+            if (sensitive(label)) return MindToolResult.error("\"$label\" is a secret; use vault_fill on its field so it goes through the Secrets Card.")
+            if (ref != null) {
+                val target = refs.resolve(ref) ?: return MindToolResult.error("$ref is not on the current screen.")
+                if (target.password) return MindToolResult.error("$ref is a password field; use vault_fill.")
+            }
+            val choices = row.optJSONArray("choices")?.let { list -> (0 until list.length()).map { list.optString(it).trim() }.filter(String::isNotBlank) }.orEmpty()
+            fields += MindValueField(label, kind, choices.take(12), ref)
+        }
+        if (fields.isEmpty()) return MindToolResult.error("Give at least one field with a label.")
+        if (fields.size > MAX_VALUE_FIELDS) return MindToolResult.error("Ask for at most $MAX_VALUE_FIELDS values at once.")
+        owner.status("Waiting for your details")
+        val reply = owner.fill(reason.take(300), fields, ownerTimeoutMs)
+        return when (reply.outcome) {
+            MindValuesOutcome.FILLED -> fillValues(fields, reply)
+            MindValuesOutcome.TOOK_OVER -> {
+                invalidate()
+                observeAndRender("The owner filled it in by hand and handed the phone back. Check the screen before continuing.")
+                    .copy(ownerWaitMs = reply.waitedMs, changedScreen = true)
+            }
+            MindValuesOutcome.DECLINED -> MindToolResult("The owner chose not to give these details. Do not ask again for the same values; continue without them or give up.",
+                "owner declined the details", ok = false, ownerWaitMs = reply.waitedMs)
+            MindValuesOutcome.TIMED_OUT -> MindToolResult("The owner did not answer the check-in card after ${reply.waitedMs / 60_000} min.",
+                "owner: no details", ok = false, ownerWaitMs = reply.waitedMs)
+            MindValuesOutcome.CANCELLED -> MindToolResult("NOT RUN: the owner stopped the mission.", ok = false, ownerWaitMs = reply.waitedMs)
+        }
+    }
+
+    private fun fillValues(fields: List<MindValueField>, reply: MindValuesReply): MindToolResult {
+        val given = fields.mapNotNull { field -> reply.values[field.label]?.trim()?.takeIf { it.isNotEmpty() }?.let { field to it } }
+        if (given.isEmpty()) return MindToolResult("The owner sent the card without values.", "owner: empty card", ok = false, ownerWaitMs = reply.waitedMs)
+        val typed = mutableListOf<String>()
+        val failed = mutableListOf<String>()
+        for ((field, value) in given) {
+            val ref = field.ref?.let { refs.resolve(it) } ?: continue
+            if (!ref.editable || field.kind in setOf("date", "choice")) continue
+            val result = act("phone.type", JSONObject().put("elementId", ref.elementId).put("value", value),
+                "Typed the owner's ${field.label} into ${ref.ref}", ref, changesScreen = false)
+            if (result.ok) typed += "${field.label} → ${ref.ref}" else failed += field.label
+        }
+        val remembered = if (reply.remember) given.count { (field, value) ->
+            memory?.remember("The owner's ${field.label.lowercase()}: $value", missionId) is MindMemory.Saved.Stored
+        } else 0
+        val header = buildString {
+            append("The owner gave: ")
+            append(given.joinToString("; ") { (field, value) -> "${field.label} = \"${value.take(200)}\"" })
+            append(".")
+            if (typed.isNotEmpty()) append(" Cyclone typed ${typed.joinToString()}.")
+            if (failed.isNotEmpty()) append(" Typing failed for ${failed.joinToString()}; enter those yourself.")
+            val rest = given.filter { (field, _) -> field.ref == null || field.kind in setOf("date", "choice") }
+            if (rest.isNotEmpty()) append(" Enter ${rest.joinToString { it.first.label }} yourself in the form's format.")
+            if (remembered > 0) append(" Remembered for future missions at the owner's request.")
+        }
+        invalidate()
+        return observeAndRender(header).copy(ok = true, ownerWaitMs = reply.waitedMs, changedScreen = false)
+    }
+
     private fun takeover(arguments: JSONObject): MindToolResult {
         val what = arguments.optString("what").trim()
         if (what.isBlank()) return MindToolResult.error("what is required: tell the owner what to do.")
@@ -627,6 +699,8 @@ class PhoneMindToolbox(
         private const val MAX_FINISH_REJECTIONS = 2
         private const val DEVICE_POLL_MS = 1_000L
         private const val MAX_MARKS = 60
+        private const val MAX_VALUE_FIELDS = 8
+        val VALUE_KINDS = linkedSetOf("text", "name", "email", "phone", "date", "number", "address", "choice")
         /** Tools that need a usable screen; memory, planning, questions and finishing work with the phone locked. */
         private val PHONE_TOOLS = setOf("screen_read", "screen_look", "screen_find", "tap", "tap_point", "long_press", "type_text",
             "press_enter", "scroll", "swipe", "back", "home", "wait", "open_app", "open_link", "open_settings", "set_timer",
@@ -700,6 +774,15 @@ class PhoneMindToolbox(
                     required = listOf("question"))),
             MindToolSpec("owner_takeover", "Hand the phone to the owner for a step only they can do (a CAPTCHA, a security check, a biometric prompt, something you are not allowed to do) and wait until they hand it back.",
                 objectSchema("what" to string("Exactly what the owner should do, in one or two sentences."), required = listOf("what"))),
+            MindToolSpec("owner_fill", "Ask the owner for personal details you need and cannot find on the phone (first and last name, birth date, address, phone number…) on one quick card. The owner types them, or takes over and does it by hand. Link each value to its field with ref so Cyclone types it for you. Not for passwords, codes or card numbers (use vault_fill).",
+                objectSchema("reason" to string("One short sentence: what the details are for."),
+                    "fields" to array("The values needed, in form order.", objectSchema(
+                        "label" to string("What the owner sees, e.g. First name."),
+                        "kind" to string("What kind of value.", VALUE_KINDS.toList()),
+                        "ref" to string("The field on the current screen where the value goes, if there is one."),
+                        "choices" to array("For kind choice: the options.", string("An option.")),
+                        required = listOf("label"))),
+                    required = listOf("reason", "fields"))),
             MindToolSpec("vault_fill", "Have the owner fill a secret field (password, code, card) through the Secrets Card. The value never reaches you.",
                 objectSchema("ref" to REF, "what" to string("What the field needs.", SLOTS.keys.toList()), "reason" to string("Short reason shown to the owner, e.g. Sign in to Gmail."),
                     required = listOf("ref", "what"))),

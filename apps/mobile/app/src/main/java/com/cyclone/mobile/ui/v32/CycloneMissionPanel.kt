@@ -56,48 +56,11 @@ fun CycloneLiveMissionCard(mission: Mission) {
                 Text((if (event.ok) "· " else "! ") + event.text, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            request?.takeIf { it.missionId == mission.id }?.let { OwnerRequestCard(it) }
+            request?.takeIf { it.missionId == mission.id }?.let { CycloneOwnerCard(it, framed = false) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = { MindMissions.stop() }, shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Stop the mission" }) { Text("Stop") }
             }
-        }
-    }
-}
-
-@Composable
-private fun OwnerRequestCard(request: OwnerRequest) {
-    var answer by remember(request.id) { mutableStateOf("") }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(request.text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-        when (request.kind) {
-            OwnerRequestKind.QUESTION -> {
-                if (request.choices.isNotEmpty()) {
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        request.choices.forEach { choice ->
-                            CycloneLiquidFilterChip(selected = false, onClick = { MindMissions.answer(request.id, OwnerResponse.Answer(choice)) },
-                                label = choice)
-                        }
-                    }
-                }
-                OutlinedTextField(answer, { answer = it.take(500) }, Modifier.fillMaxWidth(), label = { Text("Your answer") })
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TextButton(onClick = { MindMissions.answer(request.id, OwnerResponse.Answer("I'd rather not say; continue without it.")) },
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Skip") }
-                    TextButton(onClick = { if (answer.isNotBlank()) MindMissions.answer(request.id, OwnerResponse.Answer(answer.trim())) },
-                        enabled = answer.isNotBlank(), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Send") }
-                }
-            }
-            OwnerRequestKind.APPROVAL -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                TextButton(onClick = { MindMissions.answer(request.id, OwnerResponse.Decline) },
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Decline") }
-                TextButton(onClick = { MindMissions.answer(request.id, OwnerResponse.Approve) },
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Approve") }
-            }
-            OwnerRequestKind.SECRET -> Text("Use the Secrets Card on screen. Cyclone never sees what you enter.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OwnerRequestKind.CONTROL -> TextButton(onClick = { MindMissions.answer(request.id, OwnerResponse.Done) },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Hand the phone back") }
         }
     }
 }

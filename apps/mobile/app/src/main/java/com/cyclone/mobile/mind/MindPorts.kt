@@ -14,6 +14,18 @@ enum class MindSecretOutcome { FILLED, DECLINED, MISSING, FAILED, TIMED_OUT, UNA
 
 data class MindSecretReply(val outcome: MindSecretOutcome, val waitedMs: Long = 0, val detail: String = "")
 
+/** A value the Mind needs from the owner; [ref] is the field it belongs in, when there is one. */
+data class MindValueField(val label: String, val kind: String = "text", val choices: List<String> = emptyList(), val ref: String? = null)
+
+enum class MindValuesOutcome { FILLED, TOOK_OVER, DECLINED, TIMED_OUT, CANCELLED }
+
+data class MindValuesReply(
+    val outcome: MindValuesOutcome,
+    val values: Map<String, String> = emptyMap(),
+    val remember: Boolean = false,
+    val waitedMs: Long = 0,
+)
+
 data class MindPlanStep(val text: String, val status: String) {
     companion object {
         val STATUSES = listOf("todo", "doing", "done", "skipped")
@@ -34,6 +46,8 @@ interface MindOwnerPort {
     fun awaitControl(timeoutMs: Long): MindOwnerReply
     /** Hands the phone to the owner for a step only they can do, and waits until they hand it back. */
     fun takeover(instruction: String, timeoutMs: Long): MindOwnerReply = awaitControl(timeoutMs)
+    /** The check-in card: the owner types the values, or takes over and does it by hand. */
+    fun fill(reason: String, fields: List<MindValueField>, timeoutMs: Long): MindValuesReply = MindValuesReply(MindValuesOutcome.DECLINED)
     fun status(text: String) {}
     fun plan(steps: List<MindPlanStep>) {}
 }

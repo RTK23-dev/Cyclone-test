@@ -68,6 +68,12 @@ object OverlayChromeRuntime {
         fun stop()
         /** Text from the composer while a mission runs: an answer or a new instruction. True when consumed. */
         fun ownerText(text: String): Boolean
+        /**
+         * A task-card command (overlay ribbon, notification, Ask) for the foreground task while a mission runs:
+         * "resume" / "done" = the owner is finished with the phone, "handoff" / "pause" = the owner takes it.
+         * True when the mission handled it.
+         */
+        fun command(action: String): Boolean = false
     }
 
     @Volatile private var missionHooks: MissionHooks? = null
@@ -613,6 +619,9 @@ object OverlayChromeRuntime {
 
     /** Exact-task service command; retains the original foreground agent and controller machinery. */
     fun commandForegroundTask(id: String, command: String) {
+        // A Cyclone Mind mission knows what it is waiting for (a hand-back, an answer, values); the classic resume
+        // path does not, and pressing "I'm done" there left the mission waiting forever.
+        missionHooks?.let { hooks -> if (id.startsWith("mission-") && hooks.command(command)) return }
         val task = WorkspaceTasks.state.value?.takeIf { it.foreground && it.taskId == id && id == foregroundTaskId } ?: return
         when (command) {
             "handoff", "pause" -> {

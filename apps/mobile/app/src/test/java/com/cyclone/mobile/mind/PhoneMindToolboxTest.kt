@@ -124,6 +124,9 @@ class PhoneMindToolboxTest {
             return MindSecretReply(secret, 40_000)
         }
         override fun awaitControl(timeoutMs: Long) = MindOwnerReply(true, waitedMs = 5_000)
+        var values: MindValuesReply = MindValuesReply(MindValuesOutcome.DECLINED)
+        var filled: List<MindValueField> = emptyList()
+        override fun fill(reason: String, fields: List<MindValueField>, timeoutMs: Long): MindValuesReply { filled = fields; return values }
         override fun plan(steps: List<MindPlanStep>) { planned = steps }
     }
 
@@ -486,5 +489,49 @@ class PhoneMindToolboxTest {
         assertTrue(result.text.contains("solved it"))
         assertTrue(result.text.contains("Controls:"))
         assertEquals(90_000, result.ownerWaitMs)
+    }
+
+    private val signup = FakeScreen("com.android.chrome", listOf(
+        Control("first", "First name", "edit_text", editable = true),
+        Control("last", "Surname", "edit_text", editable = true),
+        Control("birthday", "Birthday", "spinner"),
+        Control("next", "Next"),
+    ))
+
+    @Test fun theCheckInCardFillsTextFieldsAndHandsDatesToTheModel() {
+        val env = FakeEnv(signup)
+        val memory = MindMemory(java.nio.file.Files.createTempFile("memory", ".json").toFile())
+        val owner = FakeOwner().apply {
+            values = MindValuesReply(MindValuesOutcome.FILLED, mapOf("First name" to "Jan", "Last name" to "Jansen", "Birth date" to "12 march 1990"), remember = true, waitedMs = 25_000)
+        }
+        val box = PhoneMindToolbox(env, owner, device, "goal", memory = memory, missionId = "m1")
+        box.run("screen_read")
+        val result = box.run("owner_fill", """{"reason":"Facebook sign-up needs your name and birth date","fields":[
+            {"label":"First name","kind":"name","ref":"e1"},{"label":"Last name","kind":"name","ref":"e2"},{"label":"Birth date","kind":"date","ref":"e3"}]}""")
+        assertTrue(result.ok)
+        assertEquals(listOf("First name", "Last name", "Birth date"), owner.filled.map { it.label })
+        val typed = env.acts.filter { it.first == "phone.type" }.map { it.second.getString("value") }
+        assertEquals(listOf("Jan", "Jansen"), typed)
+        assertTrue(result.text.contains("Birth date = \"12 march 1990\""))
+        assertTrue(result.text.contains("Enter Birth date yourself"))
+        assertEquals(25_000, result.ownerWaitMs)
+        assertEquals(3, memory.all().size)
+    }
+
+    @Test fun theCheckInCardRefusesSecretsAndHandlesTakeOverAndDecline() {
+        val env = FakeEnv(login)
+        val owner = FakeOwner()
+        val box = PhoneMindToolbox(env, owner, device, "goal")
+        box.run("screen_read")
+        assertTrue(box.run("owner_fill", """{"reason":"x","fields":[{"label":"Password","ref":"e2"}]}""").text.contains("vault_fill"))
+        assertTrue(box.run("owner_fill", """{"reason":"x","fields":[{"label":"Account","ref":"e2"}]}""").text.contains("password field"))
+        val declined = box.run("owner_fill", """{"reason":"x","fields":[{"label":"Email","ref":"e1"}]}""")
+        assertFalse(declined.ok)
+        assertTrue(declined.text.contains("chose not to"))
+        owner.values = MindValuesReply(MindValuesOutcome.TOOK_OVER, waitedMs = 40_000)
+        val byHand = box.run("owner_fill", """{"reason":"x","fields":[{"label":"Email","ref":"e1"}]}""")
+        assertTrue(byHand.ok)
+        assertTrue(byHand.text.contains("filled it in by hand"))
+        assertTrue(env.acts.none { it.first == "phone.type" })
     }
 }

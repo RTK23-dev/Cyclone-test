@@ -65,6 +65,11 @@ object MindMissions {
     private val hooks = object : OverlayChromeRuntime.MissionHooks {
         override fun stop() = MindMissions.stop()
         override fun ownerText(text: String): Boolean = steer(text)
+        override fun command(action: String): Boolean = when (action) {
+            "resume", "done" -> { ownerDone(); true }
+            "handoff", "pause" -> { ownerTakesPhone(); true }
+            else -> false
+        }
     }
 
     fun enabled(context: Context): Boolean =
@@ -168,6 +173,38 @@ object MindMissions {
 
     fun answer(requestId: String, response: OwnerResponse): Boolean = inbox.respond(requestId, response)
 
+    /**
+     * "I'm done" from any surface. Whatever the mission is waiting for gets its answer: a hand-back completes, an open
+     * question learns the owner did it on the screen, an open check-in card counts as done by hand. Cyclone always
+     * gets the phone back.
+     */
+    fun ownerDone(): Boolean {
+        if (!isLive()) return false
+        inbox.pending.value?.let { request ->
+            when (request.kind) {
+                OwnerRequestKind.CONTROL, OwnerRequestKind.VALUES -> inbox.respond(request.id, OwnerResponse.Done)
+                OwnerRequestKind.QUESTION -> inbox.respond(request.id,
+                    OwnerResponse.Answer("I did it myself on the phone. Look at the screen again."))
+                OwnerRequestKind.APPROVAL, OwnerRequestKind.SECRET -> Unit
+            }
+        }
+        OverlayChromeRuntime.missionHandBack()
+        return true
+    }
+
+    /** The owner took the phone from the task card; the mission's next action waits until they hand it back. */
+    fun ownerTakesPhone(): Boolean {
+        if (!isLive()) return false
+        OverlayChromeRuntime.missionHandoff()
+        liveState.value?.let { mission ->
+            WorkspaceTasks.update("mission-${mission.id}") {
+                it.copy(phase = TaskPhase.HUMAN, message = "You have the phone. Tap I'm done to let Cyclone continue.",
+                    interruption = TaskInterruption(reason = "MIND_OWNER_HAS_PHONE", prompt = "You have the phone", canResumeAfterHuman = true))
+            }
+        }
+        return true
+    }
+
     fun delete(context: Context, id: String) {
         if (liveState.value?.id == id) return
         store(context).delete(id)
@@ -234,7 +271,11 @@ object MindMissions {
                     save { it.copy(status = if (question == null) MissionStatus.RUNNING else MissionStatus.WAITING, waitingFor = question) }
                 },
                 onStatus = { text -> status(context, taskId, text) },
-                onPlan = { steps -> save { it.copy(plan = steps) }; planToTask(taskId, steps) })
+                onPlan = { steps -> save { it.copy(plan = steps) }; planToTask(taskId, steps) },
+                onHuman = { instruction ->
+                    human(context, taskId, instruction)
+                    save { it.copy(status = if (instruction == null) MissionStatus.RUNNING else MissionStatus.WAITING, waitingFor = instruction) }
+                })
             val environment = CycloneAgentEnvironment(context, userTaskGoal = mission.goal)
             val memory = memory(context)
             val toolbox = PhoneMindToolbox(environment, owner, device, mission.goal, { stopRequested }, memory = memory, missionId = mission.id,
@@ -331,7 +372,25 @@ object MindMissions {
         com.cyclone.mobile.ui.overlay.AgentTaskNotificationRuntime.progress(context, text)
     }
 
+    /** The owner has the phone for a step: the task card and overlay ribbon offer "I'm done". */
+    private fun human(context: Context, taskId: String, instruction: String?) {
+        if (instruction == null) {
+            WorkspaceTasks.update(taskId) { it.copy(phase = TaskPhase.WORKING, interruption = null) }
+            OverlayChromeRuntime.refreshExternalSurface()
+            return
+        }
+        WorkspaceTasks.update(taskId) {
+            it.copy(phase = TaskPhase.HUMAN, message = instruction.take(160),
+                interruption = TaskInterruption(reason = "MIND_OWNER_HAS_PHONE", prompt = instruction.take(300), canResumeAfterHuman = true))
+        }
+        OverlayChromeRuntime.missionStatus("Your turn: ${instruction.take(100)}")
+        com.cyclone.mobile.ui.overlay.AgentTaskNotificationRuntime.waiting(context, instruction)
+        OverlayChromeRuntime.refreshExternalSurface()
+    }
+
     private fun waiting(context: Context, taskId: String, question: String?) {
+        // The overlay window changes shape (focusable card) when a check-in card opens or closes.
+        OverlayChromeRuntime.refreshExternalSurface()
         if (question == null) {
             WorkspaceTasks.update(taskId) { it.copy(phase = TaskPhase.WORKING, interruption = null) }
             return

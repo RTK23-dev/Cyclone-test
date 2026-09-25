@@ -160,6 +160,7 @@ fun OverlayChrome(
     onAiSettingsChanged: (OverlayAiSettings) -> Unit = {},
     idleVisualState: OverlayIdleVisualState = OverlayIdleVisualState(),
     secretCardState: com.cyclone.mobile.secrets.SecretsCardUiState? = null,
+    ownerRequest: com.cyclone.mobile.mind.mission.OwnerRequest? = null,
     onIdleTap: () -> Unit = {},
     onIdleSemanticActivate: () -> Unit = { onAction(OverlayUserAction.ASK_CYCLONE) },
     modifier: Modifier = Modifier,
@@ -167,6 +168,7 @@ fun OverlayChrome(
     com.cyclone.mobile.ui.v32.CycloneSignatureTheme {
         val presentation = when {
             secretCardState?.visible == true -> "secret"
+            com.cyclone.mobile.ui.v32.OwnerCardCopy.overlayCard(ownerRequest) -> "owner"
             snapshot.state == OverlayChromeState.IDLE -> "idle"
             snapshot.launcherCollapsed -> "launcher"
             snapshot.state == OverlayChromeState.GATE -> "gate"
@@ -182,6 +184,9 @@ fun OverlayChrome(
         ) { mode ->
             when (mode) {
                 "secret" -> com.cyclone.mobile.secrets.SecretsCardOverlay(secretCardState!!)
+                "owner" -> ownerRequest?.let { request ->
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) { com.cyclone.mobile.ui.v32.CycloneOwnerCard(request) }
+                }
                 "idle" -> if (snapshot.idleChipVisible) {
                     IdleActivationHotspot(
                         state = idleVisualState,

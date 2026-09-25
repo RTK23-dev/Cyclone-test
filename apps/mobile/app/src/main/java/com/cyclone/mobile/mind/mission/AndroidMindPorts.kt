@@ -15,6 +15,9 @@ import com.cyclone.mobile.mind.MindPlanStep
 import com.cyclone.mobile.mind.MindRef
 import com.cyclone.mobile.mind.MindSecretOutcome
 import com.cyclone.mobile.mind.MindSecretReply
+import com.cyclone.mobile.mind.MindValueField
+import com.cyclone.mobile.mind.MindValuesOutcome
+import com.cyclone.mobile.mind.MindValuesReply
 import com.cyclone.mobile.places.PlaceResolver
 import com.cyclone.mobile.secrets.SecretFillTarget
 import com.cyclone.mobile.secrets.SecretPersona
@@ -83,6 +86,8 @@ internal class AndroidMindOwner(
     private val onWaiting: (String?) -> Unit,
     private val onStatus: (String) -> Unit,
     private val onPlan: (List<MindPlanStep>) -> Unit,
+    /** The owner has the phone: the task card shows "I'm done". Null when Cyclone has it back. */
+    private val onHuman: (String?) -> Unit = {},
 ) : MindOwnerPort {
     /** The overlay and task-card session of this mission; GATE grants are bound to it. */
     private val overlaySession = "mission-$missionId"
@@ -92,9 +97,53 @@ internal class AndroidMindOwner(
         onWaiting(question)
         try {
             val wait = inbox.await(request, timeoutMs, cancelled)
-            val answer = (wait.response as? OwnerResponse.Answer)?.text?.trim().orEmpty()
-            return MindOwnerReply(answer.isNotBlank(), answer, wait.waitedMs)
+            when (val response = wait.response) {
+                is OwnerResponse.Answer -> return MindOwnerReply(response.text.isNotBlank(), response.text.trim(), wait.waitedMs)
+                OwnerResponse.Done -> return MindOwnerReply(true, "I did it myself on the phone. Look at the screen again.", wait.waitedMs)
+                OwnerResponse.TakeOver -> {
+                    onWaiting(null)
+                    val handed = takeover("Do this yourself: $question", (timeoutMs - wait.waitedMs).coerceAtLeast(60_000))
+                    return MindOwnerReply(handed.answered,
+                        if (handed.answered) "I did it myself on the phone and handed it back. Look at the screen again." else "",
+                        wait.waitedMs + handed.waitedMs)
+                }
+                else -> return MindOwnerReply(false, waitedMs = wait.waitedMs)
+            }
         } finally {
+            onWaiting(null)
+        }
+    }
+
+    override fun fill(reason: String, fields: List<MindValueField>, timeoutMs: Long): MindValuesReply {
+        val request = inbox.post(missionId, OwnerRequestKind.VALUES, reason,
+            fields = fields.map { OwnerField(it.label, it.kind, it.choices) })
+        onWaiting(reason)
+        val started = System.currentTimeMillis()
+        try {
+            while (true) {
+                val waited = System.currentTimeMillis() - started
+                when (val reply = inbox.poll(request.id)) {
+                    is OwnerResponse.Values -> return MindValuesReply(MindValuesOutcome.FILLED, reply.values, reply.remember, waited)
+                    OwnerResponse.Done -> {
+                        OverlayChromeRuntime.missionHandBack()
+                        return MindValuesReply(MindValuesOutcome.TOOK_OVER, waitedMs = waited)
+                    }
+                    OwnerResponse.TakeOver -> {
+                        inbox.withdraw(request.id)
+                        onWaiting(null)
+                        val handed = takeover("Fill in: ${fields.joinToString { it.label }}", (timeoutMs - waited).coerceAtLeast(60_000))
+                        return MindValuesReply(if (handed.answered) MindValuesOutcome.TOOK_OVER else MindValuesOutcome.TIMED_OUT,
+                            waitedMs = waited + handed.waitedMs)
+                    }
+                    OwnerResponse.Decline -> return MindValuesReply(MindValuesOutcome.DECLINED, waitedMs = waited)
+                    else -> Unit
+                }
+                if (cancelled()) return MindValuesReply(MindValuesOutcome.CANCELLED, waitedMs = waited)
+                if (waited > timeoutMs) return MindValuesReply(MindValuesOutcome.TIMED_OUT, waitedMs = waited)
+                Thread.sleep(POLL_MS)
+            }
+        } finally {
+            inbox.withdraw(request.id)
             onWaiting(null)
         }
     }
@@ -180,7 +229,7 @@ internal class AndroidMindOwner(
 
     override fun takeover(instruction: String, timeoutMs: Long): MindOwnerReply {
         val request = inbox.post(missionId, OwnerRequestKind.CONTROL, instruction)
-        onWaiting("Your turn: $instruction")
+        onHuman(instruction)
         OverlayChromeRuntime.missionHandoff()
         val started = System.currentTimeMillis()
         try {
@@ -203,13 +252,13 @@ internal class AndroidMindOwner(
             }
         } finally {
             inbox.withdraw(request.id)
-            onWaiting(null)
+            onHuman(null)
         }
     }
 
     override fun awaitControl(timeoutMs: Long): MindOwnerReply {
         val request = inbox.post(missionId, OwnerRequestKind.CONTROL, "You have control of the phone. Hand it back when you are done.")
-        onWaiting("You have control")
+        onHuman("You have control of the phone. Tap I'm done when you are finished.")
         val started = System.currentTimeMillis()
         try {
             while (true) {
@@ -225,7 +274,7 @@ internal class AndroidMindOwner(
             }
         } finally {
             inbox.withdraw(request.id)
-            onWaiting(null)
+            onHuman(null)
         }
     }
 

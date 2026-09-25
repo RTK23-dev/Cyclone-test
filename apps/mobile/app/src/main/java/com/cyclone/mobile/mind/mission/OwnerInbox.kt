@@ -4,7 +4,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 
-enum class OwnerRequestKind { QUESTION, APPROVAL, SECRET, CONTROL }
+enum class OwnerRequestKind { QUESTION, APPROVAL, SECRET, CONTROL, VALUES }
+
+/** One value the owner is asked to type on the check-in card. Never a secret: those go to the Secrets Card. */
+data class OwnerField(val label: String, val kind: String = "text", val choices: List<String> = emptyList())
 
 /** Something the running mission needs from the owner. Never carries a secret value. */
 data class OwnerRequest(
@@ -14,6 +17,7 @@ data class OwnerRequest(
     val text: String,
     val choices: List<String> = emptyList(),
     val createdAtMs: Long,
+    val fields: List<OwnerField> = emptyList(),
 )
 
 sealed class OwnerResponse {
@@ -21,6 +25,10 @@ sealed class OwnerResponse {
     data object Approve : OwnerResponse()
     data object Decline : OwnerResponse()
     data object Done : OwnerResponse()
+    /** The owner will do it by hand; the mission hands the phone over and waits for "I'm done". */
+    data object TakeOver : OwnerResponse()
+    /** Values typed on the check-in card, keyed by field label. */
+    data class Values(val values: Map<String, String>, val remember: Boolean) : OwnerResponse()
 }
 
 data class OwnerWait(val response: OwnerResponse?, val waitedMs: Long, val cancelled: Boolean)
@@ -38,9 +46,10 @@ class OwnerInbox(private val clock: () -> Long = System::currentTimeMillis) {
 
     val pending: StateFlow<OwnerRequest?> = state
 
-    fun post(missionId: String, kind: OwnerRequestKind, text: String, choices: List<String> = emptyList()): OwnerRequest =
+    fun post(missionId: String, kind: OwnerRequestKind, text: String, choices: List<String> = emptyList(),
+             fields: List<OwnerField> = emptyList()): OwnerRequest =
         synchronized(lock) {
-            val request = OwnerRequest("req-${UUID.randomUUID()}", missionId, kind, text.take(600), choices.take(6), clock())
+            val request = OwnerRequest("req-${UUID.randomUUID()}", missionId, kind, text.take(600), choices.take(6), clock(), fields.take(MAX_FIELDS))
             response = null
             owner = request.id
             state.value = request
@@ -96,5 +105,6 @@ class OwnerInbox(private val clock: () -> Long = System::currentTimeMillis) {
 
     private companion object {
         const val POLL_MS = 250L
+        const val MAX_FIELDS = 8
     }
 }
