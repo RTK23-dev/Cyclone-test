@@ -71,18 +71,15 @@ float n21(float2 p) {
     return fract(p.x * p.y);
 }
 
-// Resolves the glyph cell under xy. Returns false for empty cells.
-bool cellAt(float2 xy, float2 size, float layer, float shift, float colGate,
+// Resolves the glyph cell under xy. Every cell of the grid holds a digit, so the highlight can
+// light up any spot on screen and reads as one clean, even field.
+void cellAt(float2 xy, float2 size, float layer, float shift,
             out float2 local, out float g, out float gPrev, out float age) {
     float col = floor(xy.x / size.x);
     float colRate = 0.6 + 0.8 * n21(float2(col, layer * 17.0 + 3.0));
     float2 p = float2(xy.x, xy.y - shift * colRate);
     float2 c = floor(p / size);
     local = (p - c * size) * (cell / size);
-    g = 0.0; gPrev = 0.0; age = 0.0;
-    // Column rhythm plus sparse cells: the field reads as fine streams, never a wall of text.
-    if (n21(float2(col, layer * 5.0 + 11.0)) < colGate) return false;
-    if (n21(c + layer * 31.0) < 0.5 + layer * 0.2) return false;
     // Calm cadence: each digit changes every ~1-4 s (recovery only doubles it) and cross-fades,
     // so the field breathes instead of strobing.
     float rate = 0.25 + 0.7 * n21(c + 3.1) + scramble * 0.9;
@@ -91,7 +88,6 @@ bool cellAt(float2 xy, float2 size, float layer, float shift, float colGate,
     age = phase - tick;
     g = floor(n21(c + tick * 0.618) * glyphCount);
     gPrev = floor(n21(c + (tick - 1.0) * 0.618) * glyphCount);
-    return true;
 }
 
 float vnoise(float2 p) {
@@ -134,10 +130,9 @@ half4 main(float2 xy) {
         fade = 1.0 - smoothstep(0.55, 1.0, rain);
     }
 
-    // Edge filament zone (cheap). It hugs one column per side, so it must not lose that column to thinning.
+    // Edge filament zone (cheap): one column per side.
     float de = min(min(xy.x, res.x - xy.x), min(xy.y, res.y - xy.y));
     bool edgeZone = edge > 0.0 && de < cell.x * 1.25;
-    float colGate = edgeZone ? 0.0 : 0.3;
 
     // Glyphs first: most pixels are not inside a digit, and they leave here before any field maths.
     float2 local; float g; float gPrev; float age;
@@ -146,30 +141,18 @@ half4 main(float2 xy) {
     float ghost = 0.0;
     float coreR = 0.0;
     float coreB = 0.0;
-    bool hasCell = cellAt(q, cell, 0.0, flow, colGate, local, g, gPrev, age);
-    float swap = 1.0;
-    if (hasCell) {
-        // Cross-fade from the previous digit over the first 40% of each tick: no hard cuts.
-        swap = smoothstep(0.0, 0.4, age);
-        core = atlasA(g, local, 0.0);
-        halo = atlasA(g, local, 1.0);
-        if (swap < 1.0) {
-            core = mix(atlasA(gPrev, local, 0.0), core, swap);
-            halo = mix(atlasA(gPrev, local, 1.0), halo, swap);
-        }
+    cellAt(q, cell, 0.0, flow, local, g, gPrev, age);
+    // Cross-fade from the previous digit over the first 40% of each tick: no hard cuts.
+    float swap = smoothstep(0.0, 0.4, age);
+    core = atlasA(g, local, 0.0);
+    halo = atlasA(g, local, 1.0);
+    if (swap < 1.0) {
+        core = mix(atlasA(gPrev, local, 0.0), core, swap);
+        halo = mix(atlasA(gPrev, local, 1.0), halo, swap);
     }
+    // One grid only: a second, offset layer would sit between these digits and break the even field.
     float far = 0.0;
-    float2 localF; float gF; float gPrevF; float ageF;
-    bool chameleon = style > 1.5 && style < 2.5;
-    if (cellAt(q + float2(cell.x * 0.37, cell.y * 0.21), cell * 0.72, 1.0, flow * 0.6, colGate, localF, gF, gPrevF, ageF)) {
-        // Chameleon uses the blurred row: real depth of field.
-        float rowF = chameleon ? 2.0 : 0.0;
-        float swapF = smoothstep(0.0, 0.4, ageF);
-        float farNow = atlasA(gF, localF, rowF);
-        if (swapF < 1.0) farNow = mix(atlasA(gPrevF, localF, rowF), farNow, swapF);
-        far = farNow * (chameleon ? 0.4 : 0.24);
-    }
-    if (hasCell && style > 0.5 && style < 1.5) {
+    if (style > 0.5 && style < 1.5) {
         // Forge: the previous digit lingers as a cooling afterglow.
         ghost = atlasA(gPrev, local, 0.0) * 0.4 * (1.0 - smoothstep(0.0, 0.3, age));
     }
@@ -228,7 +211,7 @@ half4 main(float2 xy) {
     float twinkle = 0.72 + 0.28 * sin(clock * 1.1 + n21(floor(q / cell)) * 6.28318);
     coreR = core;
     coreB = core;
-    if (hasCell && style < 0.5) {
+    if (style < 0.5) {
         // Obsidian: a 1.5 px red/blue split only on the lens rim, like real glass.
         float rim = focus * smoothstep(-lensSoft * 0.1, lensSoft * 0.15, d) * (1.0 - smoothstep(lensSoft * 0.15, lensSoft * 0.6, d));
         if (rim > 0.01) {

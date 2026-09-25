@@ -63,13 +63,23 @@ class OverlayToolsSheetTest {
 
     @Test fun traceFieldDigitsAreCalmAndNeverReshuffleOnPageChange() {
         val shader = source("ui/overlay/tracefield/TraceFieldShader.kt").replace("\r\n", "\n")
-        val cell = shader.substringAfter("bool cellAt(").substringBefore("\n}\n")
+        assertTrue(shader.contains("void cellAt("))
+        val cell = shader.substringAfter("void cellAt(").substringBefore("\n}\n")
         // Layout, cadence and glyph identity use the seed-free hash only.
         assertFalse(cell.contains("h21("))
         assertTrue(cell.contains("float rate = 0.25 + 0.7 * n21(c + 3.1) + scramble * 0.9;"))
         assertTrue(shader.contains("swap = smoothstep(0.0, 0.4, age);"))
         assertTrue(shader.contains("core = mix(atlasA(gPrev, local, 0.0), core, swap);"))
         assertFalse(shader.contains("floor(clock * 2.0)"))
+    }
+
+    @Test fun traceFieldFillsTheWholeGridSoAnySpotCanLightUp() {
+        val shader = source("ui/overlay/tracefield/TraceFieldShader.kt").replace("\r\n", "\n")
+        val cell = shader.substringAfter("void cellAt(").substringBefore("\n}\n")
+        // No column or cell is ever left empty; a single grid keeps the highlight even.
+        assertFalse(cell.contains("return false"))
+        assertFalse(shader.contains("colGate"))
+        assertFalse(shader.contains("cell * 0.72"))
     }
 
     private fun source(path: String): String {
