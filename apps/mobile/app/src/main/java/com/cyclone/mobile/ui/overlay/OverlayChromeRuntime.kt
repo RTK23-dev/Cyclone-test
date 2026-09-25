@@ -63,6 +63,76 @@ object OverlayChromeRuntime {
     private var pendingGateChallenge: GateChallenge? = null
     private var approvedGateChallenge: GateChallenge? = null
 
+    /** A running Cyclone Mind mission, which owns the foreground task while it lives. */
+    interface MissionHooks {
+        fun stop()
+        /** Text from the composer while a mission runs: an answer or a new instruction. True when consumed. */
+        fun ownerText(text: String): Boolean
+    }
+
+    @Volatile private var missionHooks: MissionHooks? = null
+
+    fun attachMission(hooks: MissionHooks) { missionHooks = hooks }
+    fun detachMission(hooks: MissionHooks) { if (missionHooks === hooks) missionHooks = null }
+
+    enum class GateWait { NONE, PENDING, APPROVED }
+
+    fun gateWait(): GateWait = synchronized(lock) {
+        val now = System.currentTimeMillis()
+        when {
+            approvedGateChallenge?.let { it.expiresAtMs >= now } == true -> GateWait.APPROVED
+            pendingGateChallenge != null -> GateWait.PENDING
+            else -> GateWait.NONE
+        }
+    }
+
+    /** A mission may wait longer than a live user would; keep its exact challenge open while it waits. */
+    fun keepGateChallengeAlive() = synchronized(lock) {
+        pendingGateChallenge = pendingGateChallenge?.copy(expiresAtMs = System.currentTimeMillis() + GATE_CHALLENGE_TTL_MS)
+    }
+
+    /** Approval from the mission's own request card (app or notification) instead of the overlay button. */
+    fun approveGateForMission(): Boolean {
+        val before = snapshot()
+        if (before.state != OverlayChromeState.GATE) return false
+        approvePendingGateChallenge(before)
+        mutate { it.dispatch(OverlayUserAction.GATE_CONFIRM) }
+        return gateWait() == GateWait.APPROVED
+    }
+
+    fun declineGateForMission() {
+        synchronized(lock) {
+            pendingGateChallenge = null
+            approvedGateChallenge = null
+        }
+        mutate { it.gateDecline() }
+    }
+
+    /** Shows the mission as the working foreground task and hands input to Cyclone. */
+    fun missionWorking(sessionId: String, status: String? = null) {
+        mutate { machine ->
+            when (machine.state()) {
+                OverlayChromeState.IDLE, OverlayChromeState.DONE -> { machine.startAnalysis(sessionId); machine.enterWorking(sessionId) }
+                OverlayChromeState.ANALYSIS, OverlayChromeState.LIVE -> machine.enterWorking(sessionId)
+                else -> Unit
+            }
+            status?.let(machine::updateStatus)
+        }
+    }
+
+    fun missionStatus(status: String) = mutate { it.updateStatus(status) }
+
+    fun missionFinished(sessionId: String, ok: Boolean, message: String) {
+        synchronized(lock) {
+            pendingGateChallenge = null
+            approvedGateChallenge = null
+        }
+        mutate { machine ->
+            if (machine.state() == OverlayChromeState.GATE) machine.gateDecline()
+            if (ok) machine.completeDone(sessionId) else machine.finishStopped(message)
+        }
+    }
+
     fun isAttached(): Boolean = synchronized(lock) { controller != null }
 
     fun snapshot(): OverlayChromeSnapshot = synchronized(lock) { machine.snapshot() }
@@ -259,6 +329,7 @@ object OverlayChromeRuntime {
         mutate { it.dispatch(action) }
         when (action) {
             OverlayUserAction.EXIT, OverlayUserAction.STOP_TASK -> {
+                missionHooks?.stop()
                 val context = synchronized(lock) { service }
                 synchronized(lock) {
                     adaptiveAgent?.cancelActiveTask()
@@ -291,12 +362,16 @@ object OverlayChromeRuntime {
 
     /** Composer animation is not execution ownership. Suspended/GATE tasks still own their slot. */
     fun hasExecutingTask(): Boolean = synchronized(lock) {
-        aiJob?.isActive == true || suspendedTaskId != null || pendingGateChallenge != null
+        aiJob?.isActive == true || suspendedTaskId != null || pendingGateChallenge != null || missionHooks != null
     }
 
     fun submitRequest(text: String) {
         val request = text.trim().take(2_000)
         if (request.isBlank()) return
+        if (missionHooks?.ownerText(request) == true) {
+            updateComposer("")
+            return
+        }
         val context = synchronized(lock) { service } ?: return
         synchronized(lock) { controller?.keyboardClosed() }
         val busy = !com.cyclone.mobile.runtime.background.WorkspaceTasks.canStartRequest()

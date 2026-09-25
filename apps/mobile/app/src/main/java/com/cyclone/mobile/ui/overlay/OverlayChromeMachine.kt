@@ -348,6 +348,13 @@ class OverlayChromeMachine(
         resetIdle()
     }
 
+    /** The owner said no to the exact action on the approval card: back to work without it. */
+    fun gateDecline() {
+        if (snapshot.state != OverlayChromeState.GATE) return
+        cycloneState.resumeAgent()
+        snapshot = snapshot.copy(state = OverlayChromeState.WORKING, gateClass = null, userPaused = false, minimized = true, launcherCollapsed = false)
+    }
+
     private fun gateConfirm() {
         if (snapshot.state != OverlayChromeState.GATE) return
         val gateClass = snapshot.gateClass
