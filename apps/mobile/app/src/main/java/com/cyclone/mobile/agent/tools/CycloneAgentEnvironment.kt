@@ -926,12 +926,17 @@ class CycloneAgentEnvironment internal constructor(
             "phone.open_app",
             "phone.launch_intent",
             "phone.wait_for",
+            "phone.set_alarm",
+            "phone.set_timer",
+            "phone.open_settings",
+            "phone.submit_text",
         )
         private val ELEMENT_ID_REQUIRED_TOOLS = setOf(
             "phone.click",
             "phone.long_press",
             "phone.type",
             "phone.replace_text",
+            "phone.submit_text",
         )
         private val ELEMENT_SCOPED_TOOLS = ELEMENT_ID_REQUIRED_TOOLS + "phone.scroll"
         private val SELECTOR_KEYS = setOf(
@@ -1094,7 +1099,7 @@ private class AndroidCycloneAgentRuntimePort(
         )
         if (decision.allowed) return null
         val localConfirmation = decision.reasonCode == "LOCAL_CONFIRMATION_REQUIRED"
-        if (localConfirmation && tool in setOf("phone.click", "phone.long_press")) {
+        if (localConfirmation && tool in setOf("phone.click", "phone.long_press", "phone.submit_text")) {
             val selector = params.optJSONObject("selector") ?: params
             val labels = listOf(
                 selector.optString("text"),
@@ -1106,9 +1111,12 @@ private class AndroidCycloneAgentRuntimePort(
                 selector.optString("resourceId"),
             ).map(String::trim).filter(String::isNotBlank)
             val gateClass = GateClassifier.classify(tool, labels)?.let(ClickGateIntercept::overlayClass)
+                ?: if (tool == "phone.submit_text") com.cyclone.mobile.ui.overlay.OverlayGateClass.SEND else null
             if (gateClass != null) {
                 // Policy may let an explicitly confirmed exact action proceed, but does not consume
                 // the grant. The final Accessibility click interceptor consumes the one-shot token.
+                // Enter has no click interceptor, so its one-shot grant is consumed here.
+                if (tool == "phone.submit_text" && OverlayChromeRuntime.consumeGateApproval(gateClass, tool, labels)) return null
                 if (OverlayChromeRuntime.hasGateApproval(gateClass, tool, labels)) return null
                 OverlayChromeRuntime.registerGateChallenge(gateClass, tool, labels)
                 OverlayChromeRuntime.enterGate(gateClass)

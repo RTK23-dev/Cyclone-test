@@ -705,6 +705,33 @@ object PhoneToolExecutor {
                 }
                 launchedOutcome(service, before, p, eventGeneration, JSONObject().put("started", true).put("tool", request.tool))
             }
+            "phone.open_settings" -> {
+                // Navigation only: an allowlisted Settings page. Any change on it is its own observed action.
+                val key = p.optString("page", "main").trim().lowercase()
+                val page = PhoneSettingsPages.page(key) ?: return errorResult(PhoneToolErrorCode.INVALID_REQUEST,
+                    "Unknown settings page. Allowed: ${PhoneSettingsPages.pages.keys.joinToString()}")
+                val app = p.optString("app").trim()
+                val intent = Intent(page.action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (page.needsPackage) {
+                    if (!PhoneSettingsPages.validPackage(app)) return errorResult(PhoneToolErrorCode.INVALID_REQUEST, "app (a package name) is required for $key")
+                    if (key == "app_details") intent.data = Uri.fromParts("package", app, null)
+                    else intent.putExtra("android.provider.extra.APP_PACKAGE", app)
+                }
+                val eventGeneration = DeviceState.uiGeneration()
+                try {
+                    context.startActivity(intent)
+                } catch (_: android.content.ActivityNotFoundException) {
+                    return errorResult(PhoneToolErrorCode.APP_NOT_FOUND, "This phone has no $key settings page")
+                } catch (_: SecurityException) {
+                    return errorResult(PhoneToolErrorCode.SECURITY_RESTRICTION, "Android refused to open the $key settings page")
+                }
+                launchedOutcome(service, before, p, eventGeneration, JSONObject().put("page", key).put("started", true))
+            }
+            "phone.submit_text" -> actionWithConfirmation(service, request, before) {
+                // The keyboard's action key (Enter / Search / Go) on the grounded editable field.
+                val selector = requireSelector(p)
+                service?.imeEnter(selector) == true
+            }
             "phone.wait_for" -> waitFor(service, p, assertOnly = false)
             "phone.assert" -> waitFor(service, p, assertOnly = true)
             else -> errorResult(PhoneToolErrorCode.UNKNOWN_TOOL, "Unknown tool ${request.tool}")

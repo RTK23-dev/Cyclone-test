@@ -499,6 +499,19 @@ class CycloneAccessibilityService : AccessibilityService() {
         return false
     }
 
+    /** Presses the keyboard action key (Enter, Search, Go) on the grounded editable field. */
+    fun imeEnter(selector: ElementSelector): Boolean {
+        if (!agentCanAct()) return false
+        repeat(2) {
+            val target = resolveLiveTarget(selector) ?: return@repeat
+            val (snapshotNode, node) = target
+            if (!sameNode(snapshotNode, node)) return@repeat
+            if (!node.isEditable) return false
+            return node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+        }
+        return false
+    }
+
     fun typeEditable(
         plan: PhoneTypeEngine.ExecutePlan,
         value: CharSequence,

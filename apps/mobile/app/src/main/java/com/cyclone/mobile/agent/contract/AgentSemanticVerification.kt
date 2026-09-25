@@ -59,6 +59,8 @@ object AgentSemanticVerifier {
         "phone.set_clipboard",
         "phone.set_alarm",
         "phone.set_timer",
+        "phone.open_settings",
+        "phone.submit_text",
     )
 
     // PhoneToolExecutor evaluates params.expect only for actionWithConfirmation tools.
@@ -125,6 +127,16 @@ object AgentSemanticVerifier {
                     detail = "The requested app package was not the authoritative after-state package.",
                 )
             }
+        }
+
+        if (tool == "phone.open_settings") {
+            return if ("settings" in after.packageName.lowercase()) passed("SETTINGS_FOREGROUND") else AgentSemanticVerification(
+                status = AgentVerificationStatus.OBSERVED,
+                passed = false,
+                semanticSuccessClaimed = false,
+                basis = "SETTINGS_NOT_OBSERVED",
+                detail = "Android accepted the Settings intent, but Settings is not the authoritative after-state.",
+            )
         }
 
         if (tool == "phone.set_alarm" || tool == "phone.set_timer") {

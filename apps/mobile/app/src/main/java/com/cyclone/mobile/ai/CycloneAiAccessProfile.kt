@@ -84,6 +84,7 @@ object CycloneAiAccessPolicy {
         "phone.set_clipboard",
         "phone.share",
         "phone.launch_intent",
+        "phone.submit_text",
     )
 
     private val balancedBlockedTools = setOf("phone.share")
@@ -120,6 +121,8 @@ object CycloneAiAccessPolicy {
         "card number",
     )
 
+    private val searchFieldWords = setOf("search", "zoek", "query", "url", "address", "omnibox", "location_bar", "find")
+
     fun evaluate(
         profile: CycloneAiAccessProfile,
         tool: String,
@@ -139,6 +142,13 @@ object CycloneAiAccessPolicy {
             return denied(
                 "LOCAL_CONFIRMATION_REQUIRED",
                 "Cyclone stopped before a consequential action that needs your confirmation.",
+            )
+        }
+        // The keyboard action key can send a message or submit a form. Only search and address fields submit freely.
+        if (tool == "phone.submit_text" && searchFieldWords.none(target::contains)) {
+            return denied(
+                "LOCAL_CONFIRMATION_REQUIRED",
+                "Cyclone stopped before pressing Enter in a field that may send or submit something.",
             )
         }
         if (profile == CycloneAiAccessProfile.GUIDED && tool in guidedBlockedTools) {
