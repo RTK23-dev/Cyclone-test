@@ -164,6 +164,7 @@ object AgentRunDiagnosticV39 {
         val effectiveTurns = maxOf(
             session.decisions,
             events.count { it.kind == "PLAN" && it.code == "model.page_decision" },
+            events.count { it.kind == "MIND_TURN" },
         )
         val firstDoneAt = events.firstOrNull {
             it.kind == "PLAN" && it.code == "done"
@@ -189,6 +190,14 @@ object AgentRunDiagnosticV39 {
             appendLine("METRICS")
             appendLine("------------------------------------------------------------")
             appendLine("Model/decision turns: $effectiveTurns")
+            if (events.any { it.kind == "MIND_TURN" }) {
+                // Cyclone Mind: one model, one conversation. Every action below was chosen by that model.
+                appendLine("Engine: Cyclone Mind (one continuous conversation; every action chosen by the model)")
+                appendLine("Mind tool calls: ${events.count { it.kind == "MIND_ACTION" }}")
+                appendLine("Mind tool results not ok: ${events.count { it.kind == "MIND_RESULT" && it.ok == false }}")
+                appendLine("Harness notices: ${events.count { it.kind == "MIND_NOTICE" }}")
+                appendLine("Resumes: ${events.count { it.kind == "MISSION_RESUME" }}")
+            }
             appendLine("Tool calls: ${metrics.toolCalls}")
             appendLine("Canonical executor invocations (explicit evidence): ${metrics.executorInvocations}")
             appendLine("Android accepted executions: ${metrics.androidAcceptedExecutions}")
@@ -239,7 +248,11 @@ object AgentRunDiagnosticV39 {
 
     private fun section(kind: String): String = when {
         kind in setOf("PAGE", "BRAIN", "MODEL_CONTEXT", "OBSERVE", "KNOWN_ROUTE_LOOKUP") -> "MODEL SAW / CONTEXT"
-        kind in setOf("PLAN", "DECISION", "MODEL_DECISION") -> "MODEL DECISION"
+        kind in setOf("PLAN", "DECISION", "MODEL_DECISION", "MIND_TURN") -> "MODEL DECISION"
+        kind == "MIND_ACTION" -> "TOOL REQUEST"
+        kind == "MIND_RESULT" -> "TOOL RESULT"
+        kind == "MIND_NOTICE" -> "HARNESS NOTICE"
+        kind.startsWith("MISSION_") -> "MISSION"
         kind in setOf("ACTION_REQUESTED", "TOOL_REQUESTED", "TOOL_CALL") -> "TOOL REQUEST"
         kind in setOf("ANDROID_EXECUTION", "TOOL_RESULT", "ACTION_REJECTED") -> "TOOL RESULT"
         kind in setOf("AFTER_OBSERVATION", "VERIFICATION", "PROGRESS_CLASSIFIED", "VERIFY") -> "VERIFICATION"

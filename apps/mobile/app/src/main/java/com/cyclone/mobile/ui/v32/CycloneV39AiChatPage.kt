@@ -173,6 +173,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val task by WorkspaceTasks.state.collectAsState()
+    val liveMission by com.cyclone.mobile.mind.mission.MindMissions.live.collectAsState()
     val queuedRequests by WorkspaceTasks.requests.state.collectAsState()
     val foregroundActivity by OverlayChromeRuntime.activity.collectAsState()
     val foregroundSnapshot = remember(foregroundActivity) { OverlayChromeRuntime.snapshot() }
@@ -226,6 +227,13 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
         message = ""
         val normalized = V39AiChatContract.normalizedRequest(raw)
         if (normalized.isBlank()) return
+        // One mind, one mission: while it runs, what the owner types is an answer or a new instruction for it.
+        if (com.cyclone.mobile.mind.mission.MindMissions.steer(normalized)) {
+            session.append(V39ChatRole.USER, normalized)
+            session.append(V39ChatRole.CYCLONE, "Passed to the running mission.")
+            composer = ""
+            return
+        }
 
         if (com.cyclone.mobile.ai.OpenRouterCatalogStore.activeId(context).isBlank()) {
             message = "Choose models in Settings → Model & API first."
@@ -371,7 +379,10 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                     Modifier.weight(1f).fillMaxWidth().padding(bottom = 48.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    AskCycloneEmptyState()
+                    Column(verticalArrangement = Arrangement.spacedBy(CycloneConversationTokens.space16)) {
+                        AskCycloneEmptyState()
+                        CycloneRecentMissions(limit = 2)
+                    }
                 }
             } else {
                 CycloneConversationPanel(Modifier.weight(1f).fillMaxWidth()) {
@@ -384,7 +395,10 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                             items(session.messages, key = { it.id }) { V39ChatBubble(it) }
                         }
 
-                        task?.let { current ->
+                        val mission = liveMission
+                        if (mission != null) {
+                            item(key = "mission-${mission.id}") { CycloneLiveMissionCard(mission) }
+                        } else task?.let { current ->
                             item(key = "current-${current.taskId}") {
                                 CycloneAskTaskPanel(current)
                             }
@@ -397,6 +411,7 @@ internal fun V39AiChatPage(context: Context, refreshTick: Int, onSettings: () ->
                         if (queuedRequests.isNotEmpty()) {
                             item(key = "queued") { CyclonePendingRequests() }
                         }
+                        if (liveMission == null) item(key = "missions") { CycloneRecentMissions() }
 
                         if (session.busy || session.status.isNotBlank()) {
                             item {

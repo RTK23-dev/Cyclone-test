@@ -60,6 +60,9 @@ internal class AndroidMindOwner(
     private val onStatus: (String) -> Unit,
     private val onPlan: (List<MindPlanStep>) -> Unit,
 ) : MindOwnerPort {
+    /** The overlay and task-card session of this mission; GATE grants are bound to it. */
+    private val overlaySession = "mission-$missionId"
+
     override fun ask(question: String, choices: List<String>, timeoutMs: Long): MindOwnerReply {
         val request = inbox.post(missionId, OwnerRequestKind.QUESTION, question, choices)
         onWaiting(question)
@@ -110,7 +113,7 @@ internal class AndroidMindOwner(
 
     private fun approved(waited: Long): MindApprovalReply {
         DeviceState.setController(DeviceState.Controller.AGENT)
-        OverlayChromeRuntime.missionWorking(missionId, "Approved")
+        OverlayChromeRuntime.missionWorking(overlaySession, "Approved")
         return MindApprovalReply(MindApproval.APPROVED, waited)
     }
 
@@ -162,7 +165,7 @@ internal class AndroidMindOwner(
                 if (cancelled() || waited > timeoutMs) return MindOwnerReply(false, waitedMs = waited)
                 if (inbox.poll(request.id) == OwnerResponse.Done) {
                     DeviceState.setController(DeviceState.Controller.AGENT)
-                    OverlayChromeRuntime.missionWorking(missionId)
+                    OverlayChromeRuntime.missionWorking(overlaySession)
                     return MindOwnerReply(true, waitedMs = waited)
                 }
                 Thread.sleep(POLL_MS)

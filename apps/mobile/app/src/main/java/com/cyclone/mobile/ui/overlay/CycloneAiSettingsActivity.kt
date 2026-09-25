@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -175,6 +176,48 @@ private fun AiSettingsContent(context: Context, onBack: () -> Unit) {
                             }
                         },
                         label = { Text("Backup: ${model.label}") },
+                    )
+                }
+            }
+        }
+
+        item {
+            SettingsCard {
+                var mindOn by remember { mutableStateOf(com.cyclone.mobile.mind.mission.MindMissions.enabled(context)) }
+                var minutes by remember { mutableStateOf(com.cyclone.mobile.mind.mission.MindMissions.workingMinutes(context)) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Cyclone Mind", fontWeight = FontWeight.Bold)
+                        Text(
+                            "One model works each request as a mission: it keeps the whole conversation, uses the phone's tools itself and asks you only when it needs you. Off uses the classic step agent.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = mindOn, onCheckedChange = {
+                        mindOn = it
+                        com.cyclone.mobile.mind.mission.MindMissions.setEnabled(context, it)
+                    })
+                }
+                if (mindOn) {
+                    Spacer(Modifier.size(8.dp))
+                    Text("Working time per mission: $minutes min", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(10, 30, 60).forEach { value ->
+                            FilterChip(
+                                selected = minutes == value,
+                                onClick = {
+                                    minutes = value
+                                    com.cyclone.mobile.mind.mission.MindMissions.setWorkingMinutes(context, value)
+                                },
+                                label = { Text("$value min") },
+                            )
+                        }
+                    }
+                    Text(
+                        "Time you spend answering Cyclone does not count. A paused mission can be resumed from Ask.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

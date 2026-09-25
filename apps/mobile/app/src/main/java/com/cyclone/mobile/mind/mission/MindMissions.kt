@@ -225,7 +225,8 @@ object MindMissions {
                     attachment?.imageDataUrl?.takeIf { primary.vision }),
             ))
             val budget = MindBudget(workingMs = workingMinutes(context) * 60_000L)
-            val listener = MissionListener(context, trace, taskId, missions, mission.id) { event -> save { it.withEvent(event) } }
+            val listener = MissionListener(context, trace, taskId, missions, mission.id,
+                onTurn = { turn -> save { it.copy(turns = turn) } }) { event -> save { it.withEvent(event) } }
             val loop = MindLoop(primary, backup, toolbox, budget, listener, cancelled = { stopRequested },
                 ownerMessages = { drainOwnerMessages() }, nativeTools = native)
             outcome = loop.run(conversation, resume?.checkpoint())
@@ -295,7 +296,7 @@ object MindMissions {
         }
         WorkspaceTasks.update(taskId) {
             it.copy(phase = TaskPhase.REVIEW, message = question.take(160),
-                interruption = TaskInterruption(reason = "MIND_OWNER_REQUEST", prompt = question.take(300)))
+                interruption = TaskInterruption(reason = "MIND_OWNER_REQUEST", prompt = question.take(300), canResumeAfterHuman = true))
         }
         OverlayChromeRuntime.missionStatus(question.take(120))
         com.cyclone.mobile.ui.overlay.AgentTaskNotificationRuntime.waiting(context, question)
@@ -327,10 +328,12 @@ object MindMissions {
         private val taskId: String,
         private val store: MissionStore,
         private val missionId: String,
+        private val onTurn: (Int) -> Unit,
         private val onEvent: (MissionEvent) -> Unit,
     ) : MindListener {
         override fun onModelStart(turn: Int, model: MindModel) {
             OverlayChromeRuntime.missionStatus("Thinking")
+            onTurn(turn)
         }
 
         override fun onAssistant(turn: Int, message: MindMessage.Assistant) {

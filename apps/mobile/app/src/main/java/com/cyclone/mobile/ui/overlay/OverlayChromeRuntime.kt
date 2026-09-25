@@ -110,6 +110,7 @@ object OverlayChromeRuntime {
 
     /** Shows the mission as the working foreground task and hands input to Cyclone. */
     fun missionWorking(sessionId: String, status: String? = null) {
+        foregroundTaskId = sessionId
         mutate { machine ->
             when (machine.state()) {
                 OverlayChromeState.IDLE, OverlayChromeState.DONE -> { machine.startAnalysis(sessionId); machine.enterWorking(sessionId) }
@@ -446,6 +447,15 @@ object OverlayChromeRuntime {
             aiJob?.cancel()
             adaptiveAgent?.cancelActiveTask()
         }
+        // Taken exactly once per request; a simple app launch never carries an attachment.
+        val attachment = if (launchPackage == null) PendingTaskAttachment.take() else null
+        // Cyclone Mind: one model, one conversation, one mission. The classic agent remains for owners who turn it off.
+        if (launchPackage == null && com.cyclone.mobile.mind.mission.MindMissions.enabled(context)) {
+            if (!com.cyclone.mobile.mind.mission.MindMissions.start(context, request, attachment)) {
+                com.cyclone.mobile.mind.mission.MindMissions.steer(request)
+            }
+            return
+        }
         val shared = TaskHarnessState.applyTrajectory(
             WorkspaceTaskUi(
                 "foreground-${java.util.UUID.randomUUID()}",
@@ -522,7 +532,7 @@ object OverlayChromeRuntime {
             val settings = readAiSettings(context)
             val accessProfile = CycloneAiAccessProfileStore.read(context)
             val config = QuickAgentConfig(
-                attachment = PendingTaskAttachment.take(),
+                attachment = attachment,
                 model = OpenRouterModelPresets.byId(settings.modelId).copy(
                     reasoningEffort = settings.reasoningEffort,
                 ),
