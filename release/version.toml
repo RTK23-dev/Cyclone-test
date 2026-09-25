@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.35 dev1: Cyclone Marketplace - recipes and connections on the phone and in Glass.
-# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested.
+# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.35.dev1"
 channel = "development"
