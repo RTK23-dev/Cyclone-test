@@ -35,8 +35,8 @@ object TaskCommands {
      * The notification button for [command]. Background workspaces keep their own service intent (that service owns
      * them and is already running); every other task goes through [TaskCommandReceiver] into the bus.
      */
-    fun pendingIntent(context: Context, task: WorkspaceTaskUi, command: TaskCommand): PendingIntent {
-        if (TaskEngines.of(task) == TaskEngine.BACKGROUND_WORKSPACE) {
+    fun pendingIntent(context: Context, task: WorkspaceTaskUi, command: TaskCommand, reply: Boolean = false): PendingIntent {
+        if (TaskEngines.of(task) == TaskEngine.BACKGROUND_WORKSPACE && !reply) {
             val intent = WorkspaceTasks.commandIntent(context, task, command.wire)
             (command as? TaskCommand.Confirm)?.token?.let { intent.putExtra("confirmation", it) }
             return PendingIntent.getService(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -45,7 +45,10 @@ object TaskCommands {
             .setData(android.net.Uri.parse("cyclone://task/${task.taskId}/${command.wire}"))
             .putExtra(EXTRA_TASK, task.taskId).putExtra(EXTRA_COMMAND, command.wire)
         (command as? TaskCommand.Confirm)?.token?.let { intent.putExtra(EXTRA_CONFIRMATION, it) }
-        return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        // An inline reply needs a mutable intent so the system can add the typed text; the intent stays explicit
+        // (this app's private receiver), so nothing else can redirect it.
+        val mutability = if (reply) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_IMMUTABLE
+        return PendingIntent.getBroadcast(context, 0, intent, mutability or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     private fun record(task: WorkspaceTaskUi?, command: TaskCommand, result: TaskCommandResult) {
@@ -62,6 +65,8 @@ object TaskCommands {
     const val EXTRA_TASK = "task"
     const val EXTRA_COMMAND = "command"
     const val EXTRA_CONFIRMATION = "confirmation"
+    /** RemoteInput key of a notification reply. The text goes straight to the task and is never logged. */
+    const val EXTRA_REPLY = "reply"
 }
 
 /** Notification buttons for foreground tasks. Not exported: only Cyclone's own PendingIntents reach it. */
@@ -69,8 +74,12 @@ class TaskCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != TaskCommands.ACTION) return
         val taskId = intent.getStringExtra(TaskCommands.EXTRA_TASK) ?: return
-        val command = TaskCommand.parse(intent.getStringExtra(TaskCommands.EXTRA_COMMAND), intent.getStringExtra(TaskCommands.EXTRA_CONFIRMATION)) ?: return
-        TaskCommands.send(context, taskId, command)
+        val reply = android.app.RemoteInput.getResultsFromIntent(intent)?.getCharSequence(TaskCommands.EXTRA_REPLY)?.toString()
+        val command = TaskCommand.parse(intent.getStringExtra(TaskCommands.EXTRA_COMMAND), intent.getStringExtra(TaskCommands.EXTRA_CONFIRMATION), reply)
+        val result = command?.let { TaskCommands.send(context, taskId, it) }
+        // A handled command changes the task, which re-posts its notification. Otherwise re-post it now, so an inline
+        // reply never spins forever and the owner sees the moment is still open.
+        if (result?.handled != true) WorkspaceTasks.state.value?.takeIf { it.taskId == taskId }?.let { AgentTaskNotificationRuntime.renderTask(context, it) }
     }
 }
 
@@ -78,9 +87,22 @@ class TaskCommandReceiver : BroadcastReceiver() {
 object MindTaskController : TaskController {
     override val engine = TaskEngine.MIND
     override val supported: Set<Class<out TaskCommand>> = setOf(TaskCommand.Stop::class.java, TaskCommand.TakeOver::class.java,
-        TaskCommand.Pause::class.java, TaskCommand.Done::class.java, TaskCommand.Approve::class.java, TaskCommand.Decline::class.java)
+        TaskCommand.Pause::class.java, TaskCommand.Done::class.java, TaskCommand.Approve::class.java, TaskCommand.Decline::class.java,
+        TaskCommand.Reply::class.java, TaskCommand.Fill::class.java)
+
+    private fun open(kind: OwnerRequestKind) = MindMissions.inbox.pending.value?.takeIf { it.kind == kind }
+
+    private fun answer(kind: OwnerRequestKind, response: OwnerResponse, ok: String): TaskCommandResult {
+        val request = open(kind) ?: return TaskCommandResult.refused(engine, "Cyclone is not waiting for that any more.")
+        return if (MindMissions.answer(request.id, response)) TaskCommandResult.done(engine, ok)
+        else TaskCommandResult.refused(engine, "That request was already answered.")
+    }
 
     override fun handle(task: WorkspaceTaskUi, command: TaskCommand): TaskCommandResult = when (command) {
+        is TaskCommand.Reply -> if (command.text.isBlank()) TaskCommandResult.refused(engine, "The answer is empty.")
+            else answer(OwnerRequestKind.QUESTION, OwnerResponse.Answer(command.text.trim()), "Answer sent.")
+        is TaskCommand.Fill -> if (command.values.values.none { it.isNotBlank() }) TaskCommandResult.refused(engine, "No values were given.")
+            else answer(OwnerRequestKind.VALUES, OwnerResponse.Values(command.values.filterValues { it.isNotBlank() }, command.remember), "Details sent.")
         TaskCommand.Stop -> if (MindMissions.isLive()) {
             OverlayChromeRuntime.dispatch(OverlayUserAction.STOP_TASK)
             TaskCommandResult.done(engine, "Stopping the mission.")
@@ -91,13 +113,22 @@ object MindTaskController : TaskController {
         }
         TaskCommand.Done -> if (MindMissions.ownerDone()) TaskCommandResult.done(engine, "Cyclone has the phone back and continues.")
             else TaskCommandResult.refused(engine, "The mission is not running.")
+        // Take over from an open question or check-in card: the mission hands the phone over itself and waits.
+        TaskCommand.TakeOver if (open(OwnerRequestKind.VALUES) ?: open(OwnerRequestKind.QUESTION)) != null -> {
+            val request = (open(OwnerRequestKind.VALUES) ?: open(OwnerRequestKind.QUESTION))!!
+            if (MindMissions.answer(request.id, OwnerResponse.TakeOver)) TaskCommandResult.done(engine, "You have the phone; tap I'm done to continue.")
+            else TaskCommandResult.refused(engine, "That request was already answered.")
+        }
         TaskCommand.TakeOver, TaskCommand.Pause -> if (MindMissions.ownerTakesPhone()) TaskCommandResult.done(engine, "You have the phone; tap I'm done to continue.")
             else TaskCommandResult.refused(engine, "The mission is not running.")
-        TaskCommand.Approve, TaskCommand.Decline -> {
-            val request = MindMissions.inbox.pending.value?.takeIf { it.kind == OwnerRequestKind.APPROVAL }
-            if (request != null && MindMissions.answer(request.id, if (command == TaskCommand.Approve) OwnerResponse.Approve else OwnerResponse.Decline))
-                TaskCommandResult.done(engine, if (command == TaskCommand.Approve) "Approved." else "Declined.")
-            else TaskCommandResult.refused(engine, "Nothing is waiting for approval.")
+        TaskCommand.Approve -> answer(OwnerRequestKind.APPROVAL, OwnerResponse.Approve, "Approved.")
+        // Decline is "not now" for whatever is open: a question learns the owner would rather not answer.
+        TaskCommand.Decline -> when {
+            open(OwnerRequestKind.APPROVAL) != null -> answer(OwnerRequestKind.APPROVAL, OwnerResponse.Decline, "Declined.")
+            open(OwnerRequestKind.VALUES) != null -> answer(OwnerRequestKind.VALUES, OwnerResponse.Decline, "Details declined.")
+            open(OwnerRequestKind.QUESTION) != null -> answer(OwnerRequestKind.QUESTION,
+                OwnerResponse.Answer("I'd rather not answer that; continue without it."), "Question skipped.")
+            else -> TaskCommandResult.refused(engine, "Nothing is waiting for you.")
         }
         else -> TaskCommandResult.refused(engine, "${command.label} is not available for Cyclone Mind.")
     }
@@ -107,10 +138,18 @@ object MindTaskController : TaskController {
 object ClassicForegroundTaskController : TaskController {
     override val engine = TaskEngine.CLASSIC_FOREGROUND
     override val supported: Set<Class<out TaskCommand>> = setOf(TaskCommand.Stop::class.java, TaskCommand.TakeOver::class.java,
-        TaskCommand.Pause::class.java, TaskCommand.Done::class.java, TaskCommand.Autofill::class.java)
+        TaskCommand.Pause::class.java, TaskCommand.Done::class.java, TaskCommand.Autofill::class.java,
+        TaskCommand.Approve::class.java, TaskCommand.Decline::class.java)
 
     override fun handle(task: WorkspaceTaskUi, command: TaskCommand): TaskCommandResult {
-        val refused = OverlayChromeRuntime.commandForegroundTask(task.taskId, command.wire)
+        // The overlay approval card: Approve is its confirm button; Decline stops the task, as the card's Stop does.
+        if (command == TaskCommand.Approve) {
+            if (OverlayChromeRuntime.gateWait() != OverlayChromeRuntime.GateWait.PENDING) return TaskCommandResult.refused(engine, "Nothing is waiting for approval.")
+            OverlayChromeRuntime.dispatch(OverlayUserAction.GATE_CONFIRM)
+            return TaskCommandResult.done(engine, "Approved.")
+        }
+        val wire = if (command == TaskCommand.Decline) TaskCommand.Stop.wire else command.wire
+        val refused = OverlayChromeRuntime.commandForegroundTask(task.taskId, wire)
         return if (refused == null) TaskCommandResult.done(engine, "${command.label} done.") else TaskCommandResult.refused(engine, refused)
     }
 }

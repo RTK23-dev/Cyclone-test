@@ -49,6 +49,14 @@ task button on every surface sends a typed `TaskCommand` through `TaskCommands`;
 (`TASK_COMMAND`). Surfaces never call an engine directly. A contract test checks every engine against every command
 and every button a surface can show. Structure plan: `Cyclone V5 plan/17-structure.md`.
 
+### Owner Moments (since 5.0.0-alpha.31)
+
+Whenever a task needs its owner, whichever engine runs it, the app derives one `OwnerMoment` (question, values
+check-in, approval, secure input, hand-over) from the Mind inbox or the classic/background task state. The overlay, Ask
+and the mission card render it with the one `CycloneOwnerCard`; the task notification shows the same buttons with an
+inline reply. Every button is a Task Kit command. Buttons that act for the owner require an unlocked phone; secrets
+stay on the Secrets Card.
+
 ### Cyclone Mind (foreground Ask, default since 5.0.0-alpha.25)
 
 Foreground Ask requests run as a **mission** in `apps/mobile/.../mind/`: one model, one continuous conversation, native

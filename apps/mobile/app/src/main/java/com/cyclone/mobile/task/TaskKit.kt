@@ -23,12 +23,17 @@ sealed class TaskCommand(val wire: String, val label: String) {
     data class Confirm(val token: String?) : TaskCommand("confirm", "Confirm")
     data object Approve : TaskCommand("approve", "Approve")
     data object Decline : TaskCommand("decline", "Decline")
+    /** The owner's answer to the task's open question (Owner Moments). */
+    data class Reply(val text: String) : TaskCommand("reply", "Send")
+    /** Values the owner typed on the check-in card, keyed by field label. */
+    data class Fill(val values: Map<String, String>, val remember: Boolean) : TaskCommand("fill", "Fill in")
 
     companion object {
         // Lazy: the command objects extend this class, so they do not exist yet while its companion initializes.
-        val ALL: List<TaskCommand> by lazy { listOf(Stop, TakeOver, Pause, Done, Autofill, Confirm(null), Approve, Decline) }
+        val ALL: List<TaskCommand> by lazy { listOf(Stop, TakeOver, Pause, Done, Autofill, Confirm(null), Approve, Decline, Reply(""), Fill(emptyMap(), false)) }
 
-        fun parse(action: String?, confirmation: String? = null): TaskCommand? = when (action?.trim()?.lowercase()) {
+        fun parse(action: String?, confirmation: String? = null, text: String? = null): TaskCommand? = when (action?.trim()?.lowercase()) {
+            "reply" -> text?.trim()?.takeIf { it.isNotEmpty() }?.let { Reply(it.take(2_000)) }
             "cancel", "stop" -> Stop
             "handoff", "takeover", "take_over" -> TakeOver
             "pause" -> Pause

@@ -33,7 +33,11 @@ class TaskKitTest {
         }
         assertEquals(TaskCommand.Confirm("t1"), TaskCommand.parse("confirm", "t1"))
         assertEquals(null, TaskCommand.parse("explode"))
-        TaskCommand.ALL.forEach { assertNotNull(it.wire, TaskCommand.parse(it.wire)) }
+        // Commands that carry what the owner typed only parse with that input; nothing blank reaches an engine.
+        TaskCommand.ALL.filterNot { it is TaskCommand.Reply || it is TaskCommand.Fill }.forEach { assertNotNull(it.wire, TaskCommand.parse(it.wire)) }
+        assertEquals(null, TaskCommand.parse("reply", text = "   "))
+        assertEquals(TaskCommand.Reply("the blue one"), TaskCommand.parse("reply", text = " the blue one "))
+        assertEquals(null, TaskCommand.parse("fill"))
     }
 
     @Test fun eachTaskHasExactlyOneEngine() {

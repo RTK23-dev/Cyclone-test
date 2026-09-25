@@ -71,6 +71,7 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
     }
     val snapshot = remember(projectedTask) { TaskPresentationProjector.project(projectedTask) }
     val visualState = task.taskVisualState()
+    val moment = com.cyclone.mobile.owner.rememberOwnerMoment()
     var progressExpanded by rememberSaveable(task.taskId) { mutableStateOf(true) }
     val palette = cycloneConversationPalette()
 
@@ -132,7 +133,8 @@ private fun SignatureAskTaskPanel(task: WorkspaceTaskUi) {
                         snapshot = snapshot,
                         expanded = progressExpanded,
                     )
-                    CycloneTaskVisualState.ACTION_NEEDED -> ActionNeededBody(
+                    // Owner Moments: whatever engine runs the task, what it needs from the owner is one card.
+                    CycloneTaskVisualState.ACTION_NEEDED -> moment?.takeIf { it.taskId == task.taskId }?.let { CycloneOwnerCard(it, framed = false) } ?: ActionNeededBody(
                         task = task,
                         snapshot = snapshot,
                         onTakeOver = { WorkspaceTasks.command(context, task, "handoff") },

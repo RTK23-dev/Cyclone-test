@@ -38,7 +38,7 @@ import com.cyclone.mobile.mind.mission.OwnerResponse
 @Composable
 fun CycloneLiveMissionCard(mission: Mission) {
     val context = LocalContext.current
-    val request by MindMissions.inbox.pending.collectAsState()
+    val moment = com.cyclone.mobile.owner.rememberOwnerMoment()
     CycloneSignatureCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Cyclone Mind · ${statusLabel(mission)}", style = MaterialTheme.typography.labelMedium,
@@ -57,7 +57,7 @@ fun CycloneLiveMissionCard(mission: Mission) {
                 Text((if (event.ok) "· " else "! ") + event.text, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            request?.takeIf { it.missionId == mission.id }?.let { CycloneOwnerCard(it, framed = false) }
+            moment?.takeIf { it.taskId == "mission-${mission.id}" }?.let { CycloneOwnerCard(it, framed = false) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = { com.cyclone.mobile.task.TaskCommands.send(context, "mission-${mission.id}", com.cyclone.mobile.task.TaskCommand.Stop) }, shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Stop the mission" }) { Text("Stop") }

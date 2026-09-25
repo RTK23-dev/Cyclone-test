@@ -32,6 +32,22 @@ class TaskKitGuards(unittest.TestCase):
     def test_mission_commands_only_from_task_kit(self):
         self.assertEqual(callers(r"MindMissions\.(ownerDone|ownerTakesPhone)\("), {"task/TaskCommands.kt"})
 
+    def test_owner_answers_only_from_task_kit(self):
+        self.assertEqual(callers(r"MindMissions\.answer\("), {"task/TaskCommands.kt"})
+
+    def test_the_owner_card_only_speaks_task_kit(self):
+        card = (BASE / "ui/v32/CycloneOwnerCard.kt").read_text(encoding="utf-8")
+        self.assertIn("TaskCommands.send(context, moment.taskId", card)
+        self.assertNotRegex(card, r"MindMissions|OverlayChromeRuntime|WorkspaceTasks|inbox\.")
+
+    def test_every_surface_renders_the_one_owner_card(self):
+        for surface in ("ui/overlay/OverlayChrome.kt", "ui/v32/CycloneAskTaskPanel.kt", "ui/v32/CycloneMissionPanel.kt"):
+            self.assertIn("CycloneOwnerCard(", (BASE / surface).read_text(encoding="utf-8"), surface)
+
+    def test_consequential_shade_buttons_need_an_unlocked_phone(self):
+        notification = (BASE / "runtime/background/TaskProgressNotification.kt").read_text(encoding="utf-8")
+        self.assertIn("OwnerMoments.needsUnlock(action)) setAuthenticationRequired(true)", notification)
+
     def test_legacy_command_entry_point_delegates_to_the_bus(self):
         state = (BASE / "runtime/background/WorkspaceTaskState.kt").read_text(encoding="utf-8")
         body = state[state.index("fun command(context: Context, task: WorkspaceTaskUi, action: String)"):]

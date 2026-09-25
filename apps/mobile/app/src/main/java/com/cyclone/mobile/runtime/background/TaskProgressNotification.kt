@@ -45,14 +45,32 @@ internal object TaskProgressNotification {
             val percent = TaskNotificationProjection.progressPercent(task)
             builder.setProgress(100, percent ?: 0, percent == null)
         }
-        // Preserve every available interruption/confirmation command. The card itself always opens
+        // A task that needs its owner shows its Owner Moment: the same buttons as the card, answered from the shade.
+        // Otherwise preserve every available interruption/confirmation command. The card itself always opens
         // exact-task details; running tasks have Stop task followed by the explicit View progress.
-        TaskNotificationProjection.actions(task).forEach { (command, label) ->
-            val parsed = com.cyclone.mobile.task.TaskCommand.parse(command, task.confirmation?.token) ?: return@forEach
-            val action = com.cyclone.mobile.task.TaskCommands.pendingIntent(context, task, parsed)
-            builder.addAction(Notification.Action.Builder(null, label, action).build())
+        val moment = runCatching { com.cyclone.mobile.owner.OwnerMomentsRuntime.of(task) }.getOrNull()
+        val count = if (moment != null) {
+            builder.setContentTitle(moment.title).setContentText(moment.text).setStyle(Notification.BigTextStyle().bigText(moment.text))
+            val actions = com.cyclone.mobile.owner.OwnerMoments.notificationActions(moment)
+            actions.forEach { action ->
+                val intent = com.cyclone.mobile.task.TaskCommands.pendingIntent(context, task, action.command, reply = action.reply)
+                builder.addAction(Notification.Action.Builder(null, action.label, intent).apply {
+                    if (action.reply) addRemoteInput(android.app.RemoteInput.Builder(com.cyclone.mobile.task.TaskCommands.EXTRA_REPLY)
+                        .setLabel("Your answer").build())
+                    // Approving, confirming or answering from a locked phone would let anyone holding it act for the owner.
+                    if (com.cyclone.mobile.owner.OwnerMoments.needsUnlock(action)) setAuthenticationRequired(true)
+                }.build())
+            }
+            actions.size
+        } else {
+            TaskNotificationProjection.actions(task).forEach { (command, label) ->
+                val parsed = com.cyclone.mobile.task.TaskCommand.parse(command, task.confirmation?.token) ?: return@forEach
+                val action = com.cyclone.mobile.task.TaskCommands.pendingIntent(context, task, parsed)
+                builder.addAction(Notification.Action.Builder(null, label, action).build())
+            }
+            TaskNotificationProjection.actions(task).size
         }
-        if (TaskNotificationProjection.actions(task).size < 3) {
+        if (count < 3) {
             builder.addAction(Notification.Action.Builder(null, "View progress", progress).build())
         }
         return builder.build()

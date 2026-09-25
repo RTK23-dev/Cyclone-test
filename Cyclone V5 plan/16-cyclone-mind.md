@@ -148,6 +148,14 @@ Device checks added: (20) a sign-up form asks for first/last name on the check-i
 (21) the same with Take over, then I'm done continues; (22) a birth date typed as "12 march 1990" ends up correctly in
 day/month/year pickers; (23) "Remember for next time", then a second sign-up needs no card.
 
+## alpha.31 Owner Moments
+
+The owner card is now `CycloneOwnerCard(moment)` for every engine (see `17-structure.md`, phase 2). For missions:
+a question can be answered from the notification (inline reply); "Not now" on a question answers "I'd rather not
+answer that; continue without it", and on a check-in declines it; Take over on an open question or check-in hands the
+phone to the owner for that request. Device checks: answer a question from the shade while unlocked; confirm the
+locked phone asks to unlock before Reply / Approve / I'm done; fill a check-in from the card opened by the notification.
+
 ## Known limits of this alpha
 
 - Foreground only; background workspaces still use the step agent.

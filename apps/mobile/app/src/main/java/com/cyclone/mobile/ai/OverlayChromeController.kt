@@ -299,14 +299,14 @@ class OverlayChromeController(
                 setContent {
                     val externalActive by OverlayExternalInteraction.active.collectAsState()
                     val secretCardState by com.cyclone.mobile.secrets.SecretsCardRuntime.state.collectAsState()
-                    val ownerRequest by com.cyclone.mobile.mind.mission.MindMissions.inbox.pending.collectAsState()
+                    val ownerMoment = com.cyclone.mobile.owner.rememberOwnerMoment()
                     val sheetPage by com.cyclone.mobile.ui.overlay.OverlayToolsSheetState.page.collectAsState()
                     LaunchedEffect(sheetPage) { syncToolsSheet(sheetPage) }
-                    LaunchedEffect(externalActive, secretCardState?.visible, ownerRequest?.id) {
+                    LaunchedEffect(externalActive, secretCardState?.visible, ownerMoment?.kind, ownerMoment?.requestId) {
                         aiSettings = getAiSettings()
                         applyLayout(latest)
                     }
-                    if (glass() && secretCardState?.visible != true && !com.cyclone.mobile.ui.v32.OwnerCardCopy.overlayCard(ownerRequest)) {
+                    if (glass() && secretCardState?.visible != true && !com.cyclone.mobile.owner.OwnerMoments.overlayCard(ownerMoment)) {
                         com.cyclone.mobile.ui.v32.CycloneV32Theme(drawBackground = false) {
                             com.cyclone.mobile.ui.overlay.BackgroundTaskGlass(backgroundTask!!) { onAction(OverlayUserAction.ASK_CYCLONE) }
                         }
@@ -325,7 +325,7 @@ class OverlayChromeController(
                                 },
                                 idleVisualState = idleVisualState,
                                 secretCardState = secretCardState,
-                                ownerRequest = ownerRequest,
+                                ownerMoment = ownerMoment,
                                 onIdleTap = ::recordIdleTap,
                                 onIdleSemanticActivate = ::recordSemanticActivation,
                             )
@@ -378,7 +378,7 @@ class OverlayChromeController(
 
     /** A card that needs a full, focusable window: the Secrets Card or a mission's check-in card. */
     private fun cardVisible(): Boolean = com.cyclone.mobile.secrets.SecretsCardRuntime.state.value?.visible == true ||
-        com.cyclone.mobile.ui.v32.OwnerCardCopy.overlayCard(com.cyclone.mobile.mind.mission.MindMissions.inbox.pending.value)
+        com.cyclone.mobile.owner.OwnerMoments.overlayCard(com.cyclone.mobile.owner.OwnerMomentsRuntime.current())
 
     fun render(snapshot: OverlayChromeSnapshot) {
         onMain {

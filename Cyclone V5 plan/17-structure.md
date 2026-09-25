@@ -37,9 +37,9 @@ Import direction: surfaces → kit/core; engines → core; core → nothing abov
 | Phase | Release | Contents | Proof |
 |---|---|---|---|
 | 1 Task Kit | alpha.29 | typed commands, engine per task, one bus, controllers for Mind / classic / background, every entry point rerouted, trace record | bus tests, engine × command contract matrix, CI guard against bypassing the bus |
-| 2 Owner Moments | alpha.30 | classic agent and background workspaces publish takeover / secret / confirmation into the same inbox; one card family everywhere; actionable notifications (reply, approve, decline inline) | contract test: every request kind renders on every surface and every answer reaches its engine |
-| 3 Cyclone Kit | alpha.31 | tokens + primitives consolidated; overlay, Ask and task cards moved first; token file shared with Glass | guard: no new raw `Card`/`Surface`/`Notification.Builder` outside the kit |
-| 4 One notification renderer | alpha.32 | notifications derived from task + owner-moment state | guard on builders |
+| 2 Owner Moments | alpha.31 (alpha.30 went to the USB Glass mirror) | classic agent and background workspaces publish takeover / secret / confirmation into the same inbox; one card family everywhere; actionable notifications (reply, approve, decline inline) | contract test: every request kind renders on every surface and every answer reaches its engine |
+| 3 Cyclone Kit | alpha.32 | tokens + primitives consolidated; overlay, Ask and task cards moved first; token file shared with Glass | guard: no new raw `Card`/`Surface`/`Notification.Builder` outside the kit |
+| 4 One notification renderer | alpha.33 | notifications derived from task + owner-moment state | guard on builders |
 | 5 Boundaries | ongoing | import-direction guard, later Gradle modules (`:core:task`, `:core:owner`, `:kit`, `:engine:mind`, `:engine:classic`, `:device`); giant files split when touched | guard script |
 | 6 Engine consolidation | after evals | background workspaces on the Mind; older engines retired only when evals show no loss | eval suite |
 
@@ -53,3 +53,25 @@ Import direction: surfaces → kit/core; engines → core; core → nothing abov
 - Rerouted: `WorkspaceTasks.command`, the workspace service's foreground forward, overlay take-control, notification
   actions, the progress screen's confirm, the Ask mission panel's Stop, the owner card's I'm done.
 - `WorkspaceTaskUi.engine` records the owning engine; Mind missions set it explicitly.
+
+## Phase 2 as built (alpha.31)
+
+- `owner/OwnerMoments.kt` (pure): `OwnerMoment` (task, engine, kind QUESTION / VALUES / APPROVAL / SECRET / HANDOVER,
+  text, buttons, choices, fields) and `OwnerMoments.project(task, inboxRequest, gatePending)`. A moment is **derived,
+  never stored**: from the Mind inbox's open request, or from the state the classic agent and background workspaces
+  already keep (secure-input wall, confirmation token, handed-over phase, overlay approval card). "The same inbox" is
+  realised as one projection over the existing sources of truth instead of a second queue, so a stale or duplicate
+  card cannot exist.
+- Every moment button is a `TaskCommand`; new commands `Reply(text)` and `Fill(values, remember)` carry what the owner
+  typed and never parse without it.
+- `ui/v32/CycloneOwnerCard(moment)` is the one card, rendered by the overlay (questions and check-ins), the Ask task
+  panel (action needed) and the mission card. It speaks only Task Kit.
+- Notifications show the moment: its title and text, its buttons (at most three, Stop added when there is room), and an
+  inline reply for questions (`RemoteInput` → private `TaskCommandReceiver` → `Reply`). A values check-in is not typed
+  in the shade; tapping the notification opens the card. Approve, Confirm, I'm done, Autofill and replies require an
+  unlocked phone (`setAuthenticationRequired`); Stop never does. A refused command re-posts the notification.
+- Proof: `OwnerMomentsTest` projects every engine × phase × interruption × confirmation × request kind × gate state and
+  checks every button (and the close button) against the owning controller — it found and fixed a confirmation
+  button offered on a classic task, which only the background workspace can redeem. CI guard: `MindMissions.answer`
+  only from Task Kit, the owner card never touches an engine, every surface renders the one card, and consequential
+  shade buttons need an unlocked phone.
