@@ -1,6 +1,6 @@
 # Cyclone V5 alpha.29 dev1: Task Kit - one command bus between every task button (overlay, notification, Ask, progress
 # screen) and the engine that owns the task, with a contract test over every engine and command.
-# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested.
+# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.29.dev1"
 channel = "development"
