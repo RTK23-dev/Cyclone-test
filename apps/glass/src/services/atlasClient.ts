@@ -122,7 +122,30 @@ export interface MappingJobView {
   verifiedMutations: number;
   failureCode: string | null;
   atlasStatus: string | null;
+  /** Whose account the pass maps with (alpha.38 phones); null on older phones or when idle. */
+  identity: MappingIdentity | null;
+  startedAtEpochMs: number | null;
+  maxElapsedMs: number | null;
+  attemptedDoors: number;
+  /** Why a pass paused or ended at a boundary: danger, authentication, human-control, budget, unknown. */
+  boundary: string | null;
 }
+
+/** own = the owner's account, look only; test = a test account (sign-in screens allowed, secrets via the phone). */
+export type MappingIdentity = "own" | "test";
+export type MissionBudget = "10m" | "30m" | "2h";
+
+/** A dedicated mapping mission from Glass: whose account, and how long. The phone enforces every limit. */
+export interface MappingMission {
+  identity: MappingIdentity;
+  budget: MissionBudget;
+}
+
+export const MISSION_BUDGETS: Readonly<Record<MissionBudget, MappingBudgetShape & { label: string }>> = Object.freeze({
+  "10m": Object.freeze({ label: "10 min", maxNewScreens: 60, maxElapsedMs: 600_000, maxConsecutiveNonProgress: 12, maxAttemptsPerDoor: 2 }),
+  "30m": Object.freeze({ label: "30 min", maxNewScreens: 200, maxElapsedMs: 1_800_000, maxConsecutiveNonProgress: 20, maxAttemptsPerDoor: 2 }),
+  "2h": Object.freeze({ label: "2 h", maxNewScreens: 500, maxElapsedMs: 7_200_000, maxConsecutiveNonProgress: 30, maxAttemptsPerDoor: 3 }),
+});
 
 export interface AtlasDiffChange {
   cursor: string;
@@ -192,7 +215,7 @@ export interface AtlasClient {
     reason: string,
   ): Promise<SecretsRequestResult>;
   atlasDiff(placeId: PlaceId, persona: Persona, since: string | null): Promise<AtlasDiffView>;
-  mappingStart(placeId: PlaceId, depth?: MappingDepth): Promise<MappingJobView>;
+  mappingStart(placeId: PlaceId, depth?: MappingDepth | MappingMission): Promise<MappingJobView>;
   mappingResume(mappingJobId: string): Promise<MappingJobView>;
   mappingPause(mappingJobId: string): Promise<MappingJobView>;
   mappingStop(mappingJobId: string): Promise<MappingJobView>;
@@ -349,12 +372,20 @@ export function createAtlasClient(options: AtlasClientOptions): AtlasClient {
       );
       return parseAtlasDiff(payload);
     },
-    async mappingStart(placeId: PlaceId, depth: MappingDepth = "quick"): Promise<MappingJobView> {
+    async mappingStart(placeId: PlaceId, depth: MappingDepth | MappingMission = "quick"): Promise<MappingJobView> {
       assertPlacePersona(placeId, "mapping");
       if (!placeId.startsWith("package:")) {
         throw new AtlasClientError("PLACE_NOT_LAUNCHABLE", "Glass maps installed apps in this alpha; websites come later.");
       }
       requireRealPhone();
+      if (typeof depth === "object") {
+        const shape = MISSION_BUDGETS[depth.budget];
+        if (!shape || (depth.identity !== "own" && depth.identity !== "test")) {
+          throw new AtlasClientError("INVALID_REQUEST", "Pick whose account to map with and how long.");
+        }
+        const { label: _label, ...budget } = shape;
+        return mappingCall("start", { placeId, persona: "mapping", identity: depth.identity, budget });
+      }
       return mappingCall("start", { placeId, persona: "mapping", budget: { ...(MAPPING_DEPTHS[depth] ?? GLASS_MAPPING_BUDGET) } });
     },
     async mappingResume(mappingJobId: string): Promise<MappingJobView> {
@@ -476,6 +507,9 @@ export function parseMappingJob(payload: unknown): MappingJobView {
   const progress = (record.progress && typeof record.progress === "object" ? record.progress : {}) as Record<string, unknown>;
   const failure = record.failureCode;
   const atlasStatus = record.atlasStatus;
+  const budget = (record.budget && typeof record.budget === "object" ? record.budget : {}) as Record<string, unknown>;
+  const started = record.startedAtEpochMs;
+  const boundary = record.boundary;
   return {
     mappingJobId: (id as string | null) ?? null,
     placeId,
@@ -485,6 +519,11 @@ export function parseMappingJob(payload: unknown): MappingJobView {
     verifiedMutations: countOf(progress.verifiedMutations),
     failureCode: typeof failure === "string" && /^[A-Z0-9_]{1,80}$/.test(failure) ? failure : null,
     atlasStatus: typeof atlasStatus === "string" && MAP_STATUSES.has(atlasStatus as MapStatus) ? atlasStatus : null,
+    identity: record.identity === "own" || record.identity === "test" ? record.identity : null,
+    startedAtEpochMs: typeof started === "number" && Number.isFinite(started) && started > 0 ? started : null,
+    maxElapsedMs: countOf(budget.maxElapsedMs) || null,
+    attemptedDoors: countOf(progress.attemptedDoors),
+    boundary: typeof boundary === "string" && /^[a-z-]{1,40}$/.test(boundary) ? boundary : null,
   };
 }
 

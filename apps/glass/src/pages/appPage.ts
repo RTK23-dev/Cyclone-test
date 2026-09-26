@@ -16,7 +16,9 @@ import {
   type Persona,
 } from "../maps/atlasViewModel.js";
 import { createMappingWatcher, isActiveMapping, mappingStatusLine, type MappingWatcher } from "../maps/mappingWatcher.js";
-import type { MappingDepth, MappingJobView } from "../services/atlasClient.js";
+import type { MappingJobView, MappingMission } from "../services/atlasClient.js";
+import { missionLive, missionReport, startSheet, type MissionEvent } from "../ui/missionPanel.js";
+import { coverageReport } from "../maps/zones.js";
 import { loadApps, scenarioSummary, statusLabel, statusTone, versionLabel, type PhoneApp } from "../services/apps.js";
 import { mappingErrorCopy, phoneClient } from "../services/phone.js";
 import { el, link, setChildren } from "../ui/dom.js";
@@ -40,6 +42,7 @@ export interface AppPageDeps {
   fetch?: typeof fetch;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
+  now?: () => number;
 }
 
 export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "app" }>, deps: AppPageDeps = {}): GlassPage {
@@ -62,7 +65,11 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
   let model: AtlasViewModel | null = null;
   let job: MappingJobView | null = null;
   let selection: { kind: "screen" | "edge"; id: string } | null = null;
-  let depth: MappingDepth = "quick";
+  const now = deps.now ?? (() => Date.now());
+  let lastMission: MappingMission | null = null;
+  let missionBaseline: { places: number; doors: number } | null = null;
+  let missionEvents: MissionEvent[] = [];
+  let sheet: HTMLElement | null = null;
   let teaching = false;
   let teachNote = "";
   let destroyed = false;
@@ -128,7 +135,8 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
     renderInspector();
   };
 
-  element.append(header, tabs, bar, board);
+  const missionBox = el("div", "mission-slot");
+  element.append(header, tabs, bar, missionBox, board);
 
   // Run inspector v2: "Show on the map" lights up the rooms a run walked through, in order.
   if (route.route?.length) {
@@ -153,6 +161,7 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
       canvas.setCursorScreenId(cursorScreenId);
       if (view.kind === "overview" && zones) overview.render(zones, { activeScreenId: cursorScreenId });
       renderControls();
+      renderMission();
     },
     onAtlasChanged: (changed) => {
       if (changed === placeId && persona === "mapping") void loadAtlas(false);
@@ -191,29 +200,17 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
     const otherPlaceBusy = isActiveMapping(job) && job?.placeId !== placeId;
     const buttons: HTMLElement[] = [];
     if (!active) {
-      const start = actionButton(model && model.screens.length ? "Remap" : "Start mapping", { icon: "play", variant: "primary" });
+      const start = actionButton(model && model.screens.length ? "Map again" : "Start mapping", { icon: "play", variant: "primary" });
       start.disabled = otherPlaceBusy || !placeId.startsWith("package:") || app?.installed === false;
       if (!placeId.startsWith("package:")) start.title = mappingErrorCopy("PLACE_NOT_LAUNCHABLE");
-      start.addEventListener("click", () => void command(() => watcher.start(placeId, depth), true));
-      const depthSelect = el("select", "picker-select depth-select");
-      depthSelect.setAttribute("aria-label", "Mapping depth");
-      depthSelect.title = "How far one pass may go. The phone enforces the limits and never pays, sends, deletes or grants.";
-      for (const [id, label] of [["quick", "Quick · 12 rooms"], ["standard", "Standard · 30 rooms"], ["deep", "Deep · 80 rooms"]] as Array<[MappingDepth, string]>) {
-        const option = el("option", undefined, label);
-        option.value = id;
-        option.selected = id === depth;
-        depthSelect.append(option);
-      }
-      depthSelect.disabled = start.disabled;
+      else start.title = "Choose whose account and how long. The phone never sends, posts, pays, deletes or changes settings or security.";
+      start.addEventListener("click", () => openSheet(lastMission ?? undefined));
       // Teach a door yourself: Follow Me on the phone, then Done here. Only for installed apps, never during a pass.
       const teach = actionButton(teaching ? "Done teaching" : "Teach on the phone", { icon: "hand", variant: teaching ? "primary" : "secondary" });
       teach.disabled = !placeId.startsWith("package:") || app?.installed === false || otherPlaceBusy;
       teach.title = "Show Cyclone the way on the phone; it becomes 'Your teaching' on this map.";
       teach.addEventListener("click", () => void (teaching ? finishTeaching() : beginTeaching()));
-      depthSelect.addEventListener("change", () => {
-        depth = (depthSelect.value as MappingDepth) || "quick";
-      });
-      buttons.push(depthSelect, start, teach);
+      buttons.push(start, teach);
     } else {
       const paused = job?.state === "paused" || job?.state === "human-control";
       const toggle = actionButton(paused ? "Resume" : "Pause", { icon: paused ? "play" : "pause" });
@@ -229,6 +226,68 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
       : job && job.placeId === placeId && isActiveMapping(job)
         ? mappingStatusLine(job)
         : teachNote || (job && job.placeId === placeId ? mappingStatusLine(job) : "");
+  };
+
+  const closeSheet = (): void => {
+    sheet?.remove();
+    sheet = null;
+  };
+
+  const startMission = (mission: MappingMission): void => {
+    closeSheet();
+    lastMission = mission;
+    missionBaseline = { places: model?.screens.length ?? 0, doors: model?.edges.length ?? 0 };
+    missionEvents = [];
+    void command(() => watcher.start(placeId, mission), true);
+  };
+
+  const openSheet = (initial?: MappingMission): void => {
+    closeSheet();
+    sheet = startSheet({
+      appLabel: app?.label ?? placeId.slice(placeId.indexOf(":") + 1),
+      initial,
+      onStart: startMission,
+      onCancel: closeSheet,
+    });
+    element.append(sheet);
+  };
+
+  /** Live board header while the phone maps this app, the report once the pass ends. */
+  const renderMission = (): void => {
+    const mine = job && job.placeId === placeId ? job : null;
+    if (mine && isActiveMapping(mine)) {
+      const here = mine.currentAtlasNodeId ? model?.screens.find((x) => x.screenId === mine.currentAtlasNodeId) ?? null : null;
+      const hereZone = here && zones ? zones.zones.find((z) => z.id === zones?.zoneOf.get(here.screenId))?.name ?? null : null;
+      setChildren(missionBox, missionLive(mine, { appLabel: app?.label ?? placeId, now: now(), here: here?.label ?? null, hereZone, events: missionEvents }));
+      return;
+    }
+    if (mine && missionBaseline && ["completed", "stopped", "failed"].includes(mine.state) && model) {
+      const map = zones ?? deriveZones(model, entryHint);
+      const report = coverageReport(model, map);
+      setChildren(missionBox, missionReport(mine, {
+        appLabel: app?.label ?? placeId,
+        before: missionBaseline,
+        after: { places: model.screens.length, doors: model.edges.length, zones: map.zones.length, blocked: report.blocked, unconfirmed: report.unconfirmed, scenariosKnown: report.scenariosKnown },
+        onViewMap: () => setView({ kind: "overview" }),
+        onMapAgain: () => openSheet(lastMission ?? undefined),
+        onMapDeeper: () => startMission({ identity: lastMission?.identity ?? mine.identity ?? "own", budget: "30m" }),
+      }));
+      return;
+    }
+    setChildren(missionBox);
+  };
+
+  /** New places and doors since the last load, for the live timeline. */
+  const noteDiscoveries = (before: AtlasViewModel | null, after: AtlasViewModel): void => {
+    if (!before || !isActiveMapping(job) || job?.placeId !== placeId) return;
+    const places = new Set(before.screens.map((x) => x.screenId));
+    const doors = new Set(before.edges.map((x) => x.edgeId));
+    const at = now();
+    const fresh: MissionEvent[] = [
+      ...after.screens.filter((x) => !places.has(x.screenId)).map((x) => ({ at, kind: "place" as const, text: `New place · ${x.label}` })),
+      ...after.edges.filter((x) => !doors.has(x.edgeId)).map((x) => ({ at, kind: "door" as const, text: `New door · ${x.actionHint}${x.risk.danger ? " (blocked)" : ""}` })),
+    ];
+    missionEvents = [...fresh.reverse(), ...missionEvents].slice(0, 30);
   };
 
   const beginTeaching = async (): Promise<void> => {
@@ -430,11 +489,14 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
     try {
       const document = await phone.get(placeId, persona);
       if (destroyed || seq !== loadSeq) return;
+      const previous = model;
       model = toViewModel(toMapsDocument(document));
+      noteDiscoveries(previous, model);
       if (selection?.kind === "screen" && !model.screens.some((s) => s.screenId === selection?.id)) selection = null;
       renderBoard(fit);
       renderInspector();
       renderControls();
+      renderMission();
     } catch (error) {
       if (destroyed || seq !== loadSeq) return;
       model = null;
@@ -484,6 +546,7 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
     element,
     destroy() {
       destroyed = true;
+      closeSheet();
       watcher.dispose();
       canvas.destroy();
     },

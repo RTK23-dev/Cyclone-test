@@ -9,9 +9,9 @@ import { icon, type IconName } from "./icons.js";
 const SVG_NS = "http://www.w3.org/2000/svg";
 const W = 900;
 const CARD_W = 196;
-const CARD_H = 100;
+const CARD_H = 106;
 const ENTRY_W = 232;
-const ENTRY_H = 104;
+const ENTRY_H = 108;
 const PER_ROW = 4;
 
 export interface ZoneOverviewOptions {
@@ -170,18 +170,13 @@ function draw(map: ZoneMap, state: { selectedZoneId?: string | null; activeScree
     glyph.setAttribute("height", "24");
     g.append(glyph);
     g.append(text(c.x + 48, c.y + 34, trim(zone.name, zone.entry ? 19 : 15), "zo-name"));
-    const meta = text(c.x + 16, c.y + 60, `${zone.screenIds.length} place${zone.screenIds.length === 1 ? "" : "s"} · ${zone.doors} door${zone.doors === 1 ? "" : "s"}`, "zo-meta");
-    if (zone.blocked) {
-      const warn = svgEl("tspan", {}, "zo-warn");
-      warn.textContent = ` · ${zone.blocked} blocked`;
-      meta.append(warn);
-    }
-    g.append(meta);
-    const barW = c.w - 70;
+    g.append(text(c.x + 16, c.y + 58, `${zone.screenIds.length} place${zone.screenIds.length === 1 ? "" : "s"} · ${zone.doors} door${zone.doors === 1 ? "" : "s"}`, "zo-meta"));
+    const barW = c.w - 32;
     const confidence = zone.confidence ?? 0;
-    g.append(svgEl("rect", { x: c.x + 16, y: c.y + c.h - 22, width: barW, height: 6, rx: 3 }, "zo-bar-track"));
-    g.append(svgEl("rect", { x: c.x + 16, y: c.y + c.h - 22, width: Math.max(2, barW * confidence), height: 6, rx: 3 }, `zo-bar ${confidence >= 0.85 ? "high" : confidence >= 0.6 ? "mid" : "low"}`));
-    g.append(text(c.x + c.w - 14, c.y + c.h - 15, zone.confidence == null ? "—" : `${Math.round(zone.confidence * 100)}%`, "zo-flags", "end"));
+    g.append(svgEl("rect", { x: c.x + 16, y: c.y + 68, width: barW, height: 6, rx: 3 }, "zo-bar-track"));
+    g.append(svgEl("rect", { x: c.x + 16, y: c.y + 68, width: Math.max(2, barW * confidence), height: 6, rx: 3 }, `zo-bar ${confidence >= 0.85 ? "high" : confidence >= 0.6 ? "mid" : "low"}`));
+    g.append(text(c.x + 16, c.y + c.h - 12, zone.confidence == null ? "—" : `${Math.round(zone.confidence * 100)}%`, "zo-flags"));
+    if (zone.blocked) g.append(text(c.x + c.w - 14, c.y + c.h - 12, `${zone.blocked} blocked`, "zo-flags warn", "end"));
     if (zone.id === activeZone) g.append(svgEl("circle", { cx: c.x + c.w - 16, cy: c.y + 16, r: 5 }, "zo-pulse"));
     g.addEventListener("click", () => options.onZone?.(zone.id));
     g.addEventListener("keydown", (event) => {

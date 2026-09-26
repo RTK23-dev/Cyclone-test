@@ -89,6 +89,7 @@ function fakePhone({ rooms = [ROOM(1)], app = CLOCK_APP } = {}) {
       };
     },
     "POST /v1/devices/d1/mapping/start": ({ body }) => {
+      phone.started = body;
       assert.equal(body.placeId, PLACE);
       assert.equal(body.persona, "mapping");
       assert.equal(body.sessionId, "default-foreground");
@@ -148,7 +149,7 @@ test("app header shows phone facts; the board shows the phone's rooms and doors"
   assert.equal(page.element.querySelectorAll(".map-card").length, 2);
   assert.match(page.element.querySelector(".board-coverage").textContent, /2 places · 1 door/);
   assert.match(page.element.querySelector(".inspector").textContent, /Click a room/);
-  assert.equal(page.element.querySelector(".mapping-controls .btn").textContent.trim(), "Remap");
+  assert.equal(page.element.querySelector(".mapping-controls .btn").textContent.trim(), "Map again");
   page.destroy();
 });
 
@@ -174,7 +175,10 @@ test("Start mapping follows the phone: cursor, new rooms from atlas.diff, then S
   assert.match(start.textContent, /Start mapping/);
   phone.rooms.push(ROOM(1));
   start.click();
+  page.element.querySelector(".mission-start").click();
   await flush();
+  assert.equal(page.element.querySelector(".sheet-overlay"), null, "the sheet closes once the pass starts");
+  assert.match(page.element.querySelector(".mission-panel").textContent, /Mapping Clock/);
   assert.match(page.element.querySelector(".mapping-status").textContent, /Mapping on the phone/);
   assert.match(page.element.querySelector(".mapping-controls").textContent, /Pause/);
 
@@ -190,7 +194,10 @@ test("Start mapping follows the phone: cursor, new rooms from atlas.diff, then S
   stop.click();
   await flush();
   assert.match(page.element.querySelector(".mapping-status").textContent, /Mapping stopped/);
-  assert.match(page.element.querySelector(".mapping-controls").textContent, /Remap/);
+  assert.match(page.element.querySelector(".mapping-controls").textContent, /Map again/);
+  const report = page.element.querySelector(".mission-panel.report").textContent;
+  assert.match(report, /Mapping report/);
+  assert.match(report, /You stopped the pass/);
   assert.equal(page.element.querySelectorAll(".map-card.mapping-cursor").length, 0);
   page.destroy();
 });
@@ -205,6 +212,7 @@ test("mapping errors are explained, not swallowed", async () => {
   const { page } = open(busy);
   await flush();
   page.element.querySelector(".mapping-controls .btn").click();
+  page.element.querySelector(".mission-start").click();
   await flush();
   assert.match(page.element.querySelector(".mapping-status").textContent, /You have control of the phone/);
   page.destroy();
@@ -237,14 +245,37 @@ test("a run's route lights up its rooms in order, with the doors between them", 
   page.destroy();
 });
 
-test("the map offers a mapping depth next to Start mapping", async () => {
+test("Start mapping asks whose account and how long, and sends exactly that to the phone", async () => {
   const phone = fakePhone({ rooms: [] });
   const { page } = open(phone);
   await flush();
-  const select = page.element.querySelector("select.depth-select");
-  assert.ok(select, "depth picker shown when not mapping");
-  assert.match(select.textContent, /Quick · 12 rooms/);
-  assert.match(select.textContent, /Deep · 80 rooms/);
+  page.element.querySelector(".mapping-controls .btn").click();
+  const sheet = page.element.querySelector(".mission-sheet");
+  assert.ok(sheet, "the start sheet opens");
+  assert.match(sheet.textContent, /My account — look only/);
+  assert.match(sheet.textContent, /Test account/);
+  assert.match(sheet.textContent, /10 min.*30 min.*2 h/s);
+  assert.match(sheet.textContent, /Never sends, posts, pays, deletes, or changes settings or security/);
+  page.element.querySelectorAll(".choice-card").find((b) => b.dataset.identity === "test").click();
+  page.element.querySelectorAll(".budget-chip").find((b) => b.dataset.budget === "30m").click();
+  assert.match(page.element.querySelector(".mission-sheet").textContent, /Secrets Card/);
+  page.element.querySelector(".mission-start").click();
+  await flush();
+  assert.equal(phone.started.identity, "test");
+  assert.equal(phone.started.budget.maxElapsedMs, 1_800_000);
+  assert.equal(phone.started.budget.maxNewScreens, 200);
+  page.destroy();
+});
+
+test("cancelling the sheet starts nothing", async () => {
+  const phone = fakePhone({ rooms: [] });
+  const { page } = open(phone);
+  await flush();
+  page.element.querySelector(".mapping-controls .btn").click();
+  page.element.querySelectorAll(".sheet-actions .btn").find((b) => /Cancel/.test(b.textContent)).click();
+  await flush();
+  assert.equal(page.element.querySelector(".sheet-overlay"), null);
+  assert.equal(phone.started, undefined);
   page.destroy();
 });
 

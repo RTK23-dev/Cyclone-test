@@ -405,3 +405,16 @@ test("mapping depth picks a bounded budget inside the phone's limits", async () 
     assert.ok(budget.maxNewScreens <= 500 && budget.maxElapsedMs <= 7_200_000 && budget.maxAttemptsPerDoor <= 20);
   }
 });
+
+test("a mapping mission sends whose account and a time budget; the job carries them back", async () => {
+  const { atlas, calls } = foregroundClient({ ...JOB, identity: "test", startedAtEpochMs: 1_000, budget: { maxNewScreens: 60, maxElapsedMs: 600000, maxConsecutiveNonProgress: 12, maxAttemptsPerDoor: 2 }, boundary: "authentication", progress: { ...JOB.progress, attemptedDoors: 9 } });
+  const job = await atlas.mappingStart(PLACE, { identity: "own", budget: "10m" });
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.identity, "own");
+  assert.deepEqual(body.budget, { maxNewScreens: 60, maxElapsedMs: 600000, maxConsecutiveNonProgress: 12, maxAttemptsPerDoor: 2 });
+  assert.equal(job.identity, "test");
+  assert.equal(job.maxElapsedMs, 600000);
+  assert.equal(job.attemptedDoors, 9);
+  assert.equal(job.boundary, "authentication");
+  await assert.rejects(() => atlas.mappingStart(PLACE, { identity: "admin", budget: "10m" }), (error) => error.code === "INVALID_REQUEST");
+});

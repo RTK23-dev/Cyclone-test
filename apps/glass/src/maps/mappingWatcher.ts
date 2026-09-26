@@ -14,7 +14,7 @@ import {
 
 export interface MappingOps {
   atlasDiff(placeId: string, persona: "mapping", since: string | null): Promise<AtlasDiffView>;
-  mappingStart(placeId: string, depth?: import("../services/atlasClient.js").MappingDepth): Promise<MappingJobView>;
+  mappingStart(placeId: string, depth?: import("../services/atlasClient.js").MappingDepth | import("../services/atlasClient.js").MappingMission): Promise<MappingJobView>;
   mappingResume(mappingJobId: string): Promise<MappingJobView>;
   mappingPause(mappingJobId: string): Promise<MappingJobView>;
   mappingStop(mappingJobId: string): Promise<MappingJobView>;
@@ -35,7 +35,7 @@ export interface MappingWatcherOptions {
 
 export interface MappingWatcher {
   /** Start a new pass on this place and follow it. */
-  start(placeId: string, depth?: import("../services/atlasClient.js").MappingDepth): Promise<void>;
+  start(placeId: string, depth?: import("../services/atlasClient.js").MappingDepth | import("../services/atlasClient.js").MappingMission): Promise<void>;
   /** Follow whatever job currently owns the foreground plane, if any. */
   attach(): Promise<void>;
   pause(): Promise<void>;
@@ -110,7 +110,7 @@ export function createMappingWatcher(options: MappingWatcherOptions): MappingWat
   }
 
   return {
-    async start(target: string, depth = "quick" as import("../services/atlasClient.js").MappingDepth): Promise<void> {
+    async start(target: string, depth: import("../services/atlasClient.js").MappingDepth | import("../services/atlasClient.js").MappingMission = "quick"): Promise<void> {
       placeId = target;
       // Take the cursor before the phone can write, so no first room is missed.
       cursor = (await options.ops.atlasDiff(target, "mapping", null)).cursor;
@@ -153,7 +153,7 @@ export function createMappingWatcher(options: MappingWatcherOptions): MappingWat
 /** One line for the Maps bar. */
 export function mappingStatusLine(job: MappingJobView | null): string {
   if (!job || job.state === "idle") return "";
-  const rooms = `${job.newScreens} new ${job.newScreens === 1 ? "room" : "rooms"}`;
+  const rooms = `${job.newScreens} new ${job.newScreens === 1 ? "place" : "places"}`;
   switch (job.state) {
     case "running":
       return `Mapping on the phone · ${rooms}`;
@@ -164,7 +164,8 @@ export function mappingStatusLine(job: MappingJobView | null): string {
     case "human-control":
       return `You have the phone · mapping paused · ${rooms}`;
     case "completed":
-      return `Mapping done · ${job.atlasStatus === "mapped" ? "every reachable door walked" : "some doors left dark"}`;
+      if (job.boundary === "authentication") return "Mapping ended at a sign-in screen (look only)";
+      return `Mapping done · ${job.atlasStatus === "mapped" ? "every reachable safe door walked" : "some doors left unexplored"}`;
     case "stopped":
       return `Mapping stopped · ${rooms}`;
     case "failed":
