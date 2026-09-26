@@ -25,6 +25,13 @@ const PATHS = {
   book: ["M5 4h9a4 4 0 0 1 4 4v12H9a4 4 0 0 1-4-4z", "M5 16a4 4 0 0 1 4-4h9"],
   lock: ["M6 11h12v9H6z", "M8 11V8a4 4 0 0 1 8 0v3"],
   shield: ["M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z", "M9 12l2 2 4-4"],
+  user: ["M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", "M4 21a8 8 0 0 1 16 0"],
+  bell: ["M6 17v-6a6 6 0 0 1 12 0v6l2 2H4z", "M10 21h4"],
+  chat: ["M4 5h16v11H9l-5 4z"],
+  camera: ["M4 8h4l2-3h4l2 3h4v11H4z", "M12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"],
+  layers: ["M12 3l9 5-9 5-9-5z", "M3 13l9 5 9-5"],
+  clock: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M12 7v5l3 2"],
+  bag: ["M5 8h14l-1 12H6z", "M9 8a3 3 0 0 1 6 0"],
 } as const;
 
 export type IconName = keyof typeof PATHS;

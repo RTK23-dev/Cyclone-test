@@ -23,6 +23,7 @@ import { listRuns, roomLabel, statusLabel as runStatusLabel, statusTone as runSt
 import { phoneClient } from "../services/phone.js";
 import { toMapsDocument } from "../maps/atlasDocument.js";
 import { toViewModel, type AtlasViewModel, type Persona } from "../maps/atlasViewModel.js";
+import { coverageReport, deriveZones } from "../maps/zones.js";
 import { actionButton, card, chip, emptyState, errorState, loadingState, searchInput, segmented, statTile } from "../ui/components.js";
 import { runRow, runsError } from "./runsPage.js";
 import { getKnowledge, type VaultSlot } from "../services/knowledgeSummary.js";
@@ -37,8 +38,9 @@ type KnowledgeTab = Exclude<AppTab, "map">;
 
 export function appTabs(placeId: string, active: AppTab): HTMLElement {
   const tabs = el("nav", "tabs");
-  const items: Array<[AppTab, string]> = [["map", "Map"], ["screens", "Screens"]];
-  if (placeId.startsWith("package:")) items.push(["scenarios", "Scenarios"], ["versions", "Versions"], ["runs", "Runs"], ["issues", "Issues"]);
+  const items: Array<[AppTab, string]> = [["map", "Map"], ["coverage", "Coverage"]];
+  if (placeId.startsWith("package:")) items.push(["runs", "Runs"], ["versions", "Changes"], ["scenarios", "Scenarios"], ["screens", "Screens"], ["issues", "Issues"]);
+  else items.push(["screens", "Screens"]);
   for (const [tab, label] of items) {
     if (tab === active) {
       const current = el("span", "tab active", label);
@@ -105,6 +107,7 @@ export function createAppKnowledgePage(
       if (route.tab === "scenarios") renderScenarios(await getScenarios(ctx.client, deviceId, placeId, scenariosPersona, controller.signal));
       else if (route.tab === "versions") renderVersions(await getVersions(ctx.client, deviceId, placeId, controller.signal));
       else if (route.tab === "screens") await loadScreens();
+      else if (route.tab === "coverage") await loadCoverage();
       else if (route.tab === "issues") await loadIssues();
       else await loadRuns();
     } catch (error) {
@@ -157,6 +160,72 @@ export function createAppKnowledgePage(
       list.append(node);
     }
     setChildren(body, stats, list);
+  }
+
+  /** Coverage (plan 22 §4.2): confidence, freshness, unconfirmed and blocked, per zone. Never "% of the app". */
+  async function loadCoverage(): Promise<void> {
+    const signal = controller.signal;
+    const [document, versions, scenarios] = await Promise.all([
+      phoneClient(ctx, deviceId, deps.fetch).get(placeId as never, "mapping"),
+      placeId.startsWith("package:") ? getVersions(ctx.client, deviceId, placeId, signal).catch(() => null) : Promise.resolve(null),
+      placeId.startsWith("package:") ? getScenarios(ctx.client, deviceId, placeId, "mapping", signal).catch(() => null) : Promise.resolve(null),
+    ]);
+    if (signal.aborted) return;
+    const model = toViewModel(toMapsDocument(document));
+    if (!model.screens.length) {
+      setChildren(body, emptyState({ icon: "map", title: "Nothing mapped yet", body: "Start a mapping pass from the Map tab, or press Learn on a run. Coverage appears as soon as Cyclone knows a place." }));
+      return;
+    }
+    const zones = deriveZones(model, scenarios?.entryScreenId ?? null);
+    const report = coverageReport(model, zones, versions);
+    const pct = (value: number | null): string => (value == null ? "—" : `${Math.round(value * 100)}%`);
+    const tiles = el("div", "stats stats-4 coverage-stats");
+    tiles.append(
+      statTile("Scenarios known", `${report.scenariosKnown} / 3`, report.scenariosKnown === 3 ? "success" : "neutral"),
+      statTile("Zones", String(report.zones)),
+      statTile("Places", String(report.places)),
+      statTile("Doors", String(report.doors)),
+      statTile("Confidence", pct(report.confidence), (report.confidence ?? 0) >= 0.85 ? "success" : (report.confidence ?? 0) >= 0.6 ? "warning" : "danger"),
+      statTile("On the installed version", pct(report.currentShare), report.currentShare == null ? "neutral" : report.currentShare >= 0.9 ? "success" : "warning"),
+      statTile("Unconfirmed", String(report.unconfirmed), report.unconfirmed ? "warning" : "success"),
+      statTile("Blocked for mapping", String(report.blocked), report.blocked ? "danger" : "neutral"),
+    );
+    const lanes = card("coverage-lanes");
+    lanes.append(el("h2", "card-title", "Scenarios"));
+    for (const lane of zones.lanes) {
+      const row = el("div", "coverage-row");
+      const known = lane.screenIds.length > 0;
+      row.append(el("span", "coverage-name", lane.label), coverageBar(known ? 1 : 0, known ? "high" : "none"),
+        el("span", "coverage-num", known ? `${lane.screenIds.length} place${lane.screenIds.length === 1 ? "" : "s"}` : "Not mapped yet"));
+      lanes.append(row);
+    }
+    const table = card("coverage-zones");
+    table.append(el("h2", "card-title", "Zones"));
+    const head = el("div", "coverage-row coverage-head");
+    head.append(el("span", "coverage-name", "Zone"), el("span", undefined, "Confidence"), el("span", "coverage-num", "Places"), el("span", "coverage-num", "Doors"),
+      el("span", "coverage-num", "Unconfirmed"), el("span", "coverage-num", "Blocked"));
+    table.append(head);
+    for (const zone of zones.zones) {
+      const row = el("div", "coverage-row coverage-zone");
+      const tone = zone.confidence == null ? "none" : zone.confidence >= 0.85 ? "high" : zone.confidence >= 0.6 ? "mid" : "low";
+      const bar = el("span", "coverage-conf");
+      bar.append(coverageBar(zone.confidence ?? 0, tone), el("span", "coverage-pct", pct(zone.confidence)));
+      row.append(el("span", "coverage-name", zone.name), bar, el("span", "coverage-num", String(zone.screenIds.length)), el("span", "coverage-num", String(zone.doors)),
+        el("span", `coverage-num${zone.unconfirmed ? " warn" : ""}`, String(zone.unconfirmed)), el("span", `coverage-num${zone.blocked ? " danger" : ""}`, String(zone.blocked)));
+      table.append(row);
+    }
+    const note = el("p", "muted coverage-note",
+      "Confidence, not a percentage of the app: Cyclone cannot know how big an app really is. Unconfirmed = known but not yet confirmed by a walk. " +
+      "Blocked = doors the mapper refused because they could pay, send, delete, change a setting or touch security.");
+    setChildren(body, tiles, lanes, table, note);
+  }
+
+  function coverageBar(value: number, tone: string): HTMLElement {
+    const bar = el("span", "conf-bar coverage-bar");
+    const fill = el("span", `conf-fill ${tone === "none" ? "" : tone}`);
+    fill.style.width = `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+    bar.append(fill);
+    return bar;
   }
 
   async function loadScreens(): Promise<void> {

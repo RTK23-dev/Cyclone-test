@@ -471,3 +471,257 @@
 .depth-select {
   width: auto;
 }
+
+/* ---- Atlas semantic zoom (plan 22): rail · board · inspector ------------------------------------------------------- */
+.atlas-board {
+  grid-template-columns: 208px minmax(0, 1fr) 320px;
+}
+
+.atlas-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  align-self: start;
+  position: sticky;
+  top: var(--space-4);
+}
+
+.atlas-rail[hidden] {
+  display: none;
+}
+
+.atlas-board:has(.atlas-rail[hidden]) {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.rail-heading {
+  margin: var(--space-3) var(--space-2) var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.rail-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 7px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rail-item:hover {
+  background: var(--surface-hover);
+}
+
+.rail-item.active {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.rail-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail-count {
+  min-width: 26px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-align: center;
+}
+
+.rail-item.active .rail-count {
+  background: var(--accent);
+  color: #fff;
+}
+
+.rail-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.rail-dot.high { background: var(--success); }
+.rail-dot.mid { background: var(--warning); }
+.rail-dot.low { background: var(--danger); }
+
+.rail-note {
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.atlas-crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.crumb-app { font-weight: 650; }
+.crumb-sep { color: var(--text-faint); }
+.crumb-here { color: var(--accent-text); font-weight: 600; }
+.crumb-back { padding: 4px 10px; font-size: var(--text-xs); }
+
+/* Level 0: scenario lanes and zone cards (ui/zoneOverview.ts). */
+.zone-overview {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-5);
+  background-image: radial-gradient(var(--board-dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+  overflow: auto;
+}
+
+.zone-svg {
+  width: 100%;
+  max-width: 1080px;
+  height: auto;
+  font-family: var(--font-sans);
+}
+
+.zo-lane { cursor: pointer; }
+.zo-lane-box { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1.2; }
+.zo-lane.signed-in .zo-lane-box { fill: var(--accent-soft); stroke: var(--accent); }
+.zo-lane.empty .zo-lane-box { stroke-dasharray: 5 4; fill: var(--surface-muted); }
+.zo-lane:hover .zo-lane-box { stroke: var(--accent); }
+.zo-lane-title { font-size: 17px; font-weight: 650; fill: var(--text); }
+.zo-lane-sub { font-size: 13px; fill: var(--text-muted); }
+.zo-lane.empty .zo-lane-title { fill: var(--text-muted); }
+.zo-flow { fill: none; stroke: var(--text-faint); stroke-width: 1.5; }
+.zo-arrowhead { fill: var(--text-faint); }
+.zo-link { fill: none; stroke: var(--accent); stroke-opacity: 0.55; stroke-width: 1.8; }
+.zo-link.cross { stroke-dasharray: 5 5; stroke-opacity: 0.4; }
+
+.zo-zone { cursor: pointer; }
+.zo-card { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1.2; }
+.zo-zone:hover .zo-card, .zo-zone:focus .zo-card { stroke: var(--accent); stroke-width: 2; }
+.zo-zone.entry .zo-card { stroke: var(--accent); stroke-width: 2.2; fill: var(--accent-soft); }
+.zo-zone.elsewhere .zo-card { stroke-dasharray: 6 5; fill: var(--surface-muted); }
+.zo-zone.selected .zo-card { stroke: var(--accent); stroke-width: 2.6; }
+.zo-zone.active .zo-card { stroke: var(--success); stroke-width: 2.6; }
+.zo-glyph { color: var(--accent-text); }
+.zo-name { font-size: 18px; font-weight: 650; fill: var(--text); }
+.zo-meta { font-size: 14px; fill: var(--text-muted); }
+.zo-flags { font-size: 13px; font-weight: 600; fill: var(--text-muted); }
+.zo-flags.warn { fill: var(--warning); }
+.zo-warn { fill: var(--warning); font-weight: 650; }
+.zo-bar-track { fill: var(--surface-muted); }
+.zo-bar.high { fill: var(--success); }
+.zo-bar.mid { fill: var(--warning); }
+.zo-bar.low { fill: var(--danger); }
+.zo-pulse { fill: var(--success); animation: zo-pulse 1.4s ease-in-out infinite; }
+
+@keyframes zo-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zo-pulse { animation: none; }
+}
+
+/* Inspector: doors as rows with confidence, and their evidence. */
+.door-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 38px;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 8px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.door-row:hover { border-color: var(--accent); }
+.door-row.danger { border-color: var(--danger-soft); background: var(--danger-soft); }
+.door-names { display: flex; flex-direction: column; min-width: 0; }
+.door-names .door-name { font-weight: 600; font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.door-names .door-to { font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.door-pct { font-size: var(--text-xs); font-weight: 650; color: var(--text-muted); text-align: right; }
+
+.conf-bar { display: block; height: 6px; border-radius: 3px; background: var(--surface-muted); overflow: hidden; }
+.conf-fill { display: block; height: 100%; border-radius: 3px; }
+.conf-fill.high { background: var(--success); }
+.conf-fill.mid { background: var(--warning); }
+.conf-fill.low { background: var(--danger); }
+
+.door-evidence { display: flex; flex-direction: column; gap: var(--space-2); }
+.evidence-summary { font-size: var(--text-sm); font-weight: 600; }
+.evidence-run {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.evidence-run:hover { background: var(--surface-hover); }
+.evidence-goal { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evidence-when { font-size: var(--text-xs); }
+
+@media (max-width: 1280px) {
+  .atlas-board { grid-template-columns: 180px minmax(0, 1fr); }
+  .atlas-board .inspector { grid-column: 1 / -1; position: static; }
+}
+
+@media (max-width: 900px) {
+  .atlas-board { grid-template-columns: 1fr; }
+  .atlas-rail { position: static; }
+}
+
+/* Coverage tab (plan 22): honest numbers, per scenario lane and per zone. */
+.coverage-stats { margin-bottom: var(--space-4); }
+.coverage-lanes, .coverage-zones { margin-bottom: var(--space-4); }
+.coverage-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) minmax(160px, 2fr) repeat(4, minmax(70px, 0.6fr));
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.coverage-lanes .coverage-row { grid-template-columns: minmax(140px, 1.2fr) minmax(160px, 2fr) minmax(90px, 0.8fr); }
+.coverage-head { color: var(--text-faint); font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-top: 0; }
+.coverage-name { font-weight: 600; }
+.coverage-num { text-align: right; font-variant-numeric: tabular-nums; }
+.coverage-num.warn { color: var(--warning); font-weight: 650; }
+.coverage-num.danger { color: var(--danger); font-weight: 650; }
+.coverage-conf { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: var(--space-2); }
+.coverage-pct { font-size: var(--text-xs); font-weight: 650; color: var(--text-muted); text-align: right; }
+.coverage-bar { height: 8px; border-radius: 4px; }
+.coverage-note { max-width: 880px; }

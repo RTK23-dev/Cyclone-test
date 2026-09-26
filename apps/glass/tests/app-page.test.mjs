@@ -129,6 +129,11 @@ function open(phone, timer = manualTimer(), placeId = PLACE, extra = {}) {
   return { page, timer };
 }
 
+function showAll(page) {
+  const all = page.element.querySelectorAll(".rail-item").find((b) => /All places/.test(b.textContent));
+  all.click();
+}
+
 test("app header shows phone facts; the board shows the phone's rooms and doors", async () => {
   const phone = fakePhone({ rooms: [ROOM(1), ROOM(2)] });
   const { page } = open(phone);
@@ -137,8 +142,11 @@ test("app header shows phone facts; the board shows the phone's rooms and doors"
   assert.match(page.element.querySelector(".page-title").textContent, /Clock/);
   assert.match(text, /Installed 8\.1/);
   assert.match(text, /Mapped on 8\.1/);
+  assert.equal(page.element.querySelectorAll(".zo-zone").length, 2, "the overview shows the entry zone and one base page");
+  assert.match(page.element.querySelector(".atlas-crumb").textContent, /Clock›Overview/);
+  showAll(page);
   assert.equal(page.element.querySelectorAll(".map-card").length, 2);
-  assert.match(page.element.querySelector(".board-coverage").textContent, /2 rooms · 1 door/);
+  assert.match(page.element.querySelector(".board-coverage").textContent, /2 places · 1 door/);
   assert.match(page.element.querySelector(".inspector").textContent, /Click a room/);
   assert.equal(page.element.querySelector(".mapping-controls .btn").textContent.trim(), "Remap");
   page.destroy();
@@ -148,10 +156,11 @@ test("clicking a room opens the inspector with its doors", async () => {
   const phone = fakePhone({ rooms: [ROOM(1), ROOM(2)] });
   const { page } = open(phone);
   await flush();
+  showAll(page);
   page.element.querySelectorAll(".map-card")[0].click();
   const inspector = page.element.querySelector(".inspector").textContent;
   assert.match(inspector, /Room/);
-  assert.match(inspector, /Doors out/);
+  assert.match(inspector, /Doors from this place/);
   assert.match(inspector, /Open/);
   page.destroy();
 });
@@ -172,6 +181,8 @@ test("Start mapping follows the phone: cursor, new rooms from atlas.diff, then S
   phone.walk(2);
   await timer.fire();
   await flush();
+  assert.equal(page.element.querySelectorAll(".zo-zone.active").length, 1, "the zone the phone is in pulses on the overview");
+  showAll(page);
   assert.equal(page.element.querySelectorAll(".map-card").length, 2);
   assert.equal(page.element.querySelectorAll(".map-card.mapping-cursor").length, 1);
 
@@ -204,6 +215,7 @@ test("web places show the board but cannot start mapping yet", async () => {
   const phone = fakePhone({ app: web });
   const { page } = open(phone, manualTimer(), "chrome:https://example.com");
   await flush();
+  showAll(page);
   assert.equal(page.element.querySelectorAll(".map-card").length, 1, "the web place's rooms still render");
   const start = page.element.querySelector(".mapping-controls .btn");
   assert.equal(start.disabled, true);

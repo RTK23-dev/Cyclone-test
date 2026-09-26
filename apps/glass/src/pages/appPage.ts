@@ -28,6 +28,13 @@ import { deviceGate } from "./deviceGate.js";
 import type { GlassPage } from "./page.js";
 import { startTeaching, stopTeaching } from "../services/teach.js";
 import { appTabs } from "./appKnowledgePage.js";
+import { deriveZones, layeredLayout, layoutCollapsed, runsThroughDoor, zoneSubModel, type LaneId, type ZoneMap } from "../maps/zones.js";
+import { createZoneOverview } from "../ui/zoneOverview.js";
+import { getScenarios } from "../services/knowledge.js";
+import { listRuns, statusLabel as runStatusLabel, statusTone as runStatusTone, type RunSummary } from "../services/runs.js";
+
+/** Semantic zoom (plan 22): the app's story, one zone, one scenario lane, or every place at once. */
+export type AtlasView = { kind: "overview" } | { kind: "zone"; id: string } | { kind: "lane"; id: LaneId } | { kind: "all" };
 
 export interface AppPageDeps {
   fetch?: typeof fetch;
@@ -60,6 +67,12 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
   let teachNote = "";
   let destroyed = false;
   let loadSeq = 0;
+  let zones: ZoneMap | null = null;
+  let entryHint: string | null = null;
+  let view: AtlasView = route.route?.length ? { kind: "all" } : { kind: "overview" };
+  let cursorScreenId: string | null = null;
+  let runs: RunSummary[] | null = null;
+  let runsLoading: Promise<void> | null = null;
 
   const header = el("header", "app-header");
   const controls = el("div", "mapping-controls");
@@ -80,9 +93,10 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
   );
   const tabs = appTabs(placeId, "map");
 
+  const crumb = el("div", "atlas-crumb");
   const coverage = el("div", "board-coverage");
   const bar = el("div", "board-bar");
-  bar.append(personaSwitch.element, coverage, statusLine);
+  bar.append(crumb, personaSwitch.element, coverage, statusLine);
 
   const canvas = createAppMapCanvas({
     onSelectScreen: (id) => {
@@ -98,8 +112,21 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
   });
   const inspector = el("aside", "inspector");
   const boardArea = el("div", "board-area");
-  const board = el("section", "board");
-  board.append(boardArea, inspector);
+  const rail = el("nav", "atlas-rail");
+  rail.setAttribute("aria-label", "Scenarios and zones");
+  const board = el("section", "board atlas-board");
+  board.append(rail, boardArea, inspector);
+  const overview = createZoneOverview({
+    onZone: (id) => setView({ kind: "zone", id }),
+    onLane: (id) => setView({ kind: "lane", id }),
+  });
+
+  const setView = (next: AtlasView): void => {
+    view = next;
+    selection = null;
+    renderBoard(true);
+    renderInspector();
+  };
 
   element.append(header, tabs, bar, board);
 
@@ -122,7 +149,9 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
     ops: phone,
     onJob: (next) => {
       job = next;
-      canvas.setCursorScreenId(next.placeId === placeId && isActiveMapping(next) ? next.currentAtlasNodeId : null);
+      cursorScreenId = next.placeId === placeId && isActiveMapping(next) ? next.currentAtlasNodeId : null;
+      canvas.setCursorScreenId(cursorScreenId);
+      if (view.kind === "overview" && zones) overview.render(zones, { activeScreenId: cursorScreenId });
       renderControls();
     },
     onAtlasChanged: (changed) => {
@@ -249,15 +278,118 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
     }
     const state: InspectorState =
       selection?.kind === "edge" ? inspectorStateForEdge(model, selection.id) : inspectorState(model, selection?.kind === "screen" ? selection.id : null);
-    setChildren(inspector, ...inspectorNodes(state, model));
+    const nodes = inspectorNodes(state, model, {
+      zoneName: state.kind === "screen" && selection ? zones?.zones.find((z) => z.id === zones?.zoneOf.get(selection!.id))?.name ?? null : null,
+      onDoor: (edgeId) => {
+        selection = { kind: "edge", id: edgeId };
+        canvas.setSelectedEdgeId(edgeId);
+        renderInspector();
+      },
+    });
+    if (state.kind === "edge" && state.fromScreenId && state.toScreenId) nodes.push(doorEvidence(state.fromScreenId, state.toScreenId));
+    if (state.kind === "empty" && zones && view.kind === "overview") nodes.splice(1, 1, el("p", "muted", "Pick a zone to open it, or a scenario lane above the map. Rooms and doors show up here when you select them."));
+    setChildren(inspector, ...nodes);
+  };
+
+  /** Evidence for a door: the runs whose route walked it, newest first, each with a way into its replay. */
+  const doorEvidence = (from: string, to: string): HTMLElement => {
+    const box = el("div", "door-evidence");
+    box.append(el("h3", "inspector-section", "Evidence"));
+    const fill = (): void => {
+      if (!runs) {
+        box.append(el("p", "muted", "Loading the runs that used this door…"));
+        return;
+      }
+      const used = runsThroughDoor(runs, from, to).sort((a, b) => b.startedAt - a.startedAt);
+      if (!used.length) {
+        box.append(el("p", "muted", "No run has walked this door yet. It came from a mapping pass or from teaching."));
+        return;
+      }
+      const ok = used.filter((r) => r.status === "completed").length;
+      box.append(el("p", "evidence-summary", `Walked in ${plural(used.length, "run")} · ${ok} finished`));
+      for (const run of used.slice(0, 5)) {
+        const row = link("", `#/runs/${encodeURIComponent(run.runId)}`, "evidence-run");
+        row.append(chip(runStatusLabel(run.status), runStatusTone(run.status)), el("span", "evidence-goal", run.goal), el("span", "muted evidence-when", relativeTime(run.startedAt)));
+        box.append(row);
+      }
+    };
+    fill();
+    if (!runs) {
+      runsLoading ??= listRuns(ctx.client, deviceId, "all", 200).then((list) => { runs = list; }).catch(() => { runs = []; });
+      void runsLoading.then(() => {
+        if (destroyed || selection?.kind !== "edge") return;
+        renderInspector();
+      });
+    }
+    return box;
+  };
+
+  const viewLabel = (): string => {
+    if (!zones) return "All places";
+    switch (view.kind) {
+      case "overview":
+        return "Overview";
+      case "all":
+        return "All places";
+      case "lane":
+        return zones.lanes.find((l) => l.id === (view as { id: LaneId }).id)?.label ?? "Scenario";
+      case "zone":
+        return zones.zones.find((z) => z.id === (view as { id: string }).id)?.name ?? "Zone";
+    }
+  };
+
+  const renderRail = (): void => {
+    if (!model || !model.screens.length || !zones) {
+      setChildren(rail);
+      rail.hidden = true;
+      setChildren(crumb);
+      return;
+    }
+    rail.hidden = false;
+    const item = (label: string, count: number | null, active: boolean, onClick: () => void, extra?: HTMLElement): HTMLElement => {
+      const node = el("button", `rail-item${active ? " active" : ""}`) as HTMLButtonElement;
+      node.type = "button";
+      node.append(el("span", "rail-label", label));
+      if (extra) node.append(extra);
+      if (count != null) node.append(el("span", "rail-count", String(count)));
+      node.addEventListener("click", onClick);
+      return node;
+    };
+    const nodes: HTMLElement[] = [item("Overview", null, view.kind === "overview", () => setView({ kind: "overview" }))];
+    nodes.push(el("div", "rail-heading", "Scenarios"));
+    for (const lane of zones.lanes) {
+      nodes.push(item(lane.label, lane.screenIds.length, view.kind === "lane" && view.id === lane.id, () => setView({ kind: "lane", id: lane.id })));
+    }
+    nodes.push(el("div", "rail-heading", "Zones"));
+    if (!zones.zones.length) nodes.push(el("p", "muted rail-note", "No signed-in places yet."));
+    for (const zone of zones.zones) {
+      const dot = el("span", `rail-dot ${zone.confidence == null ? "" : zone.confidence >= 0.85 ? "high" : zone.confidence >= 0.6 ? "mid" : "low"}`);
+      dot.title = zone.confidence == null ? "Confidence unknown" : `Confidence ${Math.round(zone.confidence * 100)}%`;
+      nodes.push(item(zone.name, zone.screenIds.length, view.kind === "zone" && view.id === zone.id, () => setView({ kind: "zone", id: zone.id }), dot));
+    }
+    nodes.push(el("div", "rail-heading", "Everything"));
+    nodes.push(item("All places", model.screens.length, view.kind === "all", () => setView({ kind: "all" })));
+    setChildren(rail, ...nodes);
+
+    const name = app?.label ?? placeId.slice(placeId.indexOf(":") + 1);
+    const parts: HTMLElement[] = [el("span", "crumb-app", name), el("span", "crumb-sep", "›"), el("span", "crumb-here", viewLabel())];
+    if (view.kind !== "overview") {
+      const back = el("button", "btn btn-ghost crumb-back", "Back to overview") as HTMLButtonElement;
+      back.type = "button";
+      back.addEventListener("click", () => setView({ kind: "overview" }));
+      parts.push(back);
+    }
+    setChildren(crumb, ...parts);
   };
 
   const renderBoard = (fit: boolean): void => {
     if (!model) return;
     coverage.textContent = model.screens.length
-      ? `${plural(model.coverage.screens, "room")} · ${plural(model.coverage.doors, "door")}${model.coverage.dark ? ` · ${model.coverage.dark} dark` : ""} · verified ${relativeTime(model.lastVerifiedAt)}`
+      ? `${plural(model.coverage.screens, "place")} · ${plural(model.coverage.doors, "door")}${model.coverage.dark ? ` · ${model.coverage.dark} unconfirmed` : ""} · verified ${relativeTime(model.lastVerifiedAt)}`
       : "";
     if (!model.screens.length) {
+      zones = null;
+      renderRail();
       setChildren(
         boardArea,
         emptyState({
@@ -271,8 +403,25 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
       );
       return;
     }
+    zones = deriveZones(model, entryHint);
+    if (view.kind === "zone" && !zones.zones.some((z) => z.id === (view as { id: string }).id)) view = { kind: "overview" };
+    if (view.kind === "overview" && !zones.zones.length) view = { kind: "all" };
+    renderRail();
+    if (view.kind === "overview") {
+      if (overview.element.parentElement !== boardArea) setChildren(boardArea, overview.element);
+      overview.render(zones, { activeScreenId: cursorScreenId });
+      return;
+    }
+    const shown =
+      view.kind === "zone"
+        ? layeredLayout(zoneSubModel(model, zones, view.id), zones.zones.find((z) => z.id === (view as { id: string }).id)?.baseScreenId ?? zones.entryScreenId)
+        : view.kind === "lane"
+          ? layeredLayout(laneSubModel(model, zones, view.id), null)
+          : layoutCollapsed(model)
+            ? layeredLayout(model, zones.entryScreenId)
+            : model;
     if (canvas.element.parentElement !== boardArea) setChildren(boardArea, canvas.element);
-    canvas.setViewModel(model, { fit });
+    canvas.setViewModel(shown, { fit });
   };
 
   const loadAtlas = async (fit: boolean): Promise<void> => {
@@ -321,6 +470,14 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
     }
     await loadAtlas(true);
     if (!destroyed) await watcher.attach().catch(() => undefined);
+    // The scenarios' entry place anchors the zones when the phone knows it.
+    if (!destroyed && placeId.startsWith("package:")) {
+      const scenarios = await getScenarios(ctx.client, deviceId, placeId, "mapping").catch(() => null);
+      if (!destroyed && scenarios?.entryScreenId && scenarios.entryScreenId !== entryHint) {
+        entryHint = scenarios.entryScreenId;
+        renderBoard(false);
+      }
+    }
   })();
 
   return {
@@ -333,14 +490,28 @@ export function createAppPage(ctx: GlassContext, route: Extract<Route, { name: "
   };
 }
 
-function inspectorNodes(state: InspectorState, model: AtlasViewModel): HTMLElement[] {
+function laneSubModel(model: AtlasViewModel, zones: ZoneMap, laneId: LaneId): AtlasViewModel {
+  const ids = new Set(zones.lanes.find((l) => l.id === laneId)?.screenIds ?? []);
+  return { ...model, screens: model.screens.filter((s) => ids.has(s.screenId)), edges: model.edges.filter((e) => ids.has(e.fromScreenId) && ids.has(e.toScreenId)) };
+}
+
+function confidenceBar(value: number): HTMLElement {
+  const bar = el("span", "conf-bar");
+  const pct = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+  const fill = el("span", `conf-fill ${pct >= 0.85 ? "high" : pct >= 0.6 ? "mid" : "low"}`);
+  fill.style.width = `${Math.round(pct * 100)}%`;
+  bar.append(fill);
+  return bar;
+}
+
+function inspectorNodes(state: InspectorState, model: AtlasViewModel, extra: { zoneName?: string | null; onDoor?: (edgeId: string) => void } = {}): HTMLElement[] {
   if (state.kind === "empty") {
     return [
       el("h2", "inspector-title", "Inspector"),
       el("p", "muted", model.screens.length ? "Click a room or a door on the board to see what Cyclone knows about it." : "Rooms and doors appear here once the app is mapped."),
     ];
   }
-  const nodes: HTMLElement[] = [el("div", "inspector-kicker", state.kind === "edge" ? "Door" : "Room"), el("h2", "inspector-title", state.title)];
+  const nodes: HTMLElement[] = [el("div", "inspector-kicker", state.kind === "edge" ? "Door" : "Place"), el("h2", "inspector-title", state.title)];
   if (state.subtitle) nodes.push(el("p", "muted", state.subtitle));
   const facts = el("dl", "kv");
   const add = (key: string, value: string): void => {
@@ -352,7 +523,7 @@ function inspectorNodes(state: InspectorState, model: AtlasViewModel): HTMLEleme
     if (state.actionHint) add("Action", state.actionHint);
   } else {
     add("Purpose", state.purpose ?? "—");
-    if (state.region) add("Region", state.region);
+    if (extra.zoneName) add("Zone", extra.zoneName);
     if (state.tone) add("State", roomStatusLabel(state.tone));
   }
   add("Confidence", state.confidence != null ? `${Math.round(state.confidence * 100)}%` : "unknown");
@@ -368,14 +539,18 @@ function inspectorNodes(state: InspectorState, model: AtlasViewModel): HTMLEleme
       if (slot.description) row.append(el("span", "slot-copy muted", slot.description));
       nodes.push(row);
     }
-    nodes.push(el("h3", "inspector-section", "Doors out"));
-    if (!state.doors.length) nodes.push(el("p", "muted", "No doors mapped from this room yet."));
-    for (const door of state.doors) {
-      const row = el("div", `door${door.dark ? " dark" : ""}${door.risk.danger ? " danger" : ""}`);
-      row.append(el("span", "door-name", door.actionHint), el("span", "door-to muted", `to ${door.toLabel}${door.dark ? " · not verified" : ""}`));
+    nodes.push(el("h3", "inspector-section", `Doors from this place (${state.doors.length})`));
+    if (!state.doors.length) nodes.push(el("p", "muted", "No doors mapped from this place yet."));
+    for (const door of [...state.doors].sort((a, b) => b.confidence - a.confidence)) {
+      const row = el("button", `door door-row${door.dark ? " dark" : ""}${door.risk.danger ? " danger" : ""}`) as HTMLButtonElement;
+      row.type = "button";
+      const names = el("span", "door-names");
+      names.append(el("span", "door-name", door.actionHint), el("span", "door-to muted", `→ ${door.toLabel}${door.risk.danger ? " · blocked for mapping" : door.dark ? " · not confirmed" : ""}`));
+      row.append(names, confidenceBar(door.confidence), el("span", "door-pct", Number.isFinite(door.confidence) ? `${Math.round(door.confidence * 100)}%` : "—"));
+      row.addEventListener("click", () => extra.onDoor?.(door.edgeId));
       nodes.push(row);
     }
-    nodes.push(el("p", "muted inspector-note", "Screenshots of rooms arrive with the run inspector in a later alpha."));
+    nodes.push(el("p", "muted inspector-note", "Structure only: Cyclone keeps what a place is and its doors, never what was on the screen."));
   }
   return nodes;
 }
