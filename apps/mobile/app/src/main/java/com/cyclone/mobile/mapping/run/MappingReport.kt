@@ -23,6 +23,7 @@ object MappingReport {
         .put("mappingJobId", job.mappingJobId)
         .put("placeId", job.placeId)
         .put("persona", job.persona)
+        .put("identity", job.identity.wire)
         .put("plane", job.lease.plane.kind.name.lowercase())
         .put("state", job.state.wireValue)
         .put("failureCode", job.failureCode ?: JSONObject.NULL)

@@ -65,14 +65,14 @@ internal object GatewayV5MappingAdapter {
         val allowed = setOf(
             "placeId", "persona", "sessionId", "displayId",
             "workspaceId", "workspaceGeneration", "executionGeneration",
-            "budget", "resumeJobId",
+            "budget", "resumeJobId", "identity",
         )
         requireOnly(args, allowed)
         val plane = planeRequest(args)
         val controller = MappingSessionRuntime.controller(context)
         val resumeJobId = optionalJobId(args, "resumeJobId")
         val job = if (resumeJobId != null) {
-            if (args.has("placeId") || args.has("persona") || args.has("budget")) {
+            if (args.has("placeId") || args.has("persona") || args.has("budget") || args.has("identity")) {
                 throw MappingSessionException(
                     "INVALID_REQUEST",
                     "mapping.start resume accepts resumeJobId plus phone-plane identity only.",
@@ -85,6 +85,12 @@ internal object GatewayV5MappingAdapter {
                 persona = requiredPersona(args),
                 plane = plane,
                 budget = args.optJSONObject("budget")?.let(::budget) ?: MappingBudget.DEFAULT,
+                identity = when (val raw = args.opt("identity")) {
+                    null, JSONObject.NULL -> com.cyclone.mobile.mapping.crawl.MappingIdentity.OWN
+                    is String -> com.cyclone.mobile.mapping.crawl.MappingIdentity.fromWire(raw)
+                        ?: throw MappingSessionException("INVALID_REQUEST", "identity must be own or test.")
+                    else -> throw MappingSessionException("INVALID_REQUEST", "identity must be own or test.")
+                },
             )
             controller.start(request)
         }
@@ -227,6 +233,7 @@ internal object GatewayV5MappingAdapter {
         .put("startedAtEpochMs", job.startedAtEpochMs)
         .put("updatedAtEpochMs", job.updatedAtEpochMs)
         .put("failureCode", job.failureCode ?: JSONObject.NULL)
+        .put("identity", job.identity.wire)
 
     private fun idleJson(plane: SessionPlane): JSONObject = JSONObject()
         .put("mappingJobId", JSONObject.NULL)
@@ -247,6 +254,7 @@ internal object GatewayV5MappingAdapter {
         .put("startedAtEpochMs", JSONObject.NULL)
         .put("updatedAtEpochMs", JSONObject.NULL)
         .put("failureCode", JSONObject.NULL)
+        .put("identity", JSONObject.NULL)
 
     private fun budgetJson(value: MappingBudget): JSONObject = JSONObject()
         .put("maxNewScreens", value.maxNewScreens)

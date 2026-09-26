@@ -148,6 +148,7 @@ data class MappingStartRequest(
     val persona: String,
     val plane: MappingPlaneRequest,
     val budget: MappingBudget = MappingBudget.DEFAULT,
+    val identity: com.cyclone.mobile.mapping.crawl.MappingIdentity = com.cyclone.mobile.mapping.crawl.MappingIdentity.OWN,
 ) {
     init {
         requirePlaceId(placeId)
@@ -171,6 +172,7 @@ data class MappingJob(
     val startedAtEpochMs: Long,
     val updatedAtEpochMs: Long,
     val failureCode: String? = null,
+    val identity: com.cyclone.mobile.mapping.crawl.MappingIdentity = com.cyclone.mobile.mapping.crawl.MappingIdentity.OWN,
 ) {
     init {
         require(mappingJobId.matches(Regex("[A-Za-z0-9_-]{8,120}")))

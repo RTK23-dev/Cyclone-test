@@ -138,7 +138,7 @@ class PhoneToolMappingNavigationPort(
  * Re-resolves the exact current element and delegates consequential-action classification to the
  * existing phone GATE. The crawler never decides pay/send/delete/grant from its durable door key.
  */
-class ExistingGateMappingSafetyPort : MappingSafetyPort {
+class ExistingGateMappingSafetyPort(private val identity: MappingIdentity? = null) : MappingSafetyPort {
     override fun classify(observation: MappingObservation, door: MappingDoor): MappingDanger {
         val current = GatewayObservationStore.current(observation.sessionId)
             ?: return MappingDanger.REVIEW_BOUNDARY
@@ -153,6 +153,16 @@ class ExistingGateMappingSafetyPort : MappingSafetyPort {
             element.evidence.optString("resourceId").takeIf(String::isNotBlank)?.let(::add)
         }
         val normalized = labels.joinToString(" ").lowercase(Locale.US)
+        // Mapper safety v2: toggles, rows holding a toggle, state-changing and security doors are never tapped.
+        val bounds = element.evidence.optJSONObject("bounds")
+        val containsCheckable = bounds != null && current.elements.values.any { other ->
+            other.id != element.id && (other.evidence.optBoolean("checkable") || other.role.lowercase(Locale.US) in setOf("switch", "checkbox", "radiobutton", "togglebutton")) &&
+                other.evidence.optJSONObject("bounds")?.let { inner -> contains(bounds, inner) } == true
+        }
+        MapperDoorRisk.classify(
+            MapperDoorRisk.Facts(labels, element.role, element.evidence.optBoolean("checkable"), containsCheckable),
+            identity,
+        )?.let { return it }
         if (LOGOUT_ALL.containsMatchIn(normalized)) return MappingDanger.LOGOUT_ALL
         if (LOGOUT.containsMatchIn(normalized)) return MappingDanger.REVIEW_BOUNDARY
 
@@ -164,6 +174,11 @@ class ExistingGateMappingSafetyPort : MappingSafetyPort {
             null -> MappingDanger.NONE
         }
     }
+
+    private fun contains(outer: JSONObject, inner: JSONObject): Boolean =
+        inner.optInt("left") >= outer.optInt("left") && inner.optInt("right") <= outer.optInt("right") &&
+            inner.optInt("top") >= outer.optInt("top") && inner.optInt("bottom") <= outer.optInt("bottom") &&
+            inner.optInt("right") > inner.optInt("left")
 
     private companion object {
         val LOGOUT_ALL = Regex("""\b(log\s*out|sign\s*out|logout|signout)\s+(?:of\s+)?all\b""")

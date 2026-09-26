@@ -192,7 +192,7 @@ object MappingDriverRuntime {
             session = session,
             observations = GatewayMappingObservationPort(appContext),
             atlas = atlas,
-            safety = ExistingGateMappingSafetyPort(),
+            safety = ExistingGateMappingSafetyPort(job.identity),
             mutations = PhoneToolMappingMutationPort(appContext),
             secrets = secrets,
         )

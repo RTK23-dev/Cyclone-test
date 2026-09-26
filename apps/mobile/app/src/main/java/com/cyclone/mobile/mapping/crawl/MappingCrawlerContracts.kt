@@ -34,7 +34,22 @@ data class MappingSessionSnapshot(
     val authority: MappingAuthority = MappingAuthority.OWNED,
     val newScreens: Int = 0,
     val consecutiveNonProgress: Int = 0,
+    /** Whose account the pass maps with; the owner's own account is look only. */
+    val identity: MappingIdentity = MappingIdentity.OWN,
 )
+
+/**
+ * Whose account a mapping pass uses. OWN ("my account, look only") never walks account or sign-in doors and ends at a
+ * sign-in wall. TEST may walk sign-in and onboarding screens; credentials only ever come from the Secrets Card.
+ */
+enum class MappingIdentity(val wire: String) {
+    OWN("own"),
+    TEST("test");
+
+    companion object {
+        fun fromWire(value: String?): MappingIdentity? = entries.firstOrNull { it.wire == value }
+    }
+}
 
 data class MappingBudget(
     val maxNewScreens: Int,
@@ -153,6 +168,14 @@ enum class MappingDanger {
     LOGOUT_ALL,
     GRANT,
     REVIEW_BOUNDARY,
+    /** A toggle, or a row holding one: tapping it changes a setting. */
+    SETTING_CHANGE,
+    /** Follow, like, join, install, block…: tapping it changes state. */
+    STATE_CHANGE,
+    /** Password, two-factor, passkeys, recovery, logged-in devices, deactivate. */
+    SECURITY,
+    /** Account and sign-in doors while mapping with the owner's own account (look only). */
+    ACCOUNT,
 }
 
 /**

@@ -949,3 +949,38 @@ def test_apps_list_may_carry_scenario_health_counts():
         svc = V5ContractService(FakeFleet(AppsBridge({"apps": [{**GMAIL_APP, "scenarios": bad}], "truncated": False})))
         with pytest.raises(DesktopRuntimeError):
             svc.forward("phone-1", "apps.list", {})
+
+
+# ---- alpha.38: mapping identity (own = look only, test = test account) -------------------------------------------------
+
+def test_mapping_start_forwards_a_known_identity_and_refuses_others(service):
+    svc, bridge = service
+    plane = {"sessionId": "default-foreground", "displayId": 0}
+    for identity in ("own", "test"):
+        svc.forward("phone-1", "mapping.start", {"placeId": "package:com.example.app", "persona": "mapping", "identity": identity, **plane})
+        assert bridge.calls[-1][1]["identity"] == identity
+    calls = len(bridge.calls)
+    for bad in ("admin", "", None, 1):
+        with pytest.raises(DesktopRuntimeError):
+            svc.forward("phone-1", "mapping.start", {"placeId": "package:com.example.app", "persona": "mapping", "identity": bad, **plane})
+    with pytest.raises(DesktopRuntimeError):
+        svc.forward("phone-1", "mapping.start", {"resumeJobId": "map-phone-0001", "identity": "test", **plane})
+    assert len(bridge.calls) == calls
+
+
+def test_mapping_responses_may_carry_the_identity(service):
+    svc, bridge = service
+    plane = {"sessionId": "default-foreground", "displayId": 0}
+    original = bridge.request
+
+    def with_identity(value):
+        def request(op, args, request_id=None):
+            result = original(op, args, request_id)
+            return {**result, "identity": value} if op.startswith("mapping.") else result
+        return request
+
+    bridge.request = with_identity("test")
+    assert svc.forward("phone-1", "mapping.status", dict(plane))["identity"] == "test"
+    bridge.request = with_identity("admin")
+    with pytest.raises(DesktopRuntimeError):
+        svc.forward("phone-1", "mapping.status", dict(plane))

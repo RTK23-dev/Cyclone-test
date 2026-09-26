@@ -86,6 +86,8 @@ MAPPING_JOB_KEYS = frozenset({
     "controlRevision", "executionGeneration", "budget", "currentAtlasNodeId", "progress",
     "atlasStatus", "danger", "boundary", "startedAtEpochMs", "updatedAtEpochMs", "failureCode",
 })
+#: Whose account a mapping pass uses: own = the owner's account, look only; test = a test account.
+MAPPING_IDENTITIES = frozenset({"own", "test"})
 BUDGET_KEYS = frozenset({
     "maxNewScreens",
     "maxElapsedMs",
@@ -333,8 +335,11 @@ def _validate_atlas_diff(value: dict[str, Any], args: dict[str, Any]) -> None:
 
 
 def _validate_mapping_response(value: dict[str, Any], args: dict[str, Any]) -> None:
-    if set(value) != MAPPING_JOB_KEYS:
+    # alpha.38+ phones add `identity` (own/test, null when idle); older phones omit it.
+    if set(value) not in (MAPPING_JOB_KEYS, MAPPING_JOB_KEYS | {"identity"}):
         raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping result is malformed.")
+    if "identity" in value and value["identity"] not in (MAPPING_IDENTITIES | {None}):
+        raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping identity is invalid.")
     if value.get("state") not in MAPPING_STATES:
         raise DesktopRuntimeError(RuntimeErrorCode.PROTOCOL_MISMATCH, "Android mapping state is invalid.")
     if value.get("sessionId") != args.get("sessionId") or value.get("displayId") != args.get("displayId"):
@@ -1346,7 +1351,7 @@ class V5ContractService:
         if op == "mapping.start":
             allowed = {
                 "placeId", "persona", "sessionId", "displayId", "workspaceId", "workspaceGeneration",
-                "executionGeneration", "budget", "resumeJobId",
+                "executionGeneration", "budget", "resumeJobId", "identity",
             }
             if not set(args).issubset(allowed):
                 raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "mapping.start has an unexpected field.")
@@ -1355,7 +1360,7 @@ class V5ContractService:
             if resume_job_id is not None:
                 if not isinstance(resume_job_id, str) or JOB_ID.fullmatch(resume_job_id) is None:
                     raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "resumeJobId is invalid.")
-                if any(key in args for key in ("placeId", "persona", "budget")):
+                if any(key in args for key in ("placeId", "persona", "budget", "identity")):
                     raise DesktopRuntimeError(
                         RuntimeErrorCode.INVALID_REQUEST,
                         "mapping.start resume accepts resumeJobId plus plane identity only.",
@@ -1364,6 +1369,8 @@ class V5ContractService:
                 _validate_place_persona(args)
                 if "budget" in args:
                     _validate_budget(args["budget"])
+                if "identity" in args and args["identity"] not in MAPPING_IDENTITIES:
+                    raise DesktopRuntimeError(RuntimeErrorCode.INVALID_REQUEST, "identity must be own (look only) or test.")
             return self._call(device_id, op, args)
 
         allowed_command = {"mappingJobId", "sessionId", "displayId", "workspaceId", "workspaceGeneration"}

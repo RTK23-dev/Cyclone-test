@@ -6,6 +6,7 @@ import com.cyclone.mobile.mapping.crawl.MappingDanger
 import com.cyclone.mobile.mapping.crawl.MappingSessionPort
 import com.cyclone.mobile.mapping.crawl.MappingSessionSnapshot
 import com.cyclone.mobile.mapping.session.MappingAtlasStatus
+import com.cyclone.mobile.mapping.session.MappingBoundary
 import com.cyclone.mobile.mapping.session.MappingJob
 import com.cyclone.mobile.mapping.session.MappingSessionControl
 import com.cyclone.mobile.mapping.session.MappingSessionException
@@ -84,7 +85,10 @@ class ControllerSessionPort(
 
     override fun completePartial(reason: String) {
         val job = controller.status(jobId) ?: return
-        if (!job.state.terminal) controller.complete(jobId, MappingAtlasStatus.PARTIAL)
+        if (job.state.terminal) return
+        // A look-only pass that met a sign-in wall says so, so Glass can tell the owner why it ended.
+        if (reason == "sign_in_needed") runCatching { controller.markBoundary(jobId, MappingBoundary.AUTHENTICATION) }
+        controller.complete(jobId, MappingAtlasStatus.PARTIAL)
     }
 
     override fun fail(reason: String) {
@@ -128,6 +132,7 @@ class ControllerSessionPort(
             authority = authority,
             newScreens = job.progress.newScreens,
             consecutiveNonProgress = job.progress.consecutiveNonProgress,
+            identity = job.identity,
         )
     }
 }

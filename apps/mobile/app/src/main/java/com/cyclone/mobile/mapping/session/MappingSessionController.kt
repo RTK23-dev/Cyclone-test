@@ -36,6 +36,7 @@ class MappingSessionController(
             state = MappingSessionState.RUNNING,
             startedAtEpochMs = now,
             updatedAtEpochMs = now,
+            identity = request.identity,
         )
         jobs[job.mappingJobId] = job
         activeByPlane[planeKey] = job.mappingJobId

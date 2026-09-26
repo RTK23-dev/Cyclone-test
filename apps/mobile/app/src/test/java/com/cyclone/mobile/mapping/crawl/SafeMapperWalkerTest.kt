@@ -121,6 +121,7 @@ class SafeMapperWalkerTest {
                     doors = listOf(door("obs-secret", "sign-in", MappingDoorKind.ACCOUNT))),
             ),
             secretObservations = setOf("obs-secret"),
+            identity = MappingIdentity.TEST,
         )
 
         val result = h.walker.step(nowMs = 1_100)
@@ -129,6 +130,25 @@ class SafeMapperWalkerTest {
         assertEquals(0, h.mutations.actions.size)
         assertEquals(1, h.secrets.requests.size)
         assertEquals("Login required", h.session.secretPause)
+    }
+
+    @Test
+    fun lookOnlyPassEndsAtASignInWallInsteadOfAskingForCredentials() {
+        val h = Harness(
+            observations = listOf(
+                observation("obs-secret", "login", purpose = StructuralScreenPurpose.LOGIN,
+                    doors = listOf(door("obs-secret", "sign-in", MappingDoorKind.ACCOUNT))),
+            ),
+            secretObservations = setOf("obs-secret"),
+        )
+
+        val result = h.walker.step(nowMs = 1_100)
+
+        assertEquals(MappingStepResult.CompletedPartial("sign_in_needed"), result)
+        assertEquals(0, h.mutations.actions.size)
+        assertEquals(0, h.secrets.requests.size)
+        assertEquals(null, h.session.secretPause)
+        assertEquals("sign_in_needed", h.session.partialReason)
     }
 
     @Test
@@ -403,9 +423,10 @@ class SafeMapperWalkerTest {
         secretObservations: Set<String> = emptySet(),
         budget: MappingBudget = baseBudget,
         afterObserve: (() -> Unit)? = null,
+        identity: MappingIdentity = MappingIdentity.OWN,
     ) {
         val events = mutableListOf<String>()
-        val session = FakeSession(budget)
+        val session = FakeSession(budget).also { it.current = it.current.copy(identity = identity) }
         val observer = FakeObservations(observations, events, afterObserve)
         val atlas = FakeAtlas(events)
         val safety = FakeSafety(dangers)

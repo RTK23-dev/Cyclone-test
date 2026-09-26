@@ -30,6 +30,8 @@ class SafeMapperWalker(
         if (!before.inPlace) return MappingStepResult.LeftPlace("before_observation_outside_place")
 
         secrets.detect(beforeSession, before)?.let { wall ->
+            // Look only: the owner's own account is never signed in or out by a mapping pass.
+            if (beforeSession.identity == MappingIdentity.OWN) return completePartial(beforeSession, "sign_in_needed")
             session.pauseNeedsSecret(wall.reason)
             secrets.request(wall)
             return MappingStepResult.Paused(PauseReason.NEEDS_SECRET)

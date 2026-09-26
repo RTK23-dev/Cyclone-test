@@ -273,6 +273,10 @@ class AtlasStoreMappingPort(
             MappingDanger.LOGOUT_ALL -> AtlasDanger.LOGOUT_ALL
             MappingDanger.GRANT -> AtlasDanger.PERMISSION
             MappingDanger.REVIEW_BOUNDARY -> AtlasDanger.UNKNOWN
+            MappingDanger.SETTING_CHANGE -> AtlasDanger.UNKNOWN
+            MappingDanger.STATE_CHANGE -> AtlasDanger.UNKNOWN
+            MappingDanger.SECURITY -> AtlasDanger.AUTHENTICATION
+            MappingDanger.ACCOUNT -> AtlasDanger.AUTHENTICATION
         }
 
         private fun dangerRank(value: AtlasDanger): Int = when (value) {
