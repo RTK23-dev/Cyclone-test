@@ -192,6 +192,58 @@ phone_lab_start {
 - Only use `phone_lab_stop` if the owner asks you to, or if something is clearly wrong: for example every run is
   `infra`, or the phone is doing something unexpected.
 
+### Phase 3 — does the map make Cyclone faster? (alpha.37 and later, about 3–5 hours)
+
+Alpha.37 lets Cyclone run from what it learned: in an app it knows, it gets the app's **map card** (screens s1, s2… and
+the moves between them) and a **go_to** tool that walks a learned route itself, checking the screen after every step.
+The variant knob `useMap` turns all of that off for one arm. With `useMap` on, the phone also **learns every lab
+mission as it ends**, so later trials of that arm start from what earlier ones saw.
+
+**The question:** with the map, do the navigation-heavy missions take **≥30% fewer turns and ≥30% less time with no
+drop in success**?
+
+**Step 1: warm the map (one arm, one repetition).** The map must exist before it can help. Run the 11 missions of the `map` suite once
+with the map on and throw the result away for the comparison. Its only job is to learn the routes.
+
+```json
+phone_lab_start {
+  "device_id": "<device id>",
+  "name": "Map warm-up",
+  "missions": ["settings.rotate.on", "settings.timeout.2min", "settings.brightness.adaptive.off", "settings.font.larger",
+               "settings.vibration.touch.off", "settings.dark.on", "settings.dnd.on", "clock.stopwatch", "calc.multiply",
+               "files.find.note", "play.app.page"],
+  "variants": [{"name": "map-on", "useMap": true}],
+  "repetitions": 1
+}
+```
+
+**Step 2: the A/B.** Same suite, both arms, 4 repetitions (11 missions × 2 × 4 = 88 runs). Keep everything else
+equal: same model, same effort, fresh memory in both arms.
+
+```json
+phone_lab_start {
+  "device_id": "<device id>",
+  "name": "Map on vs off x4",
+  "missions": ["settings.rotate.on", "settings.timeout.2min", "settings.brightness.adaptive.off", "settings.font.larger",
+               "settings.vibration.touch.off", "settings.dark.on", "settings.dnd.on", "clock.stopwatch", "calc.multiply",
+               "files.find.note", "play.app.page"],
+  "variants": [{"name": "map-off", "useMap": false}, {"name": "map-on", "useMap": true}],
+  "repetitions": 4
+}
+```
+
+**Reading it** (`phone_lab_report`, comparison `map-on vs map-off`):
+- `turnsRatio` and `timeRatio` are map-on divided by map-off (medians). **≤ 0.70 on both is the target.**
+- The pass rate of map-on must not be lower than map-off by more than noise: report `delta`, `pValue` and the
+  per-mission lists. A mission that got **worse** with the map is the most important finding; name it.
+- `arms.map-on.mapMoves` shows how many moves came from the map instead of the model. If it is near 0, the map was
+  not used: check that the warm-up passed and that `go_to` appears in the trials' `toolCalls`.
+- For every map-on failure, read the trial: a `go_to` that "stopped after N moves" is the map disagreeing with the app
+  (the walker is designed to stop, not guess). Report which app and which screen.
+
+**Honesty rules for this phase:** the off arm never reads the map, but the on arm's learning does change the phone's
+knowledge store for later experiments. Say so in the report. Never compare the warm-up to anything.
+
 ---
 
 ## 5. Analysing the results

@@ -110,7 +110,7 @@ Glass could not show what went wrong, which is how a wrong diagnosis got written
 **Exit:** a unit test that feeds the captured ChatGPT tree to `CurrentTargetRevalidation` reproduces the refusal and
 names the rule that fired.
 
-### Phase 1: Hands (alpha.37, the release that makes typing just work)
+### Phase 1: Hands (alpha.38, the release that makes typing just work)
 
 | # | Work | Where |
 |---|---|---|
@@ -130,7 +130,7 @@ names the rule that fired.
 - No regression on the Lab core suite. No secret values in clipboard telemetry. The Owner-moment handoff fires on a
   forced-failure fixture.
 
-### Phase 2: Desk (alpha.37 if Phase 1 lands early, otherwise alpha.38)
+### Phase 2: Desk (alpha.38 if Phase 1 lands early, otherwise alpha.39)
 
 A mission-scoped scratchpad the Mind can manage like files.
 
@@ -223,13 +223,13 @@ Delivery takes a desk file wherever it takes text:
 | Lab Hands suite + gate | gateway `lab/` suite, release checklist | gateway |
 | 2.x Desk | `mind/desk/*` (new), toolbox, mission card, `runs.desk` op, Glass Desk tab | mobile, then gateway + glass |
 
-**Proposed release sequence** (shifts plan 20 by one; the reason is that every map-guided run still has to type):
+**Release sequence** (the owner put map-guided runs first; Hands follows right after, because every map-guided run still has to type):
 
 | Release | Contents |
 |---|---|
-| **alpha.37** | Hands: Phase 0 + Phase 1, with the Lab Hands suite as the gate. |
-| **alpha.38** | Desk (Phase 2), plus map-guided runs from plan 20 if capacity allows. |
-| **alpha.39** | Mapping missions with a test identity (plan 20's alpha.38). |
+| **alpha.37** | Map-guided runs (plan 20), as the owner decided on 2026-09-25: built. |
+| **alpha.38** | Hands: Phase 0 + Phase 1, with the Lab Hands suite as the gate. |
+| **alpha.39** | Desk (Phase 2), then mapping missions with a test identity (plan 20's alpha.38). |
 
 ---
 

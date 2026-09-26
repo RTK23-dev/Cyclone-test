@@ -60,6 +60,12 @@ carry *Learned before* advice for known screens (`LearnedHints`); the Mind still
 re-observes. **Save skill** stores a completed run's goal as the owner's recipe (`market/OwnerSkills.kt`, "Your
 skills"). Plan: `Cyclone V5 plan/20-app-mapping-build-plan.md`.
 
+Since 5.0.0-alpha.37 the Mind also **runs from the map**: `mind/map/MindMap.kt` builds per-app routes from the same
+learned knowledge (safe, reliable, non-stale moves only). The first screen read in a learned app carries the app's map
+card, and the `go_to` tool walks a route through the ordinary act path, re-reading the screen after each move and
+stopping at the first surprise; walks and surprises feed back into the store. The Lab variant knob `useMap` A/B-tests
+it.
+
 ### Cyclone Marketplace (since 5.0.0-alpha.35)
 
 The phone's `market/` package is the one authority for the store: validated listings (data only; a recipe is a goal

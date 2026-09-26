@@ -169,6 +169,29 @@ Glass → Apps → any app (even 0% mapped) → **Start mapping**:
 
 ## 6. How the map makes runs faster (alpha.37)
 
+*Built in alpha.37* (`mind/map/MindMap.kt`, `MindMaps.kt`, `PhoneMindToolbox.goTo`):
+- **Map card.** The first time the Mind reads a screen of an app Cyclone has learned, the screen ends with *Map of
+  <App>*: every learned screen with a short handle (s1, s2…) and the moves out of it, at most 40 lines, marking
+  *(you are here)*.
+- **`go_to(screen)`.** It walks the most reliable known route: the fewest moves, preferring moves that worked more
+  often. Only safe, non-stale moves that worked at least half the time are routable. Each move is an ordinary tap
+  through the same act path, settle and GATE. After every move it reads the screen: the expected screen continues the
+  walk; another known screen re-plans (at most twice); anything else stops with *"The map walk stopped after N moves:
+  … Here is the real screen."*
+- **Feedback.** A confirmed move counts as another success in the knowledge store; a surprise counts against it (two
+  failures mark it stale) and the mission's map is rebuilt, so a bad route is not offered again.
+- **Measurement.** The Lab variant knob `useMap` (default on) turns hints, the card and `go_to` off for one arm. A
+  map-on Lab arm learns every mission as it ends. Metrics count `mapMoves`, and comparisons report turns, time and
+  cost ratios. The navigation-heavy `map` suite (11 missions) and the warm-up-then-A/B protocol are in
+  `docs/LAB_AGENT_BRIEF.md` Phase 3.
+
+Built differently from the draft below: routes come from Learn's app knowledge store (which holds executable
+selectors), not from Atlas scenarios, and the card is shown when the Mind is actually in the app rather than predicted
+from the goal. Still open: recipes saved with a preferred route, and auto-learn for owner runs, which stays off until
+the A/B shows the map is not worse.
+
+*Draft:*
+
 - **Route hints in the prompt.** For the app(s) in the goal, the Mind gets a compact *map card*: base pages, known
   scenarios close to the goal, and dangerous rooms. That is at most about 40 lines, cached by prompt caching.
 - **`go_to(room)` tool.** Walks known doors with the fast path, **re-observing after each door** (the Fast Path settle
@@ -233,7 +256,7 @@ Glass → Apps → any app (even 0% mapped) → **Start mapping**:
 **Exit:** the owner asks 10 ordinary Instagram questions, taps Learn on them, and Glass shows Instagram's Home, Reels,
 Search, DMs and Profile with the doors between them. The run count and "learned" state agree on the phone and in Glass.
 
-### alpha.37: Map-guided runs
+### alpha.37: Map-guided runs — built (the A/B itself runs on the phone in the Lab)
 Map card in the prompt, the `go_to(room)` tool with verified door walking, confidence feedback and stale marking,
 Save-skill recipes running map-guided, the Lab `useMap` knob and an A/B on the core suite. **Exit:** a measured A/B;
 auto-learn defaults on only if map-guided is not worse.
