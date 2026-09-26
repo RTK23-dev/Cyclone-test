@@ -46,7 +46,7 @@ Each orch issues **three** agent handoffs (drafted under `orchestrators/<team>/a
 | 19 | [Marketplace](19-marketplace.md) | Recipes, connections, and the road to a community store |
 | 20 | [App mapping build plan](20-app-mapping-build-plan.md) | **Final build plan alpha.36–39**: Learn (36), map-guided runs (37, built), mapping missions |
 | 21 | [Mind hands and desk](21-mind-hands-and-desk.md) | **Final build plan**: reliable text delivery (alpha.39), mission desk scratchpad (alpha.40) |
-| 22 | [Glass Atlas and mapping missions](22-glass-atlas-and-mapping-missions.md) | **Final build plan alpha.38**: semantic-zoom map, coverage, mission control, safe mapping identities |
+| 22 | [Glass Atlas and mapping missions](22-glass-atlas-and-mapping-missions.md) | **Built in alpha.38**: semantic-zoom map, coverage, mission control, safe mapping identities |
 
 ## Identity
 

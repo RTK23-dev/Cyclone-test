@@ -66,6 +66,18 @@ card, and the `go_to` tool walks a route through the ordinary act path, re-readi
 stopping at the first surprise; walks and surprises feed back into the store. The Lab variant knob `useMap` A/B-tests
 it.
 
+### Mapping missions and the Glass Atlas (since 5.0.0-alpha.38)
+
+`mapping.start` takes an **identity**: `own` (the owner's account, look only: a sign-in wall ends the pass as
+`sign_in_needed`, and account/sign-in doors are refused) or `test` (sign-in screens allowed, secrets only through the
+Secrets Card). Glass sends a mission budget (10 min / 30 min / 2 h → `maxElapsedMs`, `maxNewScreens`); the phone
+enforces it. Mapper safety v2 (`mapping/crawl/MapperDoorRisk.kt`, called first by `ExistingGateMappingSafetyPort`)
+refuses checkable controls and rows holding one, state-changing actions and security areas, on top of the GATE
+classes. Glass derives **zones** client-side and deterministically from `atlas.get` (`apps/glass/src/maps/zones.ts`:
+breadth-first from the entry, one zone per base page, at most 8) and draws the overview, zone views, the Coverage tab,
+mission control (start sheet, live panel, report), the fleet (`#/apps`) and run replay. Glass still decides nothing.
+Plan: `Cyclone V5 plan/22-glass-atlas-and-mapping-missions.md`.
+
 ### Cyclone Marketplace (since 5.0.0-alpha.35)
 
 The phone's `market/` package is the one authority for the store: validated listings (data only; a recipe is a goal
