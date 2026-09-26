@@ -1,7 +1,7 @@
 {
   "name": "@cyclone/pc-companion",
   "private": true,
-  "version": "1.6.0-alpha.36",
+  "version": "1.6.0-alpha.37",
   "description": "Cyclone Glass",
   "type": "module",
   "scripts": {
