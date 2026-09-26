@@ -203,3 +203,57 @@ function count(raw: unknown): number {
 function str(raw: unknown): string {
   return typeof raw === "string" ? raw.trim() : "";
 }
+
+/** Fleet knowledge (plan 22 §4.4): what Cyclone can do with an app today, from facts the phone reported. */
+export type AppKnowledge = "ready" | "attention" | "partial" | "unmapped";
+
+export const KNOWLEDGE_LABEL: Record<AppKnowledge, string> = {
+  ready: "Routing ready",
+  attention: "Needs attention",
+  partial: "Partial",
+  unmapped: "Unmapped",
+};
+
+export const KNOWLEDGE_TONE: Record<AppKnowledge, "success" | "warning" | "accent" | "neutral"> = {
+  ready: "success",
+  attention: "warning",
+  partial: "accent",
+  unmapped: "neutral",
+};
+
+/**
+ * Routing ready = mapped on the installed version and nothing says otherwise (no remap needed, no failing last run,
+ * no critical scenario). Needs attention = something known is wrong. Partial = some map, not enough to route on.
+ */
+export function knowledgeOf(app: PhoneApp, lastRunFailed = false): AppKnowledge {
+  if (app.rooms === 0) return "unmapped";
+  if (app.needsRemap || app.mapStatus === "stale" || lastRunFailed || (app.scenarios?.critical ?? 0) > 0) return "attention";
+  if (app.mapStatus === "mapped") return "ready";
+  return "partial";
+}
+
+function sameVersion(a: AppVersion | null, b: AppVersion | null): boolean {
+  if (!a || !b) return false;
+  if (a.versionCode != null && b.versionCode != null) return a.versionCode === b.versionCode;
+  return !!a.versionName && a.versionName === b.versionName;
+}
+
+/**
+ * Share of the app's doors seen on the installed version (0..1), or null when unknown (web places, no versions).
+ * This is the honest "confidence" the fleet shows: a door last seen on an older build may have moved.
+ */
+export function currentShare(app: PhoneApp): number | null {
+  if (!app.doors || !app.installedVersion || !app.mappedVersions.length) return null;
+  const current = app.mappedVersions.find((v) => sameVersion(v, app.installedVersion));
+  return Math.min(1, (current?.doors ?? 0) / app.doors);
+}
+
+/** "Current" when the map was drawn on the installed version, "Map from v…" when only older versions are known. */
+export function freshnessOf(app: PhoneApp): { text: string; tone: "success" | "warning" | "neutral" } {
+  if (app.rooms === 0) return { text: "—", tone: "neutral" };
+  if (app.kind === "chrome-origin" || !app.installedVersion || !app.mappedVersions.length) {
+    return app.mapStatus === "stale" ? { text: "Stale", tone: "warning" } : { text: "Current", tone: "success" };
+  }
+  if (app.mappedVersions.some((v) => sameVersion(v, app.installedVersion)) && !app.needsRemap) return { text: "Current", tone: "success" };
+  return { text: `Map from ${versionLabel(app.mappedVersions[0] ?? null)}`, tone: "warning" };
+}

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { installMiniDom } from "./helpers/mini-dom.mjs";
 import { fakeGateway, flush, json, READY_DEVICE } from "./helpers/fakeGateway.mjs";
-import { catalogStats, filterApps, parseAppCatalog, sortApps, statusLabel, versionLabel } from "../.test-dist/services/apps.js";
+import { catalogStats, currentShare, filterApps, freshnessOf, knowledgeOf, parseAppCatalog, sortApps, statusLabel, versionLabel } from "../.test-dist/services/apps.js";
 import { createAppsPage } from "../.test-dist/pages/appsPage.js";
 import { GatewayClient } from "../.test-dist/services/gateway.js";
 import { parseDevice } from "../.test-dist/services/devices.js";
@@ -60,11 +60,13 @@ test("Apps page lists the phone's apps with status, versions and links into each
   assert.equal(rows.length, 3);
   assert.equal(rows[0].dataset.placeId, "package:com.google.android.gm");
   assert.equal(rows[0].getAttribute("href") ?? rows[0].href, "#/apps/package%3Acom.google.android.gm/map");
-  assert.match(rows[0].textContent, /Needs remap/);
-  assert.match(rows[0].textContent, /2026\.08\.01/);
-  assert.match(rows[0].textContent, /6 rooms · 11 doors/);
+  assert.match(rows[0].textContent, /Needs attention/);
+  assert.match(rows[0].textContent, /Map from 2026\.08\.01/);
+  assert.match(rows[0].textContent, /6 places · 11 doors/);
+  assert.match(rows[0].textContent, /Open/);
   assert.match(rows[1].textContent, /Web · https:\/\/www\.facebook\.com/);
-  assert.match(page.element.querySelector(".stats").textContent, /Needs remap/);
+  assert.match(page.element.querySelector(".stats").textContent, /Needs attention/);
+  assert.match(page.element.querySelector('a.app-row[data-place-id="package:com.example.clock"]').textContent, /Start mapping/);
   assert.equal(gateway.calls[0].auth, "Bearer t");
 
   const segments = page.element.querySelectorAll(".segment");
@@ -135,5 +137,46 @@ test("apps show scenario health counts when the phone sends them", async () => {
   await flush();
   assert.match(page.element.querySelector(`a.app-row[data-place-id="${GMAIL.placeId}"]`).textContent, /9 scenarios · 2 critical/);
   assert.doesNotMatch(page.element.querySelector(`a.app-row[data-place-id="${CLOCK.placeId}"]`).textContent, /scenario/);
+  page.destroy();
+});
+
+test("fleet knowledge, freshness and confidence come from the phone's facts only", () => {
+  const [gmail, clock, facebook] = parseAppCatalog({ apps: [GMAIL, CLOCK, FACEBOOK], truncated: false }).apps;
+  assert.equal(knowledgeOf(gmail), "attention", "needs remap");
+  assert.equal(knowledgeOf(clock), "unmapped");
+  assert.equal(knowledgeOf(facebook), "partial");
+  const fresh = { ...gmail, needsRemap: false, mappedVersions: [{ versionName: "2026.09.01", versionCode: 900, doors: 11 }, { versionName: "2026.08.01", versionCode: 880, doors: 9 }] };
+  assert.equal(knowledgeOf(fresh), "ready");
+  assert.equal(knowledgeOf(fresh, true), "attention", "a failing last run needs attention");
+  assert.equal(knowledgeOf({ ...fresh, scenarios: { passing: 1, warning: 0, critical: 1, untested: 0 } }), "attention");
+  assert.deepEqual(freshnessOf(fresh), { text: "Current", tone: "success" });
+  assert.deepEqual(freshnessOf(gmail), { text: "Map from 2026.08.01", tone: "warning" });
+  assert.equal(currentShare(fresh), 1);
+  assert.equal(currentShare(gmail), 0, "no door seen on the installed version");
+  assert.equal(currentShare(facebook), null, "web places are not versioned");
+});
+
+test("fleet shows the app being mapped live, sorts it first and sorts by least mapped", async () => {
+  installMiniDom();
+  const gateway = fakeGateway({
+    "GET /v1/devices/d1/apps": () => ({ apps: [CLOCK, GMAIL, FACEBOOK], truncated: false }),
+    "POST /v1/devices/d1/mapping/status": () => ({
+      mappingJobId: "job-12345678", placeId: FACEBOOK.placeId, persona: "mapping", sessionId: "default-foreground", displayId: 0,
+      state: "running", currentAtlasNodeId: null, newScreens: 2, verifiedMutations: 1, failureCode: null, atlasStatus: "partial",
+    }),
+  });
+  const page = createAppsPage(context(gateway.fetch), { name: "apps" });
+  await flush();
+  await flush();
+  const rows = () => page.element.querySelectorAll("a.app-row");
+  assert.equal(rows()[0].dataset.placeId, FACEBOOK.placeId, "the live app leads the Activity sort");
+  assert.match(rows()[0].textContent, /Mapping…/);
+  assert.match(rows()[0].textContent, /Watch/);
+  page.element.querySelectorAll(".segment").find((s) => s.dataset.id === "least").click();
+  assert.deepEqual(rows().map((r) => r.dataset.placeId), [FACEBOOK.placeId, GMAIL.placeId, CLOCK.placeId]);
+  page.element.querySelectorAll(".segment").find((s) => s.dataset.id === "name").click();
+  assert.deepEqual(rows().map((r) => r.dataset.placeId), [CLOCK.placeId, GMAIL.placeId, FACEBOOK.placeId]);
+  page.element.querySelectorAll(".segment").find((s) => s.dataset.id === "partial").click();
+  assert.equal(rows().length, 1);
   page.destroy();
 });

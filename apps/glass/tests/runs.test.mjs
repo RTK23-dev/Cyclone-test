@@ -529,3 +529,40 @@ test("a run the phone cannot learn from says why", async () => {
   assert.match(page.element.textContent, /from before Learn existed/);
   page.destroy();
 });
+
+test("replay steps through a run: prev/next, filmstrip, arrow keys and expected vs observed", async () => {
+  installMiniDom();
+  const navigated = [];
+  const run = { ...V2, steps: [V2.steps[0], { ...V2.steps[1], expectedRoomId: LIST }, { ...V2.steps[2], expectedRoomId: HOME, roomAfter: LIST, decisionSource: "map" }] };
+  const gateway = fakeGateway({ "GET /v1/devices/d1/runs/ai-run-1": () => run });
+  const page = createRunPage({ ...ctx(gateway.fetch), navigate: (route) => navigated.push(route) }, { name: "run", runId: "ai-run-1" });
+  await flush();
+  const replay = () => page.element.querySelector(".replay");
+  const count = () => replay().querySelector(".replay-count").textContent;
+  const start = count();
+  assert.match(start, /^Step \d of 3$/);
+  assert.equal(replay().querySelectorAll(".replay-frame").length, 3);
+
+  replay().querySelectorAll(".replay-frame")[1].click();
+  assert.equal(count(), "Step 2 of 3");
+  assert.match(replay().textContent, /Expected.*List screen · aaaa/);
+  assert.ok(replay().querySelector(".replay-cell.hit"), "arrived where the map said");
+  assert.match(replay().textContent, /SourceMap/);
+
+  replay().querySelector(".replay-next").click();
+  assert.equal(count(), "Step 3 of 3");
+  assert.ok(replay().querySelector(".replay-cell.miss"), "landed somewhere the map did not expect");
+  assert.match(replay().textContent, /landed elsewhere/);
+  assert.equal(replay().querySelector(".replay-next").disabled, true);
+
+  page.element.onkeydown({ key: "ArrowLeft", target: null, preventDefault() {} });
+  assert.equal(count(), "Step 2 of 3");
+  page.element.onkeydown({ key: "ArrowLeft", target: null, preventDefault() {} });
+  assert.equal(count(), "Step 1 of 3");
+  assert.equal(replay().querySelector(".replay-prev").disabled, true);
+
+  replay().querySelectorAll(".replay-frame")[2].click();
+  replay().querySelector(".replay-map-link").click();
+  assert.deepEqual(navigated.at(-1), { name: "app", placeId: FB, tab: "map", route: [HOME, LIST], runId: "ai-run-1" });
+  page.destroy();
+});

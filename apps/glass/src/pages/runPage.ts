@@ -321,6 +321,7 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
       }
       setChildren(
         detail,
+        replayStrip(step),
         head,
         el("h2", "step-title", step.title),
         facts,
@@ -334,6 +335,77 @@ export function createRunPage(ctx: GlassContext, route: Extract<Route, { name: "
           step.roomId ? "Before/after screenshots for each step arrive in a later alpha." : "This phone did not record rooms for this step (older Cyclone, or the step had no screen).",
         ),
       );
+    };
+
+    /**
+     * Replay (plan 22 §4.5): step through the run like a film. Structural only: what the map expected, what was done,
+     * where the phone landed, how it ended and who chose it. No screenshots.
+     */
+    const stepPosition = (index: number): number => run.steps.findIndex((s) => s.index === index);
+    const stepBy = (delta: number): void => {
+      const at = stepPosition(selected);
+      const next = run.steps[Math.max(0, Math.min(run.steps.length - 1, at + delta))];
+      if (next && next.index !== selected) select(next.index);
+    };
+    const replayStrip = (step: RunStep): HTMLElement => {
+      const strip = el("div", "replay");
+      const at = stepPosition(step.index);
+      const nav = el("div", "replay-nav");
+      const prev = actionButton("Previous", { variant: "ghost" });
+      prev.classList.add("replay-prev");
+      prev.disabled = at <= 0;
+      prev.addEventListener("click", () => stepBy(-1));
+      const next = actionButton("Next", { variant: "ghost" });
+      next.classList.add("replay-next");
+      next.disabled = at >= run.steps.length - 1;
+      next.addEventListener("click", () => stepBy(1));
+      nav.append(prev, el("span", "replay-count", `Step ${at + 1} of ${run.steps.length}`), next, el("span", "muted replay-hint", "← → to step"));
+      const film = el("div", "replay-film");
+      for (const s of run.steps) {
+        const frame = el("button", `replay-frame outcome-${s.outcome}${s.index === step.index ? " current" : ""}${s.decisionSource === "map" ? " map" : ""}`) as HTMLButtonElement;
+        frame.type = "button";
+        frame.dataset.step = String(s.index);
+        frame.title = `${s.index + 1}. ${s.title}`;
+        frame.textContent = String(s.index + 1);
+        frame.addEventListener("click", () => select(s.index));
+        film.append(frame);
+      }
+      const expected = step.expectedRoomId ? roomLabel(step.expectedRoomId) : step.decisionSource === "model" ? "The model chose; no map promise" : "—";
+      const observed = step.roomAfter ? roomLabel(step.roomAfter) : "not recorded";
+      const matched = step.expectedRoomId && step.roomAfter ? step.expectedRoomId === step.roomAfter : null;
+      const cells = el("div", "replay-cells");
+      const cell = (label: string, value: string, tone?: string): HTMLElement => {
+        const node = el("div", `replay-cell${tone ? ` ${tone}` : ""}`);
+        node.append(el("span", "replay-label", label), el("span", "replay-value", value));
+        return node;
+      };
+      cells.append(
+        cell("Expected", expected),
+        cell("Action", step.action ?? "—"),
+        cell("Observed", observed, matched === false ? "miss" : matched ? "hit" : undefined),
+        cell("Result", matched === false ? `${outcomeLabel(step.outcome)} · landed elsewhere` : outcomeLabel(step.outcome), step.outcome === "failed" ? "miss" : undefined),
+        cell("Source", step.decisionSource === "map" ? "Map" : step.decisionSource === "model" ? "Model" : step.action?.startsWith("mapper:") ? "Mapper" : "—"),
+      );
+      strip.append(nav, film, cells);
+      const rooms = [step.expectedRoomId, step.roomAfter, step.roomId].filter((room): room is string => !!room);
+      if (step.placeId && rooms.length) {
+        const show = el("a", "replay-map-link", "Show on the map") as HTMLAnchorElement;
+        show.href = "#";
+        show.addEventListener("click", (event) => {
+          event.preventDefault();
+          ctx.navigate({ name: "app", placeId: step.placeId!, tab: "map", route: [...new Set(rooms)], runId: run.runId });
+        });
+        strip.append(show);
+      }
+      return strip;
+    };
+    element.onkeydown = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      if (event.key === "ArrowRight") stepBy(1);
+      else if (event.key === "ArrowLeft") stepBy(-1);
+      else return;
+      event.preventDefault();
     };
 
     const openRoom = (step: RunStep): HTMLElement | null => {
