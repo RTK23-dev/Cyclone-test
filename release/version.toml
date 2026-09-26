@@ -1,5 +1,5 @@
 # Cyclone V5 alpha.38 dev1: mapping missions from Glass - own (look only) or test account, 10 min / 30 min / 2 h, live board and report; Atlas overview, fleet and run replay.
-# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested.
+# Owner-requested developer candidate; physical phone acceptance remains UNVERIFIED until tested. Release candidate.
 schema = 1
 product_version = "5.0.0-alpha.38.dev1"
 channel = "development"
